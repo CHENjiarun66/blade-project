@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+packages/*/node_modules/
+
+# Build outputs
+dist/
+*/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage/
+*.lcov
+
+# Package locks (keep yarn.lock for monorepo)
+package-lock.json
+packages/*/package-lock.json
+
+# Temp files
+*.tmp
+*.temp
+.tmp/
+
+# Backend
+blade-backend/target/
+blade-backend/*.log
+
+# Gradle
+blade-backend/.gradle/
+blade-backend/build/
+
+# Maven
+blade-backend/*.jar
+blade-backend/wrapper/
+
+# Misc
+.Trash/
+.TranslationPlugin/
+.adobe/
+.ai_completion/
