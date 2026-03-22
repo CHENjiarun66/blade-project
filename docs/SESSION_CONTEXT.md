@@ -14,8 +14,8 @@
 |------|---|
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
-| 当前阶段 | 后端核心模块完成，移动端骨架完成，blade-admin 规划完成 |
-| 下一步 | blade-admin 项目搭建 或 客户模块 (BE-401) |
+| 当前阶段 | 后端核心模块完成，移动端骨架完成，blade-admin 骨架完成，业务页面开发中 |
+| 下一步 | blade-admin 业务页面开发（订单/库存/商品/客户） |
 
 ---
 
@@ -26,7 +26,7 @@
 | BladeProject 主目录 | ../ |
 | 后端 | ../blade-backend/ |
 | 移动端 | ../blade-mobile/ |
-| PC 管理端 | ../blade-admin/ (待搭建) |
+| PC 管理端 | ../blade-admin/ |
 | 共享包 | ../packages/types/ (已完成) |
 | 文档中心 | ./ |
 
@@ -61,7 +61,8 @@
 | 移动端骨架搭建 | ✅ 完成 | FE-001, FE-005~FE-007 完成 |
 | 移动端页面开发 | ⏳ 进行中 | FE-101~FE-103 等页面骨架完成 |
 | packages/types 共享类型 | ✅ 完成 | auth/order/inventory/product 类型定义 |
-| PC 管理端规划 | ✅ 完成 | blade-admin 架构方案确定 |
+| PC 管理端骨架搭建 | ✅ 完成 | blade-admin 从零搭建完成，登录/布局/仪表盘已完成 |
+| PC 管理端业务开发 | ⏳ 进行中 | BA-201~BA-603 待开发 |
 | 客户模块开发 | ⏳ 待开始 | BE-401 |
 | 看板系统开发 | ⏳ 待开始 | BE-501 ~ BE-503 |
 
@@ -94,6 +95,23 @@
 ## 当前阻塞问题
 
 （暂无）
+
+---
+
+## 经验教训记录（2026-03-22）
+
+### vben-admin 模板问题
+
+**问题**：blade-admin 使用 vben-admin 模板时，Node 22.22.0 下 sass-embedded 报错崩溃
+
+**解决**：设置 `SASS_LOGGER=javascript` 环境变量后再运行
+
+**教训**：
+1. 推荐技术方案前必须实际测试
+2. 复杂 monorepo 迁移难度高
+3. Agent Teams 讨论结论必须包含验证结果
+
+详见：[reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md)
 
 ---
 

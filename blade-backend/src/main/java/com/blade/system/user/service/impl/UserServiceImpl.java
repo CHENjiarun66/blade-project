@@ -74,6 +74,16 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public User getByUsername(String username) {
+        return userMapper.selectByUsername(username);
+    }
+
+    @Override
+    public List<Role> getRolesByUserId(Long userId) {
+        return roleMapper.selectByUserId(userId);
+    }
+
+    @Override
     @Transactional
     public Long create(UserCreateDTO dto) {
         LambdaQueryWrapper<User> checkWrapper = new LambdaQueryWrapper<>();

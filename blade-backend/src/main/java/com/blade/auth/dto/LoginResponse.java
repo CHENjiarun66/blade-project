@@ -2,6 +2,7 @@ package com.blade.auth.dto;
 
 public class LoginResponse {
     private String token;
+    private String accessToken;  // vben-admin 前端期望的字段名
     private String refreshToken;
     private long expiresIn;
 
@@ -9,6 +10,7 @@ public class LoginResponse {
 
     public LoginResponse(String token, String refreshToken, long expiresIn) {
         this.token = token;
+        this.accessToken = token;  // 保持一致
         this.refreshToken = refreshToken;
         this.expiresIn = expiresIn;
     }
@@ -19,6 +21,14 @@ public class LoginResponse {
 
     public void setToken(String token) {
         this.token = token;
+    }
+
+    public String getAccessToken() {
+        return accessToken;
+    }
+
+    public void setAccessToken(String accessToken) {
+        this.accessToken = accessToken;
     }
 
     public String getRefreshToken() {

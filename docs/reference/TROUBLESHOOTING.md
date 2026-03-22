@@ -4,6 +4,61 @@
 
 ---
 
+## 零、经验教训（2026-03-22）
+
+### 0.1 vben-admin 模板兼容性问题
+
+**问题**：blade-admin 使用 vben-admin 模板时，Node 22.22.0 下 sass-embedded 报错崩溃
+
+**症状**：
+```
+Error: write EPIPE
+sass-embedded: VM initialization failed: Current Mac OS X version 13.0 is lower than minimum supported version 14.0
+[sass] Tried writing to closed dispatcher
+```
+
+**原因**：
+1. vben-admin 是大型 monorepo，内部依赖复杂
+2. sass-embedded 包与 Node 22 的兼容性问题
+3. 推荐前未在目标环境实际测试
+
+**解决**：
+```bash
+# 设置 SASS_LOGGER 环境变量
+SASS_LOGGER=javascript pnpm dev
+```
+
+**教训**：
+1. **推荐前必须测试**：任何技术方案都必须在实际环境测试验证后才能推荐
+2. **评估模板复杂度**：大型 monorepo（如 vben-admin）迁移难度高，依赖兼容性问题多
+3. **Agent Teams 讨论要有验证环节**：讨论结论需要实际验证，不能只停留在方案分析
+
+**经验规则**：
+- 推荐第三方模板/框架前，必须在目标 Node 版本下实际运行测试
+- 复杂项目（monorepo、大量 peer dependencies）需要额外评估迁移风险
+- 讨论结论应该包含"验证结果"而不是只包含"方案建议"
+
+### 0.2 最终决策：放弃 vben-admin，从零搭建
+
+**决策时间**：2026-03-22
+
+**原因**：
+1. vben-admin 与 Node 22 兼容性差（sass-embedded 问题无法彻底解决）
+2. 大型 monorepo 架构复杂，AI 调试成本高
+3. 用户需求：从零搭建、代码可控、全 AI 驱动
+
+**新方案**：
+- Vue 3 + Vite + TypeScript（基础框架）
+- Element Plus（UI 组件库）
+- TailwindCSS（样式增强 + 深色主题）
+- 从零搭建，保持代码简洁可控
+
+**教训**：
+- AI 开发模式适合简洁代码架构，不适合复杂模板
+- 模板好看 vs 可维护性，需要权衡
+
+---
+
 ## 一、常见问题
 
 ### 1.1 后端 CORS 问题

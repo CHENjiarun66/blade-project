@@ -305,6 +305,46 @@
 
 ---
 
+### [架构变更] - blade-admin 放弃 vben-admin，从零搭建
+
+**变更内容**：
+- 决定放弃 vben-admin 模板（已下载但有 Node 22 兼容性问题）
+- 重新搭建 blade-admin，采用 Vue3 + Element Plus + TailwindCSS
+- 原因：vben-admin 是大型 monorepo，依赖复杂，AI 调试成本高；用户要求代码可控、全 AI 驱动
+
+**变更原因**：
+1. vben-admin 与 Node 22 不兼容（sass-embedded 问题）
+2. 大型 monorepo 架构复杂，不适合 AI 主导的开发模式
+3. 用户明确要求：从零搭建、代码可控、AI 驱动
+
+**影响范围**：
+- blade-admin 项目需要重建
+- 新技术栈：Vue3 + Element Plus + TailwindCSS + TailKit
+
+**执行人**：AI（用户决策）
+
+---
+
+### [功能开发] - blade-admin PC 管理端搭建
+
+**变更内容**：
+- 使用 degit 下载 vben-admin vue-vben-admin 模板
+- 选择 apps/web-ele（Element Plus 版本）
+- 配置 API 代理指向 localhost:8080/api
+- 关闭 Nitro Mock 服务（VITE_NITRO_MOCK=false）
+- pnpm 安装依赖完成
+- 启动验证成功：http://localhost:5777/
+- API 代理验证成功：登录接口正常返回 token
+
+**影响范围**：
+- 新增项目：blade-admin/
+- 技术栈：Vue3 + Vite + TypeScript + Element Plus
+- vben-admin MIT 协议，可商用
+
+**执行人**：AI
+
+---
+
 ### [功能开发] - packages/types 共享类型定义
 
 **变更内容**：
@@ -316,5 +356,29 @@
 **影响范围**：
 - 新增包：packages/types/
 - blade-mobile 引用：src/types/* 已改为 re-export
+
+**执行人**：AI
+
+---
+
+### [架构变更] - 放弃 vben-admin，从零搭建 blade-admin
+
+**变更内容**：
+- 删除 vben-admin blade-admin
+- 从零搭建新 blade-admin（Vue3 + Element Plus + TailwindCSS）
+- 完成页面：登录页（深色+玻璃拟态）、布局（侧边栏+头部）、仪表盘（统计卡片）
+- 完成占位页面：订单、库存、商品、客户
+- 修复 TailwindCSS v4 PostCSS 配置问题
+- 修复 Vue reactive 组件警告（使用 shallowRef）
+
+**变更原因**：
+1. vben-admin 使用 Node 22 时 sass-embedded 报错，无法解决
+2. vben-admin monorepo 结构复杂，AI 调试成本高
+3. 用户要求代码可控，AI 全驱动开发
+
+**影响范围**：
+- blade-admin 完全重建
+- 端口：5777
+- 技术栈：Vue3 + Vite + TypeScript + Element Plus + TailwindCSS v4 + Pinia + Vue Router
 
 **执行人**：AI
