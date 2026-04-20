@@ -23,8 +23,23 @@ public class ProductVO {
     @Schema(description = "分类名称")
     private String categoryName;
 
+    @Schema(description = "供应商ID")
+    private Long supplierId;
+
+    @Schema(description = "供应商名称")
+    private String supplierName;
+
     @Schema(description = "单位")
     private String unit;
+
+    @Schema(description = "进货价（成本参考）")
+    private BigDecimal costPrice;
+
+    @Schema(description = "批发价")
+    private BigDecimal wholesalePrice;
+
+    @Schema(description = "重量")
+    private BigDecimal weight;
 
     @Schema(description = "描述")
     private String description;
@@ -32,8 +47,8 @@ public class ProductVO {
     @Schema(description = "商品图片")
     private String imageUrl;
 
-    @Schema(description = "单价")
-    private BigDecimal price;
+    @Schema(description = "备注")
+    private String remark;
 
     @Schema(description = "状态")
     private Integer status;
@@ -63,14 +78,24 @@ public class ProductVO {
     public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
     public String getCategoryName() { return categoryName; }
     public void setCategoryName(String categoryName) { this.categoryName = categoryName; }
+    public Long getSupplierId() { return supplierId; }
+    public void setSupplierId(Long supplierId) { this.supplierId = supplierId; }
+    public String getSupplierName() { return supplierName; }
+    public void setSupplierName(String supplierName) { this.supplierName = supplierName; }
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
+    public BigDecimal getCostPrice() { return costPrice; }
+    public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice; }
+    public BigDecimal getWholesalePrice() { return wholesalePrice; }
+    public void setWholesalePrice(BigDecimal wholesalePrice) { this.wholesalePrice = wholesalePrice; }
+    public BigDecimal getWeight() { return weight; }
+    public void setWeight(BigDecimal weight) { this.weight = weight; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
-    public BigDecimal getPrice() { return price; }
-    public void setPrice(BigDecimal price) { this.price = price; }
+    public String getRemark() { return remark; }
+    public void setRemark(String remark) { this.remark = remark; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
     public List<ColorVO> getColors() { return colors; }
@@ -89,6 +114,7 @@ public class ProductVO {
         private Long id;
         private String colorCode;
         private String colorName;
+        private Integer status;
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -96,6 +122,8 @@ public class ProductVO {
         public void setColorCode(String colorCode) { this.colorCode = colorCode; }
         public String getColorName() { return colorName; }
         public void setColorName(String colorName) { this.colorName = colorName; }
+        public Integer getStatus() { return status; }
+        public void setStatus(Integer status) { this.status = status; }
     }
 
     @Schema(description = "尺码VO")
@@ -103,6 +131,7 @@ public class ProductVO {
         private Long id;
         private String sizeCode;
         private Integer sort;
+        private Integer status;
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -110,6 +139,8 @@ public class ProductVO {
         public void setSizeCode(String sizeCode) { this.sizeCode = sizeCode; }
         public Integer getSort() { return sort; }
         public void setSort(Integer sort) { this.sort = sort; }
+        public Integer getStatus() { return status; }
+        public void setStatus(Integer status) { this.status = status; }
     }
 
     @Schema(description = "SKU VO")

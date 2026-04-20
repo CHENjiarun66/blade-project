@@ -20,9 +20,21 @@ public class ProductUpdateDTO {
     @Schema(description = "分类ID")
     private Long categoryId;
 
+    @Schema(description = "供应商ID")
+    private Long supplierId;
+
     @Size(max = 10, message = "单位最多10位")
     @Schema(description = "单位")
     private String unit;
+
+    @Schema(description = "进货价（成本参考）")
+    private BigDecimal costPrice;
+
+    @Schema(description = "批发价")
+    private BigDecimal wholesalePrice;
+
+    @Schema(description = "重量（用于物流/运费计算）")
+    private BigDecimal weight;
 
     @Schema(description = "描述")
     private String description;
@@ -30,8 +42,8 @@ public class ProductUpdateDTO {
     @Schema(description = "商品图片URL")
     private String imageUrl;
 
-    @Schema(description = "单价")
-    private BigDecimal price;
+    @Schema(description = "备注")
+    private String remark;
 
     @Schema(description = "状态: 1启用 0禁用")
     private Integer status;
@@ -48,14 +60,22 @@ public class ProductUpdateDTO {
     public void setName(String name) { this.name = name; }
     public Long getCategoryId() { return categoryId; }
     public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
+    public Long getSupplierId() { return supplierId; }
+    public void setSupplierId(Long supplierId) { this.supplierId = supplierId; }
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
+    public BigDecimal getCostPrice() { return costPrice; }
+    public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice; }
+    public BigDecimal getWholesalePrice() { return wholesalePrice; }
+    public void setWholesalePrice(BigDecimal wholesalePrice) { this.wholesalePrice = wholesalePrice; }
+    public BigDecimal getWeight() { return weight; }
+    public void setWeight(BigDecimal weight) { this.weight = weight; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
-    public BigDecimal getPrice() { return price; }
-    public void setPrice(BigDecimal price) { this.price = price; }
+    public String getRemark() { return remark; }
+    public void setRemark(String remark) { this.remark = remark; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
     public List<Long> getColorIds() { return colorIds; }

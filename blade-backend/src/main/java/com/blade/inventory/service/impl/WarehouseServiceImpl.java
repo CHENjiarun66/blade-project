@@ -13,6 +13,7 @@ import com.blade.inventory.mapper.WarehouseMapper;
 import com.blade.inventory.service.WarehouseService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,15 @@ public class WarehouseServiceImpl implements WarehouseService {
         pageResult.setCurrent(result.getCurrent());
         pageResult.setPages(result.getPages());
         return pageResult;
+    }
+
+    @Override
+    public List<WarehouseVO> listAll() {
+        LambdaQueryWrapper<Warehouse> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Warehouse::getTenantId, TenantContext.getTenantId());
+        wrapper.orderByDesc(Warehouse::getId);
+        List<Warehouse> warehouses = warehouseMapper.selectList(wrapper);
+        return warehouses.stream().map(this::convertToVO).toList();
     }
 
     @Override

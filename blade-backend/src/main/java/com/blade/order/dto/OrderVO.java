@@ -15,12 +15,32 @@ public class OrderVO {
     private String customerPhone;
     private String customerAddress;
     private BigDecimal totalAmount;
+    private BigDecimal originalAmount;
+    private BigDecimal refundAmount;
     private BigDecimal paidAmount;
+    // 支付状态: 0未付款 1已付定金 2已付全款
+    private Integer paymentStatus;
+    private String paymentStatusName;
+    private String adjustmentStatus;
+    // 定金金额
+    private BigDecimal depositAmount;
+    // 是否需要送货: 0否 1是
+    private Integer needDelivery;
+    // 送货地址
+    private String deliveryAddress;
+    // 是否已送货: 0否 1是
+    private Integer isDelivered;
+    // 送货时间
+    private LocalDateTime deliveredAt;
     private Long warehouseId;
     private String warehouseName;
+    private Long salesmanId;
+    private String salesmanName;
     private Integer status;
     private String statusName;
     private String remark;
+    // 订单图片，JSON数组格式
+    private String images;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private LocalDateTime payTime;
@@ -43,18 +63,44 @@ public class OrderVO {
     public void setCustomerAddress(String customerAddress) { this.customerAddress = customerAddress; }
     public BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
+    public BigDecimal getOriginalAmount() { return originalAmount; }
+    public void setOriginalAmount(BigDecimal originalAmount) { this.originalAmount = originalAmount; }
+    public BigDecimal getRefundAmount() { return refundAmount; }
+    public void setRefundAmount(BigDecimal refundAmount) { this.refundAmount = refundAmount; }
     public BigDecimal getPaidAmount() { return paidAmount; }
     public void setPaidAmount(BigDecimal paidAmount) { this.paidAmount = paidAmount; }
+    public Integer getPaymentStatus() { return paymentStatus; }
+    public void setPaymentStatus(Integer paymentStatus) { this.paymentStatus = paymentStatus; }
+    public String getPaymentStatusName() { return paymentStatusName; }
+    public void setPaymentStatusName(String paymentStatusName) { this.paymentStatusName = paymentStatusName; }
+    public String getAdjustmentStatus() { return adjustmentStatus; }
+    public void setAdjustmentStatus(String adjustmentStatus) { this.adjustmentStatus = adjustmentStatus; }
+    public BigDecimal getDepositAmount() { return depositAmount; }
+    public void setDepositAmount(BigDecimal depositAmount) { this.depositAmount = depositAmount; }
+    public Integer getNeedDelivery() { return needDelivery; }
+    public void setNeedDelivery(Integer needDelivery) { this.needDelivery = needDelivery; }
+    public String getDeliveryAddress() { return deliveryAddress; }
+    public void setDeliveryAddress(String deliveryAddress) { this.deliveryAddress = deliveryAddress; }
+    public Integer getIsDelivered() { return isDelivered; }
+    public void setIsDelivered(Integer isDelivered) { this.isDelivered = isDelivered; }
+    public LocalDateTime getDeliveredAt() { return deliveredAt; }
+    public void setDeliveredAt(LocalDateTime deliveredAt) { this.deliveredAt = deliveredAt; }
     public Long getWarehouseId() { return warehouseId; }
     public void setWarehouseId(Long warehouseId) { this.warehouseId = warehouseId; }
     public String getWarehouseName() { return warehouseName; }
     public void setWarehouseName(String warehouseName) { this.warehouseName = warehouseName; }
+    public Long getSalesmanId() { return salesmanId; }
+    public void setSalesmanId(Long salesmanId) { this.salesmanId = salesmanId; }
+    public String getSalesmanName() { return salesmanName; }
+    public void setSalesmanName(String salesmanName) { this.salesmanName = salesmanName; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
     public String getStatusName() { return statusName; }
     public void setStatusName(String statusName) { this.statusName = statusName; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
+    public String getImages() { return images; }
+    public void setImages(String images) { this.images = images; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }
@@ -74,18 +120,28 @@ public class OrderVO {
     public static class OrderItemVO {
         private Long id;
         private Long skuId;
+        private Long warehouseId;
+        private String warehouseName;
         private String skuCode;
         private String productName;
         private String colorName;
         private String sizeName;
         private BigDecimal price;
         private Integer quantity;
+        private Integer plannedQuantity;
+        private Integer allocatedQuantity;
+        private Integer outQuantity;
+        private String adjustmentRemark;
         private BigDecimal subtotal;
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
         public Long getSkuId() { return skuId; }
         public void setSkuId(Long skuId) { this.skuId = skuId; }
+        public Long getWarehouseId() { return warehouseId; }
+        public void setWarehouseId(Long warehouseId) { this.warehouseId = warehouseId; }
+        public String getWarehouseName() { return warehouseName; }
+        public void setWarehouseName(String warehouseName) { this.warehouseName = warehouseName; }
         public String getSkuCode() { return skuCode; }
         public void setSkuCode(String skuCode) { this.skuCode = skuCode; }
         public String getProductName() { return productName; }
@@ -98,6 +154,14 @@ public class OrderVO {
         public void setPrice(BigDecimal price) { this.price = price; }
         public Integer getQuantity() { return quantity; }
         public void setQuantity(Integer quantity) { this.quantity = quantity; }
+        public Integer getPlannedQuantity() { return plannedQuantity; }
+        public void setPlannedQuantity(Integer plannedQuantity) { this.plannedQuantity = plannedQuantity; }
+        public Integer getAllocatedQuantity() { return allocatedQuantity; }
+        public void setAllocatedQuantity(Integer allocatedQuantity) { this.allocatedQuantity = allocatedQuantity; }
+        public Integer getOutQuantity() { return outQuantity; }
+        public void setOutQuantity(Integer outQuantity) { this.outQuantity = outQuantity; }
+        public String getAdjustmentRemark() { return adjustmentRemark; }
+        public void setAdjustmentRemark(String adjustmentRemark) { this.adjustmentRemark = adjustmentRemark; }
         public BigDecimal getSubtotal() { return subtotal; }
         public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
     }

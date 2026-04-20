@@ -157,8 +157,8 @@ VALUES
 -- ----------------------------
 -- 插入测试商品
 -- ----------------------------
-INSERT INTO `product` (`id`, `product_code`, `name`, `category_id`, `unit`, `price`, `status`, `tenant_id`)
+INSERT INTO `product` (`id`, `product_code`, `name`, `category_id`, `unit`, `description`, `status`, `tenant_id`)
 VALUES
-  (1, 'P001', '经典T恤', 1, '件', 99.00, 1, 1),
-  (2, 'P002', '休闲裤', 2, '条', 199.00, 1, 1),
-  (3, 'P003', '商务衬衫', 1, '件', 299.00, 1, 1);
+  (1, 'P001', '经典T恤', 1, '件', '默认测试商品', 1, 1),
+  (2, 'P002', '休闲裤', 2, '条', '默认测试商品', 1, 1),
+  (3, 'P003', '商务衬衫', 1, '件', '默认测试商品', 1, 1);

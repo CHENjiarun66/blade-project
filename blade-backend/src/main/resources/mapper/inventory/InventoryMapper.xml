@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.blade.inventory.mapper.InventoryMapper">
+
+    <resultMap id="InventoryVOResultMap" type="com.blade.inventory.dto.InventoryVO">
+        <id property="id" column="id"/>
+        <result property="skuId" column="sku_id"/>
+        <result property="warehouseId" column="warehouse_id"/>
+        <result property="quantity" column="quantity"/>
+        <result property="reservedQty" column="reserved_qty"/>
+        <result property="globalReservedQty" column="global_reserved_qty"/>
+        <result property="alertThreshold" column="alert_threshold"/>
+        <result property="version" column="version"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="skuCode" column="sku_code"/>
+        <result property="price" column="price"/>
+        <result property="productName" column="product_name"/>
+        <result property="categoryId" column="category_id"/>
+        <result property="colorName" column="color_name"/>
+        <result property="sizeName" column="size_name"/>
+        <result property="warehouseName" column="warehouse_name"/>
+    </resultMap>
+
+    <select id="selectInventoryList" resultMap="InventoryVOResultMap">
+        SELECT i.id, i.sku_id, i.warehouse_id, i.quantity, i.reserved_qty, i.global_reserved_qty,
+               i.alert_threshold, i.version, i.tenant_id, i.update_time,
+               ps.sku_code, ps.price, p.name AS product_name, p.category_id,
+               pc.color_name, psz.size_code AS size_name, w.warehouse_name
+        FROM inventory i
+        INNER JOIN product_sku ps ON i.sku_id = ps.id AND i.tenant_id = ps.tenant_id
+        INNER JOIN product p ON ps.product_id = p.id AND ps.tenant_id = p.tenant_id
+        LEFT OUTER JOIN product_color pc ON ps.color_id = pc.id AND ps.tenant_id = pc.tenant_id
+        LEFT OUTER JOIN product_size psz ON ps.size_id = psz.id AND ps.tenant_id = psz.tenant_id
+        LEFT OUTER JOIN warehouse w ON i.warehouse_id = w.id AND i.tenant_id = w.tenant_id
+        WHERE i.tenant_id = #{tenantId}
+        <if test="warehouseId != null">
+            AND i.warehouse_id = #{warehouseId}
+        </if>
+        <if test="alertStatus == 'below'">
+            AND (i.quantity - i.reserved_qty - i.global_reserved_qty) &lt; i.alert_threshold
+        </if>
+        <if test="alertStatus == 'normal'">
+            AND (i.quantity - i.reserved_qty - i.global_reserved_qty) &gt;= i.alert_threshold
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (p.name LIKE CONCAT('%', #{keyword}, '%') OR ps.sku_code LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY i.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countInventoryList" resultType="long">
+        SELECT COUNT(*)
+        FROM inventory i
+        INNER JOIN product_sku ps ON i.sku_id = ps.id AND i.tenant_id = ps.tenant_id
+        INNER JOIN product p ON ps.product_id = p.id AND ps.tenant_id = p.tenant_id
+        WHERE i.tenant_id = #{tenantId}
+        <if test="warehouseId != null">
+            AND i.warehouse_id = #{warehouseId}
+        </if>
+        <if test="alertStatus == 'below'">
+            AND (i.quantity - i.reserved_qty - i.global_reserved_qty) &lt; i.alert_threshold
+        </if>
+        <if test="alertStatus == 'normal'">
+            AND (i.quantity - i.reserved_qty - i.global_reserved_qty) &gt;= i.alert_threshold
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (p.name LIKE CONCAT('%', #{keyword}, '%') OR ps.sku_code LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </select>
+
+</mapper>

@@ -294,6 +294,9 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 ## 十、开发检查清单
 
+> **⚠️ 重要声明：所有功能模块开发必须执行测试用例，验证通过才能交付。**
+> 新 AI 或后续接手者必须按照 TEST_TEMPLATE.md 模板为每个模块编写测试用例。
+
 每次完成模块开发后：
 
 - [ ] 功能正常运行，无 console 错误
@@ -301,7 +304,10 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 - [ ] API 代理正常（前后端联调）
 - [ ] 组件抽取机会识别
 - [ ] 文档同步（03-TASKS.md、05-CHANGELOG.md）
-- [ ] 浏览器实际测试（不只测试 API）
+- [ ] **必须**为当前模块编写测试用例（复制 TEST_TEMPLATE.md）
+- [ ] **必须**执行测试用例并记录结果
+- [ ] **必须**截图测试（需浏览器测试的功能模块）
+- [ ] 测试记录更新
 
 ---
 
@@ -313,3 +319,5 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 | [../docs/02-PRD.md](../docs/02-PRD.md) | 产品需求文档 |
 | [../docs/03-TASKS.md](../docs/03-TASKS.md) | 开发任务清单 |
 | [../docs/05-CHANGELOG.md](../docs/05-CHANGELOG.md) | 变更记录 |
+| [TEST_CASES.md](./TEST_CASES.md) | 测试用例（登录页示例） |
+| [TEST_TEMPLATE.md](./TEST_TEMPLATE.md) | 测试用例模板（包含浏览器截图测试规范） |

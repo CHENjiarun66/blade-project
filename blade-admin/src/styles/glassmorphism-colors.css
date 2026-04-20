@@ -1,0 +1,95 @@
+/* ==========================================================================
+   Glassmorphism Color System - Purple/Blue/Pink Gradient Theme
+   TailwindCSS v4 @theme extension
+   ========================================================================== */
+
+@theme {
+  /* ---------- 渐变背景色 ---------- */
+  --color-gradient-start: #667eea;      /* 紫色起始 */
+  --color-gradient-mid: #764ba2;         /* 紫色中间 */
+  --color-gradient-end: #f093fb;        /* 粉色结束 */
+
+  /* 预定义渐变 */
+  --gradient-glass: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  --gradient-glass-soft: linear-gradient(135deg, rgba(102, 126, 234, 0.8) 0%, rgba(118, 75, 162, 0.8) 50%, rgba(240, 147, 251, 0.8) 100%);
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-success: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  --gradient-warning: linear-gradient(135deg, #f12711 0%, #f5af19 100%);
+  --gradient-danger: linear-gradient(135deg, #c471ed 0%, #f64f59 100%);
+  --gradient-info: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+
+  /* ---------- 玻璃卡片颜色 ---------- */
+  --color-glass-bg: rgba(255, 255, 255, 0.1);
+  --color-glass-bg-hover: rgba(255, 255, 255, 0.15);
+  --color-glass-bg-strong: rgba(255, 255, 255, 0.2);
+  --color-glass-border: rgba(255, 255, 255, 0.2);
+  --color-glass-border-strong: rgba(255, 255, 255, 0.3);
+
+  /* 深色玻璃（侧边栏用） */
+  --color-glass-dark-bg: rgba(26, 26, 46, 0.6);
+  --color-glass-dark-bg-hover: rgba(26, 26, 46, 0.8);
+  --color-glass-dark-border: rgba(255, 255, 255, 0.1);
+  --color-glass-dark-border-active: rgba(255, 255, 255, 0.25);
+
+  /* ---------- 文字颜色层次 ---------- */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.7);
+  --color-text-tertiary: rgba(255, 255, 255, 0.5);
+  --color-text-muted: rgba(255, 255, 255, 0.35);
+
+  /* 深色文字（用于亮色背景上） */
+  --color-text-dark: #1a1a2e;
+  --color-text-dark-secondary: rgba(26, 26, 46, 0.7);
+  --color-text-dark-tertiary: rgba(26, 26, 46, 0.5);
+
+  /* ---------- 功能色 ---------- */
+  --color-primary: #667eea;
+  --color-primary-hover: #5a6fd6;
+  --color-success: #38ef7d;
+  --color-warning: #f5af19;
+  --color-danger: #f64f59;
+  --color-info: #4facfe;
+
+  /* ---------- 阴影 ---------- */
+  --shadow-glass: 0 8px 32px rgba(102, 126, 234, 0.3);
+  --shadow-glass-hover: 0 12px 48px rgba(102, 126, 234, 0.4);
+  --shadow-glow: 0 0 40px rgba(240, 147, 251, 0.4);
+
+  /* ---------- 模糊 ---------- */
+  --blur-glass: blur(16px);
+  --blur-glass-heavy: blur(24px);
+}
+
+/* ==========================================================================
+   CSS Variables (for use outside Tailwind @theme)
+   ========================================================================== */
+
+:root {
+  /* 渐变色 */
+  --gm-gradient-start: #667eea;
+  --gm-gradient-mid: #764ba2;
+  --gm-gradient-end: #f093fb;
+  --gm-gradient-main: linear-gradient(135deg, var(--gm-gradient-start) 0%, var(--gm-gradient-mid) 50%, var(--gm-gradient-end) 100%);
+
+  /* 玻璃色 */
+  --gm-glass-bg: rgba(255, 255, 255, 0.1);
+  --gm-glass-bg-hover: rgba(255, 255, 255, 0.15);
+  --gm-glass-bg-strong: rgba(255, 255, 255, 0.2);
+  --gm-glass-border: rgba(255, 255, 255, 0.2);
+
+  /* 文字色 */
+  --gm-text-primary: #ffffff;
+  --gm-text-secondary: rgba(255, 255, 255, 0.7);
+  --gm-text-tertiary: rgba(255, 255, 255, 0.5);
+
+  /* 模糊 */
+  --gm-blur: blur(16px);
+  --gm-blur-heavy: blur(24px);
+}
+
+/* ---------- 深色主题覆盖 ---------- */
+.dark {
+  --gm-glass-bg: rgba(0, 0, 0, 0.3);
+  --gm-glass-bg-hover: rgba(0, 0, 0, 0.4);
+  --gm-glass-border: rgba(255, 255, 255, 0.1);
+}

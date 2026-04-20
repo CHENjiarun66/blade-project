@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@TableName("order_item")
+@TableName("sale_order_item")
 public class OrderItem {
 
     @TableId(type = IdType.AUTO)
@@ -15,6 +15,9 @@ public class OrderItem {
 
     @TableField("sku_id")
     private Long skuId;
+
+    @TableField("warehouse_id")
+    private Long warehouseId;
 
     @TableField("sku_code")
     private String skuCode;
@@ -32,6 +35,30 @@ public class OrderItem {
 
     private Integer quantity;
 
+    /**
+     * 计划数量（原订单数量）
+     */
+    @TableField("planned_quantity")
+    private Integer plannedQuantity;
+
+    /**
+     * 配货数量（调整后数量）
+     */
+    @TableField("allocated_quantity")
+    private Integer allocatedQuantity;
+
+    /**
+     * 已出库数量
+     */
+    @TableField("out_quantity")
+    private Integer outQuantity;
+
+    /**
+     * 调整说明
+     */
+    @TableField("adjustment_remark")
+    private String adjustmentRemark;
+
     private BigDecimal subtotal;
 
     @TableField("tenant_id")
@@ -46,6 +73,8 @@ public class OrderItem {
     public void setOrderId(Long orderId) { this.orderId = orderId; }
     public Long getSkuId() { return skuId; }
     public void setSkuId(Long skuId) { this.skuId = skuId; }
+    public Long getWarehouseId() { return warehouseId; }
+    public void setWarehouseId(Long warehouseId) { this.warehouseId = warehouseId; }
     public String getSkuCode() { return skuCode; }
     public void setSkuCode(String skuCode) { this.skuCode = skuCode; }
     public String getProductName() { return productName; }
@@ -64,4 +93,12 @@ public class OrderItem {
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
+    public Integer getPlannedQuantity() { return plannedQuantity; }
+    public void setPlannedQuantity(Integer plannedQuantity) { this.plannedQuantity = plannedQuantity; }
+    public Integer getAllocatedQuantity() { return allocatedQuantity; }
+    public void setAllocatedQuantity(Integer allocatedQuantity) { this.allocatedQuantity = allocatedQuantity; }
+    public Integer getOutQuantity() { return outQuantity; }
+    public void setOutQuantity(Integer outQuantity) { this.outQuantity = outQuantity; }
+    public String getAdjustmentRemark() { return adjustmentRemark; }
+    public void setAdjustmentRemark(String adjustmentRemark) { this.adjustmentRemark = adjustmentRemark; }
 }

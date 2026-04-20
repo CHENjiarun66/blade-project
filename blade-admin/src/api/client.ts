@@ -24,9 +24,22 @@ client.interceptors.request.use(
 // 响应拦截器
 client.interceptors.response.use(
   (response) => {
-    return response.data
+    const data = response.data
+    // 检查业务状态码（只有明确返回 code 且不等于 200 时才算错误）
+    if (data && typeof data.code === 'number' && data.code !== 200) {
+      // 创建一个带有 response 属性的错误对象
+      const err = new Error(data.message || '请求失败') as Error & { response?: typeof response }
+      err.name = 'BusinessError'
+      err.response = response
+      throw err
+    }
+    return data
   },
   (error) => {
+    // 如果是业务错误（code !== 200），不再显示额外的错误提示
+    if (error.name === 'BusinessError') {
+      return Promise.reject(error)
+    }
     if (error.response) {
       switch (error.response.status) {
         case 401:

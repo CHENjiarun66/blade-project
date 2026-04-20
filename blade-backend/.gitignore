@@ -1,0 +1,17 @@
+# Screenshots and test results
+**/test-screenshots/**
+**/test-results/**
+**/*test-screenshot*.png
+**/multi-phone*.png
+**/phone-bug*.png
+**/test-*.png
+
+# Tool artifacts
+.agents/**
+.runtime/**
+dump.rdb
+stitch/**
+
+# Claude Code
+.claude/**
+AGENTS.md

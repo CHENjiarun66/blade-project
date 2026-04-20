@@ -1,10 +1,7 @@
 package com.blade.product.service;
 
 import com.blade.common.result.PageResult;
-import com.blade.product.dto.ProductCreateDTO;
-import com.blade.product.dto.ProductPageDTO;
-import com.blade.product.dto.ProductUpdateDTO;
-import com.blade.product.dto.ProductVO;
+import com.blade.product.dto.*;
 
 import java.util.List;
 
@@ -20,7 +17,17 @@ public interface ProductService {
 
     void delete(Long id);
 
-    List<ProductVO.SizeVO> listAllSizes();
-
+    // 颜色管理
     List<ProductVO.ColorVO> listAllColors();
+    Long createColor(ColorCreateDTO dto);
+    void updateColor(ColorUpdateDTO dto);
+    void deleteColor(Long id);
+
+    // 尺码管理
+    List<ProductVO.SizeVO> listAllSizes();
+    Long createSize(SizeCreateDTO dto);
+    void updateSize(SizeUpdateDTO dto);
+    void deleteSize(Long id);
+
+    List<SkuVO> listAllSkus();
 }

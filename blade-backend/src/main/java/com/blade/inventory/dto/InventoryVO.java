@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 @Schema(description = "库存VO")
 public class InventoryVO {
 
+    public InventoryVO() {}
+
     private Long id;
     private Long skuId;
     private String skuCode;
@@ -20,9 +22,12 @@ public class InventoryVO {
     private String warehouseName;
     private Integer quantity;
     private Integer reservedQty;
+    private Integer globalReservedQty;
     private Integer availableQty;
     private Integer alertThreshold;
     private String alertStatus;
+    private Integer version;
+    private Long tenantId;
     private LocalDateTime updateTime;
 
     public Long getId() { return id; }
@@ -51,12 +56,18 @@ public class InventoryVO {
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public Integer getReservedQty() { return reservedQty; }
     public void setReservedQty(Integer reservedQty) { this.reservedQty = reservedQty; }
+    public Integer getGlobalReservedQty() { return globalReservedQty; }
+    public void setGlobalReservedQty(Integer globalReservedQty) { this.globalReservedQty = globalReservedQty; }
     public Integer getAvailableQty() { return availableQty; }
     public void setAvailableQty(Integer availableQty) { this.availableQty = availableQty; }
     public Integer getAlertThreshold() { return alertThreshold; }
     public void setAlertThreshold(Integer alertThreshold) { this.alertThreshold = alertThreshold; }
     public String getAlertStatus() { return alertStatus; }
     public void setAlertStatus(String alertStatus) { this.alertStatus = alertStatus; }
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public LocalDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
 }

@@ -1,6 +1,6 @@
 # BladeProject 文档中心
 
-> 所有 AI 和开发者必须阅读的入口文档。
+> 所有 AI 和开发者的主导航页。
 
 ---
 
@@ -8,74 +8,42 @@
 
 **第一步**：阅读 [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) — 项目当前状态快照
 
-**第二步**：阅读 [环境配置指南](./00-SETUP.md) — 确保开发环境就绪
+**第二步**：阅读 [产品需求文档（PRD）](./02-PRD.md) — 业务规则和技术栈依据
 
-**第三步**：阅读 [产品需求文档（PRD）](./02-PRD.md)
+**第三步**：阅读 [开发任务清单](./03-TASKS.md) — 当前进度和任务状态
 
-**第四步**：阅读 [开发任务清单](./03-TASKS.md)
-
-**第五步**：根据任务状态，领取并执行开发任务
+**第四步**：需要启动环境时，再看 [环境配置指南](./00-SETUP.md)
 
 ---
 
 ## 项目结构
 
-```
+```text
 BladeProject/
-├── docs/                           # 文档中心
-│   ├── 开发者必读文档.md           # 开发者指南（给人类看）
-│   ├── 01-README.md               # 本文件（入口）
-│   ├── SESSION_CONTEXT.md          # 当前状态快照（新 AI 必读）
-│   ├── 02-PRD.md                  # 产品需求文档（开发依据）
-│   ├── 03-TASKS.md                # 开发任务清单
-│   ├── 04-REQUISITION_LOG.md      # 需求讨论记录
-│   ├── 05-CHANGELOG.md            # 变更记录
-│   │
-│   ├── architecture/               # 架构文档
-│   │   ├── ARCHITECTURE.md
-│   │   ├── BACKEND_MIGRATION.md
-│   │   └── MOBILE_PWA_PLAN.md
-│   │
-│   └── reference/                  # 参考文档
-│       ├── API_SPEC.md            # API 接口规范
-│       ├── PROJECT_STRUCTURE.md
-│       ├── DEVELOPMENT_WORKFLOW.md
-│       ├── DECISIONS_LOG.md
-│       └── TROUBLESHOOTING.md
-│
-├── blade-mobile/                   # 移动端项目
-│   ├── CLAUDE.md
-│   └── src/
-│
-└── blade-backend/                  # 后端项目
-    ├── CLAUDE.md
-    └── src/
+├── docs/                 # 文档中心
+├── blade-backend/        # 后端
+├── blade-mobile/         # 移动端 PWA
+├── blade-admin/          # PC 管理端
+├── packages/types/       # 共享类型
+└── stitch/               # 原型工程
 ```
+
+详细结构见 [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md)。
 
 ---
 
-## 工作流程
+## 你通常会用到的文档
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  需求讨论区 (04-REQUISITION_LOG.md)                      │
-│  - 用户提出需求                                          │
-│  - AI 分析、拆解、给方案                                 │
-│  - 用户确认                                              │
-└─────────────────────────────────────────────────────────┘
-                          ↓ 需求锁定
-┌─────────────────────────────────────────────────────────┐
-│  产品需求文档 (02-PRD.md)                                │
-│  - 锁定后的功能需求                                      │
-│  - AI 开发的唯一依据                                     │
-└─────────────────────────────────────────────────────────┘
-                          ↓ 拆解任务
-┌─────────────────────────────────────────────────────────┐
-│  开发任务清单 (03-TASKS.md)                              │
-│  - 任务列表 + 状态 + 负责人                             │
-│  - AI 自己领任务、自己做、自己更新状态                    │
-└─────────────────────────────────────────────────────────┘
-```
+| 场景 | 文档 |
+|------|------|
+| 快速接手当前状态 | [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) |
+| 确认业务规则和技术栈 | [02-PRD.md](./02-PRD.md) |
+| 查看任务状态 | [03-TASKS.md](./03-TASKS.md) |
+| 查看变更历史 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
+| 查看项目结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
+| 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
+| 排查问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
+| 查看技术决策 | [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md) |
 
 ---
 
@@ -83,28 +51,21 @@ BladeProject/
 
 ### 规则 1：PRD 是唯一依据
 
-开发前必须阅读 [02-PRD.md](./02-PRD.md)。所有功能开发必须严格按 PRD 执行，不能擅自添加/修改功能。
+开发前必须阅读 [02-PRD.md](./02-PRD.md)。功能开发严格按 PRD 执行，不擅自添加或修改功能。
 
 ### 规则 2：任务驱动
 
-从 [03-TASKS.md](./03-TASKS.md) 领取任务。完成后更新任务状态。
+从 [03-TASKS.md](./03-TASKS.md) 领取任务，完成后同步更新状态。
 
 ### 规则 3：变更必须记录
 
-需求变更、架构变更、决策变更必须记录到 [05-CHANGELOG.md](./05-CHANGELOG.md)。
+需求、架构和关键决策变化需要同步到 [05-CHANGELOG.md](./05-CHANGELOG.md)。
 
 ### 规则 4：遇到问题先查文档
 
 1. [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md)
 2. [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md)
-3. 最后才向用户提问
-
-### 规则 5：交接时必须同步文档
-
-任务完成后必须同步更新：
-- 任务状态（03-TASKS.md）
-- 变更记录（05-CHANGELOG.md）
-- 相关架构文档
+3. 仍无法确认时再向用户提问
 
 ---
 
@@ -112,8 +73,10 @@ BladeProject/
 
 | 项目 | 路径 |
 |------|------|
-| BladeProject 主目录 | ../ |
-| 文档中心 | ./ |
-| 后端 | ../blade-backend/ |
-| 移动端 PWA | ../blade-mobile/ |
-| 原 Blade 项目（参考） | /Users/chenjiarun/Documents/Blade/ |
+| BladeProject 主目录 | `../` |
+| 文档中心 | `./` |
+| 后端 | `../blade-backend/` |
+| 移动端 PWA | `../blade-mobile/` |
+| PC 管理端 | `../blade-admin/` |
+| 共享类型 | `../packages/types/` |
+| 原 Blade 项目（参考） | `/Users/chenjiarun/Documents/Blade/` |

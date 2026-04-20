@@ -3,7 +3,19 @@ package com.blade.common.tenant;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.LongValue;
 
+import java.util.Arrays;
+import java.util.List;
+
 public class TenantLineHandler implements com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler {
+
+    // 不需要租户过滤的表（无 tenant_id 字段的关联表）
+    private static final List<String> IGNORE_TABLES = Arrays.asList(
+        "sys_tenant",
+        "product_color_rel",
+        "product_size_rel",
+        "sys_role_permission",
+        "sys_user_role"
+    );
 
     @Override
     public Expression getTenantId() {
@@ -17,5 +29,10 @@ public class TenantLineHandler implements com.baomidou.mybatisplus.extension.plu
     @Override
     public String getTenantIdColumn() {
         return "tenant_id";
+    }
+
+    @Override
+    public boolean ignoreTable(String tableName) {
+        return IGNORE_TABLES.contains(tableName);
     }
 }

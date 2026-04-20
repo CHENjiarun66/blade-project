@@ -3,12 +3,17 @@ package com.blade.order.controller;
 import com.blade.common.result.PageResult;
 import com.blade.common.result.R;
 import com.blade.order.dto.*;
+import com.blade.order.dto.AddPaymentDTO;
+import com.blade.order.dto.OrderUpdateDTO;
+import com.blade.order.service.OrderDeliveryPlanService;
 import com.blade.order.service.impl.OrderServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -17,6 +22,9 @@ public class OrderController {
 
     @Autowired
     private OrderServiceImpl orderService;
+
+    @Autowired
+    private OrderDeliveryPlanService deliveryPlanService;
 
     @GetMapping
     @Operation(summary = "订单列表（分页）")
@@ -34,6 +42,14 @@ public class OrderController {
     @Operation(summary = "创建订单")
     public R<Long> create(@RequestBody @Valid OrderCreateDTO dto) {
         return R.ok(orderService.create(dto));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "更新订单基础信息")
+    public R<Void> update(@PathVariable Long id, @RequestBody @Valid OrderUpdateDTO dto) {
+        dto.setId(id);
+        orderService.update(dto);
+        return R.ok();
     }
 
     @PostMapping("/confirm-payment")
@@ -57,6 +73,13 @@ public class OrderController {
         return R.ok();
     }
 
+    @PostMapping("/{id}/add-payment")
+    @Operation(summary = "追加收款（不改变订单状态）")
+    public R<Void> addPayment(@PathVariable Long id, @RequestBody @Valid AddPaymentDTO dto) {
+        orderService.addPayment(id, dto.getAdditionalAmount());
+        return R.ok();
+    }
+
     @PostMapping("/{id}/cancel")
     @Operation(summary = "取消订单（释放预留库存）")
     public R<Void> cancel(@PathVariable Long id, @RequestBody @Valid CancelOrderDTO dto) {
@@ -68,6 +91,61 @@ public class OrderController {
     @Operation(summary = "删除订单")
     public R<Void> delete(@PathVariable Long id) {
         orderService.delete(id);
+        return R.ok();
+    }
+
+    // ==================== 配货计划接口 ====================
+
+    @PostMapping("/{id}/delivery-plan")
+    @Operation(summary = "创建配货计划（从订单明细生成）")
+    public R<List<DeliveryPlanVO>> createDeliveryPlan(@PathVariable Long id) {
+        return R.ok(deliveryPlanService.createDeliveryPlan(id));
+    }
+
+    @PutMapping("/{id}/delivery-plan")
+    @Operation(summary = "更新配货计划")
+    public R<List<DeliveryPlanVO>> updateDeliveryPlan(@PathVariable Long id, @RequestBody @Valid DeliveryPlanDTO dto) {
+        return R.ok(deliveryPlanService.updateDeliveryPlan(id, dto));
+    }
+
+    @GetMapping("/{id}/delivery-plan")
+    @Operation(summary = "获取配货计划")
+    public R<List<DeliveryPlanVO>> getDeliveryPlan(@PathVariable Long id) {
+        return R.ok(deliveryPlanService.getDeliveryPlanByOrderId(id));
+    }
+
+    @DeleteMapping("/{id}/delivery-plan")
+    @Operation(summary = "删除配货计划（取消配货）")
+    public R<Void> deleteDeliveryPlan(@PathVariable Long id) {
+        deliveryPlanService.deleteDeliveryPlan(id);
+        return R.ok();
+    }
+
+    @PostMapping("/{id}/adjustment")
+    @Operation(summary = "记录订单调整")
+    public R<Void> recordAdjustment(@PathVariable Long id, @RequestBody @Valid AdjustmentLogDTO dto) {
+        dto.setOrderId(id);
+        deliveryPlanService.recordAdjustment(dto);
+        return R.ok();
+    }
+
+    @GetMapping("/{id}/adjustment")
+    @Operation(summary = "获取订单调整记录")
+    public R<List<AdjustmentLogDTO>> getAdjustmentLogs(@PathVariable Long id) {
+        return R.ok(deliveryPlanService.getAdjustmentLogs(id));
+    }
+
+    @PostMapping("/{id}/confirm-adjustment")
+    @Operation(summary = "确认调整方案")
+    public R<Void> confirmAdjustment(@PathVariable Long id) {
+        deliveryPlanService.confirmAdjustment(id);
+        return R.ok();
+    }
+
+    @PostMapping("/{id}/cancel-adjustment")
+    @Operation(summary = "取消调整")
+    public R<Void> cancelAdjustment(@PathVariable Long id) {
+        deliveryPlanService.cancelAdjustment(id);
         return R.ok();
     }
 }

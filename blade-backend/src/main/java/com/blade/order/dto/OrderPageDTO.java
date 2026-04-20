@@ -22,8 +22,11 @@ public class OrderPageDTO {
     @Schema(description = "客户名称")
     private String customerName;
 
-    @Schema(description = "订单状态: 0待处理/1已确认/2进行中/3已完成/4已取消")
+    @Schema(description = "订单状态: 0创建/1已付款/2配货中/3待发货/4已发货/5已完成/6已取消/7退货中/8已退货")
     private Integer status;
+
+    @Schema(description = "支付状态: 0未付款/1已付定金/2已付全款")
+    private Integer paymentStatus;
 
     public Long getCurrent() { return current; }
     public void setCurrent(Long current) { this.current = current; }
@@ -35,4 +38,6 @@ public class OrderPageDTO {
     public void setCustomerName(String customerName) { this.customerName = customerName; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+    public Integer getPaymentStatus() { return paymentStatus; }
+    public void setPaymentStatus(Integer paymentStatus) { this.paymentStatus = paymentStatus; }
 }

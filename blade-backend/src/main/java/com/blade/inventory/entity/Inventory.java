@@ -13,8 +13,13 @@ public class Inventory {
     private Long warehouseId;
     private Integer quantity;
     private Integer reservedQty;
+    // 全局预留数量（跨仓预留总量）
+    private Integer globalReservedQty;
+    @TableField(exist = false)
     private Integer availableQty;
     private Integer alertThreshold;
+    @Version
+    private Integer version;
     private Long tenantId;
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
@@ -43,10 +48,14 @@ public class Inventory {
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public Integer getReservedQty() { return reservedQty; }
     public void setReservedQty(Integer reservedQty) { this.reservedQty = reservedQty; }
+    public Integer getGlobalReservedQty() { return globalReservedQty; }
+    public void setGlobalReservedQty(Integer globalReservedQty) { this.globalReservedQty = globalReservedQty; }
     public Integer getAvailableQty() { return availableQty; }
     public void setAvailableQty(Integer availableQty) { this.availableQty = availableQty; }
     public Integer getAlertThreshold() { return alertThreshold; }
     public void setAlertThreshold(Integer alertThreshold) { this.alertThreshold = alertThreshold; }
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public LocalDateTime getUpdateTime() { return updateTime; }

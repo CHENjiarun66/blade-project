@@ -105,8 +105,9 @@ public class UserServiceImpl implements UserService {
         userMapper.insert(user);
 
         if (dto.getRoleIds() != null && dto.getRoleIds().length > 0) {
+            Long tenantId = user.getTenantId();
             for (Long roleId : dto.getRoleIds()) {
-                roleMapper.insertUserRole(user.getId(), roleId);
+                roleMapper.insertUserRole(user.getId(), roleId, tenantId);
             }
         }
 
@@ -141,8 +142,9 @@ public class UserServiceImpl implements UserService {
 
         if (dto.getRoleIds() != null) {
             roleMapper.deleteUserRoles(dto.getId());
+            Long tenantId = user.getTenantId();
             for (Long roleId : dto.getRoleIds()) {
-                roleMapper.insertUserRole(dto.getId(), roleId);
+                roleMapper.insertUserRole(dto.getId(), roleId, tenantId);
             }
         }
     }

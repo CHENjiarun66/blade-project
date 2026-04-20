@@ -91,6 +91,20 @@ public class InventoryController {
         return R.ok();
     }
 
+    @GetMapping("/logs")
+    @Operation(summary = "库存记录（分页）")
+    public R<PageResult<InventoryLogVO>> listLogs(InventoryLogPageDTO dto) {
+        return R.ok(inventoryService.listLogs(dto));
+    }
+
+    @PostMapping("/out-by-plan")
+    @Operation(summary = "按配货计划出库")
+    public R<Void> outByPlan(@RequestBody OutByPlanDTO dto) {
+        Long operatorId = getCurrentUserId();
+        inventoryService.outByPlan(dto.getPlanId(), dto.getQuantity(), operatorId);
+        return R.ok();
+    }
+
     private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof User user) {

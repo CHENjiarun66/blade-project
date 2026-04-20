@@ -1,6 +1,7 @@
 import client from './client'
 
 export interface LoginDTO {
+  tenantCode: string
   username: string
   password: string
 }

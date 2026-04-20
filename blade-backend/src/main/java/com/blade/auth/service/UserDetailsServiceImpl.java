@@ -2,6 +2,7 @@ package com.blade.auth.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.blade.common.tenant.TenantContext;
+import com.blade.system.permission.mapper.PermissionMapper;
 import com.blade.system.user.entity.Role;
 import com.blade.system.user.entity.User;
 import com.blade.system.user.mapper.RoleMapper;
@@ -13,7 +14,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,11 +23,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
+    private final PermissionMapper permissionMapper;
 
     @Autowired
-    public UserDetailsServiceImpl(UserMapper userMapper, RoleMapper roleMapper) {
+    public UserDetailsServiceImpl(UserMapper userMapper, RoleMapper roleMapper, PermissionMapper permissionMapper) {
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
+        this.permissionMapper = permissionMapper;
     }
 
     @Override
@@ -43,9 +46,18 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         TenantContext.setTenantId(user.getTenantId());
 
         List<Role> roles = roleMapper.selectByUserId(user.getId());
-        List<SimpleGrantedAuthority> authorities = roles.stream()
-            .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getRoleCode()))
-            .collect(Collectors.toList());
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+
+        // 添加角色权限（如 ROLE_ADMIN）
+        for (Role role : roles) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getRoleCode()));
+        }
+
+        // 添加用户被分配的具体权限（如 user:create, role:create）
+        List<String> permissionCodes = permissionMapper.selectCodesByUserId(user.getId());
+        for (String code : permissionCodes) {
+            authorities.add(new SimpleGrantedAuthority(code));
+        }
 
         return new org.springframework.security.core.userdetails.User(
             user.getUsername(),

@@ -9,11 +9,17 @@ import com.blade.common.tenant.TenantContext;
 import com.blade.inventory.dto.*;
 import com.blade.inventory.entity.Inventory;
 import com.blade.inventory.entity.InventoryLog;
+import com.blade.inventory.entity.InventoryGlobalReserve;
 import com.blade.inventory.mapper.InventoryMapper;
 import com.blade.inventory.mapper.InventoryLogMapper;
+import com.blade.inventory.mapper.InventoryGlobalReserveMapper;
 import com.blade.inventory.service.InventoryService;
+import com.blade.order.entity.OrderDeliveryPlan;
+import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.ProductSkuMapper;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class InventoryServiceImpl implements InventoryService {
@@ -32,7 +39,24 @@ public class InventoryServiceImpl implements InventoryService {
     private InventoryLogMapper inventoryLogMapper;
 
     @Autowired
+    private InventoryGlobalReserveMapper globalReserveMapper;
+
+    @Autowired
     private ProductSkuMapper productSkuMapper;
+
+    @Autowired
+    private RedissonClient redissonClient;
+
+    @Autowired
+    private OrderDeliveryPlanMapper deliveryPlanMapper;
+
+    // 锁 Key 前缀
+    private static final String INVENTORY_LOCK_PREFIX = "inventory:lock:";
+
+    // 锁等待时间（秒）
+    private static final long LOCK_WAIT_TIME = 3;
+    // 锁持有时间（秒）
+    private static final long LOCK_LEASE_TIME = 10;
 
     // 变动类型常量
     private static final String CHANGE_TYPE_PURCHASE_IN = "PURCHASE_IN";
@@ -45,69 +69,38 @@ public class InventoryServiceImpl implements InventoryService {
     public PageResult<InventoryVO> pageList(InventoryPageDTO dto) {
         Long tenantId = TenantContext.getTenantId();
 
-        String sql = """
-            SELECT i.*,
-                   ps.sku_code, ps.price,
-                   p.name AS product_name, p.category_id,
-                   pc.color_name, ps.size_name,
-                   w.warehouse_name
-            FROM inventory i
-            INNER JOIN product_sku ps ON i.sku_id = ps.id
-            INNER JOIN product p ON ps.product_id = p.id
-            LEFT JOIN product_color pc ON ps.color_id = pc.id
-            LEFT JOIN warehouse w ON i.warehouse_id = w.id
-            WHERE i.tenant_id = ?
-            """;
+        // 计算分页
+        long offset = (dto.getCurrent() - 1) * dto.getSize();
+        long size = dto.getSize();
 
-        List<Object> params = new ArrayList<>();
-        params.add(tenantId);
+        // 使用自定义查询
+        List<InventoryVO> inventoryList = inventoryMapper.selectInventoryList(
+                tenantId,
+                dto.getWarehouseId(),
+                dto.getAlertStatus(),
+                dto.getKeyword(),
+                offset,
+                size
+        );
+        long total = inventoryMapper.countInventoryList(
+                tenantId,
+                dto.getWarehouseId(),
+                dto.getAlertStatus(),
+                dto.getKeyword()
+        );
 
-        StringBuilder whereSql = new StringBuilder();
-
-        if (dto.getWarehouseId() != null) {
-            whereSql.append(" AND i.warehouse_id = ?");
-            params.add(dto.getWarehouseId());
-        }
-
-        if ("below".equals(dto.getAlertStatus())) {
-            whereSql.append(" AND (i.quantity - i.reserved_qty) < i.alert_threshold");
-        } else if ("normal".equals(dto.getAlertStatus())) {
-            whereSql.append(" AND (i.quantity - i.reserved_qty) >= i.alert_threshold");
-        }
-
-        if (dto.getKeyword() != null && !dto.getKeyword().isBlank()) {
-            whereSql.append(" AND (p.name LIKE ? OR ps.sku_code LIKE ?)");
-            params.add("%" + dto.getKeyword() + "%");
-            params.add("%" + dto.getKeyword() + "%");
-        }
-
-        // 使用分页查询
-        IPage<Inventory> page = new Page<>(dto.getCurrent(), dto.getSize());
-
-        LambdaQueryWrapper<Inventory> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Inventory::getTenantId, tenantId);
-
-        if (dto.getWarehouseId() != null) {
-            wrapper.eq(Inventory::getWarehouseId, dto.getWarehouseId());
-        }
-
-        wrapper.orderByDesc(Inventory::getId);
-        IPage<Inventory> result = inventoryMapper.selectPage(page, wrapper);
-
-        // 转换结果
+        // 计算预警状态
         List<InventoryVO> voList = new ArrayList<>();
-        for (Inventory inv : result.getRecords()) {
-            InventoryVO vo = convertToVO(inv);
-            // 补充 SKU 信息
-            ProductSku sku = productSkuMapper.selectById(inv.getSkuId());
-            if (sku != null) {
-                vo.setSkuCode(sku.getSkuCode());
-                vo.setPrice(sku.getPrice());
-            }
-            // 计算预警状态
-            int available = inv.getQuantity() - inv.getReservedQty();
+        for (InventoryVO vo : inventoryList) {
+            Integer qty = vo.getQuantity();
+            Integer reserved = vo.getReservedQty();
+            Integer globalReserved = vo.getGlobalReservedQty();
+            Integer threshold = vo.getAlertThreshold();
+            int available = (qty != null ? qty : 0)
+                    - (reserved != null ? reserved : 0)
+                    - (globalReserved != null ? globalReserved : 0);
             vo.setAvailableQty(available);
-            if (available < inv.getAlertThreshold()) {
+            if (threshold != null && available < threshold) {
                 vo.setAlertStatus("below");
             } else {
                 vo.setAlertStatus("normal");
@@ -117,10 +110,10 @@ public class InventoryServiceImpl implements InventoryService {
 
         PageResult<InventoryVO> pageResult = new PageResult<>();
         pageResult.setRecords(voList);
-        pageResult.setTotal(result.getTotal());
-        pageResult.setSize(result.getSize());
-        pageResult.setCurrent(result.getCurrent());
-        pageResult.setPages(result.getPages());
+        pageResult.setTotal(total);
+        pageResult.setSize(size);
+        pageResult.setCurrent(dto.getCurrent());
+        pageResult.setPages((total + size - 1) / size);
         return pageResult;
     }
 
@@ -149,46 +142,69 @@ public class InventoryServiceImpl implements InventoryService {
         String images = dto.getImages() != null ? String.join(",", dto.getImages()) : null;
 
         for (InventoryInItemDTO item : dto.getItems()) {
-            // 查询或创建库存记录
-            Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
-            int beforeQty = 0;
+            String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
+            RLock lock = redissonClient.getLock(lockKey);
 
-            if (inv == null) {
-                // 创建新库存记录
-                inv = new Inventory();
-                inv.setSkuId(item.getSkuId());
-                inv.setWarehouseId(dto.getWarehouseId());
-                inv.setQuantity(item.getQuantity());
-                inv.setReservedQty(0);
-                inv.setAlertThreshold(10);
-                inv.setTenantId(tenantId);
-                inventoryMapper.insert(inv);
-                beforeQty = 0;
-            } else {
-                beforeQty = inv.getQuantity();
-                // 更新库存
-                LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
-                wrapper.eq(Inventory::getId, inv.getId());
-                wrapper.setSql("quantity = quantity + " + item.getQuantity());
-                inventoryMapper.update(null, wrapper);
-                inv.setQuantity(beforeQty + item.getQuantity());
+            try {
+                // 尝试获取锁，最多等待3秒，锁定10秒后自动释放
+                if (!lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
+                    throw new RuntimeException("系统繁忙，请稍后重试");
+                }
+
+                // 查询或创建库存记录
+                Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
+                int beforeQty = 0;
+
+                if (inv == null) {
+                    // 创建新库存记录
+                    inv = new Inventory();
+                    inv.setSkuId(item.getSkuId());
+                    inv.setWarehouseId(dto.getWarehouseId());
+                    inv.setQuantity(item.getQuantity());
+                    inv.setReservedQty(0);
+                    inv.setAlertThreshold(10);
+                    inv.setTenantId(tenantId);
+                    inventoryMapper.insert(inv);
+                    beforeQty = 0;
+                } else {
+                    beforeQty = inv.getQuantity();
+                    // 使用乐观锁更新库存
+                    LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
+                    wrapper.eq(Inventory::getId, inv.getId())
+                            .eq(Inventory::getVersion, inv.getVersion());  // 乐观锁条件
+                    wrapper.setSql("quantity = quantity + " + item.getQuantity());
+                    int rows = inventoryMapper.update(null, wrapper);
+                    if (rows == 0) {
+                        throw new RuntimeException("库存已被其他操作修改，请重试");
+                    }
+                    inv.setQuantity(beforeQty + item.getQuantity());
+                }
+
+                // 记录变动日志
+                InventoryLog log = new InventoryLog();
+                log.setSkuId(item.getSkuId());
+                log.setWarehouseId(dto.getWarehouseId());
+                log.setChangeType(CHANGE_TYPE_PURCHASE_IN);
+                log.setChangeQty(item.getQuantity());
+                log.setBeforeQty(beforeQty);
+                log.setAfterQty(inv.getQuantity());
+                log.setSupplierId(dto.getSupplierId());
+                log.setSupplierName(dto.getSupplierName());
+                log.setOperatorId(operatorId);
+                log.setRemark(item.getRemark() != null ? item.getRemark() : dto.getRemark());
+                log.setImages(images);
+                log.setTenantId(tenantId);
+                inventoryLogMapper.insert(log);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("操作被中断，请重试");
+            } finally {
+                // 只有当前线程持有锁时才释放
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
             }
-
-            // 记录变动日志
-            InventoryLog log = new InventoryLog();
-            log.setSkuId(item.getSkuId());
-            log.setWarehouseId(dto.getWarehouseId());
-            log.setChangeType(CHANGE_TYPE_PURCHASE_IN);
-            log.setChangeQty(item.getQuantity());
-            log.setBeforeQty(beforeQty);
-            log.setAfterQty(inv.getQuantity());
-            log.setSupplierId(dto.getSupplierId());
-            log.setSupplierName(dto.getSupplierName());
-            log.setOperatorId(operatorId);
-            log.setRemark(item.getRemark() != null ? item.getRemark() : dto.getRemark());
-            log.setImages(images);
-            log.setTenantId(tenantId);
-            inventoryLogMapper.insert(log);
         }
     }
 
@@ -198,36 +214,69 @@ public class InventoryServiceImpl implements InventoryService {
         Long tenantId = TenantContext.getTenantId();
 
         for (InventoryOutItemDTO item : dto.getItems()) {
-            Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
-            if (inv == null || inv.getQuantity() - inv.getReservedQty() < item.getQuantity()) {
-                throw new RuntimeException("库存不足，无法出库");
+            String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
+            RLock lock = redissonClient.getLock(lockKey);
+
+            try {
+                if (!lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
+                    throw new RuntimeException("系统繁忙，请稍后重试");
+                }
+
+                Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
+                // ORDER来源时，global_reserved_qty是本订单的预留，出库时只检查quantity - reservedQty
+                // 非ORDER来源时，检查 quantity - reservedQty - globalReservedQty
+                int available = "ORDER".equals(dto.getSource())
+                    ? inv.getQuantity() - inv.getReservedQty()
+                    : inv.getQuantity() - inv.getReservedQty() - inv.getGlobalReservedQty();
+                if (inv == null || available < item.getQuantity()) {
+                    throw new RuntimeException("库存不足，无法出库");
+                }
+
+                int beforeQty = inv.getQuantity();
+                int beforeReserved = inv.getReservedQty();
+                int changeQty = -item.getQuantity();
+
+                // 使用乐观锁更新库存
+                LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
+                wrapper.eq(Inventory::getId, inv.getId())
+                        .eq(Inventory::getVersion, inv.getVersion());
+
+                // ORDER来源时，同时扣减quantity和reserved_qty和global_reserved_qty
+                if ("ORDER".equals(dto.getSource())) {
+                    wrapper.setSql("quantity = quantity + " + changeQty + ", reserved_qty = reserved_qty + " + changeQty + ", global_reserved_qty = global_reserved_qty + " + changeQty);
+                } else {
+                    wrapper.setSql("quantity = quantity + " + changeQty);
+                }
+                int rows = inventoryMapper.update(null, wrapper);
+                if (rows == 0) {
+                    throw new RuntimeException("库存已被其他操作修改，请重试");
+                }
+
+                // 记录变动日志
+                String changeType = "ORDER".equals(dto.getSource()) ? CHANGE_TYPE_SALE_OUT : CHANGE_TYPE_OTHER_OUT;
+                String reason = "ORDER".equals(dto.getSource()) ? null : item.getReason();
+
+                InventoryLog log = new InventoryLog();
+                log.setSkuId(item.getSkuId());
+                log.setWarehouseId(dto.getWarehouseId());
+                log.setChangeType(changeType);
+                log.setChangeQty(changeQty);
+                log.setBeforeQty(beforeQty);
+                log.setAfterQty(beforeQty + changeQty);
+                log.setOrderId(dto.getOrderId());
+                log.setOperatorId(operatorId);
+                log.setRemark(reason != null ? reason : dto.getRemark());
+                log.setTenantId(tenantId);
+                inventoryLogMapper.insert(log);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("操作被中断，请重试");
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
             }
-
-            int beforeQty = inv.getQuantity();
-            int changeQty = -item.getQuantity();
-
-            // 更新库存
-            LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
-            wrapper.eq(Inventory::getId, inv.getId());
-            wrapper.setSql("quantity = quantity + " + changeQty);
-            inventoryMapper.update(null, wrapper);
-
-            // 记录变动日志
-            String changeType = "ORDER".equals(dto.getSource()) ? CHANGE_TYPE_SALE_OUT : CHANGE_TYPE_OTHER_OUT;
-            String reason = "ORDER".equals(dto.getSource()) ? null : item.getReason();
-
-            InventoryLog log = new InventoryLog();
-            log.setSkuId(item.getSkuId());
-            log.setWarehouseId(dto.getWarehouseId());
-            log.setChangeType(changeType);
-            log.setChangeQty(changeQty);
-            log.setBeforeQty(beforeQty);
-            log.setAfterQty(beforeQty + changeQty);
-            log.setOrderId(dto.getOrderId());
-            log.setOperatorId(operatorId);
-            log.setRemark(reason != null ? reason : dto.getRemark());
-            log.setTenantId(tenantId);
-            inventoryLogMapper.insert(log);
         }
     }
 
@@ -237,32 +286,60 @@ public class InventoryServiceImpl implements InventoryService {
         Long tenantId = TenantContext.getTenantId();
 
         for (InventoryAdjustItemDTO item : dto.getItems()) {
-            Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
-            if (inv == null) {
-                throw new RuntimeException("库存记录不存在");
+            String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
+            RLock lock = redissonClient.getLock(lockKey);
+
+            try {
+                if (!lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
+                    throw new RuntimeException("系统繁忙，请稍后重试");
+                }
+
+                Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
+                if (inv == null) {
+                    throw new RuntimeException("库存记录不存在");
+                }
+
+                int beforeQty = inv.getQuantity();
+                int changeQty = item.getQuantity();
+
+                // 调整后库存不能为负
+                if (beforeQty + changeQty < 0) {
+                    throw new RuntimeException("调整后库存不能为负数");
+                }
+
+                // 使用乐观锁更新库存
+                LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
+                wrapper.eq(Inventory::getId, inv.getId())
+                        .eq(Inventory::getVersion, inv.getVersion());
+                wrapper.setSql("quantity = quantity + " + changeQty);
+                int rows = inventoryMapper.update(null, wrapper);
+                if (rows == 0) {
+                    throw new RuntimeException("库存已被其他操作修改，请重试");
+                }
+
+                // 记录变动日志
+                InventoryLog log = new InventoryLog();
+                log.setSkuId(item.getSkuId());
+                log.setWarehouseId(dto.getWarehouseId());
+                log.setChangeType(CHANGE_TYPE_ADJUST);
+                log.setChangeQty(changeQty);
+                log.setBeforeQty(beforeQty);
+                log.setAfterQty(beforeQty + changeQty);
+                log.setOperatorId(operatorId);
+                String reason = item.getReason() != null ? item.getReason() : (dto.getReason() != null ? dto.getReason() : "");
+                String remark = reason + (dto.getRemark() != null && !dto.getRemark().isBlank() ? ": " + dto.getRemark() : "");
+                log.setRemark(remark);
+                log.setTenantId(tenantId);
+                inventoryLogMapper.insert(log);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("操作被中断，请重试");
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
             }
-
-            int beforeQty = inv.getQuantity();
-            int changeQty = item.getQuantity();
-
-            // 更新库存
-            LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
-            wrapper.eq(Inventory::getId, inv.getId());
-            wrapper.setSql("quantity = quantity + " + changeQty);
-            inventoryMapper.update(null, wrapper);
-
-            // 记录变动日志
-            InventoryLog log = new InventoryLog();
-            log.setSkuId(item.getSkuId());
-            log.setWarehouseId(dto.getWarehouseId());
-            log.setChangeType(CHANGE_TYPE_ADJUST);
-            log.setChangeQty(changeQty);
-            log.setBeforeQty(beforeQty);
-            log.setAfterQty(beforeQty + changeQty);
-            log.setOperatorId(operatorId);
-            log.setRemark(dto.getReason() + (dto.getRemark() != null ? ": " + dto.getRemark() : ""));
-            log.setTenantId(tenantId);
-            inventoryLogMapper.insert(log);
         }
     }
 
@@ -272,37 +349,56 @@ public class InventoryServiceImpl implements InventoryService {
         Long tenantId = TenantContext.getTenantId();
 
         for (InventoryReserveDTO.ReserveItemDTO item : dto.getItems()) {
-            Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
-            if (inv == null) {
-                throw new RuntimeException("库存记录不存在");
+            String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
+            RLock lock = redissonClient.getLock(lockKey);
+
+            try {
+                if (!lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
+                    throw new RuntimeException("系统繁忙，请稍后重试");
+                }
+
+                Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
+                if (inv == null) {
+                    throw new RuntimeException("库存记录不存在");
+                }
+
+                int available = inv.getQuantity() - inv.getReservedQty();
+                if (available < item.getQuantity()) {
+                    throw new RuntimeException("可用库存不足，无法预留");
+                }
+
+                // 使用乐观锁更新预留数量
+                LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
+                wrapper.eq(Inventory::getId, inv.getId())
+                        .eq(Inventory::getVersion, inv.getVersion());
+                wrapper.setSql("reserved_qty = reserved_qty + " + item.getQuantity());
+                int rows = inventoryMapper.update(null, wrapper);
+                if (rows == 0) {
+                    throw new RuntimeException("库存已被其他操作修改，请重试");
+                }
+
+                // 记录变动日志（SALE_OUT 扣可用库存，释放时用 SALE_CANCEL）
+                InventoryLog log = new InventoryLog();
+                log.setSkuId(item.getSkuId());
+                log.setWarehouseId(dto.getWarehouseId());
+                log.setChangeType(CHANGE_TYPE_SALE_OUT);
+                log.setChangeQty(-item.getQuantity());
+                log.setBeforeQty(inv.getQuantity() - inv.getReservedQty());
+                log.setAfterQty(inv.getQuantity() - inv.getReservedQty() - item.getQuantity());
+                log.setOrderId(dto.getOrderId());
+                log.setOperatorId(operatorId);
+                log.setRemark("预留锁定");
+                log.setTenantId(tenantId);
+                inventoryLogMapper.insert(log);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("操作被中断，请重试");
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
             }
-
-            int available = inv.getQuantity() - inv.getReservedQty();
-            if (available < item.getQuantity()) {
-                throw new RuntimeException("可用库存不足，无法预留");
-            }
-
-            int beforeReserved = inv.getReservedQty();
-
-            // 更新预留数量
-            LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
-            wrapper.eq(Inventory::getId, inv.getId());
-            wrapper.setSql("reserved_qty = reserved_qty + " + item.getQuantity());
-            inventoryMapper.update(null, wrapper);
-
-            // 记录变动日志（SALE_OUT 扣可用库存，释放时用 SALE_CANCEL）
-            InventoryLog log = new InventoryLog();
-            log.setSkuId(item.getSkuId());
-            log.setWarehouseId(dto.getWarehouseId());
-            log.setChangeType(CHANGE_TYPE_SALE_OUT);
-            log.setChangeQty(-item.getQuantity());
-            log.setBeforeQty(inv.getQuantity() - inv.getReservedQty());
-            log.setAfterQty(inv.getQuantity() - inv.getReservedQty() - item.getQuantity());
-            log.setOrderId(dto.getOrderId());
-            log.setOperatorId(operatorId);
-            log.setRemark("预留锁定");
-            log.setTenantId(tenantId);
-            inventoryLogMapper.insert(log);
         }
     }
 
@@ -312,32 +408,398 @@ public class InventoryServiceImpl implements InventoryService {
         Long tenantId = TenantContext.getTenantId();
 
         for (InventoryReserveDTO.ReserveItemDTO item : dto.getItems()) {
-            Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
+            String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
+            RLock lock = redissonClient.getLock(lockKey);
+
+            try {
+                if (!lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
+                    throw new RuntimeException("系统繁忙，请稍后重试");
+                }
+
+                Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
+                if (inv == null) {
+                    throw new RuntimeException("库存记录不存在");
+                }
+
+                // 校验预留数量是否足够释放
+                if (inv.getReservedQty() < item.getQuantity()) {
+                    throw new RuntimeException("预留数量不足，无法释放");
+                }
+
+                // 使用乐观锁释放预留数量
+                LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
+                wrapper.eq(Inventory::getId, inv.getId())
+                        .eq(Inventory::getVersion, inv.getVersion());
+                wrapper.setSql("reserved_qty = reserved_qty - " + item.getQuantity());
+                int rows = inventoryMapper.update(null, wrapper);
+                if (rows == 0) {
+                    throw new RuntimeException("库存已被其他操作修改，请重试");
+                }
+
+                // 记录变动日志
+                InventoryLog log = new InventoryLog();
+                log.setSkuId(item.getSkuId());
+                log.setWarehouseId(dto.getWarehouseId());
+                log.setChangeType(CHANGE_TYPE_SALE_CANCEL);
+                log.setChangeQty(item.getQuantity());
+                log.setBeforeQty(inv.getQuantity() - inv.getReservedQty());
+                log.setAfterQty(inv.getQuantity() - inv.getReservedQty() + item.getQuantity());
+                log.setOrderId(dto.getOrderId());
+                log.setOperatorId(operatorId);
+                log.setRemark("预留释放");
+                log.setTenantId(tenantId);
+                inventoryLogMapper.insert(log);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("操作被中断，请重试");
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            }
+        }
+    }
+
+    @Override
+    @Transactional
+    public void globalReserve(InventoryReserveDTO dto, Long operatorId) {
+        Long tenantId = TenantContext.getTenantId();
+
+        for (InventoryReserveDTO.ReserveItemDTO item : dto.getItems()) {
+            String lockKey = "sku:lock:" + item.getSkuId();
+            RLock lock = redissonClient.getLock(lockKey);
+
+            try {
+                if (!lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
+                    throw new RuntimeException("系统繁忙，请稍后重试");
+                }
+
+                // 1. 查询跨仓可用总量
+                Integer available = getGlobalAvailableQty(item.getSkuId());
+                if (available < item.getQuantity()) {
+                    throw new RuntimeException(String.format("商品SKU[%d]跨仓总量不足，可用:%d, 需要:%d",
+                            item.getSkuId(), available, item.getQuantity()));
+                }
+
+                // 2. 按仓库可用量比例分配预留（从有库存的仓库依次预留）
+                allocateGlobalReserve(item.getSkuId(), item.getQuantity(), dto.getOrderId(), tenantId, operatorId);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("操作被中断，请稍后重试");
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            }
+        }
+    }
+
+    /**
+     * 按仓库分配全局预留
+     * 从有库存的仓库依次预留，更新每个仓库的 global_reserved_qty
+     */
+    private void allocateGlobalReserve(Long skuId, Integer needQty, Long orderId, Long tenantId, Long operatorId) {
+        // 查询该SKU所有仓库的库存，按仓库可用量降序
+        LambdaQueryWrapper<Inventory> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Inventory::getSkuId, skuId);
+        wrapper.eq(Inventory::getTenantId, tenantId);
+        wrapper.gt(Inventory::getQuantity, 0); // 只查有库存的
+        List<Inventory> inventories = inventoryMapper.selectList(wrapper);
+
+        int remaining = needQty;
+        for (Inventory inv : inventories) {
+            if (remaining <= 0) break;
+
+            int available = inv.getQuantity() - inv.getReservedQty() - inv.getGlobalReservedQty();
+            if (available <= 0) continue;
+
+            int allocate = Math.min(available, remaining);
+
+            // 乐观锁更新 global_reserved_qty
+            LambdaUpdateWrapper<Inventory> updateWrapper = new LambdaUpdateWrapper<>();
+            updateWrapper.eq(Inventory::getId, inv.getId())
+                    .eq(Inventory::getVersion, inv.getVersion());
+            updateWrapper.setSql("global_reserved_qty = global_reserved_qty + " + allocate);
+            int rows = inventoryMapper.update(null, updateWrapper);
+            if (rows == 0) {
+                throw new RuntimeException("库存已被其他操作修改，请重试");
+            }
+
+            remaining -= allocate;
+        }
+
+        if (remaining > 0) {
+            throw new RuntimeException(String.format("商品SKU[%d]跨仓总量不足，无法完成预留", skuId));
+        }
+
+        // 3. 记录跨仓预留表
+        InventoryGlobalReserve record = new InventoryGlobalReserve();
+        record.setOrderId(orderId);
+        record.setSkuId(skuId);
+        record.setReserveQty(needQty);
+        record.setReleasedQty(0);
+        record.setTenantId(tenantId);
+        globalReserveMapper.insert(record);
+
+        // 4. 记录库存日志
+        InventoryLog log = new InventoryLog();
+        log.setSkuId(skuId);
+        log.setWarehouseId(null); // 跨仓不留具体仓库
+        log.setChangeType("GLOBAL_RESERVE");
+        log.setChangeQty(-needQty);
+        log.setBeforeQty(0); // 跨仓不留具体仓库
+        log.setAfterQty(0);
+        log.setOrderId(orderId);
+        log.setOperatorId(operatorId);
+        log.setRemark("跨仓总量预留");
+        log.setTenantId(tenantId);
+        inventoryLogMapper.insert(log);
+    }
+
+    @Override
+    @Transactional
+    public void globalRelease(InventoryReserveDTO dto, Long operatorId) {
+        Long tenantId = TenantContext.getTenantId();
+
+        for (InventoryReserveDTO.ReserveItemDTO item : dto.getItems()) {
+            String lockKey = "sku:lock:" + item.getSkuId();
+            RLock lock = redissonClient.getLock(lockKey);
+
+            try {
+                if (!lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
+                    throw new RuntimeException("系统繁忙，请稍后重试");
+                }
+
+                // 查询该SKU的跨仓预留记录
+                LambdaQueryWrapper<InventoryGlobalReserve> wrapper = new LambdaQueryWrapper<>();
+                wrapper.eq(InventoryGlobalReserve::getOrderId, dto.getOrderId())
+                        .eq(InventoryGlobalReserve::getSkuId, item.getSkuId());
+                InventoryGlobalReserve record = globalReserveMapper.selectOne(wrapper);
+
+                if (record == null) {
+                    throw new RuntimeException("未找到跨仓预留记录");
+                }
+
+                int toRelease = Math.min(item.getQuantity(), record.getReserveQty() - record.getReleasedQty());
+                if (toRelease <= 0) {
+                    throw new RuntimeException("无可释放的预留数量");
+                }
+
+                // 按仓库比例释放（从预留的仓库依次释放）
+                releaseFromWarehouses(item.getSkuId(), toRelease, tenantId, operatorId, dto.getOrderId());
+
+                // 更新预留记录
+                record.setReleasedQty(record.getReleasedQty() + toRelease);
+                globalReserveMapper.updateById(record);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("操作被中断，请稍后重试");
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            }
+        }
+    }
+
+    /**
+     * 按仓库比例释放全局预留
+     */
+    private void releaseFromWarehouses(Long skuId, Integer releaseQty, Long tenantId, Long operatorId, Long orderId) {
+        LambdaQueryWrapper<Inventory> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Inventory::getSkuId, skuId);
+        wrapper.eq(Inventory::getTenantId, tenantId);
+        wrapper.gt(Inventory::getGlobalReservedQty, 0);
+        List<Inventory> inventories = inventoryMapper.selectList(wrapper);
+
+        int remaining = releaseQty;
+        for (Inventory inv : inventories) {
+            if (remaining <= 0) break;
+
+            int reserved = inv.getGlobalReservedQty();
+            if (reserved <= 0) continue;
+
+            int release = Math.min(reserved, remaining);
+
+            LambdaUpdateWrapper<Inventory> updateWrapper = new LambdaUpdateWrapper<>();
+            updateWrapper.eq(Inventory::getId, inv.getId())
+                    .eq(Inventory::getVersion, inv.getVersion());
+            updateWrapper.setSql("global_reserved_qty = global_reserved_qty - " + release);
+            int rows = inventoryMapper.update(null, updateWrapper);
+            if (rows == 0) {
+                throw new RuntimeException("库存已被其他操作修改，请重试");
+            }
+
+            remaining -= release;
+        }
+
+        // 记录日志
+        InventoryLog log = new InventoryLog();
+        log.setSkuId(skuId);
+        log.setChangeType("GLOBAL_RELEASE");
+        log.setChangeQty(releaseQty);
+        log.setBeforeQty(0);
+        log.setAfterQty(0);
+        log.setOrderId(orderId);
+        log.setOperatorId(operatorId);
+        log.setRemark("跨仓总量释放");
+        log.setTenantId(tenantId);
+        inventoryLogMapper.insert(log);
+    }
+
+    @Override
+    @Transactional
+    public void globalReleasePartial(Long skuId, Integer quantity, Long orderId, Long operatorId) {
+        Long tenantId = TenantContext.getTenantId();
+        String lockKey = "sku:lock:" + skuId;
+        RLock lock = redissonClient.getLock(lockKey);
+
+        try {
+            if (!lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
+                throw new RuntimeException("系统繁忙，请稍后重试");
+            }
+
+            // 直接从各仓库按比例释放 global_reserved_qty，不依赖 inventory_global_reserve 记录
+            releaseFromWarehouses(skuId, quantity, tenantId, operatorId, orderId);
+
+            // 同步更新 inventory_global_reserve 记录（若存在）
+            LambdaQueryWrapper<InventoryGlobalReserve> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(InventoryGlobalReserve::getOrderId, orderId)
+                    .eq(InventoryGlobalReserve::getSkuId, skuId);
+            InventoryGlobalReserve record = globalReserveMapper.selectOne(wrapper);
+            if (record != null) {
+                int newReleased = Math.min(record.getReleasedQty() + quantity, record.getReserveQty());
+                record.setReleasedQty(newReleased);
+                globalReserveMapper.updateById(record);
+            }
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("操作被中断，请稍后重试");
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+    }
+
+    @Override
+    public Integer getGlobalAvailableQty(Long skuId) {
+        Long tenantId = TenantContext.getTenantId();
+
+        // 计算跨仓可用总量 = SUM(quantity - reserved_qty - global_reserved_qty)
+        String sql = """
+            SELECT COALESCE(SUM(quantity - IFNULL(reserved_qty, 0) - IFNULL(global_reserved_qty, 0)), 0)
+            FROM inventory
+            WHERE sku_id = ? AND tenant_id = ?
+            """;
+
+        // 使用 MyBatis-Plus 查询
+        LambdaQueryWrapper<Inventory> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Inventory::getSkuId, skuId);
+        wrapper.eq(Inventory::getTenantId, tenantId);
+        List<Inventory> list = inventoryMapper.selectList(wrapper);
+
+        int totalAvailable = 0;
+        for (Inventory inv : list) {
+            int available = inv.getQuantity() - inv.getReservedQty() - inv.getGlobalReservedQty();
+            totalAvailable += Math.max(0, available);
+        }
+        return totalAvailable;
+    }
+
+    @Override
+    @Transactional
+    public void outByPlan(Long planId, Integer quantity, Long operatorId) {
+        Long tenantId = TenantContext.getTenantId();
+
+        // 获取配货计划
+        OrderDeliveryPlan plan = deliveryPlanMapper.selectById(planId);
+        if (plan == null) {
+            throw new RuntimeException("配货计划不存在");
+        }
+
+        if (plan.getWarehouseId() == null) {
+            throw new RuntimeException("配货计划未指定仓库");
+        }
+
+        String lockKey = INVENTORY_LOCK_PREFIX + plan.getSkuId() + ":" + plan.getWarehouseId();
+        RLock lock = redissonClient.getLock(lockKey);
+
+        try {
+            if (!lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
+                throw new RuntimeException("系统繁忙，请稍后重试");
+            }
+
+            // 获取库存
+            Inventory inv = inventoryMapper.selectBySkuAndWarehouse(plan.getSkuId(), plan.getWarehouseId());
             if (inv == null) {
                 throw new RuntimeException("库存记录不存在");
             }
 
-            int beforeReserved = inv.getReservedQty();
+            int beforeQty = inv.getQuantity();
 
-            // 释放预留数量
+            // 验证库存是否足够
+            // 1. 检查全局预留是否足够
+            if (inv.getGlobalReservedQty() < quantity) {
+                throw new RuntimeException("配货预留不足，无法出库");
+            }
+            // 2. 检查实际可用库存是否足够（考虑其他非订单来源的占用）
+            int available = inv.getQuantity() - inv.getReservedQty() - inv.getGlobalReservedQty();
+            if (available < quantity) {
+                throw new RuntimeException("库存不足，无法出库");
+            }
+
+            int changeQty = -quantity;
+
+            // 使用乐观锁更新库存
+            // 注意：outByPlan 只扣减 quantity 和 global_reserved_qty，不碰 reserved_qty
+            // 因为 reserved_qty 是单个订单的预占，global_reserved_qty 是跨仓全局预留
             LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
-            wrapper.eq(Inventory::getId, inv.getId());
-            wrapper.setSql("reserved_qty = reserved_qty - " + item.getQuantity());
-            inventoryMapper.update(null, wrapper);
+            wrapper.eq(Inventory::getId, inv.getId())
+                    .eq(Inventory::getVersion, inv.getVersion())
+                    .setSql("quantity = quantity + " + changeQty +
+                            ", global_reserved_qty = global_reserved_qty + " + changeQty);
+
+            int rows = inventoryMapper.update(null, wrapper);
+            if (rows == 0) {
+                throw new RuntimeException("库存已被其他操作修改，请重试");
+            }
+
+            // 更新配货计划的已出库数量
+            OrderDeliveryPlan updatePlan = new OrderDeliveryPlan();
+            updatePlan.setId(planId);
+            updatePlan.setOutQty(plan.getOutQty() + quantity);
+            // 如果全部出库完成，更新状态为OUT
+            if (plan.getAllocatedQty() <= plan.getOutQty() + quantity) {
+                updatePlan.setStatus(OrderDeliveryPlan.Status.OUT);
+            }
+            deliveryPlanMapper.updateById(updatePlan);
 
             // 记录变动日志
             InventoryLog log = new InventoryLog();
-            log.setSkuId(item.getSkuId());
-            log.setWarehouseId(dto.getWarehouseId());
-            log.setChangeType(CHANGE_TYPE_SALE_CANCEL);
-            log.setChangeQty(item.getQuantity());
-            log.setBeforeQty(inv.getQuantity() - beforeReserved);
-            log.setAfterQty(inv.getQuantity() - beforeReserved + item.getQuantity());
-            log.setOrderId(dto.getOrderId());
+            log.setSkuId(plan.getSkuId());
+            log.setWarehouseId(plan.getWarehouseId());
+            log.setChangeType("SALE_OUT");
+            log.setChangeQty(changeQty);
+            log.setBeforeQty(beforeQty);
+            log.setAfterQty(beforeQty + changeQty);
+            log.setOrderId(plan.getOrderId());
             log.setOperatorId(operatorId);
-            log.setRemark("预留释放");
+            log.setRemark("配货计划出库");
             log.setTenantId(tenantId);
             inventoryLogMapper.insert(log);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("操作被中断，请重试");
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
     }
 
@@ -370,10 +832,66 @@ public class InventoryServiceImpl implements InventoryService {
         }).toList();
     }
 
+    @Override
+    public PageResult<InventoryLogVO> listLogs(InventoryLogPageDTO dto) {
+        Long tenantId = TenantContext.getTenantId();
+
+        // 计算分页
+        long current = dto.getCurrent() != null ? dto.getCurrent() : 1L;
+        long pageSize = dto.getSize() != null ? dto.getSize() : 20L;
+        long offset = (current - 1) * pageSize;
+        long size = pageSize;
+
+        // 使用自定义JOIN查询
+        List<InventoryLog> logList = inventoryLogMapper.selectInventoryLogList(
+                tenantId,
+                dto.getSkuId(),
+                dto.getWarehouseId(),
+                dto.getChangeType(),
+                offset,
+                size
+        );
+
+        long total = inventoryLogMapper.countInventoryLogList(
+                tenantId,
+                dto.getSkuId(),
+                dto.getWarehouseId(),
+                dto.getChangeType()
+        );
+
+        List<InventoryLogVO> voList = new ArrayList<>();
+        for (InventoryLog log : logList) {
+            InventoryLogVO vo = new InventoryLogVO();
+            BeanUtils.copyProperties(log, vo);
+            vo.setChangeTypeName(getChangeTypeName(log.getChangeType()));
+            voList.add(vo);
+        }
+
+        PageResult<InventoryLogVO> pageResult = new PageResult<>();
+        pageResult.setRecords(voList);
+        pageResult.setTotal(total);
+        pageResult.setSize(size);
+        pageResult.setCurrent(dto.getCurrent() != null ? dto.getCurrent() : 1);
+        pageResult.setPages((total + size - 1) / size);
+        return pageResult;
+    }
+
+    private String getChangeTypeName(String changeType) {
+        return switch (changeType) {
+            case "PURCHASE_IN" -> "采购入库";
+            case "SALE_OUT" -> "销售出库";
+            case "SALE_CANCEL" -> "订单取消";
+            case "ADJUST" -> "库存调整";
+            case "OTHER_OUT" -> "其他出库";
+            default -> changeType;
+        };
+    }
+
     private InventoryVO convertToVO(Inventory inv) {
         InventoryVO vo = new InventoryVO();
         BeanUtils.copyProperties(inv, vo);
-        vo.setAvailableQty(inv.getQuantity() - inv.getReservedQty());
+        int globalReserved = inv.getGlobalReservedQty() != null ? inv.getGlobalReservedQty() : 0;
+        vo.setAvailableQty(inv.getQuantity() - inv.getReservedQty() - globalReserved);
         return vo;
     }
 }

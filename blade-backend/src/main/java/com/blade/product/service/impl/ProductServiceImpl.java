@@ -5,10 +5,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
-import com.blade.product.dto.ProductCreateDTO;
-import com.blade.product.dto.ProductPageDTO;
-import com.blade.product.dto.ProductUpdateDTO;
-import com.blade.product.dto.ProductVO;
+import com.blade.product.dto.*;
+import com.blade.product.entity.ProductColor;
+import com.blade.product.entity.ProductSize;
 import com.blade.product.entity.Product;
 import com.blade.product.entity.ProductCategory;
 import com.blade.product.entity.ProductColor;
@@ -19,6 +18,7 @@ import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.*;
 import com.blade.product.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +36,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductSkuMapper skuMapper;
     private final ProductColorRelMapper colorRelMapper;
     private final ProductSizeRelMapper sizeRelMapper;
+    private final JdbcTemplate jdbcTemplate;
 
     @Autowired
     public ProductServiceImpl(ProductMapper productMapper,
@@ -44,7 +45,8 @@ public class ProductServiceImpl implements ProductService {
                              ProductSizeMapper sizeMapper,
                              ProductSkuMapper skuMapper,
                              ProductColorRelMapper colorRelMapper,
-                             ProductSizeRelMapper sizeRelMapper) {
+                             ProductSizeRelMapper sizeRelMapper,
+                             JdbcTemplate jdbcTemplate) {
         this.productMapper = productMapper;
         this.categoryMapper = categoryMapper;
         this.colorMapper = colorMapper;
@@ -52,6 +54,7 @@ public class ProductServiceImpl implements ProductService {
         this.skuMapper = skuMapper;
         this.colorRelMapper = colorRelMapper;
         this.sizeRelMapper = sizeRelMapper;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
@@ -104,10 +107,14 @@ public class ProductServiceImpl implements ProductService {
         product.setProductCode(dto.getProductCode());
         product.setName(dto.getName());
         product.setCategoryId(dto.getCategoryId());
+        product.setSupplierId(dto.getSupplierId());
         product.setUnit(dto.getUnit() != null ? dto.getUnit() : "件");
+        product.setCostPrice(dto.getCostPrice());
+        product.setWholesalePrice(dto.getWholesalePrice());
+        product.setWeight(dto.getWeight());
         product.setDescription(dto.getDescription());
         product.setImageUrl(dto.getImageUrl());
-        product.setPrice(dto.getPrice());
+        product.setRemark(dto.getRemark());
         product.setStatus(dto.getStatus() != null ? dto.getStatus() : 1);
         product.setTenantId(TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L);
 
@@ -120,7 +127,7 @@ public class ProductServiceImpl implements ProductService {
         if (dto.getSizeIds() != null && !dto.getSizeIds().isEmpty()) {
             saveSizeRelations(product.getId(), dto.getSizeIds());
             if (dto.getColorIds() != null && !dto.getColorIds().isEmpty()) {
-                autoGenerateSkus(product.getId(), dto.getColorIds(), dto.getSizeIds(), dto.getPrice());
+                autoGenerateSkus(product.getId(), dto.getColorIds(), dto.getSizeIds(), dto.getWholesalePrice());
             }
         }
 
@@ -141,8 +148,20 @@ public class ProductServiceImpl implements ProductService {
         if (dto.getCategoryId() != null) {
             product.setCategoryId(dto.getCategoryId());
         }
+        if (dto.getSupplierId() != null) {
+            product.setSupplierId(dto.getSupplierId());
+        }
         if (dto.getUnit() != null) {
             product.setUnit(dto.getUnit());
+        }
+        if (dto.getCostPrice() != null) {
+            product.setCostPrice(dto.getCostPrice());
+        }
+        if (dto.getWholesalePrice() != null) {
+            product.setWholesalePrice(dto.getWholesalePrice());
+        }
+        if (dto.getWeight() != null) {
+            product.setWeight(dto.getWeight());
         }
         if (dto.getDescription() != null) {
             product.setDescription(dto.getDescription());
@@ -150,8 +169,8 @@ public class ProductServiceImpl implements ProductService {
         if (dto.getImageUrl() != null) {
             product.setImageUrl(dto.getImageUrl());
         }
-        if (dto.getPrice() != null) {
-            product.setPrice(dto.getPrice());
+        if (dto.getRemark() != null) {
+            product.setRemark(dto.getRemark());
         }
         if (dto.getStatus() != null) {
             product.setStatus(dto.getStatus());
@@ -188,23 +207,9 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public List<ProductVO.SizeVO> listAllSizes() {
-        LambdaQueryWrapper<ProductSize> wrapper = new LambdaQueryWrapper<>();
-        wrapper.orderByAsc(ProductSize::getSort);
-        List<ProductSize> sizes = sizeMapper.selectList(wrapper);
-
-        return sizes.stream().map(size -> {
-            ProductVO.SizeVO vo = new ProductVO.SizeVO();
-            vo.setId(size.getId());
-            vo.setSizeCode(size.getSizeCode());
-            vo.setSort(size.getSort());
-            return vo;
-        }).collect(Collectors.toList());
-    }
-
-    @Override
     public List<ProductVO.ColorVO> listAllColors() {
         LambdaQueryWrapper<ProductColor> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ProductColor::getStatus, 1).orderByAsc(ProductColor::getId);
         List<ProductColor> colors = colorMapper.selectList(wrapper);
 
         return colors.stream().map(color -> {
@@ -212,8 +217,120 @@ public class ProductServiceImpl implements ProductService {
             vo.setId(color.getId());
             vo.setColorCode(color.getColorCode());
             vo.setColorName(color.getColorName());
+            vo.setStatus(color.getStatus());
             return vo;
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    public Long createColor(ColorCreateDTO dto) {
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        ProductColor color = new ProductColor();
+        color.setColorCode(dto.getColorCode());
+        color.setColorName(dto.getColorName());
+        color.setTenantId(tenantId);
+        color.setDeleted(0);
+        color.setStatus(dto.getStatus() != null ? dto.getStatus() : 1);
+        colorMapper.insert(color);
+        return color.getId();
+    }
+
+    @Override
+    public void updateColor(ColorUpdateDTO dto) {
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        ProductColor color = colorMapper.selectById(dto.getId());
+        if (color == null) {
+            throw new RuntimeException("颜色不存在");
+        }
+        color.setColorCode(dto.getColorCode());
+        color.setColorName(dto.getColorName());
+        if (dto.getStatus() != null) {
+            color.setStatus(dto.getStatus());
+        }
+        colorMapper.updateById(color);
+    }
+
+    @Override
+    public void deleteColor(Long id) {
+        colorMapper.deleteById(id);
+    }
+
+    @Override
+    public List<ProductVO.SizeVO> listAllSizes() {
+        LambdaQueryWrapper<ProductSize> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ProductSize::getStatus, 1).orderByAsc(ProductSize::getSort);
+        List<ProductSize> sizes = sizeMapper.selectList(wrapper);
+
+        return sizes.stream().map(size -> {
+            ProductVO.SizeVO vo = new ProductVO.SizeVO();
+            vo.setId(size.getId());
+            vo.setSizeCode(size.getSizeCode());
+            vo.setSort(size.getSort());
+            vo.setStatus(size.getStatus());
+            return vo;
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    public Long createSize(SizeCreateDTO dto) {
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        // 使用原生 SQL 检查是否有软删除的同名尺码（绕过 MyBatis-Plus 逻辑删除过滤器）
+        String checkSql = "SELECT id, size_code, sort, tenant_id, deleted, create_time FROM product_size WHERE size_code = ? AND tenant_id = ? AND deleted = 1";
+        List<ProductSize> deletedList = jdbcTemplate.query(checkSql, (rs, rowNum) -> {
+            ProductSize s = new ProductSize();
+            s.setId(rs.getLong("id"));
+            s.setSizeCode(rs.getString("size_code"));
+            s.setSort(rs.getInt("sort"));
+            s.setTenantId(rs.getLong("tenant_id"));
+            s.setDeleted(rs.getInt("deleted"));
+            return s;
+        }, dto.getSizeCode(), tenantId);
+
+        if (!deletedList.isEmpty()) {
+            // 恢复软删除的记录（使用原生 SQL 绕过所有过滤器）
+            Long deletedId = deletedList.get(0).getId();
+            int sortValue = dto.getSort() != null ? dto.getSort() : 0;
+            String updateSql = "UPDATE product_size SET deleted = 0, sort = ? WHERE id = ?";
+            jdbcTemplate.update(updateSql, sortValue, deletedId);
+            return deletedId;
+        }
+
+        ProductSize size = new ProductSize();
+        size.setSizeCode(dto.getSizeCode());
+        size.setSort(dto.getSort() != null ? dto.getSort() : 0);
+        size.setTenantId(tenantId);
+        size.setDeleted(0);
+        size.setStatus(dto.getStatus() != null ? dto.getStatus() : 1);
+        sizeMapper.insert(size);
+        return size.getId();
+    }
+
+    @Override
+    public void updateSize(SizeUpdateDTO dto) {
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        ProductSize size = sizeMapper.selectById(dto.getId());
+        if (size == null) {
+            throw new RuntimeException("尺码不存在");
+        }
+        size.setSizeCode(dto.getSizeCode());
+        if (dto.getSort() != null) {
+            size.setSort(dto.getSort());
+        }
+        if (dto.getStatus() != null) {
+            size.setStatus(dto.getStatus());
+        }
+        sizeMapper.updateById(size);
+    }
+
+    @Override
+    public void deleteSize(Long id) {
+        sizeMapper.deleteById(id);
+    }
+
+    @Override
+    public List<SkuVO> listAllSkus() {
+        return skuMapper.selectAllSkuList();
     }
 
     private void saveColorRelations(Long productId, List<Long> colorIds) {
@@ -265,10 +382,14 @@ public class ProductServiceImpl implements ProductService {
         vo.setProductCode(product.getProductCode());
         vo.setName(product.getName());
         vo.setCategoryId(product.getCategoryId());
+        vo.setSupplierId(product.getSupplierId());
         vo.setUnit(product.getUnit());
+        vo.setCostPrice(product.getCostPrice());
+        vo.setWholesalePrice(product.getWholesalePrice());
+        vo.setWeight(product.getWeight());
         vo.setDescription(product.getDescription());
         vo.setImageUrl(product.getImageUrl());
-        vo.setPrice(product.getPrice());
+        vo.setRemark(product.getRemark());
         vo.setStatus(product.getStatus());
         vo.setCreateTime(product.getCreateTime());
         vo.setUpdateTime(product.getUpdateTime());
@@ -279,6 +400,14 @@ public class ProductServiceImpl implements ProductService {
                 vo.setCategoryName(category.getCategoryName());
             }
         }
+
+        // 供应商名称（等供应商模块开发后完善）
+        // if (product.getSupplierId() != null) {
+        //     Supplier supplier = supplierMapper.selectById(product.getSupplierId());
+        //     if (supplier != null) {
+        //         vo.setSupplierName(supplier.getSupplierName());
+        //     }
+        // }
 
         List<ProductColor> colors = colorRelMapper.selectByProductId(product.getId());
         if (colors != null && !colors.isEmpty()) {
@@ -302,6 +431,41 @@ public class ProductServiceImpl implements ProductService {
                 return sizeVO;
             }).collect(Collectors.toList());
             vo.setSizes(sizeVOList);
+        }
+
+        // 填充SKU列表
+        LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+        skuWrapper.eq(ProductSku::getProductId, product.getId());
+        skuWrapper.eq(ProductSku::getStatus, 1);
+        List<ProductSku> skus = skuMapper.selectList(skuWrapper);
+        if (skus != null && !skus.isEmpty()) {
+            List<ProductVO.SkuVO> skuVOList = skus.stream().map(sku -> {
+                ProductVO.SkuVO skuVO = new ProductVO.SkuVO();
+                skuVO.setId(sku.getId());
+                skuVO.setSkuCode(sku.getSkuCode());
+                skuVO.setColorId(sku.getColorId());
+                skuVO.setSizeId(sku.getSizeId());
+                skuVO.setPrice(sku.getPrice());
+                skuVO.setCostPrice(sku.getCostPrice());
+                skuVO.setBarCode(sku.getBarCode());
+                skuVO.setStatus(sku.getStatus());
+                // 查询颜色名称
+                if (sku.getColorId() != null) {
+                    ProductColor color = colorMapper.selectById(sku.getColorId());
+                    if (color != null) {
+                        skuVO.setColorName(color.getColorName());
+                    }
+                }
+                // 查询尺码名称
+                if (sku.getSizeId() != null) {
+                    ProductSize size = sizeMapper.selectById(sku.getSizeId());
+                    if (size != null) {
+                        skuVO.setSizeName(size.getSizeCode());
+                    }
+                }
+                return skuVO;
+            }).collect(Collectors.toList());
+            vo.setSkus(skuVOList);
         }
 
         return vo;

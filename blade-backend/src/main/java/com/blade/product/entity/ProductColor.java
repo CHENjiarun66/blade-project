@@ -12,6 +12,7 @@ public class ProductColor {
     private String colorName;
     private Long tenantId;
     private Integer deleted;
+    private Integer status;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
@@ -26,6 +27,8 @@ public class ProductColor {
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public Integer getDeleted() { return deleted; }
     public void setDeleted(Integer deleted) { this.deleted = deleted; }
+    public Integer getStatus() { return status; }
+    public void setStatus(Integer status) { this.status = status; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
 }

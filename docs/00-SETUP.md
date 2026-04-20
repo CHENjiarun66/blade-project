@@ -110,7 +110,7 @@ docker run -d \
 ### 2.5 启动后端
 
 ```bash
-cd /Users/chenjiarun/Documents/blade-backend
+cd /Users/chenjiarun/Documents/BladeProject/blade-backend
 
 # 编译（需要 Java 17）
 JAVA_HOME=/Users/chenjiarun/.sdkman/candidates/java/17.0.13-zulu/zulu-17.jdk/Contents/Home mvn clean compile
@@ -126,7 +126,7 @@ curl http://localhost:8080/swagger-ui.html
 
 ---
 
-## 三、移动端环境
+## 三、前端环境
 
 ### 3.1 Node.js 18+
 
@@ -142,26 +142,35 @@ nvm install 18
 nvm use 18
 ```
 
-### 3.2 pnpm
+### 3.2 npm
 
 ```bash
-# 全局安装 pnpm
-npm install -g pnpm
-
-# 或使用 Homebrew
-brew install pnpm
+# 检查 npm 版本
+npm -v
 ```
 
 ### 3.3 启动移动端
 
 ```bash
-cd /Users/chenjiarun/Documents/blade-mobile
+cd /Users/chenjiarun/Documents/BladeProject/blade-mobile
 
 # 安装依赖
-pnpm install
+npm install
 
 # 开发模式
-pnpm dev
+npm run dev
+```
+
+### 3.4 启动 PC 管理端
+
+```bash
+cd /Users/chenjiarun/Documents/BladeProject/blade-admin
+
+# 安装依赖
+npm install
+
+# 开发模式
+npm run dev
 ```
 
 ---
@@ -201,7 +210,8 @@ docker run -d \
 | MySQL Host | localhost:3306 |
 | Redis Host | localhost:6379 |
 | 后端端口 | 8080 |
-| 前端端口 | 5173 |
+| 移动端端口 | 5173 |
+| PC 管理端端口 | 5173（以 Vite 实际启动端口为准） |
 
 ---
 

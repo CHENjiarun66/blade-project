@@ -231,3 +231,131 @@ public class OrderController {
 ## 九、文档位置
 
 所有文档在：`../docs/`
+
+---
+
+## 十、并发控制设计规范
+
+> ⚠️ **所有涉及库存、库存变动、资金相关的操作必须考虑并发问题**
+
+### 10.1 必须考虑并发的场景
+
+| 场景 | 风险等级 | 说明 |
+|------|----------|------|
+| 库存扣减/出库 | 🔴 必须 | 可能超卖 |
+| 库存预留/释放 | 🔴 必须 | 可能超额预留 |
+| 订单创建（扣库存） | 🔴 必须 | 可能超卖 |
+| 商品/SKU编码生成 | 🟡 应该 | 可能重复 |
+| 金额计算/支付 | 🔴 必须 | 可能金额错误 |
+
+### 10.2 并发控制方案
+
+**组合方案：Redis分布式锁 + 乐观锁**
+
+```java
+// 1. Redis分布式锁 - 保证并发安全
+private RLock getLock(String key) {
+    return redissonClient.getLock(key);
+}
+
+// 2. 乐观锁 - 保证数据一致性
+// SQL示例
+UPDATE inventory
+SET quantity = quantity - ?,
+    version = version + 1
+WHERE id = ?
+  AND version = ?
+  AND quantity >= ?
+```
+
+### 10.3 锁粒度设计
+
+| 操作 | 锁Key格式 | 粒度 |
+|------|-----------|------|
+| 库存出库 | `inventory:lock:{skuId}:{warehouseId}` | SKU+仓库 |
+| 订单创建 | `sku:lock:{skuId}` | SKU维度 |
+| 商品创建 | `product:lock:{productCode}` | 商品编码 |
+| SKU生成 | `sku:generate:lock:{productId}:{colorId}:{sizeId}` | 商品+颜色+尺码 |
+
+### 10.4 设计检查清单
+
+> ⚠️ **设计新功能时必须检查以下内容**
+
+- [ ] 是否涉及库存扣减？是否加了Redis锁？
+- [ ] 是否涉及库存预留/释放？是否加了Redis锁？
+- [ ] 是否有"查询-判断-更新"逻辑？是否改为原子操作？
+- [ ] 是否有唯一性校验？是否加了数据库唯一约束？
+- [ ] 高并发场景是否加了限流保护？
+
+### 10.5 常见并发问题模式
+
+**❌ 错误模式：查询后更新**
+
+```java
+// 错误：两个线程可能同时通过检查
+Inventory inv = mapper.selectById(id);
+if (inv.getQuantity() >= need) {
+    wrapper.setSql("quantity = quantity - " + need);
+    mapper.update(wrapper);
+}
+```
+
+**✅ 正确模式：原子更新**
+
+```java
+// 正确：数据库保证原子性
+int rows = mapper.updateWithOptimisticLock(id, need);
+if (rows == 0) {
+    throw new RuntimeException("库存不足或已被修改");
+}
+```
+
+### 10.6 参考文档
+
+详细并发控制设计见：`../docs/06-ORDER_INVENTORY_DESIGN.md`（第七章：并发控制设计）
+
+---
+
+## 十一、代码审查规范
+
+### 11.1 必须审查的代码
+
+| 类型 | 示例 |
+|------|------|
+| 库存相关操作 | 入库、出库、预留、释放 |
+| 并发控制相关 | Redis锁、乐观锁使用 |
+| 跨模块调用 | Order调用Inventory、Order调用Product |
+| 金额计算 | 任何涉及金额的操作 |
+
+### 11.2 审查清单
+
+- [ ] 是否有单元测试？
+- [ ] 测试是否覆盖正常流程和异常流程？
+- [ ] 是否符合设计文档（06-ORDER_INVENTORY_DESIGN.md）？
+- [ ] 是否有并发安全考虑？（Redis锁 + 乐观锁）
+- [ ] 边界条件是否处理？（库存为0、负数等）
+- [ ] 是否正确释放锁？（finally块）
+- [ ] 是否有日志记录？
+
+### 11.3 关键方法必须有的测试
+
+```java
+// InventoryServiceTest.java 必须包含
+@Test
+void testOutByPlan_NormalFlow() { ... }       // 正常出库流程
+@Test
+void testOutByPlan_InsufficientGlobalReserve() { ... }  // 全局预留不足
+@Test
+void testOutByPlan_InsufficientActualStock() { ... }   // 实际库存不足
+```
+
+### 11.4 设计文档更新要求
+
+实现新功能时，设计文档必须同步更新：
+
+| 文档章节 | 必须包含的内容 |
+|----------|---------------|
+| 方法签名 | 完整的Java方法签名 |
+| 验证逻辑 | 按顺序列出的所有检查 |
+| 库存变动 | 每个字段的增减说明 |
+| 与其他方法的区别 | out() vs outByPlan() 等 |

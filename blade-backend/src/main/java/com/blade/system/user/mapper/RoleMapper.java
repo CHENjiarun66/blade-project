@@ -15,12 +15,17 @@ public interface RoleMapper extends BaseMapper<Role> {
 
     @Select("SELECT r.* FROM sys_role r " +
             "INNER JOIN sys_user_role ur ON r.id = ur.role_id " +
-            "WHERE ur.user_id = #{userId} AND r.deleted = 0")
+            "WHERE ur.user_id = #{userId} AND r.deleted = 0 AND ur.deleted = 0")
     List<Role> selectByUserId(@Param("userId") Long userId);
 
-    @Insert("INSERT INTO sys_user_role (user_id, role_id) VALUES (#{userId}, #{roleId})")
-    void insertUserRole(@Param("userId") Long userId, @Param("roleId") Long roleId);
+    @Select("SELECT r.id FROM sys_role r " +
+            "INNER JOIN sys_user_role ur ON r.id = ur.role_id " +
+            "WHERE ur.user_id = #{userId} AND r.deleted = 0 AND ur.deleted = 0")
+    List<Long> selectRoleIdsByUserId(@Param("userId") Long userId);
 
-    @Delete("DELETE FROM sys_user_role WHERE user_id = #{userId}")
+    @Insert("INSERT INTO sys_user_role (user_id, role_id, tenant_id, deleted, create_time) VALUES (#{userId}, #{roleId}, #{tenantId}, 0, NOW())")
+    void insertUserRole(@Param("userId") Long userId, @Param("roleId") Long roleId, @Param("tenantId") Long tenantId);
+
+    @Delete("UPDATE sys_user_role SET deleted = 1 WHERE user_id = #{userId} AND deleted = 0")
     void deleteUserRoles(@Param("userId") Long userId);
 }

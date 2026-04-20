@@ -24,7 +24,7 @@ public class LoginController {
     @PostMapping("/login")
     @Operation(summary = "账号密码登录")
     public LoginResponse login(@RequestBody @Valid LoginRequest request) {
-        return authService.login(request.getUsername(), request.getPassword());
+        return authService.login(request.getTenantCode(), request.getUsername(), request.getPassword());
     }
 
     @PostMapping("/logout")

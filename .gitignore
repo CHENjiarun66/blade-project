@@ -55,3 +55,19 @@ blade-backend/wrapper/
 .TranslationPlugin/
 .adobe/
 .ai_completion/
+
+# Screenshots and test artifacts (not source code)
+**/test-screenshots/
+**/test-results/
+**/*test-screenshot*.png
+**/multi-phone*.png
+**/phone-bug*.png
+**/test-*.png
+
+# Tool artifacts
+.agents/
+.runtime/
+dump.rdb
+stitch/
+.claude/
+AGENTS.md

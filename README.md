@@ -1,36 +1,28 @@
-# BladeProject 文档中心
+# BladeProject
 
-> BladeProject 是对原有 Blade 项目的重大技术升级，包含移动端 PWA + 后端 Spring Boot 3 重构。
+> Monorepo 项目，包含后端、移动端、PC 管理端、共享类型和项目文档。
 
----
+## 阅读顺序
 
-## 快速开始
+1. [docs/SESSION_CONTEXT.md](./docs/SESSION_CONTEXT.md)
+2. [docs/01-README.md](./docs/01-README.md)
+3. [docs/02-PRD.md](./docs/02-PRD.md)
+4. [docs/03-TASKS.md](./docs/03-TASKS.md)
 
-**新 AI 必读**：
+## 子项目入口
 
-1. [docs/01-README.md](./docs/01-README.md) — 项目结构和工作流程
-2. [docs/02-PRD.md](./docs/02-PRD.md) — 产品需求文档（开发依据）
-3. [docs/03-TASKS.md](./docs/03-TASKS.md) — 开发任务清单
+| 模块 | 路径 | 说明 |
+|------|------|------|
+| 文档中心 | `./docs/` | PRD、任务、变更、设计、排障 |
+| 后端 | `./blade-backend/` | Spring Boot 3 API 与数据库迁移 |
+| 移动端 | `./blade-mobile/` | Vue 3 PWA |
+| PC 管理端 | `./blade-admin/` | Vue 3 + Element Plus 后台 |
+| 共享类型 | `./packages/types/` | 前端共享 TypeScript 类型 |
+| 原型 | `./stitch/` | 历史原型工程 |
 
----
+## 说明
 
-## 文档目录
-
-| 文档 | 说明 |
-|------|------|
-| [docs/01-README.md](./docs/01-README.md) | 项目入口和工作流程 |
-| [docs/02-PRD.md](./docs/02-PRD.md) | 产品需求文档（开发唯一依据） |
-| [docs/03-TASKS.md](./docs/03-TASKS.md) | 开发任务清单 |
-| [docs/04-REQUISITION_LOG.md](./docs/04-REQUISITION_LOG.md) | 需求讨论记录 |
-| [docs/05-CHANGELOG.md](./docs/05-CHANGELOG.md) | 变更记录 |
-
----
-
-## 相关项目
-
-| 项目 | 路径 |
-|------|------|
-| BladeProject 文档 | ./docs/ |
-| 移动端 PWA | ./blade-mobile/ |
-| 后端 | ./blade-backend/ |
-| 原 Blade 项目 | /Users/chenjiarun/Documents/Blade/ （参考） |
+- 业务规则和技术栈以 [docs/02-PRD.md](./docs/02-PRD.md) 为准。
+- 当前进度以 [docs/03-TASKS.md](./docs/03-TASKS.md) 为准。
+- 最近变更以 [docs/05-CHANGELOG.md](./docs/05-CHANGELOG.md) 为准。
+- 更完整的导航见 [docs/01-README.md](./docs/01-README.md)。

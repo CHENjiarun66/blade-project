@@ -12,6 +12,8 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/warehouse")
 @Tag(name = "仓库管理接口")
@@ -26,6 +28,12 @@ public class WarehouseController {
             @RequestParam(defaultValue = "1") int current,
             @RequestParam(defaultValue = "20") int size) {
         return R.ok(warehouseService.pageList(current, size));
+    }
+
+    @GetMapping("/all")
+    @Operation(summary = "所有仓库列表")
+    public R<List<WarehouseVO>> listAll() {
+        return R.ok(warehouseService.listAll());
     }
 
     @GetMapping("/{id}")
