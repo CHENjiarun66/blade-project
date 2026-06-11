@@ -102,6 +102,109 @@
               添加一行
             </el-button>
           </div>
+
+          <!-- 按商品批量添加 SKU -->
+          <div class="px-6 py-5 border-b border-gray-100">
+            <h3 class="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span class="material-symbols-outlined text-[#408aee] text-lg">inventory_2</span>
+              按商品批量添加
+            </h3>
+            <div class="flex flex-wrap items-end gap-5">
+              <div style="min-width: 340px">
+                <span class="text-xs font-bold text-gray-500 mb-2 block">搜索款号 / 商品名</span>
+                <el-select
+                  v-model="selectedProductId"
+                  filterable
+                  remote
+                  reserve-keyword
+                  placeholder="输入款号或商品名搜索"
+                  :remote-method="searchProducts"
+                  :loading="productSearchLoading"
+                  clearable
+                  class="!w-full"
+                  @change="onProductSelect"
+                >
+                  <el-option
+                    v-for="product in productSearchOptions"
+                    :key="product.id"
+                    :label="`${product.productCode} / ${product.name}`"
+                    :value="product.id"
+                  >
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="font-bold text-gray-900">{{ product.productCode }}</span>
+                      <span class="text-gray-500">{{ product.name }}</span>
+                      <span class="text-xs text-gray-400">SKU {{ product.skus?.length || 0 }}</span>
+                    </div>
+                  </el-option>
+                </el-select>
+              </div>
+              <template v-if="selectedProduct">
+                <label class="batch-price-field">
+                  <span>默认单价</span>
+                  <el-input v-model="batchDefaultPriceText" inputmode="decimal" class="!w-full" @input="onBatchPriceInput('price')" />
+                </label>
+                <label class="batch-price-field">
+                  <span>默认成本</span>
+                  <el-input v-model="batchDefaultCostPriceText" inputmode="decimal" class="!w-full" @input="onBatchPriceInput('cost')" />
+                </label>
+              </template>
+            </div>
+
+            <!-- SKU 颜色 × 尺码矩阵 -->
+            <div v-if="selectedProduct && matrixColors.length && matrixSizes.length" class="sku-matrix-wrap mt-5">
+              <div class="overflow-x-auto">
+                <table class="sku-matrix-table">
+                  <thead>
+                    <tr>
+                      <th class="sku-matrix-th sku-matrix-corner">颜色 \ 尺码</th>
+                      <th
+                        v-for="size in matrixSizes"
+                        :key="size.id"
+                        class="sku-matrix-th sku-matrix-col-hdr"
+                      >{{ size.name }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="color in matrixColors" :key="color.id">
+                      <td class="sku-matrix-td sku-matrix-row-hdr">{{ color.name }}</td>
+                      <td
+                        v-for="size in matrixSizes"
+                        :key="size.id"
+                        class="sku-matrix-td"
+                      >
+                        <template v-if="findSku(color.id, size.id)">
+                          <el-input
+                            v-model="skuQuantityMap[findSku(color.id, size.id)!.id]"
+                            inputmode="numeric"
+                            placeholder=""
+                            class="!w-full sku-qty-cell"
+                            @input="onSkuQtyInput(findSku(color.id, size.id)!.id)"
+                          />
+                        </template>
+                        <template v-else>
+                          <span class="text-gray-300 text-xs">—</span>
+                        </template>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="flex flex-wrap items-center gap-3 mt-4">
+                <el-button class="!rounded-xl !font-bold" @click="clearSkuQuantities">
+                  <span class="material-symbols-outlined text-sm mr-1">clear_all</span>
+                  清空数量
+                </el-button>
+                <el-button type="primary" class="!bg-[#408aee] !border-none !rounded-xl !font-bold" @click="addBatchToOrder">
+                  <span class="material-symbols-outlined text-sm mr-1">playlist_add</span>
+                  添加到订单
+                </el-button>
+              </div>
+            </div>
+            <div v-else-if="selectedProduct && activeSkus.length === 0" class="mt-4 p-4 bg-gray-50 rounded-lg text-sm text-gray-400 text-center">
+              该商品暂无可用 SKU
+            </div>
+          </div>
+
           <div class="overflow-x-auto quick-table-wrap">
             <el-table :data="form.items" class="quick-table">
               <el-table-column label="#" width="48" align="center">
@@ -119,6 +222,9 @@
                     :remote-method="filterSku"
                     @change="onSkuChange(row)"
                   >
+                    <template v-if="row.skuId" #label>
+                      <span>{{ lineSkuLabel(row) }}</span>
+                    </template>
                     <el-option
                       v-for="sku in filteredSkuOptions"
                       :key="sku.skuId"
@@ -149,12 +255,22 @@
               </el-table-column>
               <el-table-column label="单价" width="130">
                 <template #default="{ row }">
-                  <el-input-number v-model="row.price" :min="0" :precision="2" :controls="false" class="!w-full" />
+                  <el-input
+                    v-model="row.priceText"
+                    inputmode="decimal"
+                    class="!w-full"
+                    @input="onLineAmountInput(row, 'price')"
+                  />
                 </template>
               </el-table-column>
               <el-table-column label="成本价" width="130">
                 <template #default="{ row }">
-                  <el-input-number v-model="row.costPrice" :min="0" :precision="2" :controls="false" class="!w-full" />
+                  <el-input
+                    v-model="row.costPriceText"
+                    inputmode="decimal"
+                    class="!w-full"
+                    @input="onLineAmountInput(row, 'cost')"
+                  />
                 </template>
               </el-table-column>
               <el-table-column label="小计" width="120" align="right">
@@ -267,7 +383,7 @@ import { ElMessage } from 'element-plus'
 import { createOrder } from '@/api/order'
 import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO } from '@/api/customer'
 import { uploadFile } from '@/api/file'
-import { getProductPage } from '@/api/product'
+import { getProductPage, type ProductVO, type ProductSku } from '@/api/product'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
 
 interface QuickLine {
@@ -280,7 +396,9 @@ interface QuickLine {
   quantityText?: string
   quantity?: number
   price: number
+  priceText?: string
   costPrice: number
+  costPriceText?: string
 }
 
 interface SkuOption {
@@ -330,6 +448,43 @@ const filteredSkuOptions = ref<SkuOption[]>([])
 const imageSources = ref<string[]>([])
 const imageFileIds = ref<string[]>([])
 
+// 按商品批量添加 SKU
+const selectedProductId = ref<number | undefined>(undefined)
+const productSearchLoading = ref(false)
+const productSearchOptions = ref<ProductVO[]>([])
+const selectedProduct = ref<ProductVO | null>(null)
+const skuQuantityMap = reactive<Record<number, string>>({})
+const batchDefaultPriceText = ref('')
+const batchDefaultCostPriceText = ref('')
+
+const activeSkus = computed(() =>
+  (selectedProduct.value?.skus || []).filter(sku => sku.status === 1)
+)
+
+const matrixColors = computed(() => {
+  const seen = new Map<number, { id: number; name: string }>()
+  for (const sku of activeSkus.value) {
+    if (!seen.has(sku.colorId)) {
+      seen.set(sku.colorId, { id: sku.colorId, name: sku.colorName })
+    }
+  }
+  return Array.from(seen.values())
+})
+
+const matrixSizes = computed(() => {
+  const seen = new Map<number, { id: number; name: string }>()
+  for (const sku of activeSkus.value) {
+    if (!seen.has(sku.sizeId)) {
+      seen.set(sku.sizeId, { id: sku.sizeId, name: sku.sizeName })
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => a.id - b.id)
+})
+
+function findSku(colorId: number, sizeId: number): ProductSku | undefined {
+  return activeSkus.value.find(sku => sku.colorId === colorId && sku.sizeId === sizeId)
+}
+
 const orderTypeOptions = [
   { label: '现货订单', value: 'SPOT' },
   { label: '订货订单', value: 'PREORDER' },
@@ -376,8 +531,32 @@ function formatMoney(amount?: number) {
   return `¥${Number(amount || 0).toFixed(2)}`
 }
 
+function formatPlainAmount(amount?: number) {
+  const value = Number(amount || 0)
+  if (!Number.isFinite(value) || value <= 0) return ''
+  return Number.isInteger(value) ? String(value) : String(value).replace(/0+$/, '').replace(/\.$/, '')
+}
+
+function parsePlainAmount(value: string) {
+  const amount = Number(value || 0)
+  return Number.isFinite(amount) && amount > 0 ? amount : 0
+}
+
+function sanitizeMoneyText(value: string) {
+  return String(value || '')
+    .replace(/[^\d.]/g, '')
+    .replace(/^(\d*\.?\d{0,2}).*$/, '$1')
+    .replace(/(\..*)\./g, '$1')
+}
+
 function formatSkuDisplay(sku: Pick<SkuOption, 'productName' | 'productCode' | 'colorName' | 'sizeName'>) {
   return `${sku.productName} · ${sku.colorName || '-'} · ${sku.sizeName || '-'}`
+}
+
+function lineSkuLabel(row: QuickLine) {
+  return row.productName
+    ? `${row.productName} · ${row.colorName || '-'} · ${row.sizeName || '-'}`
+    : ''
 }
 
 function formatCustomerMeta(customer: CustomerVO) {
@@ -397,7 +576,22 @@ function incrementSourceDocNo(value: string) {
 }
 
 function addLine() {
-  form.items.push({ quantityText: '', quantity: undefined, price: 0, costPrice: 0 })
+  form.items.push({ quantityText: '', quantity: undefined, price: 0, priceText: '', costPrice: 0, costPriceText: '' })
+}
+
+function isEmptyLine(item: QuickLine) {
+  return !item.skuId
+    && !item.skuCode
+    && !item.quantityText
+    && !item.quantity
+    && !item.priceText
+    && !item.costPriceText
+    && Number(item.price || 0) === 0
+    && Number(item.costPrice || 0) === 0
+}
+
+function removePlaceholderLines() {
+  form.items = form.items.filter(item => !isEmptyLine(item))
 }
 
 function getLineQuantity(item: QuickLine) {
@@ -408,6 +602,24 @@ function onQuantityInput(row: QuickLine) {
   const value = String(row.quantityText || '').replace(/[^\d]/g, '')
   row.quantityText = value
   row.quantity = value ? Number(value) : undefined
+}
+
+function setLineAmountText(row: QuickLine, price: number, costPrice: number) {
+  row.price = Number(price || 0)
+  row.costPrice = Number(costPrice || 0)
+  row.priceText = formatPlainAmount(row.price)
+  row.costPriceText = formatPlainAmount(row.costPrice)
+}
+
+function onLineAmountInput(row: QuickLine, type: 'price' | 'cost') {
+  if (type === 'price') {
+    row.priceText = sanitizeMoneyText(row.priceText || '')
+    row.price = parsePlainAmount(row.priceText)
+    return
+  }
+
+  row.costPriceText = sanitizeMoneyText(row.costPriceText || '')
+  row.costPrice = parsePlainAmount(row.costPriceText)
 }
 
 function removeLine(index: number) {
@@ -438,11 +650,26 @@ function onSkuChange(row: QuickLine) {
   row.productName = sku.productName
   row.colorName = sku.colorName
   row.sizeName = sku.sizeName
-  row.price = sku.price || 0
-  row.costPrice = sku.costPrice || 0
+  setLineAmountText(row, sku.price || 0, sku.costPrice || 0)
   if (!row.costPrice) {
     ElMessage.warning(`${sku.productCode} 未维护进货价，成本价暂为 0`)
   }
+}
+
+function ensureSkuOption(product: ProductVO, sku: ProductSku) {
+  if (skuOptions.value.some(item => item.skuId === sku.id)) return
+  const option = {
+    skuId: sku.id,
+    skuCode: sku.skuCode,
+    productCode: product.productCode,
+    productName: product.name,
+    colorName: sku.colorName || '',
+    sizeName: sku.sizeName || '',
+    price: positiveNumber(sku.price) || positiveNumber(product.wholesalePrice) || 0,
+    costPrice: positiveNumber(sku.costPrice) || positiveNumber(product.costPrice) || 0,
+  }
+  skuOptions.value.push(option)
+  filteredSkuOptions.value.push(option)
 }
 
 async function queryCustomerSuggestions(query: string, callback: (items: CustomerVO[]) => void) {
@@ -565,8 +792,8 @@ async function submit(next: boolean) {
       items: validItems.map(item => ({
         skuId: item.skuId,
         quantity: getLineQuantity(item),
-        price: Number(item.price || 0),
-        costPrice: Number(item.costPrice || 0),
+        price: parsePlainAmount(item.priceText ?? String(item.price || 0)),
+        costPrice: parsePlainAmount(item.costPriceText ?? String(item.costPrice || 0)),
       })),
     }
     const res = await createOrder(data)
@@ -622,28 +849,142 @@ function resetForNext(previousSourceDocNo = '') {
   imageSources.value = []
   imageFileIds.value = []
   needDelivery.value = false
+  selectedProductId.value = undefined
+  selectedProduct.value = null
+  batchDefaultPriceText.value = ''
+  batchDefaultCostPriceText.value = ''
+  clearSkuQuantities()
   addLine()
 }
 
 async function loadProducts() {
   const res = await getProductPage({ current: 1, size: 1000 })
   const records = (res as any).data?.data?.records || (res as any).data?.records || []
-  skuOptions.value = records.flatMap((product: any) => (product.skus || []).map((sku: any) => ({
-    skuId: sku.id,
-    skuCode: sku.skuCode,
-    productCode: product.productCode,
-    productName: product.name,
-    colorName: sku.colorName || '',
-    sizeName: sku.sizeName || '',
-    price: positiveNumber(sku.price) || positiveNumber(product.wholesalePrice) || 0,
-    costPrice: positiveNumber(sku.costPrice) || positiveNumber(product.costPrice) || 0,
-  })))
+  skuOptions.value = records
+    .filter((product: any) => product.status === 1)
+    .flatMap((product: any) => (product.skus || [])
+      .filter((sku: any) => sku.status === 1)
+      .map((sku: any) => ({
+        skuId: sku.id,
+        skuCode: sku.skuCode,
+        productCode: product.productCode,
+        productName: product.name,
+        colorName: sku.colorName || '',
+        sizeName: sku.sizeName || '',
+        price: positiveNumber(sku.price) || positiveNumber(product.wholesalePrice) || 0,
+        costPrice: positiveNumber(sku.costPrice) || positiveNumber(product.costPrice) || 0,
+      })))
   filteredSkuOptions.value = skuOptions.value.slice(0, 50)
 }
 
 function positiveNumber(value: unknown) {
   const amount = Number(value || 0)
   return amount > 0 ? amount : 0
+}
+
+// ========== 按商品批量添加 SKU 方法 ==========
+
+async function searchProducts(keyword: string) {
+  if (!keyword || keyword.trim().length < 1) {
+    productSearchOptions.value = []
+    return
+  }
+  productSearchLoading.value = true
+  try {
+    const res = await getProductPage({ current: 1, size: 20, keyword: keyword.trim() })
+    const records = (res as any).data?.data?.records || (res as any).data?.records || []
+    productSearchOptions.value = (records as ProductVO[]).filter(p => p.status === 1)
+  } catch {
+    productSearchOptions.value = []
+  } finally {
+    productSearchLoading.value = false
+  }
+}
+
+function onProductSelect(productId: number | undefined) {
+  if (!productId) {
+    selectedProduct.value = null
+    clearSkuQuantities()
+    return
+  }
+  const product = productSearchOptions.value.find(p => p.id === productId)
+  selectedProduct.value = product || null
+  const firstActiveSku = (product?.skus || []).find(sku => sku.status === 1)
+  batchDefaultPriceText.value = formatPlainAmount(positiveNumber(product?.wholesalePrice) || positiveNumber(firstActiveSku?.price))
+  batchDefaultCostPriceText.value = formatPlainAmount(positiveNumber(product?.costPrice) || positiveNumber(firstActiveSku?.costPrice))
+  clearSkuQuantities()
+}
+
+function clearSkuQuantities() {
+  Object.keys(skuQuantityMap).forEach(key => {
+    delete skuQuantityMap[Number(key)]
+  })
+}
+
+function onSkuQtyInput(skuId: number) {
+  const value = String(skuQuantityMap[skuId] || '').replace(/[^\d]/g, '')
+  skuQuantityMap[skuId] = value
+}
+
+function onBatchPriceInput(type: 'price' | 'cost') {
+  const source = type === 'price' ? batchDefaultPriceText.value : batchDefaultCostPriceText.value
+  const sanitized = sanitizeMoneyText(source)
+  if (type === 'price') {
+    batchDefaultPriceText.value = sanitized
+  } else {
+    batchDefaultCostPriceText.value = sanitized
+  }
+}
+
+function addBatchToOrder() {
+  if (!selectedProduct.value) return
+
+  let added = 0
+  let merged = 0
+  const pendingSkus = activeSkus.value
+    .map(sku => ({ sku, quantity: Number(skuQuantityMap[sku.id] || 0) }))
+    .filter(item => item.quantity > 0)
+
+  if (pendingSkus.length === 0) {
+    ElMessage.warning('请至少填写一个 SKU 数量')
+    return
+  }
+
+  removePlaceholderLines()
+
+  for (const { sku, quantity } of pendingSkus) {
+    ensureSkuOption(selectedProduct.value, sku)
+
+    const existing = form.items.find(item => item.skuId === sku.id)
+    if (existing) {
+      const currentQuantity = getLineQuantity(existing)
+      const nextQuantity = currentQuantity + quantity
+      existing.quantity = nextQuantity
+      existing.quantityText = String(nextQuantity)
+      merged++
+      continue
+    }
+
+    form.items.push({
+      skuId: sku.id,
+      skuCode: sku.skuCode,
+      productCode: selectedProduct.value.productCode,
+      productName: selectedProduct.value.name,
+      colorName: sku.colorName,
+      sizeName: sku.sizeName,
+      quantity,
+      quantityText: String(quantity),
+      price: parsePlainAmount(batchDefaultPriceText.value),
+      priceText: formatPlainAmount(parsePlainAmount(batchDefaultPriceText.value)),
+      costPrice: parsePlainAmount(batchDefaultCostPriceText.value),
+      costPriceText: formatPlainAmount(parsePlainAmount(batchDefaultCostPriceText.value)),
+    })
+    added++
+  }
+
+  const handled = added + merged
+  clearSkuQuantities()
+  ElMessage.success(`已添加 ${handled} 个 SKU，合并 ${merged} 个重复 SKU`)
 }
 
 onMounted(async () => {
@@ -774,5 +1115,79 @@ onMounted(async () => {
 .quick-image-tile:hover .quick-image-remove,
 .quick-image-remove:focus-visible {
   opacity: 1;
+}
+
+.batch-price-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 150px;
+}
+
+.batch-price-field span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+/* ---- SKU 颜色×尺码矩阵 ---- */
+.sku-matrix-wrap {
+  max-width: 100%;
+}
+
+.sku-matrix-table {
+  width: auto;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.sku-matrix-th {
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-bottom: 2px solid #e5e7eb;
+  font-weight: 800;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.sku-matrix-corner {
+  border-radius: 8px 0 0 0;
+  text-align: left;
+}
+
+.sku-matrix-col-hdr {
+  text-align: center;
+  min-width: 80px;
+}
+
+.sku-matrix-td {
+  padding: 6px 4px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.sku-matrix-row-hdr {
+  font-weight: 700;
+  color: #374151;
+  background: #fafafa;
+  min-width: 70px;
+  padding: 8px 14px;
+}
+
+.sku-qty-cell :deep(.el-input__wrapper) {
+  min-height: 36px;
+  border-radius: 6px;
+  box-shadow: none;
+  border: 1px solid #e5e7eb;
+}
+
+.sku-qty-cell :deep(.el-input__wrapper:hover) {
+  border-color: #408aee;
+}
+
+.sku-qty-cell :deep(.el-input__inner) {
+  text-align: center;
 }
 </style>
