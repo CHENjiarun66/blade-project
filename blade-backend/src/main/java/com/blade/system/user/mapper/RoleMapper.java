@@ -26,6 +26,6 @@ public interface RoleMapper extends BaseMapper<Role> {
     @Insert("INSERT INTO sys_user_role (user_id, role_id, tenant_id, deleted, create_time) VALUES (#{userId}, #{roleId}, #{tenantId}, 0, NOW())")
     void insertUserRole(@Param("userId") Long userId, @Param("roleId") Long roleId, @Param("tenantId") Long tenantId);
 
-    @Delete("UPDATE sys_user_role SET deleted = 1 WHERE user_id = #{userId} AND deleted = 0")
+    @Delete("DELETE FROM sys_user_role WHERE user_id = #{userId}")
     void deleteUserRoles(@Param("userId") Long userId);
 }

@@ -114,21 +114,35 @@
           <span class="material-symbols-outlined">help_outline</span>
         </button>
         <div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
-        <div
-          class="flex items-center gap-3 cursor-pointer hover:bg-gray-100 p-1 pr-3 rounded-full transition-colors"
-          @click="handleUserClick"
-        >
-          <img
-            v-if="authStore.userInfo?.avatar"
-            class="w-8 h-8 rounded-full object-cover"
-            :src="authStore.userInfo.avatar"
-            alt="头像"
-          />
-          <div v-else class="w-8 h-8 rounded-full bg-[#408aee] flex items-center justify-center text-white font-bold text-sm">
-            {{ userInitials }}
+        <el-dropdown trigger="click" @command="handleUserCommand">
+          <div
+            class="flex items-center gap-3 cursor-pointer hover:bg-gray-100 p-1 pr-3 rounded-full transition-colors"
+          >
+            <img
+              v-if="authStore.userInfo?.avatar"
+              class="w-8 h-8 rounded-full object-cover"
+              :src="authStore.userInfo.avatar"
+              alt="头像"
+            />
+            <div v-else class="w-8 h-8 rounded-full bg-[#408aee] flex items-center justify-center text-white font-bold text-sm">
+              {{ userInitials }}
+            </div>
+            <span class="text-sm font-semibold text-slate-700">{{ authStore.userInfo?.realName || '管理员' }}</span>
+            <span class="material-symbols-outlined text-slate-400 text-sm">expand_more</span>
           </div>
-          <span class="text-sm font-semibold text-slate-700">{{ authStore.userInfo?.realName || '管理员' }}</span>
-        </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="personal">
+                <span class="material-symbols-outlined text-sm mr-2">person</span>
+                个人中心
+              </el-dropdown-item>
+              <el-dropdown-item command="logout" divided>
+                <span class="material-symbols-outlined text-sm mr-2">logout</span>
+                退出登录
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </header>
 
@@ -137,7 +151,7 @@
       class="min-h-screen pt-16 transition-all duration-300 ease-in-out"
       :style="{ paddingLeft: isCollapsed ? '64px' : '220px' }"
     >
-      <div class="p-8 max-w-7xl mx-auto">
+      <div :class="contentClass">
         <router-view />
       </div>
     </main>
@@ -158,6 +172,10 @@ const authStore = useAuthStore()
 function hasPermission(required: string | undefined): boolean {
   if (!required) return true
   const permissions = authStore.permissions || []
+  const roles = authStore.userInfo?.roles || []
+  if (required === 'menu:analytics' && (roles.includes('ROLE_ADMIN') || roles.includes('ROLE_OWNER'))) {
+    return true
+  }
   return permissions.includes(required)
 }
 
@@ -165,7 +183,7 @@ function hasPermission(required: string | undefined): boolean {
 const isCollapsed = ref(false)
 
 // 展开的子菜单
-const expandedMenus = ref(new Set<string>(['/products']))
+const expandedMenus = ref(new Set<string>(['/orders', '/products']))
 
 function toggleSidebar() {
   isCollapsed.value = !isCollapsed.value
@@ -183,7 +201,12 @@ interface NavItem {
 const navItems = computed<NavItem[]>(() => {
   const allItems: NavItem[] = [
     { name: '仪表盘', path: '/dashboard', icon: 'dashboard', permission: 'menu:dashboard' },
-    { name: '订单管理', path: '/orders', icon: 'shopping_bag', permission: 'menu:order' },
+    { name: '数据分析', path: '/analytics', icon: 'analytics', permission: 'menu:analytics' },
+    { name: '订单管理', path: '/orders', icon: 'shopping_bag', permission: 'menu:order', children: [
+      { name: '订单列表', path: '/orders' },
+      { name: '快速录单', path: '/orders/quick' },
+      { name: '新建订单', path: '/orders/new' },
+    ]},
     { name: '库存', path: '/inventory', icon: 'inventory_2', permission: 'menu:inventory' },
     { name: '商品', path: '/products', icon: 'checkroom', permission: 'menu:product', children: [
       { name: '商品列表', path: '/products' },
@@ -192,6 +215,7 @@ const navItems = computed<NavItem[]>(() => {
       { name: '商品分类', path: '/products/categories' },
     ]},
     { name: '客户管理', path: '/clients', icon: 'group', permission: 'menu:customer' },
+    { name: '文件中心', path: '/files', icon: 'folder', permission: 'menu:file' },
     { name: '系统管理', path: '/system', icon: 'settings', permission: 'menu:system' },
   ]
 
@@ -212,16 +236,28 @@ const navItems = computed<NavItem[]>(() => {
 const pageTitle = computed(() => {
   const titleMap: Record<string, string> = {
     '/dashboard': '仪表盘',
+    '/analytics': '数据分析',
     '/orders': '订单',
+    '/orders/quick': '快速录单',
+    '/orders/new': '新建订单',
     '/inventory': '库存',
     '/products': '商品',
     '/products/colors': '颜色列表',
     '/products/sizes': '尺码列表',
     '/products/categories': '商品分类',
     '/clients': '客户',
+    '/files': '文件中心',
+    '/customers': '客户详情',
     '/system': '系统管理',
+    '/personal': '个人中心',
   }
   return titleMap[route.path] || 'Blade Admin'
+})
+
+const contentClass = computed(() => {
+  return route.path === '/orders/quick'
+    ? 'p-6 max-w-none mx-auto'
+    : 'p-8 max-w-7xl mx-auto'
 })
 
 const userInitials = computed(() => {
@@ -252,13 +288,17 @@ function navigate(path: string) {
   router.push(path)
 }
 
-function handleUserClick() {
-  ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-    type: 'warning',
-  }).then(() => {
-    authStore.logout()
-    router.push('/login')
-  })
+function handleUserCommand(command: string) {
+  if (command === 'logout') {
+    ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+      type: 'warning',
+    }).then(() => {
+      authStore.logout()
+      router.push('/login')
+    })
+  } else if (command === 'personal') {
+    router.push('/personal')
+  }
 }
 </script>
 
