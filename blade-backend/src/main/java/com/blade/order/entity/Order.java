@@ -2,6 +2,7 @@ package com.blade.order.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @TableName("sale_order")
@@ -12,6 +13,18 @@ public class Order {
 
     @TableField("order_no")
     private String orderNo;
+
+    @TableField("order_date")
+    private LocalDate orderDate;
+
+    @TableField("source_doc_no")
+    private String sourceDocNo;
+
+    @TableField("source_shop")
+    private String sourceShop;
+
+    @TableField("order_type")
+    private String orderType;
 
     @TableField("customer_id")
     private Long customerId;
@@ -56,6 +69,18 @@ public class Order {
     // 定金金额
     @TableField("deposit_amount")
     private BigDecimal depositAmount;
+
+    @TableField("freight_amount")
+    private BigDecimal freightAmount;
+
+    @TableField("freight_cost")
+    private BigDecimal freightCost;
+
+    @TableField("total_cost_amount")
+    private BigDecimal totalCostAmount;
+
+    @TableField("gross_profit")
+    private BigDecimal grossProfit;
 
     // 是否需要送货: 0否 1是
     @TableField("need_delivery")
@@ -118,6 +143,14 @@ public class Order {
     public void setId(Long id) { this.id = id; }
     public String getOrderNo() { return orderNo; }
     public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
+    public LocalDate getOrderDate() { return orderDate; }
+    public void setOrderDate(LocalDate orderDate) { this.orderDate = orderDate; }
+    public String getSourceDocNo() { return sourceDocNo; }
+    public void setSourceDocNo(String sourceDocNo) { this.sourceDocNo = sourceDocNo; }
+    public String getSourceShop() { return sourceShop; }
+    public void setSourceShop(String sourceShop) { this.sourceShop = sourceShop; }
+    public String getOrderType() { return orderType; }
+    public void setOrderType(String orderType) { this.orderType = orderType; }
     public Long getCustomerId() { return customerId; }
     public void setCustomerId(Long customerId) { this.customerId = customerId; }
     public String getCustomerName() { return customerName; }
@@ -134,6 +167,14 @@ public class Order {
     public void setPaymentStatus(Integer paymentStatus) { this.paymentStatus = paymentStatus; }
     public BigDecimal getDepositAmount() { return depositAmount; }
     public void setDepositAmount(BigDecimal depositAmount) { this.depositAmount = depositAmount; }
+    public BigDecimal getFreightAmount() { return freightAmount; }
+    public void setFreightAmount(BigDecimal freightAmount) { this.freightAmount = freightAmount; }
+    public BigDecimal getFreightCost() { return freightCost; }
+    public void setFreightCost(BigDecimal freightCost) { this.freightCost = freightCost; }
+    public BigDecimal getTotalCostAmount() { return totalCostAmount; }
+    public void setTotalCostAmount(BigDecimal totalCostAmount) { this.totalCostAmount = totalCostAmount; }
+    public BigDecimal getGrossProfit() { return grossProfit; }
+    public void setGrossProfit(BigDecimal grossProfit) { this.grossProfit = grossProfit; }
     public Integer getNeedDelivery() { return needDelivery; }
     public void setNeedDelivery(Integer needDelivery) { this.needDelivery = needDelivery; }
     public String getDeliveryAddress() { return deliveryAddress; }

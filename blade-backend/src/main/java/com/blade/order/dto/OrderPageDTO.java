@@ -28,6 +28,12 @@ public class OrderPageDTO {
     @Schema(description = "支付状态: 0未付款/1已付定金/2已付全款")
     private Integer paymentStatus;
 
+    @Schema(description = "订单类型：SPOT现货/PREORDER订货")
+    private String orderType;
+
+    @Schema(description = "是否欠款：true=paid_amount < total_amount")
+    private Boolean hasBalance;
+
     public Long getCurrent() { return current; }
     public void setCurrent(Long current) { this.current = current; }
     public Long getSize() { return size; }
@@ -40,4 +46,8 @@ public class OrderPageDTO {
     public void setStatus(Integer status) { this.status = status; }
     public Integer getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(Integer paymentStatus) { this.paymentStatus = paymentStatus; }
+    public String getOrderType() { return orderType; }
+    public void setOrderType(String orderType) { this.orderType = orderType; }
+    public Boolean getHasBalance() { return hasBalance; }
+    public void setHasBalance(Boolean hasBalance) { this.hasBalance = hasBalance; }
 }

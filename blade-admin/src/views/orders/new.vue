@@ -256,8 +256,8 @@
 
         <div class="grid grid-cols-2 gap-4">
           <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-amber-400">
-            <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">档口</p>
-            <el-select v-model="form.warehouseId" placeholder="选择档口" class="w-full">
+            <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">库存筛选（可选）</p>
+            <el-select v-model="form.warehouseId" placeholder="不选则按全仓库存参考" clearable class="w-full">
               <el-option
                 v-for="wh in warehouseList"
                 :key="wh.id"
@@ -501,6 +501,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createOrder } from '@/api/order'
 import { searchCustomerByPhone, type CustomerVO } from '@/api/customer'
+import { uploadFile } from '@/api/file'
 import { getProductPage } from '@/api/product'
 import { getAllWarehouses, getInventoryByWarehouse, getInventoryPage } from '@/api/inventory'
 
@@ -513,7 +514,7 @@ const paymentStatusOptions = [
   { label: '已付全款', value: 2 },
 ]
 
-// 档口列表
+// 仓库列表，仅用于库存参考筛选，不作为订单来源字段
 const warehouseList = ref<Array<{ id: number; warehouseName: string }>>([])
 
 // 加载仓库列表
@@ -553,6 +554,7 @@ const form = reactive({
 
 const needDelivery = ref(false)
 const imageList = ref<string[]>([])
+const imageFileIds = ref<string[]>([])
 const showProductDialog = ref(false)
 const productSearch = ref('')
 const isExistingCustomer = ref(false)
@@ -812,7 +814,6 @@ const balance = computed(() => {
 
 const submitValidationMessage = computed(() => {
   if (!form.customerName.trim()) return '请填写客户名称'
-  if (!form.warehouseId) return '请选择档口'
   if (form.items.length === 0) return '请至少添加一件商品'
   if (needDelivery.value && !form.deliveryAddress.trim()) return '需要送货时请填写送货地址'
   if (form.paymentStatus === 1) {
@@ -892,18 +893,29 @@ function removeItem(skuId: number) {
   form.items = form.items.filter(item => item.skuId !== skuId)
 }
 
-function handleImageUpload(e: Event) {
+async function handleImageUpload(e: Event) {
   const target = e.target as HTMLInputElement
   if (target.files) {
-    const newImages = Array.from(target.files).map(file => URL.createObjectURL(file))
-    imageList.value.push(...newImages)
-    form.images = JSON.stringify(imageList.value)
+    try {
+      const files = Array.from(target.files)
+      for (const file of files) {
+        const res = await uploadFile(file, 'order')
+        imageFileIds.value.push(String(res.data.id))
+        imageList.value.push(res.data.url)
+      }
+      form.images = JSON.stringify(imageFileIds.value)
+    } catch (error: any) {
+      ElMessage.error(error.message || '图片上传失败')
+    } finally {
+      target.value = ''
+    }
   }
 }
 
 function removeImage(index: number) {
   imageList.value.splice(index, 1)
-  form.images = JSON.stringify(imageList.value)
+  imageFileIds.value.splice(index, 1)
+  form.images = JSON.stringify(imageFileIds.value)
 }
 
 async function handleSubmit() {
@@ -925,9 +937,9 @@ async function handleSubmit() {
       depositAmount: form.paymentStatus === 1 ? form.depositAmount : undefined,
       needDelivery: needDelivery.value ? 1 : 0,
       deliveryAddress: needDelivery.value ? form.deliveryAddress : undefined,
-      warehouseId: form.warehouseId || 1,
+      warehouseId: form.warehouseId,
       remark: form.remark || undefined,
-      images: imageList.value.length > 0 ? form.images : undefined,
+      images: imageFileIds.value.length > 0 ? form.images : undefined,
       items: form.items.map(item => ({
         skuId: item.skuId,
         quantity: item.quantity,

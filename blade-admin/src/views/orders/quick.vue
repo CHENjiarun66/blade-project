@@ -1,0 +1,778 @@
+<template>
+  <div class="quick-order-page space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900 tracking-tight mb-1">快速录单</h2>
+        <p class="text-sm text-gray-500">按纸质单据逐张录入，保存后进入标准订单流程。</p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <el-button class="!rounded-xl !font-bold" @click="router.push('/orders')">
+          <span class="material-symbols-outlined text-sm mr-1">arrow_back</span>
+          返回订单
+        </el-button>
+        <el-button type="primary" class="!bg-[#408aee] !border-none !rounded-xl !font-bold" :loading="saving" @click="submit(false)">
+          <span class="material-symbols-outlined text-sm mr-1">save</span>
+          保存
+        </el-button>
+        <el-button type="success" class="!rounded-xl !font-bold" :loading="saving" @click="submit(true)">
+          <span class="material-symbols-outlined text-sm mr-1">playlist_add</span>
+          保存并录下一单
+        </el-button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-6 items-start">
+      <section class="col-span-12 space-y-6">
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <section class="form-panel">
+            <div class="panel-title">
+              <span class="material-symbols-outlined text-[#408aee]">receipt_long</span>
+              <h3>单据信息</h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <label class="field-block">
+                <span>纸质单号</span>
+                <el-input v-model="form.sourceDocNo" placeholder="如 6月-001" />
+              </label>
+              <label class="field-block">
+                <span>订单日期</span>
+                <el-date-picker v-model="form.orderDate" value-format="YYYY-MM-DD" type="date" class="!w-full" />
+              </label>
+              <label class="field-block">
+                <span>订单类型</span>
+                <el-segmented v-model="form.orderType" :options="orderTypeOptions" class="quick-segmented" />
+              </label>
+              <label class="field-block">
+                <span>来源档口/店铺</span>
+                <el-input v-model="form.sourceShop" placeholder="如 杭州四季青A档、线上店铺" clearable />
+              </label>
+            </div>
+          </section>
+
+          <section class="form-panel">
+            <div class="panel-title">
+              <span class="material-symbols-outlined text-[#408aee]">person_search</span>
+              <h3>客户信息</h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div class="field-block">
+                <span>国家区号</span>
+                <CountryCodeSelect v-model="form.countryCode" placeholder="选择区号" class="!w-full" />
+              </div>
+              <label class="field-block">
+                <span>客户电话</span>
+                <el-input v-model="form.customerPhone" placeholder="输入后自动匹配客户" clearable @blur="searchCustomer" />
+              </label>
+              <label class="field-block">
+                <span>客户名称</span>
+                <el-autocomplete
+                  v-model="form.customerName"
+                  :fetch-suggestions="queryCustomerSuggestions"
+                  value-key="name"
+                  placeholder="输入客户名称筛选"
+                  clearable
+                  class="!w-full"
+                  @select="onCustomerSelect"
+                  @input="onCustomerNameInput"
+                >
+                  <template #default="{ item }">
+                    <div class="flex flex-col py-1">
+                      <span class="font-medium text-gray-900">{{ item.name }}</span>
+                      <span class="text-xs text-gray-400">{{ formatCustomerMeta(item) }}</span>
+                    </div>
+                  </template>
+                </el-autocomplete>
+              </label>
+              <label class="field-block md:col-span-3">
+                <span>客户地址</span>
+                <el-input v-model="form.customerAddress" placeholder="客户地址" />
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
+          <div class="px-6 py-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h3 class="text-lg font-bold text-gray-900">商品明细</h3>
+              <p class="text-xs text-gray-500 mt-1">输入款号/商品名选择 SKU，数量、单价、成本会实时计算。</p>
+            </div>
+            <el-button type="primary" plain class="!rounded-xl !font-bold" @click="addLine">
+              <span class="material-symbols-outlined text-sm mr-1">add</span>
+              添加一行
+            </el-button>
+          </div>
+          <div class="overflow-x-auto quick-table-wrap">
+            <el-table :data="form.items" class="quick-table">
+              <el-table-column label="#" width="48" align="center">
+                <template #default="{ $index }">{{ $index + 1 }}</template>
+              </el-table-column>
+              <el-table-column label="款号 / SKU" min-width="360">
+                <template #default="{ row }">
+                  <el-select
+                    v-model="row.skuId"
+                    filterable
+                    remote
+                    reserve-keyword
+                    placeholder="搜索款号、商品名、SKU"
+                    class="!w-full"
+                    :remote-method="filterSku"
+                    @change="onSkuChange(row)"
+                  >
+                    <el-option
+                      v-for="sku in filteredSkuOptions"
+                      :key="sku.skuId"
+                      :label="formatSkuDisplay(sku)"
+                      :value="sku.skuId"
+                    >
+                      <div class="flex items-center justify-between gap-4">
+                        <span class="font-medium text-gray-900">{{ formatSkuDisplay(sku) }}</span>
+                        <span class="text-gray-400">{{ sku.skuCode }} · 成本 {{ formatMoney(sku.costPrice) }}</span>
+                      </div>
+                    </el-option>
+                  </el-select>
+                  <p v-if="row.skuCode" class="text-[11px] text-gray-400 mt-1">
+                    {{ row.productName }} · {{ row.colorName || '-' }} · {{ row.sizeName || '-' }} · 进货价 {{ formatMoney(row.costPrice) }}
+                  </p>
+                </template>
+              </el-table-column>
+              <el-table-column label="数量" width="110">
+                <template #default="{ row }">
+                  <el-input
+                    v-model="row.quantityText"
+                    inputmode="numeric"
+                    placeholder=""
+                    class="!w-full"
+                    @input="onQuantityInput(row)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column label="单价" width="130">
+                <template #default="{ row }">
+                  <el-input-number v-model="row.price" :min="0" :precision="2" :controls="false" class="!w-full" />
+                </template>
+              </el-table-column>
+              <el-table-column label="成本价" width="130">
+                <template #default="{ row }">
+                  <el-input-number v-model="row.costPrice" :min="0" :precision="2" :controls="false" class="!w-full" />
+                </template>
+              </el-table-column>
+              <el-table-column label="小计" width="120" align="right">
+                <template #default="{ row }">{{ formatMoney(lineSubtotal(row)) }}</template>
+              </el-table-column>
+              <el-table-column label="成本" width="120" align="right">
+                <template #default="{ row }">{{ formatMoney(lineCost(row)) }}</template>
+              </el-table-column>
+              <el-table-column label="毛利" width="120" align="right">
+                <template #default="{ row }">
+                  <span :class="lineProfit(row) >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ formatMoney(lineProfit(row)) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="80" align="center">
+                <template #default="{ $index }">
+                  <el-button link type="danger" @click="removeLine($index)">
+                    <span class="material-symbols-outlined text-base">delete</span>
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)] gap-6 items-start">
+          <div class="form-panel">
+            <div class="panel-title">
+              <span class="material-symbols-outlined text-[#408aee]">payments</span>
+              <h3>结算与配送</h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <label class="field-block">
+                <span>实收金额</span>
+                <el-input-number v-model="form.paidAmount" :min="0" :max="totalAmount" :precision="2" :controls="false" class="!w-full" />
+              </label>
+              <label class="field-block">
+                <span>客户运费收入</span>
+                <el-input-number v-model="form.freightAmount" :min="0" :precision="2" :controls="false" class="!w-full" />
+              </label>
+              <label class="field-block">
+                <span>实际运费成本</span>
+                <el-input-number v-model="form.freightCost" :min="0" :precision="2" :controls="false" class="!w-full" />
+              </label>
+              <div class="md:col-span-3 flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
+                <span class="text-sm font-bold text-gray-600">配送方式</span>
+                <el-switch v-model="needDelivery" active-text="需要送货" inactive-text="自取" />
+              </div>
+              <label v-if="needDelivery" class="field-block md:col-span-3">
+                <span>送货地址</span>
+                <el-input v-model="form.deliveryAddress" type="textarea" :rows="2" />
+              </label>
+              <label class="field-block md:col-span-3">
+                <span>备注</span>
+                <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="纸单备注、特殊说明" />
+              </label>
+              <div class="field-block md:col-span-3">
+                <span>订单图片</span>
+                <div class="flex flex-wrap gap-4">
+                  <div
+                    v-for="(image, index) in imageSources"
+                    :key="image"
+                    class="quick-image-tile group"
+                  >
+                    <img :src="image" alt="" class="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      class="quick-image-remove"
+                      aria-label="移除订单图片"
+                      @click="removeImage(index)"
+                    >
+                      <span class="material-symbols-outlined text-[14px]">close</span>
+                    </button>
+                  </div>
+                  <label class="quick-image-upload">
+                    <span class="material-symbols-outlined text-2xl text-gray-400">add_photo_alternate</span>
+                    <span class="text-[10px] font-bold text-gray-500">上传图片</span>
+                    <input type="file" multiple accept="image/*" class="hidden" @change="handleImageUpload" />
+                  </label>
+                </div>
+                <p class="text-xs text-gray-400">支持 JPG、PNG、GIF，可多选上传。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-panel">
+            <h3 class="text-lg font-bold mb-5">金额汇总</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-x-8 gap-y-3 text-sm">
+              <SummaryRow label="商品应收" :value="formatMoney(productAmount)" />
+              <SummaryRow label="客户运费收入" :value="formatMoney(form.freightAmount)" />
+              <SummaryRow label="订单应收" :value="formatMoney(totalAmount)" strong />
+              <SummaryRow label="实收金额" :value="formatMoney(form.paidAmount)" accent />
+              <SummaryRow label="尾款" :value="formatMoney(balanceAmount)" />
+              <div class="hidden xl:block border-t border-slate-700 pt-3 mt-3"></div>
+              <SummaryRow label="商品成本" :value="formatMoney(productCost)" />
+              <SummaryRow label="实际运费成本" :value="formatMoney(form.freightCost)" />
+              <SummaryRow label="总成本" :value="formatMoney(totalCost)" />
+              <SummaryRow label="毛利" :value="formatMoney(grossProfit)" :positive="grossProfit >= 0" />
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { createOrder } from '@/api/order'
+import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO } from '@/api/customer'
+import { uploadFile } from '@/api/file'
+import { getProductPage } from '@/api/product'
+import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
+
+interface QuickLine {
+  skuId?: number
+  skuCode?: string
+  productName?: string
+  productCode?: string
+  colorName?: string
+  sizeName?: string
+  quantityText?: string
+  quantity?: number
+  price: number
+  costPrice: number
+}
+
+interface SkuOption {
+  skuId: number
+  skuCode: string
+  productCode: string
+  productName: string
+  colorName: string
+  sizeName: string
+  price: number
+  costPrice: number
+}
+
+type ValidQuickLine = QuickLine & { skuId: number; quantity: number }
+
+const SummaryRow = defineComponent({
+  props: {
+    label: { type: String, required: true },
+    value: { type: String, required: true },
+    strong: Boolean,
+    accent: Boolean,
+    positive: Boolean,
+  },
+  setup(props) {
+    return () => h('div', { class: 'flex items-center justify-between' }, [
+      h('span', { class: 'text-slate-400' }, props.label),
+      h('span', {
+        class: [
+          props.strong ? 'text-xl font-black text-white' : 'font-bold',
+          props.accent ? 'text-emerald-400' : '',
+          props.positive ? 'text-emerald-400' : '',
+        ],
+      }, props.value),
+    ])
+  },
+})
+
+const router = useRouter()
+const today = new Date().toISOString().slice(0, 10)
+const defaultSourceShop = '御龙'
+const walkInCustomerName = '散客用户'
+const walkInCustomerPhone = '88888888'
+const saving = ref(false)
+const needDelivery = ref(false)
+const skuOptions = ref<SkuOption[]>([])
+const filteredSkuOptions = ref<SkuOption[]>([])
+const imageSources = ref<string[]>([])
+const imageFileIds = ref<string[]>([])
+
+const orderTypeOptions = [
+  { label: '现货订单', value: 'SPOT' },
+  { label: '订货订单', value: 'PREORDER' },
+]
+
+const form = reactive({
+  sourceDocNo: '',
+  sourceShop: defaultSourceShop,
+  orderDate: today,
+  orderType: 'SPOT',
+  customerId: undefined as number | undefined,
+  countryCode: '+86',
+  customerPhone: '',
+  customerName: '',
+  customerAddress: '',
+  paidAmount: 0,
+  freightAmount: 0,
+  freightCost: 0,
+  deliveryAddress: '',
+  remark: '',
+  items: [] as QuickLine[],
+})
+
+const productAmount = computed(() => form.items.reduce((sum, item) => sum + lineSubtotal(item), 0))
+const productCost = computed(() => form.items.reduce((sum, item) => sum + lineCost(item), 0))
+const totalAmount = computed(() => productAmount.value + Number(form.freightAmount || 0))
+const totalCost = computed(() => productCost.value + Number(form.freightCost || 0))
+const grossProfit = computed(() => totalAmount.value - totalCost.value)
+const balanceAmount = computed(() => Math.max(totalAmount.value - Number(form.paidAmount || 0), 0))
+
+function lineSubtotal(item: QuickLine) {
+  return getLineQuantity(item) * Number(item.price || 0)
+}
+
+function lineCost(item: QuickLine) {
+  return getLineQuantity(item) * Number(item.costPrice || 0)
+}
+
+function lineProfit(item: QuickLine) {
+  return lineSubtotal(item) - lineCost(item)
+}
+
+function formatMoney(amount?: number) {
+  return `¥${Number(amount || 0).toFixed(2)}`
+}
+
+function formatSkuDisplay(sku: Pick<SkuOption, 'productName' | 'productCode' | 'colorName' | 'sizeName'>) {
+  return `${sku.productName} · ${sku.colorName || '-'} · ${sku.sizeName || '-'}`
+}
+
+function formatCustomerMeta(customer: CustomerVO) {
+  const phone = customer.phones?.[0] || '暂无电话'
+  const address = customer.address || '暂无地址'
+  return `${phone} · ${address}`
+}
+
+function incrementSourceDocNo(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  const match = trimmed.match(/^(.*?)(\d+)$/)
+  if (!match) return trimmed
+  const [, prefix, numberPart] = match
+  const nextNumber = String(Number(numberPart) + 1).padStart(numberPart.length, '0')
+  return `${prefix}${nextNumber}`
+}
+
+function addLine() {
+  form.items.push({ quantityText: '', quantity: undefined, price: 0, costPrice: 0 })
+}
+
+function getLineQuantity(item: QuickLine) {
+  return Number(item.quantity || 0)
+}
+
+function onQuantityInput(row: QuickLine) {
+  const value = String(row.quantityText || '').replace(/[^\d]/g, '')
+  row.quantityText = value
+  row.quantity = value ? Number(value) : undefined
+}
+
+function removeLine(index: number) {
+  form.items.splice(index, 1)
+  if (form.items.length === 0) addLine()
+}
+
+function filterSku(query: string) {
+  const keyword = query.trim().toLowerCase()
+  if (!keyword) {
+    filteredSkuOptions.value = skuOptions.value.slice(0, 50)
+    return
+  }
+  filteredSkuOptions.value = skuOptions.value
+    .filter(sku =>
+      sku.productCode.toLowerCase().includes(keyword)
+      || sku.productName.toLowerCase().includes(keyword)
+      || sku.skuCode.toLowerCase().includes(keyword)
+    )
+    .slice(0, 80)
+}
+
+function onSkuChange(row: QuickLine) {
+  const sku = skuOptions.value.find(item => item.skuId === row.skuId)
+  if (!sku) return
+  row.skuCode = sku.skuCode
+  row.productCode = sku.productCode
+  row.productName = sku.productName
+  row.colorName = sku.colorName
+  row.sizeName = sku.sizeName
+  row.price = sku.price || 0
+  row.costPrice = sku.costPrice || 0
+  if (!row.costPrice) {
+    ElMessage.warning(`${sku.productCode} 未维护进货价，成本价暂为 0`)
+  }
+}
+
+async function queryCustomerSuggestions(query: string, callback: (items: CustomerVO[]) => void) {
+  const keyword = query.trim()
+  if (!keyword) {
+    callback([])
+    return
+  }
+  try {
+    const res = await getCustomerPage({ current: 1, size: 10, keyword })
+    callback((res as any).data?.records || [])
+  } catch {
+    callback([])
+  }
+}
+
+function onCustomerSelect(customer: CustomerVO) {
+  form.customerId = customer.id
+  form.customerName = customer.name
+  form.countryCode = customer.countryCode || form.countryCode
+  form.customerPhone = customer.phones?.[0] || form.customerPhone
+  form.customerAddress = customer.address || ''
+}
+
+function onCustomerNameInput() {
+  form.customerId = undefined
+}
+
+async function searchCustomer() {
+  if (!form.customerPhone || form.customerPhone.length < 5) return
+  try {
+    const phone = form.customerPhone.replace(/[\s\-+]/g, '')
+    const res = await searchCustomerByPhone(phone)
+    if (res.data) {
+      form.customerId = res.data.id
+      form.countryCode = res.data.countryCode || form.countryCode
+      form.customerName = res.data.name
+      form.customerAddress = res.data.address || ''
+      ElMessage.success(`已匹配客户：${res.data.name}`)
+    }
+  } catch {
+    form.customerId = undefined
+  }
+}
+
+function paymentStatusFromPaid() {
+  if (Number(form.paidAmount || 0) <= 0) return 0
+  return Number(form.paidAmount || 0) >= totalAmount.value ? 2 : 1
+}
+
+async function ensureCustomer() {
+  if (form.customerId) return form.customerId
+
+  const customerName = form.customerName.trim()
+  const customerPhone = form.customerPhone.trim()
+  if (!customerName || !customerPhone) return undefined
+
+  const res = await createCustomer({
+    name: customerName,
+    phones: [customerPhone],
+    address: form.customerAddress || undefined,
+    countryCode: form.countryCode || undefined,
+  })
+  form.customerId = (res as any).data || (res as any)
+  return form.customerId
+}
+
+function isCustomerInfoEmpty() {
+  return !form.customerId
+    && !form.customerName.trim()
+    && !form.customerPhone.trim()
+    && !form.customerAddress.trim()
+}
+
+async function applyWalkInCustomerIfEmpty() {
+  if (!isCustomerInfoEmpty()) return
+  form.customerName = walkInCustomerName
+  form.customerPhone = walkInCustomerPhone
+  await searchCustomer()
+}
+
+async function submit(next: boolean) {
+  await applyWalkInCustomerIfEmpty()
+
+  if (!form.customerName.trim()) {
+    ElMessage.warning('请填写客户名称')
+    return
+  }
+  if (!form.customerId && !form.customerPhone.trim()) {
+    ElMessage.warning('新客户请填写客户电话')
+    return
+  }
+  const validItems = form.items.filter((item): item is ValidQuickLine => Boolean(item.skuId) && getLineQuantity(item) > 0)
+  if (validItems.length === 0) {
+    ElMessage.warning('请至少录入一行商品')
+    return
+  }
+  saving.value = true
+  try {
+    const currentSourceDocNo = form.sourceDocNo
+    const customerId = await ensureCustomer()
+    const data = {
+      customerId,
+      orderDate: form.orderDate,
+      sourceDocNo: form.sourceDocNo || undefined,
+      sourceShop: form.sourceShop || undefined,
+      orderType: form.orderType,
+      customerName: form.customerName,
+      customerPhone: form.customerPhone ? form.customerPhone.replace(/[\s\-+]/g, '') : undefined,
+      customerAddress: form.customerAddress || undefined,
+      paymentStatus: paymentStatusFromPaid(),
+      paidAmount: Number(form.paidAmount || 0),
+      depositAmount: paymentStatusFromPaid() === 1 ? Number(form.paidAmount || 0) : undefined,
+      freightAmount: Number(form.freightAmount || 0),
+      freightCost: Number(form.freightCost || 0),
+      needDelivery: needDelivery.value ? 1 : 0,
+      deliveryAddress: needDelivery.value ? form.deliveryAddress : undefined,
+      remark: form.remark || undefined,
+      images: imageFileIds.value.length ? JSON.stringify(imageFileIds.value) : undefined,
+      items: validItems.map(item => ({
+        skuId: item.skuId,
+        quantity: getLineQuantity(item),
+        price: Number(item.price || 0),
+        costPrice: Number(item.costPrice || 0),
+      })),
+    }
+    const res = await createOrder(data)
+    ElMessage.success('订单创建成功')
+    if (next) {
+      resetForNext(currentSourceDocNo)
+    } else {
+      router.push(`/orders/${res.data}`)
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '创建订单失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleImageUpload(event: Event) {
+  const target = event.target as HTMLInputElement
+  if (!target.files?.length) return
+
+  try {
+    for (const file of Array.from(target.files)) {
+      const res = await uploadFile(file, 'order')
+      imageFileIds.value.push(String(res.data.id))
+      imageSources.value.push(res.data.url)
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '图片上传失败')
+  } finally {
+    target.value = ''
+  }
+}
+
+function removeImage(index: number) {
+  imageSources.value.splice(index, 1)
+  imageFileIds.value.splice(index, 1)
+}
+
+function resetForNext(previousSourceDocNo = '') {
+  form.sourceDocNo = incrementSourceDocNo(previousSourceDocNo)
+  form.sourceShop = defaultSourceShop
+  form.customerId = undefined
+  form.countryCode = '+86'
+  form.customerPhone = ''
+  form.customerName = ''
+  form.customerAddress = ''
+  form.paidAmount = 0
+  form.freightAmount = 0
+  form.freightCost = 0
+  form.deliveryAddress = ''
+  form.remark = ''
+  form.items = []
+  imageSources.value = []
+  imageFileIds.value = []
+  needDelivery.value = false
+  addLine()
+}
+
+async function loadProducts() {
+  const res = await getProductPage({ current: 1, size: 1000 })
+  const records = (res as any).data?.data?.records || (res as any).data?.records || []
+  skuOptions.value = records.flatMap((product: any) => (product.skus || []).map((sku: any) => ({
+    skuId: sku.id,
+    skuCode: sku.skuCode,
+    productCode: product.productCode,
+    productName: product.name,
+    colorName: sku.colorName || '',
+    sizeName: sku.sizeName || '',
+    price: positiveNumber(sku.price) || positiveNumber(product.wholesalePrice) || 0,
+    costPrice: positiveNumber(sku.costPrice) || positiveNumber(product.costPrice) || 0,
+  })))
+  filteredSkuOptions.value = skuOptions.value.slice(0, 50)
+}
+
+function positiveNumber(value: unknown) {
+  const amount = Number(value || 0)
+  return amount > 0 ? amount : 0
+}
+
+onMounted(async () => {
+  addLine()
+  await loadProducts()
+})
+</script>
+
+<style scoped>
+.quick-order-page {
+  min-width: 1180px;
+}
+
+.form-panel {
+  background: #fff;
+  border: 1px solid #eef0f3;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.summary-panel {
+  min-height: 100%;
+  border-radius: 12px;
+  padding: 24px;
+  color: #fff;
+  background: #1a1c1e;
+  box-shadow: 0 14px 32px rgb(15 23 42 / 16%);
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 4px solid #408aee;
+  margin-bottom: 20px;
+}
+
+.panel-title h3 {
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #111827;
+}
+
+.field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-block > span {
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 800;
+  color: #6b7280;
+}
+
+.quick-order-page :deep(.el-input__wrapper),
+.quick-order-page :deep(.el-select__wrapper) {
+  min-height: 42px;
+  border-radius: 8px;
+}
+
+.quick-segmented {
+  width: 100%;
+}
+
+.quick-table-wrap {
+  min-height: 360px;
+}
+
+.quick-table :deep(.el-input-number .el-input__inner) {
+  text-align: left;
+}
+
+.quick-table :deep(.el-table__cell) {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.quick-image-tile,
+.quick-image-upload {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.quick-image-tile {
+  border: 1px solid #e5e7eb;
+}
+
+.quick-image-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px dashed #d1d5db;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.quick-image-upload:hover {
+  border-color: #408aee;
+  background: #eff6ff;
+}
+
+.quick-image-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px;
+  color: #fff;
+  background: rgb(0 0 0 / 52%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.quick-image-tile:hover .quick-image-remove,
+.quick-image-remove:focus-visible {
+  opacity: 1;
+}
+</style>

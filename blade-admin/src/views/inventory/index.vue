@@ -189,6 +189,11 @@
         <el-form-item label="备注">
           <el-input v-model="stockInForm.remark" type="textarea" :rows="2" placeholder="入库备注" />
         </el-form-item>
+
+        <el-form-item label="入库凭证">
+          <input type="file" multiple accept="image/*" class="text-xs text-gray-500" @change="handleStockInImagesChange" />
+          <p v-if="stockInImages.length" class="text-xs text-gray-400 mt-2">已选择 {{ stockInImages.length }} 张图片</p>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -336,7 +341,7 @@
         </el-table-column>
         <el-table-column label="时间" min-width="160">
           <template #default="{ row }">
-            <span class="text-sm text-gray-500">{{ row.createTime }}</span>
+            <span class="text-sm text-gray-500">{{ formatDate(row.createTime) }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -370,6 +375,8 @@ import {
   type InventoryVO,
   type WarehouseVO
 } from '@/api/inventory'
+import { uploadFile } from '@/api/file'
+import { formatDate } from '@/utils/format'
 
 // 搜索相关
 const searchQuery = ref('')
@@ -392,6 +399,7 @@ const stockInForm = ref({
   items: [{ skuId: undefined as number | undefined, quantity: 1, remark: '' }],
   remark: ''
 })
+const stockInImages = ref<File[]>([])
 const stockInRules = {
   warehouseId: [{ required: true, message: '请选择仓库', trigger: 'change' }],
   items: [{ required: true, message: '请添加入库商品', trigger: 'change' }]
@@ -559,6 +567,11 @@ function handleSkuSelect(_item: any) {
   // 可以根据选择的SKU填充一些信息
 }
 
+function handleStockInImagesChange(e: Event) {
+  const target = e.target as HTMLInputElement
+  stockInImages.value = target.files ? Array.from(target.files) : []
+}
+
 async function handleStockIn() {
   if (!stockInFormRef.value) return
   try {
@@ -575,6 +588,11 @@ async function handleStockIn() {
 
   submitLoading.value = true
   try {
+    const imageIds: string[] = []
+    for (const image of stockInImages.value) {
+      const uploadRes = await uploadFile(image, 'inventory')
+      imageIds.push(String(uploadRes.data.id))
+    }
     const res = await stockIn({
       warehouseId: stockInForm.value.warehouseId!,
       items: validItems.map(i => ({
@@ -582,7 +600,8 @@ async function handleStockIn() {
         quantity: i.quantity,
         remark: i.remark
       })),
-      remark: stockInForm.value.remark
+      remark: stockInForm.value.remark,
+      images: imageIds
     })
     if (res.code === 200) {
       ElMessage.success('入库成功')
@@ -594,6 +613,7 @@ async function handleStockIn() {
         items: [{ skuId: undefined, quantity: 1, remark: '' }],
         remark: ''
       }
+      stockInImages.value = []
     } else {
       ElMessage.error(res.data.message || '入库失败')
     }

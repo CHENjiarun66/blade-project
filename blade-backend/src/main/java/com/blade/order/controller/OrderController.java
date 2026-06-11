@@ -1,5 +1,6 @@
 package com.blade.order.controller;
 
+import com.alibaba.excel.EasyExcel;
 import com.blade.common.result.PageResult;
 import com.blade.common.result.R;
 import com.blade.order.dto.*;
@@ -9,10 +10,14 @@ import com.blade.order.service.OrderDeliveryPlanService;
 import com.blade.order.service.impl.OrderServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -147,5 +152,20 @@ public class OrderController {
     public R<Void> cancelAdjustment(@PathVariable Long id) {
         deliveryPlanService.cancelAdjustment(id);
         return R.ok();
+    }
+
+    @GetMapping("/export")
+    @Operation(summary = "导出订单列表Excel")
+    public void exportOrders(OrderPageDTO dto, HttpServletResponse response) throws IOException {
+        List<OrderExportDTO> data = orderService.exportOrders(dto);
+
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setCharacterEncoding("utf-8");
+        String fileName = URLEncoder.encode("订单导出_" + System.currentTimeMillis(), StandardCharsets.UTF_8).replaceAll("\\+", "%20");
+        response.setHeader("Content-disposition", "attachment;filename=" + fileName + ".xlsx");
+
+        EasyExcel.write(response.getOutputStream(), OrderExportDTO.class)
+                .sheet("订单列表")
+                .doWrite(data);
     }
 }
