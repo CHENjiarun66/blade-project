@@ -4,6 +4,7 @@ export interface LoginDTO {
   tenantCode: string
   username: string
   password: string
+  remember?: boolean
 }
 
 export interface LoginVO {

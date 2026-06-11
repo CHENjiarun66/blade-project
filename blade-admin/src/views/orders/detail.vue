@@ -24,7 +24,7 @@
             确认收款
           </el-button>
           <el-button
-            v-if="order.status === 0 && order.paymentStatus !== 2"
+            v-if="canAddPayment"
             type="warning"
             plain
             @click="handleAddPayment"
@@ -122,12 +122,26 @@
               <p class="font-mono font-bold text-gray-900">{{ order.orderNo }}</p>
             </div>
             <div>
+              <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">纸质单号</p>
+              <p class="font-medium text-gray-700">{{ order.sourceDocNo || '-' }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">订单日期</p>
+              <p class="font-medium text-gray-700">{{ order.orderDate || '-' }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">订单类型</p>
+              <el-tag size="small" :type="order.orderType === 'PREORDER' ? 'warning' : 'success'">
+                {{ order.orderTypeName || (order.orderType === 'PREORDER' ? '订货订单' : '现货订单') }}
+              </el-tag>
+            </div>
+            <div>
               <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">下单时间</p>
               <p class="font-medium text-gray-700">{{ formatDateTime(order.createTime) }}</p>
             </div>
             <div>
-              <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">档口</p>
-              <p class="font-medium text-gray-700">{{ order.warehouseName || '-' }}</p>
+              <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">来源档口/店铺</p>
+              <p class="font-medium text-gray-700">{{ order.sourceShop || '-' }}</p>
             </div>
             <div>
               <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">开单人员</p>
@@ -175,8 +189,11 @@
                   <th class="px-6 py-4">SKU编码</th>
                   <th class="px-6 py-4">颜色/尺码</th>
                   <th class="px-6 py-4">单价</th>
+                  <th class="px-6 py-4">成本价</th>
                   <th class="px-6 py-4">数量</th>
                   <th class="px-6 py-4">小计</th>
+                  <th class="px-6 py-4">成本</th>
+                  <th class="px-6 py-4">毛利</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -189,8 +206,13 @@
                     </span>
                   </td>
                   <td class="px-6 py-4 font-medium text-gray-900">¥ {{ item.price?.toFixed(2) }}</td>
+                  <td class="px-6 py-4 font-medium text-gray-900">¥ {{ (item.costPrice || 0).toFixed(2) }}</td>
                   <td class="px-6 py-4 font-bold">{{ item.quantity }}</td>
                   <td class="px-6 py-4 font-bold text-[#408aee]">¥ {{ item.subtotal?.toFixed(2) }}</td>
+                  <td class="px-6 py-4 font-bold text-gray-700">¥ {{ (item.costAmount || 0).toFixed(2) }}</td>
+                  <td class="px-6 py-4 font-bold" :class="Number(item.grossProfit || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'">
+                    ¥ {{ (item.grossProfit || 0).toFixed(2) }}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -300,8 +322,26 @@
                 <span class="text-lg font-bold text-white">¥ {{ order.totalAmount?.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }}</span>
               </div>
               <div class="flex justify-between items-center">
+                <span class="text-slate-400 font-medium text-sm">运费收入</span>
+                <span class="text-lg font-bold text-white">¥ {{ (order.freightAmount || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }}</span>
+              </div>
+              <div class="flex justify-between items-center">
                 <span class="text-slate-400 font-medium text-sm">已付金额</span>
                 <span class="text-lg font-bold text-emerald-400">¥ {{ order.paidAmount?.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400 font-medium text-sm">运费成本</span>
+                <span class="text-lg font-bold text-orange-300">¥ {{ (order.freightCost || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400 font-medium text-sm">总成本</span>
+                <span class="text-lg font-bold text-orange-300">¥ {{ (order.totalCostAmount || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400 font-medium text-sm">毛利</span>
+                <span class="text-lg font-bold" :class="Number(order.grossProfit || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'">
+                  ¥ {{ (order.grossProfit || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }}
+                </span>
               </div>
               <div v-if="order.depositAmount > 0" class="flex justify-between items-center">
                 <span class="text-slate-400 font-medium text-sm">定金</span>
@@ -419,13 +459,13 @@
         </div>
 
         <!-- 图片 -->
-        <div v-if="order.images && JSON.parse(order.images).length > 0" class="bg-white rounded-xl p-6 shadow-sm">
+        <div v-if="orderImageSources.length > 0" class="bg-white rounded-xl p-6 shadow-sm">
           <div class="flex items-center gap-2 mb-4 border-l-4 border-[#408aee] pl-4">
             <h3 class="text-lg font-bold text-gray-900">订单图片</h3>
           </div>
           <div class="flex flex-wrap gap-3">
             <img
-              v-for="(img, idx) in JSON.parse(order.images)"
+              v-for="(img, idx) in orderImageSources"
               :key="idx"
               :src="img"
               class="w-20 h-20 rounded-lg object-cover border border-gray-200"
@@ -569,12 +609,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { getOrderById, confirmPayment, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO } from '@/api/order'
 import { getAllWarehouses, type WarehouseVO } from '@/api/inventory'
+import { parseImageSources } from '@/api/file'
 
 const router = useRouter()
 const route = useRoute()
@@ -609,6 +650,11 @@ const deliveryPlanItems = ref<{
 const planLoading = ref(false)
 
 const orderId = Number(route.params.id)
+const canAddPayment = computed(() => {
+  if (!order.value || order.value.paymentStatus === 2) return false
+  return ![5, 6, 7, 8].includes(order.value.status)
+})
+const orderImageSources = computed(() => parseImageSources(order.value?.images))
 
 onMounted(async () => {
   await loadOrder()
@@ -990,14 +1036,7 @@ function adjustmentTypeName(type: string) {
 
 function formatDateTime(dateStr: string) {
   if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return dateStr.split('T')[0]
 }
 </script>
 

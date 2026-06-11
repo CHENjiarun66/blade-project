@@ -3,16 +3,26 @@
 export interface OrderVO {
   id: number
   orderNo: string
+  orderDate?: string
+  sourceDocNo?: string
+  sourceShop?: string
+  orderType?: 'SPOT' | 'PREORDER'
+  orderTypeName?: string
   customerId: number
   customerName: string
   customerPhone: string
   customerAddress: string
-  warehouseId: number
+  warehouseId?: number
   warehouseName?: string
   status: number
   statusName: string
   totalAmount: number
+  totalCostAmount?: number
+  grossProfit?: number
   paidAmount: number
+  balanceAmount?: number
+  freightAmount?: number
+  freightCost?: number
   remark?: string
   payTime?: string
   confirmTime?: string
@@ -31,16 +41,28 @@ export interface OrderItemVO {
   colorName: string
   sizeName: string
   price: number
+  costPrice?: number
   quantity: number
   subtotal: number
+  costAmount?: number
+  grossProfit?: number
 }
 
 export interface OrderCreateDTO {
   customerId?: number
+  orderDate?: string
+  sourceDocNo?: string
+  sourceShop?: string
+  orderType?: 'SPOT' | 'PREORDER'
   customerName: string
   customerPhone: string
   customerAddress: string
-  warehouseId: number
+  paymentStatus?: number
+  paidAmount?: number
+  depositAmount?: number
+  freightAmount?: number
+  freightCost?: number
+  warehouseId?: number
   remark?: string
   items: OrderItemDTO[]
 }
@@ -48,6 +70,7 @@ export interface OrderCreateDTO {
 export interface OrderItemDTO {
   skuId: number
   price?: number
+  costPrice?: number
   quantity: number
 }
 
@@ -57,6 +80,9 @@ export interface OrderPageDTO {
   orderNo?: string
   customerName?: string
   status?: number
+  paymentStatus?: number
+  orderType?: 'SPOT' | 'PREORDER'
+  hasBalance?: boolean
 }
 
 export interface PaymentConfirmDTO {

@@ -19,6 +19,12 @@ public class CustomerVO {
     @Schema(description = "备注")
     private String remark;
 
+    @Schema(description = "国家区号")
+    private String countryCode;
+
+    @Schema(description = "国家名称")
+    private String countryName;
+
     @Schema(description = "电话列表")
     private List<String> phones;
 
@@ -36,6 +42,24 @@ public class CustomerVO {
     public void setAddress(String address) { this.address = address; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
+    public String getCountryCode() { return countryCode; }
+    public void setCountryCode(String countryCode) { this.countryCode = countryCode; }
+    public String getCountryName() { return countryName; }
+    public void setCountryName(String countryName) { this.countryName = countryName; }
+    /** 根据 countryCode 计算国旗 emoji */
+    public String getCountryFlag() {
+        if (countryCode == null || countryCode.length() < 2) return null;
+        return countryCodeToFlag(countryCode);
+    }
+    private static String countryCodeToFlag(String code) {
+        String clean = code.startsWith("+") ? code.substring(1) : code;
+        if (clean.isEmpty()) return null;
+        StringBuilder flag = new StringBuilder();
+        for (char c : clean.toCharArray()) {
+            flag.append(Character.toChars(0x1F1E6 - 1 + Character.digit(c, 10)));
+        }
+        return flag.toString();
+    }
     public List<String> getPhones() { return phones; }
     public void setPhones(List<String> phones) { this.phones = phones; }
     public Integer getOrderCount() { return orderCount; }

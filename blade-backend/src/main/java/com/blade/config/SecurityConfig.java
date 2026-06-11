@@ -1,6 +1,7 @@
 package com.blade.config;
 
 import com.blade.auth.service.JwtTokenProvider;
+import com.blade.agent.auth.AgentAuthenticationFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,6 +36,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
+                                          AgentAuthenticationFilter agentAuthFilter,
                                           JwtAuthenticationFilter jwtAuthFilter,
                                           AuthenticationProvider authenticationProvider) throws Exception {
         http
@@ -49,7 +51,7 @@ public class SecurityConfig {
                     "/api/auth/register",
                     "/api/user/info",
                     "/api/auth/codes",
-                    "/api/customers/**",
+                    "/api/files/*/preview",
                     "/oauth2/**",
                     "/api-docs/**",
                     "/swagger-ui/**",
@@ -59,6 +61,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider)
+            .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -118,7 +121,18 @@ public class SecurityConfig {
             if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
                 return bearerToken.substring(7);
             }
+            if (isFilePreviewRequest(request)) {
+                String previewToken = request.getParameter("previewToken");
+                if (previewToken != null && !previewToken.isBlank()) {
+                    return previewToken;
+                }
+            }
             return null;
+        }
+
+        private boolean isFilePreviewRequest(HttpServletRequest request) {
+            String uri = request.getRequestURI();
+            return uri != null && uri.matches("^/api/files/\\d+/preview$");
         }
     }
 }

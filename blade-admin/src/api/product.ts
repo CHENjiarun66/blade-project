@@ -222,3 +222,23 @@ export function updateCategory(data: CategoryUpdateDTO) {
 export function deleteCategory(id: number) {
   return client.delete(`/product-categories/${id}`) as any
 }
+
+// ========== 文件绑定 API ==========
+
+/** SKU 图片绑定 DTO */
+export interface SkuImageBindingDTO {
+  skuId: number
+  fileIds: number[]
+}
+
+/** 商品文件绑定 DTO */
+export interface ProductFileBindingDTO {
+  mainFileId?: number | null
+  galleryFileIds?: number[]
+  skuImageBindings?: SkuImageBindingDTO[]
+}
+
+/** 设置商品文件绑定（替换语义） */
+export function setProductFileBindings(productId: number, dto: ProductFileBindingDTO) {
+  return client.put(`/products/${productId}/file-bindings`, dto) as Promise<{ code: number; data: void; message: string }>
+}

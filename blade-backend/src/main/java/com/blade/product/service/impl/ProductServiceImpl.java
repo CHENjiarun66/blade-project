@@ -1,13 +1,17 @@
 package com.blade.product.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
+import com.blade.file.entity.FileBusinessBind;
+import com.blade.file.entity.FileStorage;
+import com.blade.file.mapper.FileBusinessBindMapper;
+import com.blade.file.mapper.FileStorageMapper;
+import com.blade.file.service.FileService;
 import com.blade.product.dto.*;
-import com.blade.product.entity.ProductColor;
-import com.blade.product.entity.ProductSize;
 import com.blade.product.entity.Product;
 import com.blade.product.entity.ProductCategory;
 import com.blade.product.entity.ProductColor;
@@ -17,13 +21,22 @@ import com.blade.product.entity.ProductSizeRel;
 import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.*;
 import com.blade.product.service.ProductService;
+import com.blade.system.user.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,6 +50,9 @@ public class ProductServiceImpl implements ProductService {
     private final ProductColorRelMapper colorRelMapper;
     private final ProductSizeRelMapper sizeRelMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final FileService fileService;
+    private final FileBusinessBindMapper fileBusinessBindMapper;
+    private final FileStorageMapper fileStorageMapper;
 
     @Autowired
     public ProductServiceImpl(ProductMapper productMapper,
@@ -46,7 +62,10 @@ public class ProductServiceImpl implements ProductService {
                              ProductSkuMapper skuMapper,
                              ProductColorRelMapper colorRelMapper,
                              ProductSizeRelMapper sizeRelMapper,
-                             JdbcTemplate jdbcTemplate) {
+                             JdbcTemplate jdbcTemplate,
+                             FileService fileService,
+                             FileBusinessBindMapper fileBusinessBindMapper,
+                             FileStorageMapper fileStorageMapper) {
         this.productMapper = productMapper;
         this.categoryMapper = categoryMapper;
         this.colorMapper = colorMapper;
@@ -55,6 +74,9 @@ public class ProductServiceImpl implements ProductService {
         this.colorRelMapper = colorRelMapper;
         this.sizeRelMapper = sizeRelMapper;
         this.jdbcTemplate = jdbcTemplate;
+        this.fileService = fileService;
+        this.fileBusinessBindMapper = fileBusinessBindMapper;
+        this.fileStorageMapper = fileStorageMapper;
     }
 
     @Override
@@ -119,6 +141,8 @@ public class ProductServiceImpl implements ProductService {
         product.setTenantId(TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L);
 
         productMapper.insert(product);
+        fileService.bindFilesFromJson("product", product.getId(), product.getImageUrl());
+        syncMainImageBinding(product, product.getTenantId());
 
         if (dto.getColorIds() != null && !dto.getColorIds().isEmpty()) {
             saveColorRelations(product.getId(), dto.getColorIds());
@@ -177,6 +201,8 @@ public class ProductServiceImpl implements ProductService {
         }
 
         productMapper.updateById(product);
+        fileService.bindFilesFromJson("product", product.getId(), product.getImageUrl());
+        syncMainImageBinding(product, product.getTenantId());
 
         if (dto.getColorIds() != null) {
             colorRelMapper.deleteByProductId(dto.getId());
@@ -186,6 +212,10 @@ public class ProductServiceImpl implements ProductService {
         if (dto.getSizeIds() != null) {
             sizeRelMapper.deleteByProductId(dto.getId());
             saveSizeRelations(dto.getId(), dto.getSizeIds());
+        }
+
+        if (dto.getColorIds() != null || dto.getSizeIds() != null) {
+            syncProductSkus(product);
         }
     }
 
@@ -333,6 +363,149 @@ public class ProductServiceImpl implements ProductService {
         return skuMapper.selectAllSkuList();
     }
 
+    // ==================== BE-1005: 商品/SKU 图片绑定 ====================
+
+    @Override
+    @Transactional
+    public void bindFiles(Long productId, ProductFileBindingDTO dto) {
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        // 1. 验证商品存在且属于当前租户
+        LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
+        productWrapper.eq(Product::getId, productId);
+        productWrapper.eq(Product::getTenantId, tenantId);
+        Product product = productMapper.selectOne(productWrapper);
+        if (product == null) {
+            throw new RuntimeException("商品不存在");
+        }
+
+        // 2. 收集所有引用的文件 ID
+        Set<Long> allFileIds = new HashSet<>();
+        if (dto.getMainFileId() != null) {
+            allFileIds.add(dto.getMainFileId());
+        }
+        if (dto.getGalleryFileIds() != null) {
+            allFileIds.addAll(dto.getGalleryFileIds());
+        }
+        if (dto.getSkuImageBindings() != null) {
+            for (SkuImageBindingDTO skuBinding : dto.getSkuImageBindings()) {
+                if (skuBinding.getSkuId() == null) {
+                    throw new RuntimeException("SKU ID不能为空");
+                }
+                if (skuBinding.getFileIds() != null) {
+                    allFileIds.addAll(skuBinding.getFileIds());
+                }
+            }
+        }
+
+        // 3. 验证所有文件存在且属于当前租户且 status=1
+        if (!allFileIds.isEmpty()) {
+            Long fileCount = fileStorageMapper.selectCount(
+                    new LambdaQueryWrapper<FileStorage>()
+                            .in(FileStorage::getId, allFileIds)
+                            .eq(FileStorage::getTenantId, tenantId)
+                            .eq(FileStorage::getStatus, 1));
+            if (fileCount != allFileIds.size()) {
+                throw new RuntimeException("部分文件不存在");
+            }
+        }
+
+        // 4. 处理主图
+        if (dto.getMainFileId() != null) {
+            softDeleteBindings("product", productId, "main", tenantId);
+            insertBinding(dto.getMainFileId(), "product", productId, "main", 1, 0, tenantId);
+            product.setImageUrl(String.valueOf(dto.getMainFileId()));
+            productMapper.updateById(product);
+        }
+
+        // 5. 处理图集
+        if (dto.getGalleryFileIds() != null) {
+            softDeleteBindings("product", productId, "gallery", tenantId);
+            int sort = 0;
+            for (Long fileId : dto.getGalleryFileIds()) {
+                insertBinding(fileId, "product", productId, "gallery", 0, sort, tenantId);
+                sort++;
+            }
+        }
+
+        // 6. 处理 SKU 图片
+        if (dto.getSkuImageBindings() != null) {
+            for (SkuImageBindingDTO skuBinding : dto.getSkuImageBindings()) {
+                Long skuId = skuBinding.getSkuId();
+                // 验证 SKU 属于当前商品、当前租户、status=1、deleted=0
+                LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+                skuWrapper.eq(ProductSku::getId, skuId);
+                skuWrapper.eq(ProductSku::getProductId, productId);
+                skuWrapper.eq(ProductSku::getTenantId, tenantId);
+                skuWrapper.eq(ProductSku::getStatus, 1);
+                skuWrapper.eq(ProductSku::getDeleted, 0);
+                if (skuMapper.selectOne(skuWrapper) == null) {
+                    throw new RuntimeException("SKU 不存在: " + skuId);
+                }
+
+                softDeleteBindings("sku", skuId, "sku_image", tenantId);
+                if (skuBinding.getFileIds() != null) {
+                    int sort = 0;
+                    for (Long fileId : skuBinding.getFileIds()) {
+                        insertBinding(fileId, "sku", skuId, "sku_image", 0, sort, tenantId);
+                        sort++;
+                    }
+                }
+            }
+        }
+    }
+
+    // ==================== BE-1005 内部辅助方法 ====================
+
+    private void softDeleteBindings(String businessType, Long businessId, String bindRole, Long tenantId) {
+        LambdaUpdateWrapper<FileBusinessBind> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(FileBusinessBind::getBusinessType, businessType);
+        wrapper.eq(FileBusinessBind::getBusinessId, businessId);
+        wrapper.eq(FileBusinessBind::getBindRole, bindRole);
+        wrapper.eq(FileBusinessBind::getTenantId, tenantId);
+        wrapper.eq(FileBusinessBind::getDeleted, 0);
+        wrapper.set(FileBusinessBind::getDeleted, 1);
+        fileBusinessBindMapper.update(null, wrapper);
+    }
+
+    private void insertBinding(Long fileId, String businessType, Long businessId,
+                                String bindRole, int isPrimary, int sort, Long tenantId) {
+        FileBusinessBind bind = new FileBusinessBind();
+        bind.setFileId(fileId);
+        bind.setBusinessType(businessType);
+        bind.setBusinessId(businessId);
+        bind.setBindRole(bindRole);
+        bind.setIsPrimary(isPrimary);
+        bind.setSort(sort);
+        bind.setTenantId(tenantId);
+        bind.setCreateBy(getCurrentUserId());
+        bind.setDeleted(0);
+        fileBusinessBindMapper.insert(bind);
+    }
+
+    /**
+     * 同步 product.imageUrl 主图到 file_business_bind
+     * 仅当 imageUrl 是纯数字 fileId 时操作；历史 URL/blob 忽略
+     */
+    private void syncMainImageBinding(Product product, Long tenantId) {
+        String imageUrl = product.getImageUrl();
+        if (imageUrl == null || imageUrl.isBlank()) return;
+        if (!imageUrl.matches("\\d+")) return; // 非纯数字 fileId，忽略
+
+        Long fileId = Long.valueOf(imageUrl);
+
+        // 验证文件存在
+        Long fileCount = fileStorageMapper.selectCount(
+                new LambdaQueryWrapper<FileStorage>()
+                        .eq(FileStorage::getId, fileId)
+                        .eq(FileStorage::getTenantId, tenantId)
+                        .eq(FileStorage::getStatus, 1));
+        if (fileCount == 0) return; // 文件不存在，忽略
+
+        softDeleteBindings("product", product.getId(), "main", tenantId);
+        insertBinding(fileId, "product", product.getId(), "main", 1, 0, tenantId);
+    }
+
     private void saveColorRelations(Long productId, List<Long> colorIds) {
         for (Long colorId : colorIds) {
             ProductColorRel rel = new ProductColorRel();
@@ -363,13 +536,101 @@ public class ProductServiceImpl implements ProductService {
                 sku.setColorId(colorId);
                 sku.setSizeId(sizeId);
                 sku.setSkuCode(generateSkuCode(product.getProductCode(), color.getColorCode(), size.getSizeCode()));
-                sku.setPrice(price);
+                sku.setPrice(defaultAmount(price));
+                sku.setCostPrice(defaultAmount(product.getCostPrice()));
                 sku.setStatus(1);
                 sku.setTenantId(product.getTenantId());
 
                 skuMapper.insert(sku);
             }
         }
+    }
+
+    private void syncProductSkus(Product product) {
+        List<ProductColor> colors = colorRelMapper.selectByProductId(product.getId());
+        List<ProductSize> sizes = sizeRelMapper.selectByProductId(product.getId());
+        if (colors == null || colors.isEmpty() || sizes == null || sizes.isEmpty()) {
+            return;
+        }
+
+        LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+        skuWrapper.eq(ProductSku::getProductId, product.getId());
+        List<ProductSku> existingSkus = skuMapper.selectList(skuWrapper);
+
+        Map<String, ProductSku> existingByCode = new HashMap<>();
+        for (ProductSku sku : existingSkus) {
+            existingByCode.put(sku.getSkuCode(), sku);
+        }
+
+        Set<String> targetSkuCodes = new HashSet<>();
+        BigDecimal targetPrice = defaultAmount(product.getWholesalePrice());
+        BigDecimal targetCostPrice = defaultAmount(product.getCostPrice());
+
+        for (ProductColor color : colors) {
+            for (ProductSize size : sizes) {
+                String skuCode = generateSkuCode(product.getProductCode(), color.getColorCode(), size.getSizeCode());
+                targetSkuCodes.add(skuCode);
+
+                ProductSku existingSku = existingByCode.get(skuCode);
+                if (existingSku != null) {
+                    boolean changed = false;
+                    if (!Objects.equals(existingSku.getColorId(), color.getId())) {
+                        existingSku.setColorId(color.getId());
+                        changed = true;
+                    }
+                    if (!Objects.equals(existingSku.getSizeId(), size.getId())) {
+                        existingSku.setSizeId(size.getId());
+                        changed = true;
+                    }
+                    if (existingSku.getPrice() == null || existingSku.getPrice().compareTo(targetPrice) != 0) {
+                        existingSku.setPrice(targetPrice);
+                        changed = true;
+                    }
+                    if (existingSku.getCostPrice() == null || existingSku.getCostPrice().compareTo(targetCostPrice) != 0) {
+                        existingSku.setCostPrice(targetCostPrice);
+                        changed = true;
+                    }
+                    if (!Objects.equals(existingSku.getStatus(), product.getStatus())) {
+                        existingSku.setStatus(product.getStatus());
+                        changed = true;
+                    }
+                    if (changed) {
+                        skuMapper.updateById(existingSku);
+                    }
+                    continue;
+                }
+
+                restoreOrCreateSku(product, color, size, skuCode, targetPrice, targetCostPrice);
+            }
+        }
+
+        for (ProductSku existingSku : existingSkus) {
+            if (!targetSkuCodes.contains(existingSku.getSkuCode())) {
+                skuMapper.deleteById(existingSku.getId());
+            }
+        }
+    }
+
+    private void restoreOrCreateSku(Product product, ProductColor color, ProductSize size, String skuCode,
+                                    BigDecimal price, BigDecimal costPrice) {
+        String checkSql = "SELECT id FROM product_sku WHERE sku_code = ? AND tenant_id = ? AND deleted = 1";
+        List<Long> deletedIds = jdbcTemplate.query(checkSql, (rs, rowNum) -> rs.getLong("id"), skuCode, product.getTenantId());
+        if (!deletedIds.isEmpty()) {
+            String restoreSql = "UPDATE product_sku SET product_id = ?, color_id = ?, size_id = ?, price = ?, cost_price = ?, status = ?, deleted = 0 WHERE id = ?";
+            jdbcTemplate.update(restoreSql, product.getId(), color.getId(), size.getId(), price, costPrice, product.getStatus(), deletedIds.get(0));
+            return;
+        }
+
+        ProductSku sku = new ProductSku();
+        sku.setProductId(product.getId());
+        sku.setColorId(color.getId());
+        sku.setSizeId(size.getId());
+        sku.setSkuCode(skuCode);
+        sku.setPrice(price);
+        sku.setCostPrice(costPrice);
+        sku.setStatus(product.getStatus());
+        sku.setTenantId(product.getTenantId());
+        skuMapper.insert(sku);
     }
 
     private String generateSkuCode(String productCode, String colorCode, String sizeCode) {
@@ -446,7 +707,7 @@ public class ProductServiceImpl implements ProductService {
                 skuVO.setColorId(sku.getColorId());
                 skuVO.setSizeId(sku.getSizeId());
                 skuVO.setPrice(sku.getPrice());
-                skuVO.setCostPrice(sku.getCostPrice());
+                skuVO.setCostPrice(hasPositiveAmount(sku.getCostPrice()) ? sku.getCostPrice() : product.getCostPrice());
                 skuVO.setBarCode(sku.getBarCode());
                 skuVO.setStatus(sku.getStatus());
                 // 查询颜色名称
@@ -469,5 +730,21 @@ public class ProductServiceImpl implements ProductService {
         }
 
         return vo;
+    }
+
+    private boolean hasPositiveAmount(BigDecimal value) {
+        return value != null && value.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    private BigDecimal defaultAmount(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof User user) {
+            return user.getId();
+        }
+        return 1L;
     }
 }

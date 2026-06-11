@@ -2,6 +2,7 @@ package com.blade.order.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -10,6 +11,11 @@ public class OrderVO {
 
     private Long id;
     private String orderNo;
+    private LocalDate orderDate;
+    private String sourceDocNo;
+    private String sourceShop;
+    private String orderType;
+    private String orderTypeName;
     private Long customerId;
     private String customerName;
     private String customerPhone;
@@ -18,12 +24,17 @@ public class OrderVO {
     private BigDecimal originalAmount;
     private BigDecimal refundAmount;
     private BigDecimal paidAmount;
+    private BigDecimal balanceAmount;
     // 支付状态: 0未付款 1已付定金 2已付全款
     private Integer paymentStatus;
     private String paymentStatusName;
     private String adjustmentStatus;
     // 定金金额
     private BigDecimal depositAmount;
+    private BigDecimal freightAmount;
+    private BigDecimal freightCost;
+    private BigDecimal totalCostAmount;
+    private BigDecimal grossProfit;
     // 是否需要送货: 0否 1是
     private Integer needDelivery;
     // 送货地址
@@ -53,6 +64,16 @@ public class OrderVO {
     public void setId(Long id) { this.id = id; }
     public String getOrderNo() { return orderNo; }
     public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
+    public LocalDate getOrderDate() { return orderDate; }
+    public void setOrderDate(LocalDate orderDate) { this.orderDate = orderDate; }
+    public String getSourceDocNo() { return sourceDocNo; }
+    public void setSourceDocNo(String sourceDocNo) { this.sourceDocNo = sourceDocNo; }
+    public String getSourceShop() { return sourceShop; }
+    public void setSourceShop(String sourceShop) { this.sourceShop = sourceShop; }
+    public String getOrderType() { return orderType; }
+    public void setOrderType(String orderType) { this.orderType = orderType; }
+    public String getOrderTypeName() { return orderTypeName; }
+    public void setOrderTypeName(String orderTypeName) { this.orderTypeName = orderTypeName; }
     public Long getCustomerId() { return customerId; }
     public void setCustomerId(Long customerId) { this.customerId = customerId; }
     public String getCustomerName() { return customerName; }
@@ -69,6 +90,8 @@ public class OrderVO {
     public void setRefundAmount(BigDecimal refundAmount) { this.refundAmount = refundAmount; }
     public BigDecimal getPaidAmount() { return paidAmount; }
     public void setPaidAmount(BigDecimal paidAmount) { this.paidAmount = paidAmount; }
+    public BigDecimal getBalanceAmount() { return balanceAmount; }
+    public void setBalanceAmount(BigDecimal balanceAmount) { this.balanceAmount = balanceAmount; }
     public Integer getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(Integer paymentStatus) { this.paymentStatus = paymentStatus; }
     public String getPaymentStatusName() { return paymentStatusName; }
@@ -77,6 +100,14 @@ public class OrderVO {
     public void setAdjustmentStatus(String adjustmentStatus) { this.adjustmentStatus = adjustmentStatus; }
     public BigDecimal getDepositAmount() { return depositAmount; }
     public void setDepositAmount(BigDecimal depositAmount) { this.depositAmount = depositAmount; }
+    public BigDecimal getFreightAmount() { return freightAmount; }
+    public void setFreightAmount(BigDecimal freightAmount) { this.freightAmount = freightAmount; }
+    public BigDecimal getFreightCost() { return freightCost; }
+    public void setFreightCost(BigDecimal freightCost) { this.freightCost = freightCost; }
+    public BigDecimal getTotalCostAmount() { return totalCostAmount; }
+    public void setTotalCostAmount(BigDecimal totalCostAmount) { this.totalCostAmount = totalCostAmount; }
+    public BigDecimal getGrossProfit() { return grossProfit; }
+    public void setGrossProfit(BigDecimal grossProfit) { this.grossProfit = grossProfit; }
     public Integer getNeedDelivery() { return needDelivery; }
     public void setNeedDelivery(Integer needDelivery) { this.needDelivery = needDelivery; }
     public String getDeliveryAddress() { return deliveryAddress; }
@@ -127,12 +158,15 @@ public class OrderVO {
         private String colorName;
         private String sizeName;
         private BigDecimal price;
+        private BigDecimal costPrice;
         private Integer quantity;
         private Integer plannedQuantity;
         private Integer allocatedQuantity;
         private Integer outQuantity;
         private String adjustmentRemark;
         private BigDecimal subtotal;
+        private BigDecimal costAmount;
+        private BigDecimal grossProfit;
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -152,6 +186,8 @@ public class OrderVO {
         public void setSizeName(String sizeName) { this.sizeName = sizeName; }
         public BigDecimal getPrice() { return price; }
         public void setPrice(BigDecimal price) { this.price = price; }
+        public BigDecimal getCostPrice() { return costPrice; }
+        public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice; }
         public Integer getQuantity() { return quantity; }
         public void setQuantity(Integer quantity) { this.quantity = quantity; }
         public Integer getPlannedQuantity() { return plannedQuantity; }
@@ -164,5 +200,9 @@ public class OrderVO {
         public void setAdjustmentRemark(String adjustmentRemark) { this.adjustmentRemark = adjustmentRemark; }
         public BigDecimal getSubtotal() { return subtotal; }
         public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
+        public BigDecimal getCostAmount() { return costAmount; }
+        public void setCostAmount(BigDecimal costAmount) { this.costAmount = costAmount; }
+        public BigDecimal getGrossProfit() { return grossProfit; }
+        public void setGrossProfit(BigDecimal grossProfit) { this.grossProfit = grossProfit; }
     }
 }

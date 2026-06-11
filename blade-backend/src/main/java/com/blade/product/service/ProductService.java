@@ -30,4 +30,9 @@ public interface ProductService {
     void deleteSize(Long id);
 
     List<SkuVO> listAllSkus();
+
+    /**
+     * BE-1005: 商品/SKU 图片绑定服务 — PUT /api/products/{id}/file-bindings
+     */
+    void bindFiles(Long productId, ProductFileBindingDTO dto);
 }

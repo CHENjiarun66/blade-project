@@ -1,0 +1,74 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: blade-mysql
+    restart: unless-stopped
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - /volume2/blade/mysql:/var/lib/mysql
+    networks:
+      - blade
+
+  redis:
+    image: redis:7-alpine
+    container_name: blade-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - /volume2/blade/redis:/data
+    networks:
+      - blade
+
+  backend:
+    build:
+      context: /volume2/blade/app/blade-backend
+    image: blade-backend:prod
+    container_name: blade-backend
+    restart: unless-stopped
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      TZ: Asia/Shanghai
+      BLADE_DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      BLADE_DB_USERNAME: root
+      BLADE_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      BLADE_FILE_LOCAL_BASE_PATH: /data/uploads
+      BLADE_FILE_MAX_SIZE_MB: ${BLADE_FILE_MAX_SIZE_MB:-200}
+      BLADE_MULTIPART_MAX_FILE_SIZE: ${BLADE_MULTIPART_MAX_FILE_SIZE:-200MB}
+      BLADE_MULTIPART_MAX_REQUEST_SIZE: ${BLADE_MULTIPART_MAX_REQUEST_SIZE:-220MB}
+      JWT_SECRET: ${JWT_SECRET}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+    volumes:
+      - /volume2/blade/uploads:/data/uploads
+      - /volume2/blade/logs:/app/logs
+    networks:
+      - blade
+
+  web:
+    build:
+      context: /volume2/blade/app
+      dockerfile: blade-admin/Dockerfile
+    image: blade-web:prod
+    container_name: blade-web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${WEB_PORT}:443"
+    networks:
+      - blade
+
+networks:
+  blade:
+    name: blade-prod

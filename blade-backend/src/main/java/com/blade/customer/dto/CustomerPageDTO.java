@@ -15,4 +15,7 @@ public class CustomerPageDTO {
 
     @Schema(description = "关键字搜索（客户名称或电话）")
     private String keyword;
+
+    @Schema(description = "只看我的客户（true=只看自己创建的）")
+    private Boolean mine = false;
 }

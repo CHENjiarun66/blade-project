@@ -41,7 +41,7 @@ public class ProductCreateDTO {
     @Schema(description = "描述")
     private String description;
 
-    @Schema(description = "商品图片URL")
+    @Schema(description = "商品图片fileId，历史数据可为URL")
     private String imageUrl;
 
     @Schema(description = "备注")

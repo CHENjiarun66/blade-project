@@ -121,6 +121,13 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- EasyExcel - Excel 导出 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>easyexcel</artifactId>
+            <version>3.3.4</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

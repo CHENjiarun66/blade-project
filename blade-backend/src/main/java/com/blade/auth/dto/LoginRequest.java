@@ -13,6 +13,11 @@ public class LoginRequest {
     @NotBlank(message = "密码不能为空")
     private String password;
 
+    /**
+     * 是否保持登录 30 天
+     */
+    private Boolean remember;
+
     public String getTenantCode() {
         return tenantCode;
     }
@@ -35,5 +40,13 @@ public class LoginRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public Boolean getRemember() {
+        return remember;
+    }
+
+    public void setRemember(Boolean remember) {
+        this.remember = remember;
     }
 }

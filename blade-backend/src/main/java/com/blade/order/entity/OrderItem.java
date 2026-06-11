@@ -33,6 +33,9 @@ public class OrderItem {
 
     private BigDecimal price;
 
+    @TableField("cost_price")
+    private BigDecimal costPrice;
+
     private Integer quantity;
 
     /**
@@ -61,6 +64,12 @@ public class OrderItem {
 
     private BigDecimal subtotal;
 
+    @TableField("cost_amount")
+    private BigDecimal costAmount;
+
+    @TableField("gross_profit")
+    private BigDecimal grossProfit;
+
     @TableField("tenant_id")
     private Long tenantId;
 
@@ -85,10 +94,16 @@ public class OrderItem {
     public void setSizeName(String sizeName) { this.sizeName = sizeName; }
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal price) { this.price = price; }
+    public BigDecimal getCostPrice() { return costPrice; }
+    public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice; }
     public Integer getQuantity() { return quantity; }
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public BigDecimal getSubtotal() { return subtotal; }
     public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
+    public BigDecimal getCostAmount() { return costAmount; }
+    public void setCostAmount(BigDecimal costAmount) { this.costAmount = costAmount; }
+    public BigDecimal getGrossProfit() { return grossProfit; }
+    public void setGrossProfit(BigDecimal grossProfit) { this.grossProfit = grossProfit; }
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public LocalDateTime getCreateTime() { return createTime; }
