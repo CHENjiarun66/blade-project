@@ -42,6 +42,11 @@ BladeProject/
 | 查看变更历史 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
 | 查看项目结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
 | 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
+| 查图片/附件上传与存储设计 | [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md) |
+| 查文件中心/数字资产/客户展示页设计 | [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md) |
+| 查 NAS 生产环境发布/运维 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
+| 查外部 AI Agent 对接设计 | [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md) |
+| 接入外部 AI Agent | [11-AGENT_ACCESS_GUIDE.md](./11-AGENT_ACCESS_GUIDE.md) |
 | 排查问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
 | 查看技术决策 | [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md) |
 

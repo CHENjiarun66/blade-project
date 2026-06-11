@@ -80,7 +80,7 @@ BladeProject 是对原有 Blade 项目的重大技术升级，采用 **Monorepo 
 | wholesale_price | decimal | 批发价 |
 | weight | decimal | 重量（用于物流/运费计算） |
 | description | text | 描述 |
-| image_url | varchar | 商品图片 |
+| image_url | varchar | 商品主图 fileId 字符串（历史数据可为URL，详见 [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md)） |
 | remark | varchar | 备注 |
 | status | tinyint | 状态：1启用 0禁用 |
 | tenant_id | bigint | 租户ID |
@@ -223,7 +223,7 @@ SKU = 商品 + 颜色 + 尺码的组合
 | supplier_name | varchar | 供应商名称（冗余存储） |
 | operator_id | bigint | 操作人ID |
 | remark | varchar | 备注 |
-| images | varchar | 图片URLs，逗号分隔（入库凭证等） |
+| images | varchar | 入库凭证 fileId JSON数组字符串（详见 [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md)） |
 | tenant_id | bigint | 租户ID |
 | create_time | datetime | 操作时间 |
 
@@ -265,6 +265,10 @@ SKU = 商品 + 颜色 + 尺码的组合
 |------|------|------|
 | id | bigint | 主键 |
 | order_no | varchar | 订单编号 |
+| order_date | date | 订单日期（纸质单据日期） |
+| source_doc_no | varchar | 纸质单据号/外部单号 |
+| source_shop | varchar | 订单来源档口/店铺，不等同于仓库 |
+| order_type | varchar | 订单类型：SPOT现货/PREORDER订货 |
 | customer_id | bigint | 客户ID |
 | customer_name | varchar | 客户名称（冗余） |
 | customer_phone | varchar | 客户电话 |
@@ -275,6 +279,10 @@ SKU = 商品 + 颜色 + 尺码的组合
 | paid_amount | decimal | 已支付金额 |
 | **payment_status** | tinyint | **支付状态：0未付款 1已付定金 2已付全款** |
 | **deposit_amount** | decimal | **定金金额** |
+| freight_amount | decimal | 客户运费收入 |
+| freight_cost | decimal | 实际运费成本 |
+| total_cost_amount | decimal | 订单总成本（商品成本 + 运费成本） |
+| gross_profit | decimal | 订单毛利 |
 | adjustment_status | varchar | 调整状态：NONE/PENDING/APPROVED/COMPLETED |
 | **need_delivery** | tinyint | **是否需要送货：0否 1是** |
 | **delivery_address** | varchar | **送货地址** |
@@ -284,7 +292,7 @@ SKU = 商品 + 颜色 + 尺码的组合
 | warehouse_id | bigint | 发货仓库 |
 | salesman_id | bigint | 开单销售人员ID |
 | salesman_name | varchar | 开单销售人员姓名 |
-| images | varchar | 订单图片，JSON数组格式 |
+| images | varchar | 订单图片 fileId JSON数组字符串（详见 [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md)） |
 | remark | varchar | 备注 |
 | tenant_id | bigint | 租户ID |
 | deleted | tinyint | 删除标记（0未删，1已删） |
@@ -308,14 +316,28 @@ SKU = 商品 + 颜色 + 尺码的组合
 | color_name | varchar | 颜色（冗余快照） |
 | size_name | varchar | 尺码（冗余快照） |
 | price | decimal | 下单时的单价 |
+| cost_price | decimal | 下单成本价快照 |
 | quantity | int | 数量 |
 | planned_quantity | int | 计划数量（原订单数量） |
 | allocated_quantity | int | 配货数量（调整后数量） |
 | out_quantity | int | 已出库数量 |
 | adjustment_remark | varchar | 调整说明 |
 | subtotal | decimal | 小计金额 |
+| cost_amount | decimal | 成本金额快照 |
+| gross_profit | decimal | 明细毛利快照 |
 | tenant_id | bigint | 租户ID |
 | create_time | datetime | 创建时间 |
+
+### 6.2.1 PC 快速录单与财务快照
+
+- 快速录单用于把纸质订单按单张连续录入系统，最终仍保存到 `sale_order` / `sale_order_item` 标准订单表。
+- 快速录单页面按 PC 后台高频录入场景布局：单据/客户信息在上方，商品明细居中，结算与配送和金额汇总在商品明细下方左右并列展示，减少录入时上下滚动和视线跳转。
+- “来源档口/店铺”用于记录订单来自哪个档口商店，是订单来源字段；不绑定库存仓库，也不参与库存预留、出库逻辑。
+- 订单类型仅作标记与筛选：`SPOT` 现货订单，`PREORDER` 订货订单；第一版不改变库存预留和发货流程。
+- 运费分两项：`freight_amount` 为向客户收取的运费，计入订单应收；`freight_cost` 为实际运费成本，计入订单成本。
+- 利润公式：`gross_profit = 商品销售小计 - 商品成本金额 + 运费收入 - 运费成本`。
+- 成本价、成本金额和毛利在订单保存时固化为历史快照，后续商品成本变化不影响历史订单。
+- 后续追加收款只更新 `paid_amount` 和 `payment_status`，不自动改变订单处理状态。
 
 ### 6.3 订单状态流转（处理进度）
 
@@ -484,28 +506,42 @@ DELETE /api/orders/{id}        # 删除订单（仅待处理状态可删除）
 | 接口 | 方法 | 说明 |
 |------|------|------|
 | `/api/dashboard/stats` | GET | 获取看板统计数据 |
-| `/api/dashboard/trend` | GET | 获取订单趋势数据（最近30天） |
+| `/api/dashboard/trend` | GET | 获取订单趋势数据（按筛选周期） |
 | `/api/dashboard/top-products` | GET | 获取热销商品排行（Top 5） |
+
+**订单统计口径**：
+- 日期按 `sale_order.order_date` 统计；旧数据没有订单日期时回退 `create_time`。
+- 统计对象为已产生收款订单：`paid_amount > 0` 或 `payment_status in (1, 2)`。
+- 销售额为应收净额：`max(total_amount - refund_amount, 0)`。
+- 取消、退货中、已退货订单不直接排除，退款后按净额体现。
 
 ### 8.3 统计数据（DashboardStatsDTO）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| todayOrders | Long | 今日订单数 |
-| todayOrdersTrend | Long | 今日订单数环比（百分比） |
-| todaySales | BigDecimal | 今日销售额 |
-| todaySalesTrend | Long | 今日销售额环比（百分比） |
+| periodOrders | Long | 当前筛选周期已产生收款订单数 |
+| periodOrdersTrend | Long | 周期订单数环比（百分比） |
+| periodSales | BigDecimal | 当前筛选周期应收净额 |
+| periodSalesTrend | Long | 周期销售额环比（百分比） |
+| periodGrossProfit | BigDecimal | 当前筛选周期毛利净额 |
+| periodGrossProfitTrend | Long | 周期毛利环比（百分比） |
+| periodSalesQuantity | Long | 当前筛选周期销量，按已产生收款订单明细数量汇总 |
+| periodSalesQuantityTrend | Long | 周期销量环比（百分比） |
 | totalProducts | Long | 商品总数 |
 | pendingOrders | Long | 待处理订单数 |
 | pendingOrdersTrend | Long | 待处理订单环比（百分比） |
+| weekOrders | Long | 本周已产生收款订单数 |
+| weekSales | BigDecimal | 本周应收净额 |
+| weekGrossProfit | BigDecimal | 本周毛利净额 |
+| avgOrderValue | BigDecimal | 当前筛选周期平均客单价（接口兼容保留，前端卡片不展示） |
 
 ### 8.4 订单趋势（OrderTrendDTO）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| dates | List<String> | 日期列表（MM-DD格式，近30天） |
-| orderCounts | List<Long> | 每日订单数 |
-| salesAmounts | List<BigDecimal> | 每日销售额 |
+| dates | List<String> | 日期列表（MM-DD格式，按筛选周期，最多365天） |
+| orderCounts | List<Long> | 每日已产生收款订单数 |
+| salesAmounts | List<BigDecimal> | 每日应收净额 |
 
 ### 8.5 热销商品（TopProductDTO）
 
@@ -536,17 +572,108 @@ DELETE /api/orders/{id}        # 删除订单（仅待处理状态可删除）
 
 ---
 
-## 九、微信服务（P3）
+## 九、数据分析（P2）
+
+### 9.1 功能概述
+
+数据分析页面向经营决策，独立于首页仪表盘，第一版聚焦销售与商品分析。页面路径为 `/analytics`，菜单权限为 `menu:analytics`。
+
+### 9.2 分析接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/analytics/summary` | GET | 获取周期经营汇总 |
+| `/api/analytics/trend` | GET | 获取周期趋势 |
+| `/api/analytics/product-ranking` | GET | 获取商品/SKU/颜色/尺码排行 |
+| `/api/analytics/product-detail` | GET | 获取单商品维度拆解 |
+
+**统计口径**：
+- 日期按 `sale_order.order_date` 统计；旧数据没有订单日期时回退 `create_time`。
+- 统计对象为已产生收款订单：`paid_amount > 0` 或 `payment_status in (1, 2)`。
+- 汇总销售额为应收净额：`max(total_amount - refund_amount, 0)`。
+- 汇总毛利为 `max(gross_profit - refund_amount, 0)`。
+- 商品排行第一版不反摊订单级退款，按订单明细 `subtotal`、`quantity`、`gross_profit` 聚合。
+
+### 9.3 权限
+
+| 权限码 | 类型 | 说明 |
+|--------|------|------|
+| `menu:analytics` | 菜单 | 数据分析页入口 |
+| `data:analytics:profit` | 字段 | 成本、毛利、毛利率数据权限 |
+
+老板/系统管理员默认拥有毛利数据权限；销售员默认只有数据分析菜单权限，不返回也不展示毛利、成本、毛利率字段。
+
+### 9.4 前端页面
+
+| 页面 | 路径 | 说明 |
+|------|------|------|
+| 数据分析 | `/analytics` | 日期筛选 + 经营指标 + 趋势图 + 商品排行 + 商品详情抽屉 |
+
+---
+
+## 十、外部 AI Agent 对接（P2）
+
+> 详细设计见 [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md)。
+> 第一版目标是让外部 Agent 通过稳定 API 做款式趋势判断、客户跟进提醒、周期经营分析和搜索，不直接访问数据库，不直接执行订单/库存高风险写操作。
+
+### 10.1 功能定位
+
+Agent 是 BladeProject 的外部 API 消费者，不替代 PC 管理端和移动端。第一版支持：
+
+| 场景 | 说明 |
+|------|------|
+| 款式趋势判断 | 判断哪些款持续向好、哪些款需观察、哪些款不建议继续做 |
+| 客户跟进提醒 | 基于客户订单日期、复购和跟进规则输出需联系客户 |
+| 周期经营分析 | 支持月度、季度、年度复盘数据与建议输入 |
+| 颜色尺码结构 | 分析同款不同颜色、尺码、SKU 的热卖、缺货和积压差异 |
+| 库存建议事实 | 提供积压、缺货影响、补货优先级和跨仓库存事实 |
+| 客户风险 | 支持客户分层、流失风险和跟进优先级判断 |
+| 统一搜索 | 跨客户、订单、商品和 SKU 查找业务对象 |
+| 沟通上下文扩展 | 后续接入 WhatsApp 信息，结合客户沟通和系统订单数据分析 |
+
+### 10.2 第一版接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/agent/analytics/style-trends` | GET | 多周期款式趋势与建议依据 |
+| `/api/agent/analytics/sku-mix` | GET | 款式颜色/尺码/SKU 结构事实 |
+| `/api/agent/tasks/follow-up` | GET | 需跟进客户清单与提醒依据 |
+| `/api/agent/customers/risk` | GET | 客户流失风险与分层事实 |
+| `/api/agent/inventory/recommendations` | GET | 库存积压、缺货和补货优先级事实 |
+| `/api/agent/reports/periodic` | GET | 月度、季度、年度经营分析数据包 |
+| `/api/agent/search` | GET | 客户、订单、商品/SKU 跨模块搜索 |
+
+实现时优先复用 `/api/dashboard/*`、`/api/analytics/*` 和客户统计能力，统计口径不得与现有看板、数据分析页分叉。
+
+### 10.3 安全与权限
+
+1. Agent 使用独立凭证，不复用前端 JWT 登录态。
+2. 每个 Agent 凭证必须绑定 `tenant_id` 和 scope，认证通过后进入当前多租户隔离链路。
+3. 第一版 Agent API 默认只读，禁止创建/编辑订单、库存调整、收款确认等高风险动作。
+4. 成本、毛利、毛利率需单独授权，默认不返回。
+5. 对外开放 Agent 前必须复核客户数据接口认证边界、Agent API 调用审计和限流。
+
+### 10.4 暂缓范围
+
+- 后端自然语言问答 `/agent/query` 暂缓，先由外部 Agent 调用结构化工具接口。
+- 泛化写动作 `/agent/action` 暂缓；后续只允许经过明确授权的窄范围动作。
+- 增量变化接口 `/agent/changes` 依赖统一业务事件日志，第一版不纳入验收。
+- WhatsApp 数据接入第一版不纳入实现验收；后续先验证合规接入方式、客户映射、权限和消息保留策略。
+- 订单流程异常、利润解释、WhatsApp 反馈分析和经营记忆属于后续能力路线，按事件、权限和外部数据接入成熟度分阶段落地。
+
+---
+
+## 十一、微信服务（P3）
 
 > 后续接入，已有公众号
 
-### 8.1 功能范围
+### 10.1 功能范围
 
 - 订单状态变更通知
 - 库存预警通知
 - 其他系统通知
 
-### 8.2 实现方式
+### 10.2 实现方式
 
 - 独立微信服务模块（wx-service）
 - 对外提供 HTTP 接口
@@ -554,7 +681,7 @@ DELETE /api/orders/{id}        # 删除订单（仅待处理状态可删除）
 
 ---
 
-## 十、OCR 拍照录单（P2）
+## 十二、OCR 拍照录单（P2）
 
 > 优先级 P2，等订单核心流程跑通后再重点开发。
 > 目标：尽量减少手动输入，让入单流程尽可能简单。
@@ -732,12 +859,12 @@ DELETE /api/orders/{id}        # 删除订单（仅待处理状态可删除）
 | OCR 服务 | 微信扫一扫 / 腾讯云 OCR | 手写识别效果好 |
 | AI 解析（方案B） | 本地 LLM 或云函数 | 解析文字结构，提取字段 |
 | 商品匹配（方案B） | 模糊匹配算法 | 支持缩写、模糊搜索 |
-| 图片存储 | 对象存储（OSS/COS） | 存储原始单据图片 |
+| 图片存储 | 统一文件入口 + fileId 保存 | 第一版本地存储，后续可切七牛云/NAS；详见 [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md) |
 
 ### 9.6 实施计划
 
 **Phase 1：基础版（方案 A，半自动）**
-1. 图片上传接口
+1. 统一图片上传接口（复用文件存储模块）
 2. OCR 识别文字服务
 3. 表单字段提取（数量/单价/总金额/客户名/日期）
 4. 半自动表单（款号手动选择，其他自动填入）
@@ -761,7 +888,88 @@ DELETE /api/orders/{id}        # 删除订单（仅待处理状态可删除）
 
 ---
 
-## 十一、多租户设计
+## 十三、文件中心与客户展示页（P1）
+
+> 详细设计见：[12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md)
+
+### 13.1 产品定位
+
+文件中心不是单纯图片/视频相册，而是系统统一的数字资产中心。
+
+第一版重点服务三个场景：
+
+1. 后台统一管理所有上传图片和基础视频文件。
+2. 管理未绑定到商品、SKU、订单或入库记录的临时文件，支持定期清理。
+3. 为客户 iPad 现货展示页提供商品/SKU 图片来源。
+
+### 13.2 核心规则
+
+| 规则 | 说明 |
+|------|------|
+| 业务表继续保存 fileId | 禁止业务表保存物理路径 |
+| 文件资产独立管理 | 图片、视频、后续文档均进入文件中心 |
+| 业务关系走绑定表 | 商品、SKU、订单、入库日志关系统一走 `file_business_bind` |
+| 商品主图兼容旧字段 | `product.image_url` 继续保存主图 fileId，同时同步绑定关系 |
+| 未绑定文件可治理 | 未绑定、未归档、超过保留期的临时文件可自动软删除 |
+| 私有文件需鉴权 | 订单图片、入库凭证、OCR 原图默认私有 |
+
+### 13.3 文件中心能力边界
+
+第一版必须支持：
+
+- PC 后台 `/files` 文件中心。
+- 文件夹管理。
+- 图片上传、预览、移动、软删除。
+- 基础视频文件上传和基础预览。
+- 未绑定文件筛选和清理。
+- 绑定到商品主图、商品图集和 SKU 图片。
+- 查看并追加绑定订单图片、入库凭证。
+
+第一版不做：
+
+- 视频转码。
+- 分片上传和断点续传。
+- 七牛云/NAS 切换。
+- 客户公开分享链接。
+- AI 自动打标签。
+- 文档在线预览。
+- 文件版本管理。
+
+### 13.4 客户 iPad 展示页
+
+新增只读客户展示页，建议路由：
+
+```text
+/catalog
+```
+
+或：
+
+```text
+/showroom
+```
+
+页面用于 iPad 展示现货服装，数据来自系统商品、SKU、文件中心图片绑定和实时库存。
+
+第一版展示规则：
+
+| 能力 | 说明 |
+|------|------|
+| 商品相册 | 展示商品主图、商品图集、SKU 图片 |
+| 筛选 | 支持全部 / 现货 / 有图，后续扩展分类、颜色、尺码 |
+| 响应式布局 | 横屏为商品网格 + 右侧详情；竖屏为商品网格 + 底部/全屏详情 |
+| 大图模式 | 商品详情图片可进入全屏大图模式，支持切图、缩略图胶片条和关闭返回 |
+| 库存口径 | 使用系统可用库存：`quantity - reservedQty - globalReservedQty` |
+| 库存展示 | 第一版只显示“有现货 / 暂无现货”，不显示真实数量 |
+| 访问方式 | 第一版采用 iPad 登录只读账号，不做公开分享链接 |
+| 数据边界 | 不展示成本、毛利、真实库存数量和后台管理信息 |
+| 身份边界 | 第一版默认游客/散客模式；客户选择、扫码识别、行为埋点和选款清单后续再做 |
+
+客户展示页是静态前端页面 + 动态 API 数据，不读取群晖相册或 iPad 本地相册。
+
+---
+
+## 十四、多租户设计
 
 ### 9.1 租户隔离
 
@@ -777,7 +985,7 @@ DELETE /api/orders/{id}        # 删除订单（仅待处理状态可删除）
 
 ---
 
-## 十二、API 通用规范
+## 十五、API 通用规范
 
 ### 10.1 请求格式
 
@@ -825,7 +1033,7 @@ Authorization: Bearer {jwt_token}
 
 ---
 
-## 十三、非功能性需求
+## 十六、非功能性需求
 
 ### 11.1 性能
 
@@ -846,7 +1054,7 @@ Authorization: Bearer {jwt_token}
 
 ---
 
-## 十四、版本历史
+## 十七、版本历史
 
 | 版本 | 日期 | 修改内容 |
 |------|------|---------|
@@ -858,10 +1066,12 @@ Authorization: Bearer {jwt_token}
 | v1.5 | 2026-03-23 | 新增 OCR 拍照录单功能（方案A半自动 + 方案B AI辅助），目标尽量减少手动输入 |
 | v1.6 | 2026-04-02 | 新增看板系统（仪表盘 + 销售趋势图 + 热销商品排行） |
 | v1.7 | 2026-04-04 | 商品表新增字段：product_code、supplier_id、cost_price、wholesale_price、weight、remark；新增供应商表（supplier，P1暂不开发） |
+| v1.8 | 2026-05-22 | 新增外部 AI Agent 对接需求，第一期锁定款式趋势、客户跟进、周期经营分析、只读 Agent Gateway、独立鉴权和租户绑定 |
+| v1.9 | 2026-06-03 | 新增文件中心/数字资产中心和客户 iPad 现货展示页需求，锁定 fileId、绑定表、未绑定清理和第一版边界 |
 
 ---
 
-## 十五、架构决策记录
+## 十八、架构决策记录
 
 ### 14.1 软删除机制（2026-03-22）
 
@@ -931,3 +1141,19 @@ Authorization: Bearer {jwt_token}
 - 送货设置（need_delivery, delivery_address, is_delivered）：与订单状态独立
 - 支付状态=已付全款时，自动确认付款（status=1）
 - 支付状态=未付款时，订单仍可取消
+
+### 14.5 外部 AI Agent 对接（2026-05-22）
+
+**决策**：新增只读 Agent Gateway，外部 Agent 通过受控 API 获取款式趋势、客户跟进清单、周期经营报告数据包、搜索和分析结果。
+
+**原因**：
+1. 当前系统已经有看板、数据分析、库存预警和沉默客户等聚合能力，适合作为 Agent 数据底座。
+2. 直接向 Agent 暴露数据库会绕开多租户、业务口径和权限约束。
+3. Agent 写操作风险高，必须先验证只读接入、凭证和审计边界。
+
+**规则**：
+- Agent 使用独立凭证并绑定租户与 scope。
+- 第一版不实现后端自然语言问答和泛化写动作。
+- Agent 统计优先复用现有领域服务，避免与看板/分析口径漂移。
+- WhatsApp 信息属于后续客户沟通上下文扩展，需先验证合规接入、客户映射和消息权限，再进入实现。
+- 统一业务事件日志落地后，再评估 `/api/agent/changes` 和窄范围授权动作。

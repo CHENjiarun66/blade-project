@@ -45,6 +45,8 @@ BladeProject/
 | `docs/03-TASKS.md` | 当前任务状态和领取依据 |
 | `docs/05-CHANGELOG.md` | 变更记录 |
 | `docs/SESSION_CONTEXT.md` | 快速接手摘要 |
+| `docs/10-AGENT_INTEGRATION_DESIGN.md` | 外部 AI Agent 对接设计与第一版边界 |
+| `docs/11-AGENT_ACCESS_GUIDE.md` | 外部 Agent 接入鉴权、接口调用和工具封装说明 |
 
 ### 后端入口
 
