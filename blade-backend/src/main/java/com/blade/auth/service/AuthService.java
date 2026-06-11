@@ -30,6 +30,8 @@ public class AuthService {
     private final UserMapper userMapper;
     private final TenantMapper tenantMapper;
     private final long jwtExpiration;
+    private final long refreshExpiration;
+    private final long rememberRefreshExpiration;
 
     @Autowired
     public AuthService(AuthenticationManager authenticationManager,
@@ -38,7 +40,9 @@ public class AuthService {
                        RedisTemplate<String, Object> redisTemplate,
                        UserMapper userMapper,
                        TenantMapper tenantMapper,
-                       @Value("${jwt.expiration}") long jwtExpiration) {
+                       @Value("${jwt.expiration}") long jwtExpiration,
+                       @Value("${jwt.refresh-expiration}") long refreshExpiration,
+                       @Value("${jwt.remember-refresh-expiration:2592000000}") long rememberRefreshExpiration) {
         this.authenticationManager = authenticationManager;
         this.jwtTokenProvider = jwtTokenProvider;
         this.userDetailsService = userDetailsService;
@@ -46,9 +50,15 @@ public class AuthService {
         this.userMapper = userMapper;
         this.tenantMapper = tenantMapper;
         this.jwtExpiration = jwtExpiration;
+        this.refreshExpiration = refreshExpiration;
+        this.rememberRefreshExpiration = rememberRefreshExpiration;
     }
 
     public LoginResponse login(String tenantCode, String username, String password) {
+        return login(tenantCode, username, password, false);
+    }
+
+    public LoginResponse login(String tenantCode, String username, String password, boolean remember) {
         // 1. 根据租户编码查询租户
         Tenant tenant = tenantMapper.selectOne(
             new LambdaQueryWrapper<Tenant>()
@@ -90,7 +100,8 @@ public class AuthService {
 
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         String token = jwtTokenProvider.generateToken(userDetails);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(userDetails);
+        long effectiveRefreshExpiration = remember ? rememberRefreshExpiration : refreshExpiration;
+        String refreshToken = jwtTokenProvider.generateRefreshToken(userDetails, effectiveRefreshExpiration, remember, tenant.getId());
 
         redisTemplate.opsForValue().set(
             "token:" + token,
@@ -104,6 +115,12 @@ public class AuthService {
             "token:tenant:" + token,
             tenant.getId(),
             jwtExpiration,
+            TimeUnit.MILLISECONDS
+        );
+        redisTemplate.opsForValue().set(
+            "token:tenant:" + refreshToken,
+            tenant.getId(),
+            effectiveRefreshExpiration,
             TimeUnit.MILLISECONDS
         );
 
@@ -129,10 +146,16 @@ public class AuthService {
         }
 
         String username = jwtTokenProvider.getUsernameFromToken(token);
+        Boolean remember = jwtTokenProvider.getRememberFromToken(token);
+        long effectiveRefreshExpiration = Boolean.TRUE.equals(remember) ? rememberRefreshExpiration : refreshExpiration;
+        Long tenantId = getRefreshTokenTenantId(token);
+        if (tenantId != null) {
+            TenantContext.setTenantId(tenantId);
+        }
         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
         String newToken = jwtTokenProvider.generateToken(userDetails);
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(userDetails);
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(userDetails, effectiveRefreshExpiration, Boolean.TRUE.equals(remember), tenantId);
 
         redisTemplate.opsForValue().set(
             "token:" + newToken,
@@ -141,6 +164,40 @@ public class AuthService {
             TimeUnit.MILLISECONDS
         );
 
+        if (tenantId != null) {
+            redisTemplate.opsForValue().set(
+                "token:tenant:" + newToken,
+                tenantId,
+                jwtExpiration,
+                TimeUnit.MILLISECONDS
+            );
+            redisTemplate.opsForValue().set(
+                "token:tenant:" + newRefreshToken,
+                tenantId,
+                effectiveRefreshExpiration,
+                TimeUnit.MILLISECONDS
+            );
+        }
+
         return new LoginResponse(newToken, newRefreshToken, jwtExpiration / 1000);
+    }
+
+    private Long getRefreshTokenTenantId(String token) {
+        Object redisTenantId = redisTemplate.opsForValue().get("token:tenant:" + token);
+        Long tenantId = toLong(redisTenantId);
+        if (tenantId != null) {
+            return tenantId;
+        }
+        return jwtTokenProvider.getTenantIdFromToken(token);
+    }
+
+    private Long toLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            return Long.valueOf(text);
+        }
+        return null;
     }
 }

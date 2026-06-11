@@ -36,6 +36,36 @@ public class JwtTokenProvider {
         return buildToken(new HashMap<>(), userDetails, refreshExpiration);
     }
 
+    public String generateRefreshToken(UserDetails userDetails, long expiration, boolean remember) {
+        return generateRefreshToken(userDetails, expiration, remember, null);
+    }
+
+    public String generateRefreshToken(UserDetails userDetails, long expiration, boolean remember, Long tenantId) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("remember", remember);
+        if (tenantId != null) {
+            claims.put("tenantId", tenantId);
+        }
+        return buildToken(claims, userDetails, expiration);
+    }
+
+    public Boolean getRememberFromToken(String token) {
+        return extractClaim(token, claims -> claims.get("remember", Boolean.class));
+    }
+
+    public Long getTenantIdFromToken(String token) {
+        return extractClaim(token, claims -> {
+            Object tenantId = claims.get("tenantId");
+            if (tenantId instanceof Number number) {
+                return number.longValue();
+            }
+            if (tenantId instanceof String value && !value.isBlank()) {
+                return Long.valueOf(value);
+            }
+            return null;
+        });
+    }
+
     private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration) {
         return Jwts.builder()
                 .claims(extraClaims)
