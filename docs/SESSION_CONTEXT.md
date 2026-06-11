@@ -40,6 +40,7 @@
 | 数据库覆盖方式 | `BLADE_DB_URL` / `BLADE_DB_USERNAME` / `BLADE_DB_PASSWORD` |
 | NAS 生产环境 | `192.168.1.10:/volume2/blade`，入口 `http://192.168.1.10:8899/catalog` |
 | NAS 运维手册 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
+| Git 分支/发布规范 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
 
 ---
 
@@ -50,11 +51,20 @@
 | 技术栈与业务规则 | [02-PRD.md](./02-PRD.md) |
 | 当前任务进度 | [03-TASKS.md](./03-TASKS.md) |
 | 最近变更历史 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
+| 分支开发与生产发布 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
 | 快速接手摘要 | 本文档 |
 
 ---
 
 ## 当前摘要
+
+### 当前 Git / 发布规则
+
+- 当前已建立分支规范：[reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md)。
+- `master` 定义为生产稳定分支，NAS 生产环境只部署 `master`。
+- 新功能默认使用 `feature/*` 分支开发，集成测试使用 `develop`，上线候选使用 `release/*`。
+- 当前大范围开发快照分支为 `snapshot/current-all-work-20260611`，用于保存 2026-06-11 分类提交后的完整开发成果；是否整体上线需先创建/验证 release，再合入 `master`。
+- GitHub 远程通道为 `origin = https://github.com/CHENjiarun66/blade-project.git`；push/fetch 失败时先检查代理和认证，不要擅自更换远程仓库。
 
 ### 已完成的关键能力
 
@@ -188,6 +198,7 @@
 | 查图片/附件上传与存储设计 | [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md) |
 | 查文件中心/数字资产/客户展示页设计 | [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md) |
 | 查 NAS 生产运维发布 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
+| 查 Git 分支、GitHub 同步和上线流程 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
 | 查外部 AI Agent 对接设计 | [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md) |
 | 查已知问题和历史坑 | [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md) |
 | 排查常见环境问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
@@ -202,4 +213,5 @@
 2. [01-README.md](./01-README.md)
 3. [02-PRD.md](./02-PRD.md)
 4. [03-TASKS.md](./03-TASKS.md)
-5. 订单/库存相关开发再补读 [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md)
+5. 开发/合并/上线前补读 [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md)
+6. 订单/库存相关开发再补读 [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md)

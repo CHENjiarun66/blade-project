@@ -8,6 +8,7 @@
 2. [docs/01-README.md](./docs/01-README.md)
 3. [docs/02-PRD.md](./docs/02-PRD.md)
 4. [docs/03-TASKS.md](./docs/03-TASKS.md)
+5. [docs/reference/GIT_BRANCH_WORKFLOW.md](./docs/reference/GIT_BRANCH_WORKFLOW.md)（开发分支、测试集成、上线发布）
 
 ## 子项目入口
 
@@ -25,4 +26,5 @@
 - 业务规则和技术栈以 [docs/02-PRD.md](./docs/02-PRD.md) 为准。
 - 当前进度以 [docs/03-TASKS.md](./docs/03-TASKS.md) 为准。
 - 最近变更以 [docs/05-CHANGELOG.md](./docs/05-CHANGELOG.md) 为准。
+- Git 分支、GitHub 同步和 NAS 生产发布以 [docs/reference/GIT_BRANCH_WORKFLOW.md](./docs/reference/GIT_BRANCH_WORKFLOW.md) 为准。
 - 更完整的导航见 [docs/01-README.md](./docs/01-README.md)。

@@ -14,6 +14,8 @@
 
 **第四步**：需要启动环境时，再看 [环境配置指南](./00-SETUP.md)
 
+**第五步**：需要开发、合并或上线时，必须阅读 [Git 分支与发布工作流](./reference/GIT_BRANCH_WORKFLOW.md)
+
 ---
 
 ## 项目结构
@@ -41,6 +43,7 @@ BladeProject/
 | 查看任务状态 | [03-TASKS.md](./03-TASKS.md) |
 | 查看变更历史 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
 | 查看项目结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
+| 开发分支、测试集成、上线发布 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
 | 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
 | 查图片/附件上传与存储设计 | [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md) |
 | 查文件中心/数字资产/客户展示页设计 | [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md) |
@@ -71,6 +74,10 @@ BladeProject/
 1. [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md)
 2. [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md)
 3. 仍无法确认时再向用户提问
+
+### 规则 5：分支与发布必须受控
+
+开发前必须确认当前 Git 分支。新功能默认从 `master` 或 `develop` 创建 `feature/*` 分支；NAS 生产环境只部署 `master`；合并、发布和 GitHub push 规则按 [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) 执行。
 
 ---
 

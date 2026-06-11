@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-06-11 变更记录
+
+### [文档] - 新增 Git 分支与发布工作流规范
+
+**变更内容**：
+- 新增 `docs/reference/GIT_BRANCH_WORKFLOW.md`，明确 `master`、`develop`、`feature/*`、`release/*`、`hotfix/*`、`snapshot/*` 的职责边界。
+- 明确 NAS 生产环境只部署 `master`，功能开发不得直接在 `master` 上进行。
+- 明确多功能并行开发时，通过 `feature/*` 开发、`develop` 集成测试、`release/*` 挑选上线内容，测试通过后再合入 `master`。
+- 明确 GitHub 远程通道复用 `origin = https://github.com/CHENjiarun66/blade-project.git`，push/fetch 失败时先检查代理和认证，不得擅自更换远程仓库。
+- 明确 Agent 开发前后必须汇报当前分支、工作区状态、提交列表、测试结果、是否 push、是否需要合并或发布。
+- 在 `AGENTS.md`、`README.md`、`docs/01-README.md`、`docs/SESSION_CONTEXT.md`、`docs/reference/PROJECT_STRUCTURE.md` 中补充该规范链接。
+
+**变更原因**：
+- 用户确认后续需要多个功能模块并行开发，并希望 Agent 自动创建和使用正确分支；上线时集中到测试/发布分支，验证通过后再进入主分支和 NAS 生产环境。
+
+**影响范围**：
+- 文档与协作流程，不涉及业务代码。
+
+**执行人**：AI
+
+---
+
 ## 2026-06-08 变更记录
 
 ### [运维规范] - NAS 生产发布安全门禁
