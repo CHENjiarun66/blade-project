@@ -20,4 +20,7 @@ public class CustomerCreateDTO {
 
     @Schema(description = "备注")
     private String remark;
+
+    @Schema(description = "国家区号，如+86")
+    private String countryCode;
 }

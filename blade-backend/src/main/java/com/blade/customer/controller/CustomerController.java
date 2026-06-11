@@ -3,7 +3,12 @@ package com.blade.customer.controller;
 import com.blade.common.result.PageResult;
 import com.blade.common.result.R;
 import com.blade.customer.dto.CustomerCreateDTO;
+import com.blade.customer.dto.CustomerOrderPageDTO;
+import com.blade.customer.dto.CustomerOrderVO;
 import com.blade.customer.dto.CustomerPageDTO;
+import com.blade.customer.dto.CustomerPreferenceQueryDTO;
+import com.blade.customer.dto.CustomerPreferenceVO;
+import com.blade.customer.dto.CustomerStatsVO;
 import com.blade.customer.dto.CustomerUpdateDTO;
 import com.blade.customer.dto.CustomerVO;
 import com.blade.customer.service.CustomerService;
@@ -11,6 +16,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -57,5 +64,23 @@ public class CustomerController {
     public R<Void> delete(@PathVariable Long id) {
         customerService.deleteCustomer(id);
         return R.ok();
+    }
+
+    @GetMapping("/{id}/stats")
+    @Operation(summary = "客户基础统计")
+    public R<CustomerStatsVO> getStats(@PathVariable Long id) {
+        return R.ok(customerService.getStats(id));
+    }
+
+    @GetMapping("/{id}/orders")
+    @Operation(summary = "客户历史订单（分页）")
+    public R<PageResult<CustomerOrderVO>> getCustomerOrders(@PathVariable Long id, CustomerOrderPageDTO dto) {
+        return R.ok(customerService.getCustomerOrders(id, dto));
+    }
+
+    @GetMapping("/{id}/preference")
+    @Operation(summary = "客户商品偏好分析")
+    public R<CustomerPreferenceVO> getPreference(@PathVariable Long id, CustomerPreferenceQueryDTO dto) {
+        return R.ok(customerService.getPreference(id, dto));
     }
 }

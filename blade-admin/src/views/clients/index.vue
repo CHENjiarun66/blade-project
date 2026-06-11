@@ -60,17 +60,30 @@
               </div>
               <div>
                 <div class="text-sm font-semibold text-gray-900">{{ row.name }}</div>
-                <div class="text-xs text-gray-400">{{ row.createTime }}</div>
+                <div class="text-xs text-gray-400">{{ formatDate(row.createTime) }}</div>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="联系电话" min-width="140">
+        <el-table-column label="联系电话" min-width="160">
           <template #default="{ row }">
             <div class="text-sm text-gray-500">
+              <span v-if="row.countryCode" class="mr-0.5">{{ row.countryCode }}</span>
               {{ row.phones && row.phones.length > 0 ? row.phones.join(', ') : '-' }}
             </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="国家" min-width="100">
+          <template #default="{ row }">
+            <span v-if="row.countryName" class="text-sm">
+              {{ row.countryName }}
+            </span>
+            <span v-else-if="row.countryCode" class="text-sm text-gray-600">
+              {{ getCountryNameZh(row.countryCode) }}
+            </span>
+            <span v-else class="text-sm text-gray-300">-</span>
           </template>
         </el-table-column>
 
@@ -94,11 +107,11 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" min-width="200" align="center">
+        <el-table-column label="操作" min-width="220" align="center">
           <template #default="{ row }">
             <div class="flex items-center justify-center gap-2">
+              <el-button type="default" link size="small" class="!text-gray-500 hover:!text-[#408aee]" @click="handleDetail(row)">详情</el-button>
               <el-button type="default" link size="small" class="!text-gray-500 hover:!text-[#408aee]" @click="handleEdit(row)">编辑</el-button>
-              <el-button type="default" link size="small" class="!text-gray-500 hover:!text-[#408aee]" @click="handleViewOrders(row)">查看订单</el-button>
               <el-button type="danger" link size="small" class="!text-gray-400 hover:!text-red-500" @click="handleDelete(row)">删除</el-button>
             </div>
           </template>
@@ -122,10 +135,15 @@
     </div>
 
     <!-- 新建/编辑客户弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="dialogMode === 'add' ? '新建客户' : '编辑客户'" width="550px" :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="dialogMode === 'add' ? '新建客户' : '编辑客户'" width="560px" :close-on-click-modal="false">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px" class="customer-form">
         <el-form-item label="客户名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入客户名称" />
+        </el-form-item>
+
+        <!-- 国家区号 -->
+        <el-form-item label="国家区号">
+          <CountryCodeSelect v-model="formData.countryCode" class="w-full" />
         </el-form-item>
 
         <!-- 多电话输入 -->
@@ -134,9 +152,13 @@
             <div v-for="(_, index) in formData.phones" :key="index" class="flex items-center gap-2 mb-2">
               <el-input
                 v-model="formData.phones[index]"
-                :placeholder="`请输入联系电话 ${index + 1}`"
+                :placeholder="`请输入本地号码 ${index + 1}`"
                 class="flex-1"
-              />
+              >
+                <template #prefix v-if="formData.countryCode">
+                  <span class="text-xs text-gray-400">{{ formData.countryCode }}</span>
+                </template>
+              </el-input>
               <el-button
                 v-if="formData.phones.length > 1"
                 type="danger"
@@ -171,9 +193,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCustomerPage, createCustomer, updateCustomer, deleteCustomer } from '@/api/customer'
 import type { CustomerVO, CustomerPageDTO } from '@/api/customer'
+import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
+import { getCountryNameZh } from '@/data/countries'
+import { formatDate } from '@/utils/format'
+
+const router = useRouter()
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -194,7 +222,8 @@ const formData = reactive({
   name: '',
   phones: [''] as string[],  // 电话列表，至少有一个空输入框
   address: '',
-  remark: ''
+  remark: '',
+  countryCode: ''
 })
 
 const formRules = {
@@ -248,7 +277,7 @@ function handleReset() {
 
 function handleAdd() {
   dialogMode.value = 'add'
-  Object.assign(formData, { id: 0, name: '', phones: [''], address: '', remark: '' })
+  Object.assign(formData, { id: 0, name: '', phones: [''], address: '', remark: '', countryCode: '' })
   dialogVisible.value = true
 }
 
@@ -259,12 +288,12 @@ function handleEdit(row: CustomerVO) {
   formData.phones = row.phones && row.phones.length > 0 ? [...row.phones] : ['']
   formData.address = row.address || ''
   formData.remark = row.remark || ''
+  formData.countryCode = row.countryCode || ''
   dialogVisible.value = true
 }
 
-function handleViewOrders(row: CustomerVO) {
-  // TODO: 跳转到该客户的订单列表
-  ElMessage.info(`查看客户 ${row.name} 的订单`)
+function handleDetail(row: CustomerVO) {
+  router.push(`/customers/${row.id}`)
 }
 
 async function handleDelete(row: CustomerVO) {
@@ -303,7 +332,8 @@ async function handleSubmit() {
         name: formData.name,
         phones: validPhones,
         address: formData.address || undefined,
-        remark: formData.remark || undefined
+        remark: formData.remark || undefined,
+        countryCode: formData.countryCode || undefined
       })
       ElMessage.success('创建成功')
     } else {
@@ -312,7 +342,8 @@ async function handleSubmit() {
         name: formData.name,
         phones: validPhones,
         address: formData.address || undefined,
-        remark: formData.remark || undefined
+        remark: formData.remark || undefined,
+        countryCode: formData.countryCode || undefined
       })
       ElMessage.success('更新成功')
     }
