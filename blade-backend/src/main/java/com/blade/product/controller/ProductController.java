@@ -109,4 +109,14 @@ public class ProductController {
     public R<List<SkuVO>> listSkus() {
         return R.ok(productService.listAllSkus());
     }
+
+    // ==================== BE-1005: 商品/SKU 图片绑定 ====================
+
+    @PutMapping("/{id}/file-bindings")
+    @Operation(summary = "设置商品/SKU 图片绑定")
+    public R<Void> bindFiles(@PathVariable Long id,
+                              @RequestBody ProductFileBindingDTO dto) {
+        productService.bindFiles(id, dto);
+        return R.ok();
+    }
 }

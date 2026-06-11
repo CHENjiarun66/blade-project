@@ -99,6 +99,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { inventoryIn, getWarehouseList } from '@/api/inventory'
+import { uploadFile } from '@/api/file'
 import { getProductList } from '@/api/product'
 import type { WarehouseVO } from '@/types/inventory'
 import type { ProductVO, SkuVO } from '@/types/product'
@@ -137,10 +138,16 @@ async function handleSubmit() {
 
   loading.value = true
   try {
+    const imageIds: string[] = []
+    for (const image of images.value || []) {
+      const res = await uploadFile(image, 'inventory')
+      imageIds.push(String(res.data.id))
+    }
     await inventoryIn({
       warehouseId: form.warehouseId!,
       supplierName: form.supplierName,
       remark: form.remark,
+      images: imageIds,
       items: form.items.map(item => ({
         skuId: item.skuId!,
         quantity: item.quantity

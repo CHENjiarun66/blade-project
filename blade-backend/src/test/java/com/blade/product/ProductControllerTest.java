@@ -229,6 +229,53 @@ class ProductControllerTest {
     }
 
     @Test
+    void testUpdateProductSyncsSkusWhenColorsChange() throws Exception {
+        String createJson = """
+            {
+                "name": "SKU同步测试商品",
+                "productCode": "TMPB002",
+                "categoryId": 1,
+                "unit": "件",
+                "costPrice": 60.00,
+                "wholesalePrice": 88.00,
+                "colorIds": [1],
+                "sizeIds": [1]
+            }
+            """;
+
+        MvcResult createResult = mockMvc.perform(post("/api/products")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(createJson))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Long productId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("data").asLong();
+
+        String updateJson = String.format("""
+            {
+                "id": %d,
+                "colorIds": [1, 2, 3],
+                "sizeIds": [1]
+            }
+            """, productId);
+
+        mockMvc.perform(put("/api/products")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/products/" + productId)
+                .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.colors.length()").value(3))
+                .andExpect(jsonPath("$.data.skus.length()").value(3));
+    }
+
+    @Test
     void testUpdateNonexistentProduct() throws Exception {
         String updateJson = """
             {
@@ -325,4 +372,5 @@ class ProductControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500));
     }
+
 }
