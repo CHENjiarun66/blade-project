@@ -1,172 +1,205 @@
 package com.blade.dashboard;
 
 import com.blade.common.tenant.TenantContext;
+import com.blade.dashboard.dto.DashboardQueryDTO;
 import com.blade.dashboard.dto.DashboardStatsDTO;
-import com.blade.dashboard.dto.OrderTrendDTO;
+import com.blade.dashboard.dto.OrderStatusDTO;
 import com.blade.dashboard.dto.TopProductDTO;
-import com.blade.dashboard.service.DashboardService;
+import com.blade.dashboard.enums.PeriodType;
+import com.blade.dashboard.service.impl.DashboardServiceImpl;
+import com.blade.inventory.mapper.InventoryMapper;
+import com.blade.inventory.mapper.WarehouseMapper;
 import com.blade.order.entity.Order;
 import com.blade.order.entity.OrderItem;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
-import com.blade.product.entity.Product;
 import com.blade.product.mapper.ProductMapper;
+import com.blade.product.mapper.ProductSkuMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.lang.reflect.Proxy;
+import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Queue;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 看板模块服务层单元测试
- *
- * 测试覆盖：
- * 1. getStats_EmptyData - 无数据时统计返回0
- * 2. getStats_WithOrders - 有订单时统计正确
- * 3. getStats_TrendCalculation - 趋势计算正确
- * 4. getOrderTrend_EmptyData - 无数据时趋势返回30天空数据
- * 5. getOrderTrend_WithData - 有数据时趋势正确
- * 6. getTopProducts_EmptyData - 无订单时返回空列表
- * 7. getTopProducts_WithData - 有数据时正确排序返回Top5
- */
-@SpringBootTest
-@ActiveProfiles("test")
 class DashboardServiceTest {
 
-    @Autowired
-    private DashboardService dashboardService;
-
-    @Autowired
-    private OrderMapper orderMapper;
-
-    @Autowired
-    private OrderItemMapper orderItemMapper;
-
-    @Autowired
-    private ProductMapper productMapper;
-
     private static final Long TEST_TENANT_ID = 1L;
+
+    private OrderMapper orderMapper;
+    private OrderItemMapper orderItemMapper;
+    private ProductMapper productMapper;
+    private ProductSkuMapper productSkuMapper;
+    private InventoryMapper inventoryMapper;
+    private WarehouseMapper warehouseMapper;
+
+    private DashboardServiceImpl dashboardService;
+    private FakeMapperHandler orderHandler;
+    private FakeMapperHandler orderItemHandler;
+    private FakeMapperHandler productHandler;
+    private FakeMapperHandler inventoryHandler;
 
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(TEST_TENANT_ID);
+        orderHandler = new FakeMapperHandler();
+        orderItemHandler = new FakeMapperHandler();
+        productHandler = new FakeMapperHandler();
+        inventoryHandler = new FakeMapperHandler();
+        orderMapper = fakeMapper(OrderMapper.class, orderHandler);
+        orderItemMapper = fakeMapper(OrderItemMapper.class, orderItemHandler);
+        productMapper = fakeMapper(ProductMapper.class, productHandler);
+        productSkuMapper = fakeMapper(ProductSkuMapper.class, new FakeMapperHandler());
+        inventoryMapper = fakeMapper(InventoryMapper.class, inventoryHandler);
+        warehouseMapper = fakeMapper(WarehouseMapper.class, new FakeMapperHandler());
+        dashboardService = new DashboardServiceImpl(
+                orderMapper,
+                orderItemMapper,
+                productMapper,
+                productSkuMapper,
+                inventoryMapper,
+                warehouseMapper
+        );
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test
-    void getStats_EmptyData() {
-        DashboardStatsDTO stats = dashboardService.getStats();
+    void getStats_usesPaidOrdersAndNetSales() {
+        Order depositOrder = order(1L, "100.00", "0", "30.00", "40.00", 1, 0);
+        Order refundedOrder = order(2L, "200.00", "50.00", "200.00", "90.00", 2, 5);
+        Order previousOrder = order(3L, "80.00", "0", "80.00", "30.00", 2, 5);
+        Order weekOrder = order(4L, "300.00", "100.00", "100.00", "120.00", 1, 6);
 
-        assertNotNull(stats);
-        assertEquals(0L, stats.getTodayOrders());
-        // 当昨天没有订单时，todayOrdersTrend = -100（表示比昨天少100%）
-        // 当昨天有订单时，会计算实际百分比
-        assertNotNull(stats.getTodaySalesTrend());
-        assertNotNull(stats.getTotalProducts());
-        assertNotNull(stats.getPendingOrders());
+        orderHandler.thenSelectList(List.of(depositOrder, refundedOrder), List.of(previousOrder), List.of(weekOrder), List.of(previousOrder));
+        orderItemHandler.thenSelectList(List.of(item(3), item(2)), List.of(item(1)));
+        productHandler.thenSelectCount(10L);
+        orderHandler.thenSelectCount(3L, 3L);
+        inventoryHandler.thenSelectCount(2L);
+
+        DashboardStatsDTO stats = dashboardService.getStats(defaultWeekQuery());
+
+        assertEquals(2L, stats.getPeriodOrders());
+        assertEquals(new BigDecimal("250.00"), stats.getPeriodSales());
+        assertEquals(new BigDecimal("80.00"), stats.getPeriodGrossProfit());
+        assertEquals(5L, stats.getPeriodSalesQuantity());
+        assertEquals(400L, stats.getPeriodSalesQuantityTrend());
+        assertEquals(1L, stats.getWeekOrders());
+        assertEquals(new BigDecimal("200.00"), stats.getWeekSales());
+        assertEquals(new BigDecimal("20.00"), stats.getWeekGrossProfit());
+        assertEquals(new BigDecimal("125.00"), stats.getAvgOrderValue());
     }
 
     @Test
-    void getStats_WithData() {
-        DashboardStatsDTO stats = dashboardService.getStats();
+    void getTopProducts_includesPaidStatusZeroDepositOrders() {
+        orderHandler.thenSelectList(List.of(order(1L, "100.00", "0", "20.00", "40.00", 1, 0)));
 
-        assertNotNull(stats);
-        // 商品数量应该大于0（因为有测试数据）
-        assertTrue(stats.getTotalProducts() >= 0);
-        // 待处理订单应该大于等于0
-        assertTrue(stats.getPendingOrders() >= 0);
+        OrderItem item = new OrderItem();
+        item.setProductName("624-1#");
+        item.setQuantity(2);
+        item.setSubtotal(new BigDecimal("100.00"));
+        orderItemHandler.thenSelectList(List.of(item));
+
+        List<TopProductDTO> topProducts = dashboardService.getTopProducts(defaultWeekQuery());
+
+        assertEquals(1, topProducts.size());
+        assertEquals("624-1#", topProducts.get(0).getProductName());
+        assertEquals(2L, topProducts.get(0).getTotalQuantity());
+        assertEquals(new BigDecimal("100.00"), topProducts.get(0).getTotalAmount());
     }
 
     @Test
-    void getStats_TrendCalculation() {
-        DashboardStatsDTO stats = dashboardService.getStats();
+    void getOrderStatusDistribution_returnsAllStatuses() {
+        orderHandler.thenSelectCount(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L);
 
-        assertNotNull(stats);
-        // 趋势可能是0（昨天无订单）或负数（今天比昨天少）
-        // 昨天无订单时 todayOrdersTrend = -100
-        assertTrue(stats.getTodayOrdersTrend() <= 0);
+        List<OrderStatusDTO> statuses = dashboardService.getOrderStatusDistribution(defaultWeekQuery());
+
+        assertEquals(9, statuses.size());
+        assertEquals(0, statuses.get(0).getStatus());
+        assertEquals("待付款", statuses.get(0).getLabel());
+        assertEquals(8, statuses.get(8).getStatus());
+        assertEquals("已退货", statuses.get(8).getLabel());
+        assertTrue(statuses.stream().allMatch(s -> s.getCount() > 0));
     }
 
-    @Test
-    void getOrderTrend_EmptyData() {
-        OrderTrendDTO trend = dashboardService.getOrderTrend();
-
-        assertNotNull(trend);
-        assertNotNull(trend.getDates());
-        assertNotNull(trend.getOrderCounts());
-        assertNotNull(trend.getSalesAmounts());
-        // 应该返回30天数据
-        assertEquals(30, trend.getDates().size());
-        assertEquals(30, trend.getOrderCounts().size());
-        assertEquals(30, trend.getSalesAmounts().size());
+    private DashboardQueryDTO defaultWeekQuery() {
+        DashboardQueryDTO query = new DashboardQueryDTO();
+        query.setPeriodType(PeriodType.WEEK);
+        return query;
     }
 
-    @Test
-    void getOrderTrend_WithData() {
-        OrderTrendDTO trend = dashboardService.getOrderTrend();
-
-        assertNotNull(trend);
-        // 最近几天可能有订单数据
-        // 至少有一个日期
-        assertFalse(trend.getDates().isEmpty());
-        assertEquals(30, trend.getDates().size());
+    private Order order(Long id, String totalAmount, String refundAmount, String paidAmount, String grossProfit, Integer paymentStatus, Integer status) {
+        Order order = new Order();
+        order.setId(id);
+        order.setTotalAmount(new BigDecimal(totalAmount));
+        order.setRefundAmount(new BigDecimal(refundAmount));
+        order.setPaidAmount(new BigDecimal(paidAmount));
+        order.setGrossProfit(new BigDecimal(grossProfit));
+        order.setPaymentStatus(paymentStatus);
+        order.setStatus(status);
+        return order;
     }
 
-    @Test
-    void getTopProducts_EmptyData() {
-        // 创建一个新租户的场景
-        List<TopProductDTO> topProducts = dashboardService.getTopProducts();
-
-        assertNotNull(topProducts);
-        // 可能有数据因为测试数据已存在
-        assertNotNull(topProducts);
+    private OrderItem item(Integer quantity) {
+        OrderItem item = new OrderItem();
+        item.setQuantity(quantity);
+        return item;
     }
 
-    @Test
-    void getTopProducts_WithData() {
-        List<TopProductDTO> topProducts = dashboardService.getTopProducts();
+    @SuppressWarnings("unchecked")
+    private <T> T fakeMapper(Class<T> mapperType, FakeMapperHandler handler) {
+        return (T) Proxy.newProxyInstance(
+                mapperType.getClassLoader(),
+                new Class<?>[] { mapperType },
+                handler
+        );
+    }
 
-        assertNotNull(topProducts);
-        // 验证返回的Top5不超过5条
-        assertTrue(topProducts.size() <= 5);
-        // 验证商品名称不为空
-        for (TopProductDTO product : topProducts) {
-            assertNotNull(product.getProductName());
-            assertFalse(product.getProductName().isEmpty());
+    private static class FakeMapperHandler implements java.lang.reflect.InvocationHandler {
+        private final Queue<Object> selectListResults = new ArrayDeque<>();
+        private final Queue<Long> selectCountResults = new ArrayDeque<>();
+
+        @SafeVarargs
+        final void thenSelectList(List<?>... results) {
+            selectListResults.addAll(List.of(results));
         }
-        // 验证数量和金额非负
-        for (TopProductDTO product : topProducts) {
-            assertTrue(product.getTotalQuantity() >= 0);
-            assertTrue(product.getTotalAmount().compareTo(BigDecimal.ZERO) >= 0);
+
+        void thenSelectCount(Long... results) {
+            selectCountResults.addAll(List.of(results));
         }
-    }
 
-    @Test
-    void getTopProducts_SortedByQuantity() {
-        List<TopProductDTO> topProducts = dashboardService.getTopProducts();
+        @Override
+        public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) {
+            return switch (method.getName()) {
+                case "selectList" -> selectListResults.isEmpty() ? List.of() : selectListResults.remove();
+                case "selectCount" -> selectCountResults.isEmpty() ? 0L : selectCountResults.remove();
+                case "toString" -> "FakeMapper";
+                case "hashCode" -> System.identityHashCode(proxy);
+                case "equals" -> proxy == args[0];
+                default -> defaultValue(method.getReturnType());
+            };
+        }
 
-        assertNotNull(topProducts);
-        // 验证按销量降序排列
-        if (topProducts.size() > 1) {
-            for (int i = 0; i < topProducts.size() - 1; i++) {
-                assertTrue(
-                    topProducts.get(i).getTotalQuantity() >= topProducts.get(i + 1).getTotalQuantity(),
-                    "销量应该降序排列"
-                );
+        private Object defaultValue(Class<?> returnType) {
+            if (!returnType.isPrimitive()) {
+                return null;
             }
+            if (returnType == boolean.class) {
+                return false;
+            }
+            if (returnType == void.class) {
+                return null;
+            }
+            return 0;
         }
-    }
-
-    @Test
-    void allMethods_ExecuteWithoutError() {
-        // 验证所有方法都能正常执行不抛异常
-        assertDoesNotThrow(() -> dashboardService.getStats());
-        assertDoesNotThrow(() -> dashboardService.getOrderTrend());
-        assertDoesNotThrow(() -> dashboardService.getTopProducts());
     }
 }

@@ -3,8 +3,10 @@ package com.blade.dashboard.service;
 import com.blade.dashboard.dto.DashboardQueryDTO;
 import com.blade.dashboard.dto.DashboardStatsDTO;
 import com.blade.dashboard.dto.InventoryAlertDTO;
+import com.blade.dashboard.dto.InventoryStatsVO;
 import com.blade.dashboard.dto.OrderStatusDTO;
 import com.blade.dashboard.dto.OrderTrendDTO;
+import com.blade.dashboard.dto.SilentCustomerResultDTO;
 import com.blade.dashboard.dto.TopProductDTO;
 import java.util.List;
 
@@ -41,4 +43,15 @@ public interface DashboardService {
      * 获取库存预警列表（不受日期筛选影响）
      */
     List<InventoryAlertDTO> getInventoryAlerts();
+
+    /**
+     * 获取沉默客户列表（最后订单距今天数 > 指定天数，且有已完成订单）
+     * @param days 距今天数阈值，默认90天
+     */
+    SilentCustomerResultDTO getSilentCustomers(Integer days);
+
+    /**
+     * 获取库存统计数据（周转分析）
+     */
+    InventoryStatsVO getInventoryStats();
 }

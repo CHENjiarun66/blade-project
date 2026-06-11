@@ -8,6 +8,7 @@
       </div>
       <!-- 日期筛选 -->
       <div class="flex items-center gap-3">
+        <el-button type="primary" plain @click="$router.push('/analytics')">查看数据分析</el-button>
         <el-radio-group v-model="selectedPeriod" @change="onPeriodChange">
           <el-radio-button value="TODAY">今日</el-radio-button>
           <el-radio-button value="WEEK">本周</el-radio-button>
@@ -66,12 +67,15 @@
       <el-col :span="6">
         <div class="bg-white rounded-xl p-5 shadow-sm">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #fffbe6">
-              <el-icon :size="20" color="#faad14"><Goods /></el-icon>
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #f6ffed">
+              <el-icon :size="20" color="#52c41a"><Money /></el-icon>
             </div>
             <div>
-              <div class="text-xl font-bold text-gray-900">{{ stats.totalProducts || 0 }}</div>
-              <div class="text-xs text-gray-500 mt-0.5">商品数量</div>
+              <div class="text-xl font-bold text-gray-900">¥{{ formatNumber(stats.periodGrossProfit) }}</div>
+              <div class="text-xs text-gray-500 mt-0.5">{{ periodLabel }}毛利</div>
+              <div v-if="stats.periodGrossProfitTrend !== 0" class="text-xs mt-0.5" :class="getTrendClass(stats.periodGrossProfitTrend)">
+                {{ formatTrend(stats.periodGrossProfitTrend) }}
+              </div>
             </div>
           </div>
         </div>
@@ -79,12 +83,15 @@
       <el-col :span="6">
         <div class="bg-white rounded-xl p-5 shadow-sm">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #fff1f0">
-              <el-icon :size="20" color="#ff4d4f"><Odometer /></el-icon>
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #fffbe6">
+              <el-icon :size="20" color="#faad14"><Goods /></el-icon>
             </div>
             <div>
-              <div class="text-xl font-bold text-gray-900">{{ stats.pendingOrders || 0 }}</div>
-              <div class="text-xs text-gray-500 mt-0.5">待处理订单</div>
+              <div class="text-xl font-bold text-gray-900">{{ stats.periodSalesQuantity || 0 }}</div>
+              <div class="text-xs text-gray-500 mt-0.5">{{ periodLabel }}销量</div>
+              <div v-if="stats.periodSalesQuantityTrend !== 0" class="text-xs mt-0.5" :class="getTrendClass(stats.periodSalesQuantityTrend)">
+                {{ formatTrend(stats.periodSalesQuantityTrend) }}
+              </div>
             </div>
           </div>
         </div>
@@ -93,19 +100,6 @@
 
     <!-- 统计卡片 - 第二行 -->
     <el-row :gutter="16" class="mb-4">
-      <el-col :span="6">
-        <div class="bg-white rounded-xl p-5 shadow-sm">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #fff1f0">
-              <el-icon :size="20" color="#ff4d4f"><Warning /></el-icon>
-            </div>
-            <div>
-              <div class="text-xl font-bold text-gray-900">{{ stats.lowStockAlerts || 0 }}</div>
-              <div class="text-xs text-gray-500 mt-0.5">低库存预警</div>
-            </div>
-          </div>
-        </div>
-      </el-col>
       <el-col :span="6">
         <div class="bg-white rounded-xl p-5 shadow-sm">
           <div class="flex items-center gap-3">
@@ -141,12 +135,81 @@
       <el-col :span="6">
         <div class="bg-white rounded-xl p-5 shadow-sm">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #f9f0ff">
-              <el-icon :size="20" color="#722ed1"><User /></el-icon>
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #fffbe6">
+              <el-icon :size="20" color="#faad14"><Goods /></el-icon>
             </div>
             <div>
-              <div class="text-xl font-bold text-gray-900">¥{{ formatNumber(stats.avgOrderValue) }}</div>
-              <div class="text-xs text-gray-500 mt-0.5">平均客单价</div>
+              <div class="text-xl font-bold text-gray-900">{{ stats.totalProducts || 0 }}</div>
+              <div class="text-xs text-gray-500 mt-0.5">商品数量</div>
+            </div>
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="bg-white rounded-xl p-5 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #fff1f0">
+              <el-icon :size="20" color="#ff4d4f"><Odometer /></el-icon>
+            </div>
+            <div>
+              <div class="text-xl font-bold text-gray-900">{{ stats.pendingOrders || 0 }}</div>
+              <div class="text-xs text-gray-500 mt-0.5">待处理订单</div>
+            </div>
+          </div>
+        </div>
+      </el-col>
+    </el-row>
+
+    <!-- 统计卡片 - 第三行（库存周转分析） -->
+    <el-row :gutter="16" class="mb-4">
+      <el-col :span="6">
+        <div class="bg-white rounded-xl p-5 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #f0f5ff">
+              <el-icon :size="20" color="#408aee"><TrendCharts /></el-icon>
+            </div>
+            <div>
+              <div class="text-xl font-bold text-gray-900">{{ inventoryStats.turnoverRate || 0 }}</div>
+              <div class="text-xs text-gray-500 mt-0.5">库存周转率</div>
+            </div>
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="bg-white rounded-xl p-5 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #fff1f0">
+              <el-icon :size="20" color="#ff4d4f"><Warning /></el-icon>
+            </div>
+            <div>
+              <div class="text-xl font-bold text-gray-900">{{ inventoryStats.lowStockCount || 0 }}</div>
+              <div class="text-xs text-gray-500 mt-0.5">低库存预警</div>
+            </div>
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="bg-white rounded-xl p-5 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #f6ffed">
+              <el-icon :size="20" color="#52c41a"><Goods /></el-icon>
+            </div>
+            <div>
+              <div class="text-xl font-bold text-gray-900">{{ inventoryStats.totalQuantity || 0 }}</div>
+              <div class="text-xs text-gray-500 mt-0.5">库存总量</div>
+            </div>
+          </div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="bg-white rounded-xl p-5 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: #fff1f0">
+              <el-icon :size="20" color="#ff4d4f"><Warning /></el-icon>
+            </div>
+            <div>
+              <div class="text-xl font-bold text-gray-900">{{ inventoryStats.overstockCount || 0 }}</div>
+              <div class="text-xs text-gray-500 mt-0.5">库存积压预警</div>
             </div>
           </div>
         </div>
@@ -210,9 +273,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
-import { ShoppingCart, Money, Goods, Odometer, Warning, Calendar, TrendCharts, User } from '@element-plus/icons-vue'
+import { ShoppingCart, Money, Goods, Odometer, Warning, Calendar, TrendCharts } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-import { getDashboardStats, getOrderTrend, getTopProducts, getOrderStatus, getInventoryAlerts, type PeriodType } from '@/api/dashboard'
+import { getDashboardStats, getOrderTrend, getTopProducts, getOrderStatus, getInventoryAlerts, getInventoryStats, type PeriodType } from '@/api/dashboard'
 
 const trendChartRef = ref<HTMLDivElement>()
 const topProductsChartRef = ref<HTMLDivElement>()
@@ -239,23 +302,40 @@ const periodLabels: Record<PeriodType, string> = {
 
 const periodLabel = computed(() => periodLabels[selectedPeriod.value])
 
-const stats = reactive({
-  periodOrders: 0,
-  periodOrdersTrend: 0,
-  periodSales: 0,
-  periodSalesTrend: 0,
-  totalProducts: 0,
-  pendingOrders: 0,
-  pendingOrdersTrend: 0,
-  lowStockAlerts: 0,
-  weekOrders: 0,
-  weekOrdersTrend: 0,
-  weekSales: 0,
-  weekSalesTrend: 0,
-  avgOrderValue: 0
-})
+function createStatsState() {
+  return {
+    periodOrders: 0,
+    periodOrdersTrend: 0,
+    periodSales: 0,
+    periodSalesTrend: 0,
+    periodGrossProfit: 0,
+    periodGrossProfitTrend: 0,
+    periodSalesQuantity: 0,
+    periodSalesQuantityTrend: 0,
+    totalProducts: 0,
+    pendingOrders: 0,
+    pendingOrdersTrend: 0,
+    lowStockAlerts: 0,
+    weekOrders: 0,
+    weekOrdersTrend: 0,
+    weekSales: 0,
+    weekSalesTrend: 0,
+    weekGrossProfit: 0,
+    weekGrossProfitTrend: 0
+  }
+}
+
+const stats = reactive(createStatsState())
 
 const inventoryAlerts = ref<any[]>([])
+
+const inventoryStats = reactive({
+  turnoverRate: 0,
+  totalQuantity: 0,
+  totalSkuCount: 0,
+  lowStockCount: 0,
+  overstockCount: 0
+})
 
 function buildFilter() {
   if (selectedPeriod.value === 'CUSTOM' && customDateRange.value) {
@@ -481,11 +561,20 @@ function loadInventoryAlerts() {
   })
 }
 
+function loadInventoryStats() {
+  getInventoryStats().then((res: any) => {
+    if (res.code === 200 && res.data) {
+      Object.assign(inventoryStats, res.data)
+    }
+  })
+}
+
 function loadAll() {
   loadStats()
   loadTrendChart()
   loadTopProductsChart()
   loadOrderStatusChart()
+  loadInventoryStats()
 }
 
 onMounted(() => {
