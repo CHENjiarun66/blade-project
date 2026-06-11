@@ -1,0 +1,19 @@
+{
+  "name": "嘉嘉服饰现货选款",
+  "short_name": "现货选款",
+  "description": "嘉嘉服饰 iPad 客户现货选款展示页",
+  "start_url": "/catalog",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fbfaf8",
+  "theme_color": "#9b6b22",
+  "icons": [
+    {
+      "src": "/catalog-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
