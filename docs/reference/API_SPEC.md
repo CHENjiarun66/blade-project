@@ -59,10 +59,14 @@ POST /api/auth/login
 **请求体**：
 ```json
 {
+  "tenantCode": "super_admin",
   "username": "admin",
-  "password": "123456"
+  "password": "admin123",
+  "remember": true
 }
 ```
+
+`remember=true` 表示保持登录 30 天：access token 为 1 小时，refresh token 为 30 天，前端在 access token 已过期或 10 分钟内即将过期时自动续期并重试原请求。未传或为 `false` 时 refresh token 使用默认 7 天。
 
 **成功响应**：
 ```json
@@ -72,7 +76,7 @@ POST /api/auth/login
   "data": {
     "token": "eyJhbGciOiJIUzI1NiJ9...",
     "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
-    "expiresIn": 1800
+    "expiresIn": 3600
   }
 }
 ```
@@ -328,7 +332,7 @@ PUT /api/orders/{id}
   "needDelivery": 1,
   "deliveryAddress": "送货地址",
   "remark": "备注",
-  "images": "http://xxx.com/1.jpg,http://xxx.com/2.jpg"
+  "images": "[\"101\",\"102\"]"
 }
 ```
 
@@ -380,6 +384,316 @@ POST /api/orders/{id}/add-payment
 
 ---
 
+## 三、客户接口
+
+### 3.1 客户分页列表
+
+```
+GET /api/customers
+```
+
+**请求参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| current | int | 否 | 当前页，默认 1 |
+| size | int | 否 | 每页条数，默认 20 |
+| keyword | string | 否 | 搜索关键词（客户名称/电话） |
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "records": [
+      {
+        "id": 1,
+        "name": "张三",
+        "countryCode": "+86",
+        "countryName": "China",
+        "countryFlag": "🇨🇳",
+        "phones": ["13800138000"],
+        "address": "北京市朝阳区",
+        "remark": "VIP客户",
+        "orderCount": 5,
+        "createTime": "2026-04-01T10:00:00"
+      }
+    ],
+    "total": 100,
+    "size": 20,
+    "current": 1,
+    "pages": 5
+  }
+}
+```
+
+### 3.2 获取客户详情
+
+```
+GET /api/customers/{id}
+```
+
+**路径参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | long | 是 | 客户ID |
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": 1,
+    "name": "张三",
+    "countryCode": "+86",
+    "countryName": "China",
+    "countryFlag": "🇨🇳",
+    "phones": ["13800138000"],
+    "address": "北京市朝阳区",
+    "remark": "VIP客户",
+    "orderCount": 5,
+    "createTime": "2026-04-01T10:00:00"
+  }
+}
+```
+
+### 3.3 根据电话搜索客户
+
+```
+GET /api/customers/search?phone={phone}
+```
+
+**请求参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| phone | string | 是 | 电话号码（支持带区号或不带） |
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": 1,
+    "name": "张三",
+    "countryCode": "+86",
+    "phones": ["13800138000"],
+    ...
+  }
+}
+```
+
+### 3.4 创建客户
+
+```
+POST /api/customers
+```
+
+**请求体**：
+```json
+{
+  "name": "李小姐",
+  "phones": ["688888888"],
+  "countryCode": "+255",
+  "address": "Dar es Salaam, Tanzania",
+  "remark": "来自坦桑尼亚的客户"
+}
+```
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": 1
+}
+```
+
+### 3.5 更新客户
+
+```
+PUT /api/customers
+```
+
+**请求体**：
+```json
+{
+  "id": 1,
+  "name": "李小姐（已编辑）",
+  "phones": ["688888888"],
+  "countryCode": "+1",
+  "address": "New York, USA",
+  "remark": "搬家了"
+}
+```
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "message": "success"
+}
+```
+
+### 3.6 删除客户
+
+```
+DELETE /api/customers/{id}
+```
+
+**路径参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | long | 是 | 客户ID |
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "message": "success"
+}
+```
+
+### 3.7 客户基础统计
+
+```
+GET /api/customers/{id}/stats
+```
+
+**功能说明**：获取指定客户的统计数据，包括订单数、消费金额、时间范围等。
+
+**路径参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | long | 是 | 客户ID |
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "customerId": 1,
+    "customerName": "张三",
+    "totalOrders": 10,
+    "completedOrders": 8,
+    "totalSpending": 25800.00,
+    "lastOrderTime": "2026-04-20T15:30:00",
+    "firstOrderTime": "2026-03-01T09:00:00"
+  }
+}
+```
+
+### 3.8 客户历史订单
+
+```
+GET /api/customers/{id}/orders
+```
+
+**功能说明**：获取指定客户的所有历史订单列表（包含订单项详情）。
+
+**路径参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | long | 是 | 客户ID |
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": 1,
+      "orderNo": "ORD202604200001",
+      "status": 5,
+      "statusName": "已完成",
+      "paymentStatus": 2,
+      "totalAmount": 5000.00,
+      "paidAmount": 5000.00,
+      "totalAmountText": "¥5000.00",
+      "paidAmountText": "¥5000.00",
+      "createTime": "2026-04-20T10:00:00",
+      "totalQuantity": 10,
+      "items": [
+        {
+          "productName": "T恤",
+          "skuDesc": "红色 / XL",
+          "quantity": 5,
+          "price": 500.00
+        },
+        {
+          "productName": "牛仔裤",
+          "skuDesc": "蓝色 / 32",
+          "quantity": 5,
+          "price": 500.00
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 3.9 客户商品偏好分析
+
+```
+GET /api/customers/{id}/preference
+```
+
+**功能说明**：基于客户已完成/已发货的订单，分析其商品偏好（颜色、尺码、品类）。
+
+**数据来源**：
+- 统计范围：订单状态为 `4=已发货` 或 `5=已完成` 的订单
+- 不统计：状态 `0=创建`、`1=已付款`、`2=配货中`、`3=待发货`、`6=已取消`
+
+**路径参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | long | 是 | 客户ID |
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "customerId": 1,
+    "productTypeCount": 3,
+    "categories": [
+      { "categoryName": "T恤", "count": 15, "percentage": 37.5 },
+      { "categoryName": "牛仔裤", "count": 12, "percentage": 30.0 },
+      { "categoryName": "连衣裙", "count": 8, "percentage": 20.0 }
+    ],
+    "colors": [
+      { "colorName": "黑色", "count": 18, "percentage": 45.0 },
+      { "colorName": "白色", "count": 10, "percentage": 25.0 },
+      { "colorName": "蓝色", "count": 7, "percentage": 17.5 }
+    ],
+    "sizes": [
+      { "sizeName": "M", "count": 20, "percentage": 50.0 },
+      { "sizeName": "L", "count": 10, "percentage": 25.0 },
+      { "sizeName": "XL", "count": 5, "percentage": 12.5 }
+    ]
+  }
+}
+```
+
+**偏好计算逻辑**：
+```
+百分比 = (该偏好 count) / (总订单项数) * 100
+```
+- 每种偏好类型最多返回 10 条记录（按 count 降序）
+- percentage 保留 1 位小数
+
+---
 
 ## 四、库存接口
 
@@ -512,18 +826,26 @@ GET /api/inventory/alerts
 ### 5.1 统计概览
 
 ```
-GET /api/dashboard/stats
+GET /api/dashboard/stats?periodType=WEEK
 ```
+
+**订单统计口径**：按 `order_date` 统计，旧数据回退 `create_time`；只统计已产生收款订单（`paid_amount > 0` 或 `payment_status in (1,2)`）；销售额为 `max(total_amount - refund_amount, 0)`；销量按订单明细 `quantity` 汇总。
 
 **成功响应**：
 ```json
 {
   "code": 200,
   "data": {
-    "todayOrders": 25,
-    "todaySales": 15800.00,
+    "periodOrders": 25,
+    "periodSales": 15800.00,
+    "periodGrossProfit": 4200.00,
+    "periodSalesQuantity": 96,
     "pendingOrders": 8,
-    "lowStockAlerts": 3
+    "lowStockAlerts": 3,
+    "weekOrders": 25,
+    "weekSales": 15800.00,
+    "weekGrossProfit": 4200.00,
+    "avgOrderValue": 632.00
   }
 }
 ```
@@ -533,31 +855,26 @@ GET /api/dashboard/stats
 ### 5.2 订单趋势
 
 ```
-GET /api/dashboard/trend
+GET /api/dashboard/trend?periodType=WEEK
 ```
 
 **请求参数**：
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| days | int | 否 | 天数，默认 7 |
+| periodType | string | 否 | 周期：TODAY/WEEK/MONTH/QUARTER/YEAR/CUSTOM，默认 WEEK |
+| startDate | date | 否 | 自定义开始日期，periodType=CUSTOM 时使用 |
+| endDate | date | 否 | 自定义结束日期，periodType=CUSTOM 时使用 |
 
 **成功响应**：
 ```json
 {
   "code": 200,
-  "data": [
-    {
-      "date": "2026-03-15",
-      "orders": 20,
-      "sales": 15000.00
-    },
-    {
-      "date": "2026-03-16",
-      "orders": 25,
-      "sales": 18000.00
-    }
-  ]
+  "data": {
+    "dates": ["03-15", "03-16"],
+    "orderCounts": [20, 25],
+    "salesAmounts": [15000.00, 18000.00]
+  }
 }
 ```
 
@@ -589,6 +906,138 @@ GET /api/dashboard/top-products
   ]
 }
 ```
+
+---
+
+## 六、数据分析接口
+
+### 6.1 经营汇总
+
+```
+GET /api/analytics/summary?periodType=WEEK
+```
+
+**统计口径**：与仪表盘订单口径一致；毛利字段受 `data:analytics:profit` 权限控制，无权限时返回为空。
+
+**成功响应**：
+```json
+{
+  "code": 200,
+  "data": {
+    "orderCount": 25,
+    "salesAmount": 15800.00,
+    "salesQuantity": 96,
+    "grossProfit": 4200.00,
+    "grossProfitRate": 26.58,
+    "refundAmount": 300.00,
+    "avgOrderValue": 632.00,
+    "avgItemPrice": 164.58,
+    "profitVisible": true
+  }
+}
+```
+
+### 6.2 经营趋势
+
+```
+GET /api/analytics/trend?periodType=WEEK
+```
+
+返回 `dates`、`orderCounts`、`salesAmounts`、`salesQuantities`，有毛利权限时额外返回 `grossProfits`。
+
+### 6.3 商品排行
+
+```
+GET /api/analytics/product-ranking?periodType=WEEK&dimension=PRODUCT&sortBy=SALES&limit=20
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| dimension | string | 否 | PRODUCT/SKU/COLOR/SIZE |
+| sortBy | string | 否 | SALES/QUANTITY/GROSS_PROFIT |
+| limit | number | 否 | 默认20，最大100 |
+
+商品排行按订单明细聚合，不将订单级退款反摊到商品明细。
+
+### 6.4 商品详情
+
+```
+GET /api/analytics/product-detail?periodType=WEEK&productName=624-1%23
+```
+
+返回该商品下 SKU、颜色、尺码三个维度的销售拆解。
+
+---
+
+## Agent 对接接口
+
+> 接入方使用说明见 [11-AGENT_ACCESS_GUIDE.md](../11-AGENT_ACCESS_GUIDE.md)，需求边界见 [10-AGENT_INTEGRATION_DESIGN.md](../10-AGENT_INTEGRATION_DESIGN.md)。
+
+### 认证约束
+
+Agent API 不复用前端 JWT 登录态。第一版使用独立 Agent 凭证，示例请求头：
+
+```http
+X-Agent-Key: {agent_key}
+```
+
+凭证必须绑定租户和 scope。无 `agent:analytics:profit` 授权时，接口不得返回成本、毛利、毛利率。
+
+### 已实现接口
+
+#### 款式趋势销售事实包
+
+```http
+GET /api/agent/analytics/style-trends?periodType=MONTH&comparePeriods=3&limit=20
+X-Agent-Key: {agent_key}
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `periodType` | string | 否 | `TODAY` / `WEEK` / `MONTH` / `QUARTER` / `YEAR` / `CUSTOM`，默认 `WEEK` |
+| `startDate` | date | 否 | `CUSTOM` 周期开始日期 |
+| `endDate` | date | 否 | `CUSTOM` 周期结束日期 |
+| `comparePeriods` | int | 否 | 对比周期数量，默认 `3`，当前限制 1-6 |
+| `limit` | int | 否 | 返回条数，默认 `20` |
+
+当前响应返回商品维度多周期趋势包，字段包含 `dimension`、`sortBy`、`periodType`、`comparePeriods` 和 `rows`。每个 row 包含当前周期销售事实、`trend`、`recommendation`、`periodSeries` 和 `reasons`。当前不返回成本、毛利、毛利率；库存和补货建议由后续库存建议接口承接。
+
+#### 颜色尺码结构事实包
+
+```http
+GET /api/agent/analytics/sku-mix?productName=624-1%23&periodType=MONTH&limit=20
+X-Agent-Key: {agent_key}
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `productName` | string | 是 | 款式名称 |
+| `periodType` | string | 否 | `TODAY` / `WEEK` / `MONTH` / `QUARTER` / `YEAR` / `CUSTOM`，默认 `WEEK` |
+| `startDate` | date | 否 | `CUSTOM` 周期开始日期 |
+| `endDate` | date | 否 | `CUSTOM` 周期结束日期 |
+| `limit` | int | 否 | 每组返回条数，默认 `20` |
+
+当前响应返回同款 SKU、颜色、尺码三组销售结构事实，字段包含 `productName`、`periodType`、`skus`、`colors`、`sizes` 和 `reasons`。每个 row 包含销售事实和 `signal`，当前 `signal` 表示销售结构：`HOT` / `NORMAL` / `LOW`。当前不返回成本、毛利、毛利率；缺货、积压和补货优先级由后续库存建议接口承接。
+
+### 规划接口清单
+
+| 接口 | 方法 | scope | 说明 |
+|------|------|-------|------|
+| `/api/agent/tasks/follow-up` | GET | `agent:followup:read` | 需跟进客户清单 |
+| `/api/agent/customers/risk` | GET | `agent:customers:risk:read` | 客户流失风险与分层事实 |
+| `/api/agent/inventory/recommendations` | GET | `agent:inventory:read` | 库存积压、缺货和补货优先级事实 |
+| `/api/agent/reports/periodic` | GET | `agent:reports:read` | 月度、季度、年度经营分析数据包 |
+| `/api/agent/search` | GET | `agent:search:read` | 客户、订单、商品/SKU 跨模块搜索 |
+
+### 暂缓接口
+
+| 接口 | 状态 | 原因 |
+|------|------|------|
+| `/api/agent/query` | 暂缓 | 第一版先由外部 Agent 调用结构化工具接口 |
+| `/api/agent/action` | 暂缓 | 泛化写操作风险高，后续仅开放窄范围授权动作 |
+| `/api/agent/changes` | 暂缓 | 依赖统一业务事件日志 |
+| WhatsApp 消息接入接口 | 暂缓 | 需先验证接入方式、客户映射、权限和消息保留策略 |
+| 订单异常/利润解释/经营记忆接口 | 后续路线 | 依赖事件日志、毛利权限和人工确认规则 |
 
 ---
 
@@ -673,7 +1122,7 @@ GET /api/products/{id}
     "categoryName": "上衣",
     "unit": "件",
     "description": "经典款纯棉T恤",
-    "imageUrl": "https://...",
+    "imageUrl": "101",
     "price": 99.00,
     "status": 1,
     "colors": [...],
@@ -714,7 +1163,7 @@ POST /api/products
   "categoryId": 1,
   "unit": "件",
   "description": "经典款纯棉T恤",
-  "imageUrl": "https://...",
+  "imageUrl": "101",
   "price": 99.00,
   "status": 1,
   "colorIds": [1, 2, 3],
@@ -729,7 +1178,7 @@ POST /api/products
 | categoryId | long | 否 | 分类ID |
 | unit | string | 否 | 单位，默认"件" |
 | description | string | 否 | 描述 |
-| imageUrl | string | 否 | 图片URL |
+| imageUrl | string | 否 | 商品主图 fileId，历史数据可为URL |
 | price | decimal | 否 | 单价 |
 | status | int | 否 | 状态，默认1启用 |
 | colorIds | long[] | 否 | 颜色ID列表 |

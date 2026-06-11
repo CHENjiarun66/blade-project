@@ -6,6 +6,1209 @@
 
 ---
 
+## 2026-06-11 变更记录
+
+### [功能开发] - BA-207 快速录单商品级批量 SKU 录入
+
+**变更内容**：
+- PC 快速录单页商品明细区新增“按商品批量添加”区域，支持按商品款号/商品名远程搜索商品。
+- 选择商品后按颜色 x 尺码展示正常状态 SKU 数量矩阵，可一次填写多个 SKU 数量并批量添加到订单明细。
+- 批量添加时不读取、不展示、不校验库存，不调用库存接口；SKU 是否显示只依赖商品和 SKU 自身正常状态。
+- 相同 `skuId` 重复添加时自动合并数量，不新增重复行，并保留原明细中已手动修改的单价和成本价。
+- 添加成功后清空本次矩阵数量，降低误点重复累计风险。
+- 旧的单 SKU 备用下拉同步过滤为正常状态商品/SKU。
+- 根据页面实测反馈修复 3 个细节：批量默认单价/默认成本改为可编辑输入；批量添加后的明细 SKU 选择框显示商品/颜色/尺码而不是原始 `skuId`；批量添加前自动移除初始空白占位行。
+- 批量默认单价/默认成本输入框改为普通金额输入，默认显示去掉末尾 `.00`；如需小数可由录单员手动输入，提交时仍按数字金额写入订单明细。
+- 订单明细表中的单价/成本价输入框同步改为普通金额输入，批量添加到下方 SKU 明细后不再默认显示 `.00`。
+
+**变更原因**：
+- 实际纸质订单录入按商品款号集中录入，同一商品多颜色/多尺码时逐个 SKU 搜索效率低。
+- 当前库存功能仍在完善阶段，订单录入需要与库存暂时解耦，优先保证生产环境正常录单。
+
+**影响范围**：
+- `blade-admin/src/views/orders/quick.vue`
+- `docs/03-TASKS.md`
+
+**验证结果**：
+- Claude Code 负责第一版实现；Codex 负责代码复核和监督修正。
+- `git diff --check` 通过。
+- `cd blade-admin && npm run build` 通过，保留项目既有 `::deep` 与 chunk size 构建警告。
+- 本地 Playwright 渲染验证 `/orders/quick` 可打开，页面出现“按商品批量添加”和“搜索款号 / 商品名”区域。
+
+**执行人**：Claude Code + AI
+
+---
+
+### [规划] - 快速录单商品级批量 SKU 录入 SOW
+
+**变更内容**：
+- 在 PRD 的 PC 快速录单章节补充“按商品批量录入 SKU”作为高频主路径：先选择商品款号/商品名称，再在 SKU 矩阵中填写颜色/尺码数量，一次性添加到订单明细。
+- 明确第一版快速录单与库存功能暂时解耦：不读取库存、不展示库存、不按库存过滤 SKU、不做库存不足校验；只展示正常状态 SKU。
+- 明确重复添加规则：相同 `skuId` 自动合并数量，不新增重复行，且不覆盖已手动修改的单价和成本价。
+- 新增任务 `BA-207 PC 快速录单商品级批量 SKU 录入`，状态为未开始。
+- 新增 Claude Code SOW：`docs/superpowers/plans/2026-06-11-quick-order-product-batch-entry-sow.md`。
+
+**变更原因**：
+- 纸质订单实际录入通常按商品款号集中录入，而不是逐个 SKU 搜索；现有流程在同一商品多颜色/多尺码时操作次数过多。
+- 当前库存功能仍在完善阶段，订单录入必须优先保证生产可用，不能被库存数据完整性影响。
+
+**影响范围**：
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/superpowers/plans/2026-06-11-quick-order-product-batch-entry-sow.md`
+- `docs/SESSION_CONTEXT.md`
+
+**执行人**：AI
+
+---
+
+### [文档] - 新增 Git 分支与发布工作流规范
+
+**变更内容**：
+- 新增 `docs/reference/GIT_BRANCH_WORKFLOW.md`，明确 `master`、`develop`、`feature/*`、`release/*`、`hotfix/*`、`snapshot/*` 的职责边界。
+- 明确 NAS 生产环境只部署 `master`，功能开发不得直接在 `master` 上进行。
+- 明确多功能并行开发时，通过 `feature/*` 开发、`develop` 集成测试、`release/*` 挑选上线内容，测试通过后再合入 `master`。
+- 明确 GitHub 远程通道复用 `origin = https://github.com/CHENjiarun66/blade-project.git`，push/fetch 失败时先检查代理和认证，不得擅自更换远程仓库。
+- 明确 Agent 开发前后必须汇报当前分支、工作区状态、提交列表、测试结果、是否 push、是否需要合并或发布。
+- 在 `AGENTS.md`、`README.md`、`docs/01-README.md`、`docs/SESSION_CONTEXT.md`、`docs/reference/PROJECT_STRUCTURE.md` 中补充该规范链接。
+
+**变更原因**：
+- 用户确认后续需要多个功能模块并行开发，并希望 Agent 自动创建和使用正确分支；上线时集中到测试/发布分支，验证通过后再进入主分支和 NAS 生产环境。
+
+**影响范围**：
+- 文档与协作流程，不涉及业务代码。
+
+**执行人**：AI
+
+---
+
+## 2026-06-08 变更记录
+
+### [运维规范] - NAS 生产发布安全门禁
+
+**变更内容**：
+- 将原 `deploy/nas/deploy_from_local.sh` 标记为首次部署/基础设施重建专用，新增 `FIRST_DEPLOY_CONFIRM=YES` 确认锁，避免日常发布误用全量流程。
+- 新增 `deploy/nas/deploy_app_from_local.sh` 作为日常生产发布脚本：默认 dry run，必须传 `--execute`；只构建和发布 `blade-backend:prod`、`blade-web:prod`，只重启 `backend` 和 `web`，不重启 MySQL/Redis。
+- 日常发布脚本内置发布前 NAS 数据库备份、备份非空校验、Docker 镜像 `linux/amd64` 架构校验和 `/catalog` 基础验证。
+- 新增 `deploy/nas/backup_db.sh`，标准化 NAS 当前生产库只读备份。
+- 新增 `deploy/nas/check_platform.sh`，用于确认群晖 Linux、Docker server 架构、compose 版本、持久化目录和容器状态。
+- 更新 `docs/13-NAS_PRODUCTION_OPS.md` 和 `deploy/nas/README.md`，补充数据安全优先级、发布门禁、备份门禁、平台确认和操作红线。
+
+**变更原因**：
+- 用户明确强调生产发布风险高，尤其担心 NAS 数据丢失；同时群晖 Linux/Docker 环境与本机不同，必须把备份、架构校验和日常发布边界固化为可执行规范。
+
+**影响范围**：
+- `deploy/nas/deploy_from_local.sh`
+- `deploy/nas/deploy_app_from_local.sh`
+- `deploy/nas/backup_db.sh`
+- `deploy/nas/check_platform.sh`
+- `deploy/nas/README.md`
+- `docs/13-NAS_PRODUCTION_OPS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 新增/修改的 shell 脚本已通过 `bash -n` 语法检查。
+
+---
+
+### [Bug修复] - 文件中心视频上传与预览
+
+**变更内容**：
+- 排查文件中心视频上传链路，确认视频 MIME 支持本身存在：`video/mp4`、`video/webm`、`video/quicktime` 已在后端允许列表内。
+- 修复默认上传大小与视频场景不匹配的问题：Spring multipart 单文件上限从 10MB 提升到 200MB，请求上限提升到 220MB；业务校验 `blade.file.max-size-mb` 默认提升到 200MB。
+- 上传大小支持环境变量覆盖：`BLADE_MULTIPART_MAX_FILE_SIZE`、`BLADE_MULTIPART_MAX_REQUEST_SIZE`、`BLADE_FILE_MAX_SIZE_MB`。
+- NAS 前端 Nginx `client_max_body_size` 从 50m 提升到 220m，避免生产入口在请求到达后端前拦截较大视频。
+- NAS compose 和 `.env.prod.example` 补充上传大小相关环境变量，便于生产环境显式调整。
+- 新增 `MaxUploadSizeExceededException` 处理，超过 Spring multipart 限制时返回明确错误，不再表现为模糊系统错误。
+- PC 文件中心上传前增加 200MB 前端预检，超过限制直接提示具体文件名和限制值。
+- PC 文件中心视频预览弹窗从占位图改为 `<video controls preload="metadata" playsinline>`，上传成功后可直接播放基础视频。
+- 更新文件中心相关任务和设计文档，将旧 10MB 配置对齐为 200MB。
+
+**变更原因**：
+- 用户反馈“视频上传好像有问题”。根因是第一版虽支持基础视频类型，但仍沿用图片上传阶段的 10MB 默认上限，普通手机/iPad 视频容易超过限制；同时前端只显示上传失败数量，缺少明确原因。
+
+**影响范围**：
+- `blade-backend/src/main/resources/application.yml`
+- `blade-backend/src/main/java/com/blade/file/config/FileStorageProperties.java`
+- `blade-backend/src/main/java/com/blade/common/exception/GlobalExceptionHandler.java`
+- `blade-backend/src/test/java/com/blade/file/FileVideoSupportTest.java`
+- `blade-backend/src/test/java/com/blade/file/FileAllowedTypesRegressionTest.java`
+- `blade-admin/src/views/files/index.vue`
+- `deploy/nas/nginx/default.conf`
+- `deploy/nas/docker-compose.prod.yml`
+- `deploy/nas/.env.prod.example`
+- `docs/03-TASKS.md`
+- `docs/09-FILE_STORAGE_DESIGN.md`
+- `docs/12-FILE_CENTER_ASSET_DESIGN.md`
+- `docs/13-NAS_PRODUCTION_OPS.md`
+
+**验证结果**：
+- `mvn test -Dtest=FileVideoSupportTest,FileAllowedTypesRegressionTest,FileControllerTest -DfailIfNoTests=false` 通过，29/29。
+- `mvn test '-Dtest=File*Test' -DfailIfNoTests=false` 沙盒内因 Mockito/ByteBuddy JVM attach 限制失败；沙盒外重跑通过，98/98。
+- `blade-admin` 执行 `npm run build` 通过；仍有既有 `::deep` CSS 警告和大 chunk 警告，与本次修复无关。
+
+---
+
+## 2026-06-05 变更记录
+
+### [运维文档] - NAS 生产发布 Agent 手册
+
+**变更内容**：
+- 新增 `docs/13-NAS_PRODUCTION_OPS.md`，作为后续 Agent 从本地开发环境发布到 NAS 生产环境的专用运维文档。
+- 文档覆盖：NAS 基础信息、生产目录、容器、数据库边界、项目架构、首次部署、日常发布、GitHub/Gitee/本机归档代码来源、数据库迁移、uploads 迁移、回滚、常见问题和 Agent 操作红线。
+- 明确发布分层：首次部署才处理 MySQL/Redis/基础镜像；日常发布只更新 `blade-backend:prod` 和 `blade-web:prod`。
+- 明确生产目录为 `/volume2/blade`，入口为 `http://192.168.1.10:8899/catalog`。
+- 更新 `docs/01-README.md` 与 `docs/SESSION_CONTEXT.md`，加入 NAS 运维手册索引。
+- 将关键文档快照同步到 NAS `/volume2/blade/docs`，并新增 `README_FOR_AGENTS.md` 作为 NAS 侧 Agent 接手入口。
+
+**变更原因**：
+- 用户要求后续其他 Agent 能快速接手本地开发到 NAS 生产部署流程，并清楚环境边界和操作红线。
+
+---
+
+### [数据迁移] - 本机生产库迁移到 NAS
+
+**变更内容**：
+- 将本机 MySQL 容器中的 `blade_project_prod` 只读导出为 SQL。
+- 本机生产库不做任何写入修改。
+- 在迁移 SQL 末尾追加租户归一化语句，将 NAS 目标库中 `sys_tenant.id=1` 的 `tenant_code` 设置为 `dwy_jiajiadress`。
+- 导入前备份 NAS 当前库到 `/volume2/blade/db-backups/nas_blade_project_prod_before_import_20260605.sql`。
+- 停止 NAS 后端和前端后，重建 NAS `blade_project_prod` 并导入生产库数据，再启动服务。
+
+**验证结果**：
+- NAS `sys_tenant`: `id=1 tenant_code=dwy_jiajiadress`。
+- NAS 关键数据量：`product=164`、`product_sku=416`、`sale_order=81`、`file_storage=22`、`flyway=39`。
+- `http://192.168.1.10:8899/catalog` 返回 200。
+- 使用 `dwy_jiajiadress/admin/admin123` 登录后，`/api/catalog/filters` 返回 200。
+
+**注意事项**：
+- 本次仅迁移数据库；`file_storage` 中已有 22 条文件记录，但对应的本机上传文件实体是否已同步到 NAS `uploads` 目录需要另行核对。
+- 本机生产库仍保持原租户 code，不受本次 NAS 导入转换影响。
+
+---
+
+### [部署] - 群晖 NAS 生产部署骨架
+
+**变更内容**：
+- 新增 `deploy/nas/docker-compose.prod.yml`，生产环境在 `/volume2/blade` 下运行独立 MySQL、Redis、后端和前端 Nginx。
+- 新增 `deploy/nas/nginx/default.conf`，支持 `/api/` 反向代理和前端 SPA 路由回退。
+- 新增 `blade-backend/Dockerfile`、`blade-admin/Dockerfile`，用于 NAS 本地构建生产镜像。
+- 新增 `deploy/nas/.env.prod.example`、`deploy/nas/README.md`、`deploy/nas/deploy_from_local.sh`，记录部署目录、端口、启动命令、备份重点和一键发布流程。
+- 调整后端 JWT 配置，允许生产环境通过 `JWT_SECRET` 覆盖默认密钥。
+
+**部署约定**：
+- NAS 地址：`192.168.1.10`
+- 部署目录：`/volume2/blade`
+- 外部端口：`8899`
+- 访问入口：`http://192.168.1.10:8899/catalog`
+- 真实 `.env.prod` 只保存在 NAS，不提交到项目文档。
+
+**验证结果**：
+- `blade-backend`: `mvn clean package -DskipTests` 通过。
+- `blade-admin`: `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过。
+- NAS 实际部署完成：`blade-mysql`、`blade-redis`、`blade-backend`、`blade-web` 均为 Up。
+- `http://192.168.1.10:8899/catalog` 返回 200。
+- 使用管理员登录后，`/api/catalog/filters` 返回 200。
+
+**部署经验**：
+- 群晖访问 Docker Hub 超时，改为本机按 `linux/amd64` 构建并导出 Docker 离线镜像包，再上传到 NAS `docker load`。
+- Apple Silicon 本机默认镜像不能直接给群晖 x86_64 使用，否则容器会 `exec format error`。
+- Synology SSH 环境的 `scp` 默认 SFTP 子系统不可用，发布脚本使用 `scp -O`。
+- MySQL 首次初始化和 Flyway 迁移较慢，API 在后端启动完成前会短暂 502。
+
+---
+
+## 2026-06-06 变更记录
+
+### [界面优化] - Catalog 手机竖屏版
+
+**变更内容**：
+- Catalog 增加 iPhone 14 Pro 竖屏适配断点（393 × 852 CSS px），延续 iPad 版 quiet luxury 米白/金棕视觉。
+- 手机竖屏保留三层浏览逻辑：两列商品网格 → 底部详情抽屉 → 全屏大图。
+- 手机顶部栏压缩品牌、搜索、筛选 chips 的间距；商品卡片保持 3:4 图片比例；底部操作栏改为更适合拇指点击的固定栏。
+- 底部详情抽屉在手机尺寸下压缩图片、标签和 SKU 矩阵密度，避免内容溢出。
+- 手机版横屏不进入 iPad 并排详情布局，显示“请切回竖屏浏览”提示，第一版只支持竖屏使用。
+- 新增 Playwright 回归覆盖 iPhone 14 Pro 竖屏两列网格和横屏限制提示。
+
+**变更原因**：
+- 用户要求在保持 iPad 展示页风格一致的前提下，做一版 iPhone 14 Pro 手机界面，并且手机版只支持竖屏，不提供横屏版本。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/src/views/catalog/DetailView.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仍有既有 `::deep` CSS 警告和大 chunk 警告。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，4/4。
+- Playwright 截图验证 iPhone 14 Pro 竖屏首屏：两列商品卡片、顶部搜索/筛选、底部操作栏显示正常。
+- Playwright 截图验证 iPhone 14 Pro 横屏：显示“请切回竖屏浏览”提示，没有进入 iPad 并排详情布局。
+
+---
+
+## 2026-06-04 变更记录
+
+### [交互优化] - Catalog 图片滑动切换
+
+**变更内容**：
+- Catalog 详情轮播图支持左右滑动切换图片，保留左右按钮和缩略图点击。
+- Catalog 全屏大图支持左右滑动切换图片，左滑下一张、右滑上一张，保留原左右按钮和底部缩略图。
+- 图片滑动改为跟手轨道动画：拖动时图片随手指横向移动，松手后用 220ms ease-out 过渡到上一张/下一张；未达到阈值时回弹原图。
+- 图片区域增加 `touch-action: pan-y pinch-zoom`、`user-select` 和 `-webkit-user-drag` 控制，减少 iPad 上拖拽图片等误操作，同时保留两指缩放。
+- `index.html` viewport 保留 `width=device-width, initial-scale=1.0, viewport-fit=cover`，不设置 `maximum-scale/user-scalable`；Catalog 通过单指 `touchstart/touchend` 手势判断只拦截双击页面放大，避免影响两指 pinch 缩放。
+- Catalog 在 `orientationchange` / `visualViewport.resize` 后重置滚动位置，降低竖屏切横屏后页面停留在异常放大状态的概率。
+- 详情轮播滑动后只抑制滑动结束产生的合成点击，不影响用户随后正常点击进入全屏大图。
+
+**变更原因**：
+- 用户反馈 iPad 上只点左右按钮切换图片体验较麻烦；第一版滑动切换是瞬间切图，缺少 iPhone 相册式动效；同时网页双击/横竖屏切换容易导致页面异常放大，需要禁止单指双击放大并尽量保持正常视口，但保留两指缩放用于临时查看细节。
+
+**影响范围**：
+- `blade-admin/index.html`
+- `blade-admin/src/views/catalog/DetailView.vue`
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 先新增 Playwright 规格确认旧实现失败：滑动后详情轮播图片没有变化。
+- 实现后 `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list --grep swipe` 通过，1/1。
+- 完整 Catalog 规格 `e2e-catalog-infinite-cache.spec.ts` 通过，3/3。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仅保留旧页面 `::deep` 和大 chunk 体积警告。
+- 二次优化后再次运行完整 Catalog 规格通过，3/3；`npm run build` 通过。
+
+**执行人**：Codex
+
+### [功能优化] - Catalog 无限滚动与本地缓存
+
+**变更内容**：
+- Catalog 商品网格取消底部分页器，改为滚动接近底部时自动请求下一页。
+- 搜索、现货、有图、分类、颜色、尺码筛选变化时，清空当前列表并从第一页重新加载。
+- 新增商品列表缓存：按筛选条件生成 `catalog:products:v1:*` 缓存 key；页面打开时先渲染缓存数据，再后台刷新第一页。
+- 新增 `CachedImage` 组件和 Catalog 图片缓存工具：私有文件预览图按 fileId 写入 IndexedDB，命中缓存后使用本地 Blob URL 渲染，避免 token 变化导致图片缓存失效。
+- 登录态失效或退出登录时清理 Catalog 商品缓存和 IndexedDB 图片缓存，降低同一台 iPad 上私有图片残留风险。
+- 因 iPad 当前通过局域网 HTTP 地址调试，第一版未采用 Service Worker/Cache Storage，避免 iOS Safari 在非安全源上注册不稳定。
+
+**变更原因**：
+- 用户反馈 Catalog 商品卡片不应使用分页器，应像相册一样持续下滑；同时服务器网速较慢，希望图片和商品数据能缓存在本地，未变化的数据下次访问不重复下载。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/src/views/catalog/DetailView.vue`
+- `blade-admin/src/components/CachedImage.vue`
+- `blade-admin/src/utils/catalogCache.ts`
+- `blade-admin/src/stores/auth.ts`
+- `blade-admin/src/api/client.ts`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 先运行新增 Playwright 规格确认旧实现失败：分页器仍存在、缓存商品未先渲染。
+- 实现后 `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，2/2。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仅保留旧页面 `::deep` 和大 chunk 体积警告。
+- 真实后端数据冒烟：`/catalog` 初始 20 张商品卡片，滚动后加载到 163 张；无 `.grid-pagination`；实际请求页码 1 到 9。
+- 搜索 `8001` 后图片缓存验证通过：卡片图渲染为 `blob:` 本地 URL，IndexedDB `blade-catalog-image-cache` 中有图片缓存记录，商品列表缓存 key 已写入。
+
+**执行人**：Codex
+
+### [数据同步] - 生产库商品主数据同步到开发库
+
+**变更内容**：
+- 将本地生产库 `blade_project_prod` 的商品主数据同步到开发库 `blade_project`。
+- 覆盖同步范围：`product_category`、`product_color`、`product_size`、`product`、`product_sku`、`product_color_rel`、`product_size_rel`。
+- 清理开发库旧的 `product/sku` 文件业务绑定，避免旧测试绑定误挂到同步后的生产商品 ID。
+- 文件中心只补充商品主图实际引用的 `file_storage` 记录：`file_id=10`，未批量覆盖开发库其他文件元数据。
+- 未同步订单、客户、库存、库存流水、入库记录等业务数据；开发库原库存记录未主动清空。
+
+**变更原因**：
+- 用户要求将生产环境中的商品数据搬到测试/开发环境，便于在当前 iPad Catalog 和商品管理页面中使用真实商品数据测试。
+
+**影响范围**：
+- 本地 MySQL 容器 `blade-mysql`
+- 源库：`blade_project_prod`
+- 目标库：`blade_project`
+- 备份文件：`tmp/db-backups/blade_project_product_tables_before_prod_sync_20260604_211015.sql`
+
+**验证结果**：
+- 同步后开发库数量：商品 164、SKU 416、分类 13、颜色 22、尺码 14、颜色关联 412、尺码关联 163。
+- 商品表中 163 个启用且未软删除、1 个软删除；业务接口 `/api/products` 和 `/api/catalog/products` 返回 total=163，符合过滤逻辑。
+- `8001#` 在 Catalog 接口中返回 `mainImageUrl=/api/files/10/preview`，对应本地图片文件存在。
+
+**执行人**：Codex
+
+### [Bug修复] - 登录态保持与 refresh token 续签稳固
+
+**变更内容**：
+- 确认登录页 `remember` 字段已传入后端，后端配置为 access token 1 小时、普通 refresh token 7 天、勾选保持登录时 refresh token 30 天。
+- refresh token 新增 `tenantId` claim；登录生成 refresh token 时写入当前租户 ID。
+- `/api/auth/refresh` 续签时先读 Redis 中的 `token:tenant:{refreshToken}`，若 Redis 映射缺失则回退读取 refresh token 自身的 `tenantId` claim，并在续签前恢复 `TenantContext`。
+- 续签生成的新 access token 与 refresh token 继续写入租户映射；勾选保持登录继续按 30 天，不勾选按 7 天。
+- 前端自动刷新失败或收到 401/403 后跳转登录页时，保留当前页面 `redirect`，避免从 `/catalog` 等页面重新登录后跳回后台默认页。
+
+**变更原因**：
+- 用户反馈登录态保持时间过短，半小时到一小时后重新打开页面经常要求重新登录；需要确认 30 天保持登录为何未稳定生效，并将未勾选保持登录的有效期调整为 7 天。
+- 排查结果显示 30 天配置与请求字段本身有效，主要风险在 refresh 续签链路：refresh token 的租户信息只依赖 Redis 映射，映射丢失后无法稳定重建登录态。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/auth/service/JwtTokenProvider.java`
+- `blade-backend/src/main/java/com/blade/auth/service/AuthService.java`
+- `blade-backend/src/test/java/com/blade/auth/JwtTokenProviderTest.java`
+- `blade-backend/src/test/java/com/blade/auth/AuthServiceRefreshTokenTest.java`
+- `blade-admin/src/api/client.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `mvn test -Dtest=JwtTokenProviderTest,AuthServiceRefreshTokenTest -DfailIfNoTests=false` 通过，3/3。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仅保留旧页面 `::deep` 和大 chunk 体积警告。
+- 本地重启后端并实测 `/api/auth/login`：`remember=true` 返回 refresh token 2,592,000 秒（30 天），`remember=false` 返回 604,800 秒（7 天），二者均带 `tenantId=1`。
+- 删除 Redis 中旧 refresh token 的 `token:tenant:*` 映射后，调用 `/api/auth/refresh` 仍返回 200，并续签出 30 天、带 `tenantId=1` 的新 refresh token。
+
+**执行人**：Codex
+
+### [Bug修复] - Catalog PWA 登录后回跳原页面
+
+**变更内容**：
+- 路由守卫在未登录访问受保护页面时，跳转登录页并携带 `redirect=to.fullPath`。
+- 登录页登录成功后优先读取 `redirect`，校验为站内安全路径且用户具备对应权限后，回跳原页面。
+- `/catalog` 纳入登录页回跳权限映射，要求 `data:catalog:view`。
+- 已登录状态下访问 `/login?redirect=/catalog` 时，也会优先回跳 `/catalog`，不再固定进入后台首屏。
+
+**变更原因**：
+- iPad 从主屏图标打开 `/catalog` 时，未登录会先进入登录页；原逻辑登录后跳到后台默认页面，不符合“从 Catalog 进入就回 Catalog”的 App 使用预期。
+
+**影响范围**：
+- `blade-admin/src/router/index.ts`
+- `blade-admin/src/views/login/index.vue`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仅保留旧页面 `::deep` 和大 chunk 体积警告。
+- Playwright 验证清空登录态后访问 `/catalog`，自动跳转到 `/login?redirect=/catalog`；登录 `test_tenant/admin/admin123` 后回到 `/catalog`，页面显示 Catalog 标题和商品卡片。
+
+**执行人**：Codex
+
+### [功能优化] - Catalog iPad PWA 主屏调试支持
+
+**变更内容**：
+- `blade-admin` Vite dev/preview server 改为监听 `0.0.0.0:5777`，支持 iPad 通过同一 Wi-Fi 访问 Mac 局域网地址。
+- 新增 `/manifest.webmanifest`，默认 `start_url` 为 `/catalog`，`display` 为 `standalone`，主题色为金棕色。
+- `index.html` 新增 PWA 和 iOS 主屏 meta：manifest、apple touch icon、theme color、standalone、主屏标题和状态栏样式。
+- 新增 Catalog 主屏图标：`catalog-app-icon.svg` 和 `catalog-app-icon.png`。
+- 环境文档补充 iPad Safari 访问、添加到主屏幕、独立窗口调试流程。
+
+**变更原因**：
+- 用户希望在 iPad 上按类似 App 的方式调试 Catalog，不显示 Safari 地址栏和标签栏，而是从桌面图标直接进入选款页。
+
+**影响范围**：
+- `blade-admin/vite.config.ts`
+- `blade-admin/index.html`
+- `blade-admin/public/manifest.webmanifest`
+- `blade-admin/public/catalog-app-icon.svg`
+- `blade-admin/public/catalog-app-icon.png`
+- `docs/00-SETUP.md`
+- `docs/05-CHANGELOG.md`
+- `docs/12-FILE_CENTER_ASSET_DESIGN.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仅保留旧页面 `::deep` 和大 chunk 体积警告。
+- `curl http://192.168.1.3:5777/catalog` 返回 200 HTML。
+- `curl http://192.168.1.3:5777/manifest.webmanifest` 返回 PWA manifest。
+- 当前前端进程已监听 `*:5777`，Mac 当前 Wi-Fi IP 为 `192.168.1.3`。
+
+**执行人**：Codex
+
+### [视觉优化] - iPad Catalog 对齐 Stitch 效果图
+
+**变更内容**：
+- Catalog 页面由 Codex 直接调整，不调用 Claude Code；按用户提供的 Stitch 参考图重做视觉细节。
+- 顶部改为品牌/搜索/游客模式/筛选图标主栏，筛选 chip 独立一行；整体主题从紫色残留调整为暖白 + 金棕 quiet luxury。
+- 商品卡片改为更紧凑的图片比例、轻边框、低阴影、金色选中边框和圆形勾选标识；横屏选中详情时左侧继续保持三列网格。
+- 右侧详情面板改为独立圆角边框卡片；详情图片、缩略图、商品信息和 SKU 矩阵调整为更接近参考图的密度和金棕色调。
+- 竖屏新增底部固定操作栏（筛选 / 选款清单 / 游客模式），抽屉关闭默认标题栏，改为顶部短把手；抽屉高度压缩为更接近参考图的底部详情抽屉。
+- 全屏看图模式调整为深色背景、圆形切图按钮、顶部款号计数、底部缩略图胶片条和大图圆角阴影。
+
+**变更原因**：
+- 用户确认功能已完善，但界面没有严格按 Stitch 效果图执行，要求本轮由 Codex 亲自优化前端设计。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/src/views/catalog/DetailView.vue`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仅保留旧页面 `::deep` 和大 chunk 体积警告。
+- Playwright 截图验证横屏详情、竖屏抽屉、全屏看图三态；最终横屏截图确认激活 chip 为金棕色 `rgb(155, 107, 34)`，抽屉默认 header 已移除并显示自定义把手。
+
+**执行人**：Codex
+
+### [功能优化] - iPad Catalog 三层图片浏览逻辑
+
+**变更内容**：
+- 明确并实现 Catalog 三层图片源规则：商品网格只展示商品主图；详情面板/竖屏抽屉顶部轮播展示商品图 + 所有 SKU 图片全集；点击详情大图进入全屏时只浏览商品图片集。
+- `DetailView` 新增 `fullscreenImages` 入参，顶部轮播可以显示 SKU 图片，但打开全屏时按商品图片集定位，SKU 图不会混入商品大图浏览。
+- Catalog 页面新增 `skuImages()`、`detailImages()` 聚合函数，商品详情顶部从 `product.mainImageUrl + product.imageUrls` 扩展为 `product 图片 + sku.imageUrls` 去重集合。
+
+**变更原因**：
+- 用户确认现有抽屉顶部只显示商品图片不够流畅，客户选款时应能在详情顶部看到所有 SKU 照片，但全屏大图仍应聚焦商品图片集。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/src/views/catalog/DetailView.vue`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+- `docs/12-FILE_CENTER_ASSET_DESIGN.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仅保留旧页面 `::deep` 和大 chunk 体积警告。
+- Playwright 竖屏验证 `/catalog`：点击商品信息打开底部抽屉，抽屉顶部轮播出现 2 个唯一图片源（商品图 + SKU 图），图片均加载成功。
+- Playwright 验证点击抽屉大图进入全屏后，全屏只显示 1 个唯一商品图片源，加载成功。
+
+**执行人**：Codex
+
+### [Bug修复] - 私有文件预览 403 导致图片不显示
+
+**变更内容**：
+- 修复文件中心和业务页面图片“上传成功但不显示”的问题：浏览器原生 `<img>` 和新窗口打开不会携带 Axios 的 `Authorization` 请求头，后端私有文件预览因此返回 `403`。
+- 后端 `JwtAuthenticationFilter` 仅对 `/api/files/{id}/preview` 支持 `previewToken` 查询参数，继续由 `FileController.preview` 执行 PUBLIC/PRIVATE、租户和业务权限校验。
+- 前端统一 `filePreviewUrl(fileId)` 自动拼接当前 access token；文件中心“打开原文件”和 Catalog 后端返回的 `/api/files/{id}/preview` 地址也统一转成带认证的预览地址。
+- Catalog 页面补齐数据规范化：商品主图、商品图集、SKU 图片在进入页面状态前统一转换为带认证的预览地址，避免卡片模板直接渲染原始 `mainImageUrl`。
+- 订单、商品、入库、文件中心等已走 `parseImageSources()`/`filePreviewUrl()` 的图片展示链路同步恢复，不改业务保存结构，仍保存 fileId。
+
+**变更原因**：
+- 管理员上传商品图片后，文件中心已有记录，但缩略图为空；点击原文件返回 `{"code":403,"message":"您没有该操作权限，请联系管理员授权"}`。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/config/SecurityConfig.java`
+- `blade-backend/src/test/java/com/blade/config/JwtAuthenticationFilterTest.java`
+- `blade-admin/src/api/file.ts`
+- `blade-admin/src/views/files/index.vue`
+- `blade-admin/src/views/catalog/index.vue`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+- `docs/SESSION_CONTEXT.md`
+
+**验证结果**：
+- `mvn test -Dtest=JwtAuthenticationFilterTest,FileControllerTest -DfailIfNoTests=false` 通过，22/22。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仅保留旧页面 `::deep` 和大 chunk 体积警告。
+- `curl` 验证无 token 预览仍返回权限错误；带 `previewToken` 的 `/api/files/7/preview` 返回 PNG 图片数据。
+- Playwright 验证 `/files` 文件中心 7/7 张 `/api/files/*/preview` 图片加载成功。
+- Playwright 验证 `/products` 商品列表 1/1 张 fileId 图片加载成功。
+- Playwright 验证 `/catalog` 商品卡片图片加载成功，点击卡片图进入全屏大图后 2/2 张 `/api/files/*/preview` 图片均加载成功。
+
+**执行人**：Codex
+
+### [功能开发] - iPad Catalog 现货选款页第一版
+
+**变更内容**：
+- 后端新增 Catalog 只读接口：`GET /api/catalog/products`、`GET /api/catalog/products/{id}`、`GET /api/catalog/filters`。
+- Catalog 接口只返回客户展示需要的商品、SKU、图片预览 URL、颜色/尺码和库存状态，不返回价格、成本、供应商、真实库存数量。
+- 库存状态按 `quantity - reserved_qty - global_reserved_qty > 0` 聚合为 `有现货/暂无现货`；`stockMode=in_stock` 在分页前过滤。
+- V37 新增 `menu:catalog` 和 `data:catalog:view` 权限，并默认授权 `ROLE_OWNER`、`ROLE_ADMIN`、`ROLE_SALES`。
+- PC 管理端新增独立全屏 `/catalog` 页面，采用 quiet luxury 风格，支持横屏网格+右侧详情、竖屏网格+底部抽屉、筛选、SKU 矩阵和全屏大图模式。
+
+**变更原因**：
+- 用户确认 iPad 现货选款展示页设计方向，要求按该版进入设计开发。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/catalog/**`
+- `blade-backend/src/main/resources/db/migration/V37__catalog_permissions.sql`
+- `blade-backend/src/test/java/com/blade/catalog/**`
+- `blade-admin/src/api/catalog.ts`
+- `blade-admin/src/views/catalog/**`
+- `blade-admin/src/router/index.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+- `docs/SESSION_CONTEXT.md`
+
+**验证结果**：
+- `mvn test -Dtest=CatalogAvailabilityTest,CatalogDtoTest,CatalogVoSecurityTest -DfailIfNoTests=false` 通过，17/17。
+- `mvn spring-boot:run` 启动成功，Flyway V37 已应用到开发库 `blade_project`。
+- `curl` 验证 `/api/catalog/filters`、`/api/catalog/products` 返回 200。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仅保留旧页面 `::deep` 和大 chunk 体积警告。
+- Playwright 验证 `/catalog` 横屏/竖屏渲染、商品详情、竖屏抽屉和全屏大图模式通过。
+
+**执行人**：Claude Code + Codex 复核修正
+
+### [设计锁定] - iPad Catalog 展示页 quiet luxury 方向
+
+**变更内容**：
+- 锁定 `/catalog` 第一版视觉方向：米白背景、深炭黑文字、少量金色点缀、轻边框、低阴影的 quiet luxury 风格。
+- 锁定横竖屏响应式结构：横屏为商品网格 + 右侧详情；竖屏为商品网格 + 底部/全屏详情。
+- 锁定三层浏览：商品网格 → 商品详情 → 全屏大图看图模式。
+- 全屏大图模式需支持切图、缩略图胶片条、关闭返回、款号/图片序号和现货状态展示。
+- 第一版身份边界为游客/散客模式；客户选择、扫码识别、行为埋点和选款清单进入后续阶段。
+
+**变更原因**：
+- 用户确认采用结合 Stitch 配色氛围与 Codex 三层浏览结构的设计稿，并要求按该版本进入设计开发。
+
+**影响范围**：
+- `docs/12-FILE_CENTER_ASSET_DESIGN.md`
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+### [功能开发] - BA-1004~BA-1006 PC 文件中心上传/移动/删除/绑定/清理
+
+**变更内容**：
+- BA-1004：上传按钮改为隐藏多文件 input，支持批量上传到 temp；网格视图新增 el-checkbox 多选，列表视图新增 type=selection 列；批量工具栏（移动/绑定/删除/取消选择）；移动弹窗 radio-group 选文件夹或未归档；删除前并行查询绑定展示风险详情，后端有绑定则拒绝，确认后仅调 POST /api/files/batch-delete
+- BA-1005：新增 FileBindDialog.vue，remote 搜索商品→选角色 main/gallery/sku_image→sku_image 时显示 SKU 多选→PUT /api/products/{id}/file-bindings
+- BA-1006：新增 FileCleanupPanel.vue，清理说明/保留天数 input-number/候选统计刷新/软删除确认/回收站快捷入口；GET unbound-candidates + POST soft-delete-unbound
+- 扩展 blade-admin/src/api/file.ts：新增 batchDeleteFiles/batchMoveFiles/getFileBindings/createFileBindings/deleteFileBinding/getUnboundCandidates/softDeleteUnbound/createFileFolder；FileUploadVO 新增 fileType/fileExt；新增 FileBindingVO/FileBindingCreateDTO/FileBatchDeleteDTO/FileBatchMoveDTO/FileFolderCreateDTO/UnboundCandidateVO 类型
+- 扩展 blade-admin/src/api/product.ts：新增 ProductFileBindingDTO/SkuImageBindingDTO 和 setProductFileBindings()
+
+**变更原因**：
+- 完成 PC 文件中心 BA-1004~BA-1006 第一可用切片，补全上传、批量操作、商品/SKU 绑定和未绑定清理管理功能
+
+**影响范围**：
+- `blade-admin/src/api/file.ts`（扩展 API + 类型）
+- `blade-admin/src/api/product.ts`（新增绑定 DTO + API）
+- `blade-admin/src/views/files/index.vue`（上传/选择/批量操作/移动/删除/绑定/清理）
+- `blade-admin/src/views/files/FileBindDialog.vue`（新建）
+- `blade-admin/src/views/files/FileCleanupPanel.vue`（新建）
+- `docs/03-TASKS.md`（BA-1004~BA-1006 标记完成 + 执行记录）
+- `docs/05-CHANGELOG.md`（本记录）
+- `docs/SESSION_CONTEXT.md`（更新摘要）
+
+**验证结果**：
+- `npm run build`（Node v22）通过，无 TypeScript 编译错误。`files-mySDnOsX.js`（35 kB gzip 10 kB）产出正常，包含所有新增组件逻辑。
+- Codex 复核修正绑定风险判断和清理统计字段：`GET /api/files/{id}/bindings` 返回的即为有效绑定列表，不再读取不存在的 `deleted` 字段；`GET /api/files/cleanup/unbound-candidates` 使用后端真实字段 `candidateCount`。
+- Codex 复核将未绑定清理默认保留期对齐为 7 天，并让回收站状态同时识别 `status=0` 与 `deletedTime`。
+
+**执行人**：Claude Code
+
+### [环境修正] - 本地后端默认数据库切回开发库
+
+**变更内容**：
+- 后端默认数据源从 `blade_project_prod` 切回开发库 `blade_project`，继续保留 `BLADE_DB_URL` / `BLADE_DB_USERNAME` / `BLADE_DB_PASSWORD` 覆盖能力。
+- 修正 `application-test.yml` 的 MySQL 密码，从过期的 `root` 改为当前容器可用的 `root123`。
+- 更新 `00-SETUP.md`：修正 Docker MySQL 创建命令、连接密码、开发库/本地生产库说明、数据库登录命令和两库切换方式。
+- 更新 `SESSION_CONTEXT.md`：当前默认后端数据库改为 `blade_project`，本地生产库 `blade_project_prod` 仅保留用于真实/演示数据隔离。
+
+**变更原因**：
+- 文档中混杂旧配置（`root/root`、`blade`）和生产库默认连接，导致按文档无法登录数据库，并且日常开发误连本地生产库。
+
+**影响范围**：
+- `blade-backend/src/main/resources/application.yml`
+- `blade-backend/src/test/resources/application-test.yml`
+- `docs/00-SETUP.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 当前 Docker MySQL 使用 `root/root123` 登录成功，`root/root` 登录失败。
+- 当前容器内确认存在 `blade_project` 和 `blade_project_prod` 两个库。
+- 后端按默认配置启动成功，Flyway 日志确认连接 `jdbc:mysql://localhost:3306/blade_project`，并将开发库从 V30 自动迁移到 V36。
+
+### [功能开发] - BA-1001~BA-1003 PC 文件中心基础页面
+
+**变更内容**：
+- BA-1001: 新增 `/files` 路由、`menu:file` 权限、页面标题映射、优先页面映射。
+- BA-1001: 新增布局侧边栏"文件中心"菜单项（folder 图标）。
+- BA-1001: 新增 `V36__file_center_permissions.sql`，补齐 `menu:file` 及文件上传、删除、绑定、解绑、批量、查看全部、查看自己、清理等按钮权限，并默认分配给 `ROLE_OWNER`、`ROLE_ADMIN`。
+- BA-1002: 左侧快捷入口（全部文件、未绑定、商品素材、SKU 图片、订单图片、入库凭证、视频、回收站），各入口映射到后端 FilePageDTO 查询参数。
+- BA-1002: 集成 `GET /api/file-folders/tree` 真实文件夹树，支持多层级缩进展示。
+- BA-1003: 网格视图（图片卡片缩略图、视频占位符、文件类型角标、绑定标记）和列表视图（el-table：预览/文件名/类型/大小/业务类型/绑定/来源/时间/状态）。
+- BA-1003: 筛选栏：keyword 搜索、fileType 下拉、businessType 下拉、网格/列表切换。
+- BA-1003: 分页（prev/pager/next）、loading 状态、空状态提示。
+- BA-1003: 图片预览弹窗（大图 + 元数据信息面板）、视频/文档占位预览。
+- 扩展 `blade-admin/src/api/file.ts`：新增 `FileVO`/`FileFolderVO`/`FilePageParams`/`PageResult` 类型和 `getFilePage`/`getFileFoldersTree`/`getFileDetail` 函数，以及 `formatFileSize`/`isImageFile`/`isVideoFile`/`getFileTypeLabel`/`getBusinessTypeLabel` 工具函数。
+
+**变更原因**：
+- 完成 PC 文件中心第一阶段前端基础，衔接后端已完成的 BE-1001~BE-1011 文件中心底座。
+
+**影响范围**：
+- `blade-admin/src/router/index.ts`（新增 /files 路由）
+- `blade-admin/src/views/layout/index.vue`（新增菜单项和页面标题）
+- `blade-admin/src/views/login/index.vue`（首个可访问页面优先级补充 /files）
+- `blade-admin/src/api/file.ts`（扩展 API 层）
+- `blade-admin/src/views/files/index.vue`（新增文件中心主页面）
+- `blade-backend/src/main/resources/db/migration/V36__file_center_permissions.sql`（新增文件中心权限迁移）
+- `docs/03-TASKS.md`（BA-1001~BA-1003 状态更新）
+- `docs/05-CHANGELOG.md`（本记录）
+
+**验证结果**：
+- `npm run build`（Path: Node v22）通过，无 TypeScript 编译错误。`files-DPVLA6ub.js`（18 kB）和 `file-PWSDhYRK.js`（1.5 kB）产出正常。
+- 后端启动时 Flyway 成功应用 `V36__file_center_permissions.sql`，`/api/auth/codes` 已返回 `menu:file` 和 `btn:file:*` 文件中心权限。
+- Playwright 本地页面验证通过：登录后访问 `http://localhost:5777/files`，页面显示文件中心、快捷入口和文件列表，截图保存到 `blade-admin/test-results/file-center-page.png`。
+
+### [功能开发] - BE-1011 文件中心回归测试与删除保护收口
+
+**变更内容**：
+- 文件中心批量删除增加有效绑定保护：当前租户存在 `file_business_bind.deleted=0` 绑定的文件，拒绝软删除。
+- 新增 `FileBindingServiceImplTest.batchDelete_rejectsActiveBoundFiles`，锁定“已绑定文件不能被批量删除”的回归行为。
+- 确认文件中心回归测试覆盖上传、列表/详情、绑定、文件夹、未绑定治理、清理标记、基础视频和私有预览权限。
+- `BE-1011` 标记完成，文件中心后端 Phase 6.6 收口到回归测试通过。
+
+**变更原因**：
+- 文件中心 MVP 要求删除前识别有效绑定，避免订单、商品、SKU、入库凭证等业务文件被误删。
+- 为后续 PC `/files` 页面和清理管理功能提供稳定后端边界。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/file/service/impl/FileBindingServiceImpl.java`
+- `blade-backend/src/test/java/com/blade/file/FileBindingServiceImplTest.java`
+- `docs/03-TASKS.md`
+- `docs/SESSION_CONTEXT.md`
+
+**验证结果**：
+- `mvn test '-Dtest=FileBindingServiceImplTest' -DfailIfNoTests=false` 通过，13/13。
+- `mvn test '-Dtest=File*Test' -DfailIfNoTests=false` 通过，96/96。
+
+**执行人**：Claude Code 尝试，Codex 接手实现与验证
+
+---
+
+## 2026-06-03 变更记录
+
+### [架构规划] - 文件中心与数字资产中心落地设计
+
+**变更内容**：
+- 新增 [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md)，将“相册池”升级定义为通用数字资产中心。
+- 明确文件中心第一版边界：文件夹、图片/基础视频、未绑定文件治理、商品/SKU 绑定、订单/入库绑定、客户 iPad 现货展示页。
+- 明确第一版不做：视频转码、分片上传、七牛云/NAS 切换、客户公开分享链接、AI 自动打标签、文档在线预览和文件版本管理。
+- PRD 新增“文件中心与客户展示页”章节，锁定 fileId、`file_business_bind`、未绑定清理和 iPad 展示页库存口径。
+- TASKS 新增 BE-1001~BE-1011、BE-1020~BE-1023、BA-1001~BA-1006、BA-1020~BA-1024。
+- README、SESSION_CONTEXT、DECISIONS_LOG 和 09 文件存储设计文档补充新设计入口和边界说明。
+
+**变更原因**：
+- 系统后续需要统一管理来自订单、商品、SKU、入库、OCR 和外部相册迁移的图片/视频素材。
+- 客户 iPad 现货展示页需要消费商品/SKU 图片和实时库存，不能继续依赖群晖相册或 iPad 本地相册。
+- 为防止后续 Agent 将文件中心范围漂移到视频转码、对象存储、分享链接等非 MVP 能力，需要先锁定边界。
+
+**影响范围**：
+- `docs/12-FILE_CENTER_ASSET_DESIGN.md`
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/01-README.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/09-FILE_STORAGE_DESIGN.md`
+- `docs/reference/DECISIONS_LOG.md`
+
+**执行人**：AI
+
+### [功能开发] - BE-1001 数字资产表结构扩展
+
+**变更内容**：
+- 新增 `V35__file_center_asset_schema.sql`：扩展 `file_storage`，新增文件夹、业务绑定、操作日志、清理日志表。
+- `FileStorage` 新增 14 个资产字段：`folderId`、`fileType`、`fileExt`、`fileHash`、`source`、`purpose`、`bindCount`、`visibility`、`imageWidth`、`imageHeight`、`durationSeconds`、`coverFileId`、`deletedTime`、`purgedTime`。
+- 新增 `FileFolder`、`FileBusinessBind`、`FileOperationLog`、`FileCleanupLog` 实体和对应 Mapper。
+- 新增 `FileAssetSchemaTest`，用反射验证实体字段和 `@TableName` 映射。
+
+**变更原因**：
+- 为文件中心分页、文件夹、多业务绑定、未绑定治理和客户 iPad 展示页提供后端表结构基础。
+- 保持现有上传/预览/软删除接口不变，先完成资产中心数据层扩展。
+
+**影响范围**：
+- `blade-backend/src/main/resources/db/migration/V35__file_center_asset_schema.sql`
+- `blade-backend/src/main/java/com/blade/file/entity/*`
+- `blade-backend/src/main/java/com/blade/file/mapper/*`
+- `blade-backend/src/test/java/com/blade/file/FileAssetSchemaTest.java`
+- `docs/03-TASKS.md`
+
+**验证结果**：
+- `mvn test -Dtest=FileAssetSchemaTest,FileControllerTest -DfailIfNoTests=false` 通过。
+
+**执行人**：Hermes Agent 执行，Codex 审核
+
+---
+
+### [功能开发] - BE-1002 文件中心分页/详情 API
+
+**变更内容**：
+- 新增 FilePageDTO.java：分页查询 DTO，支持 keyword/folderId/fileType/businessType/bound/purpose/createBy/startDate/endDate/status 筛选
+- 新增 FileVO.java：文件视图对象，含 bound 标志（基于 file_business_bind.deleted=0 实时判断）
+- 新增 GET /api/files（FileController.list）：文件分页列表，委托 FileService.pageList(FilePageDTO)
+- 新增 GET /api/files/{id}（FileController.detail）：文件详情，委托 FileService.getDetail(Long id)
+- 更新 FileService 接口：新增 pageList(FilePageDTO) 和 getDetail(Long id) 方法
+- 更新 FileServiceImpl：实现分页查询、详情查询、基于 `file_business_bind` 的 `businessType/bound` 过滤和 bound 标志填充
+- 更新 FileControllerTest：新增 4 个测试用例（分页返回、筛选参数透传、默认分页、详情返回），CapturingFileService stub 补齐新方法
+
+**变更原因**：
+- BE-1002 需要文件中心的分页列表和详情接口作为前端页面的数据基础
+- `businessType` 和 `bound` 筛选统一基于 `file_business_bind.deleted=0` 判断，不依赖 `bind_count` 字段或 `file_storage` 旧业务字段
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/file/dto/FilePageDTO.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/dto/FileVO.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/service/FileService.java`（修改）
+- `blade-backend/src/main/java/com/blade/file/service/impl/FileServiceImpl.java`（修改）
+- `blade-backend/src/main/java/com/blade/file/controller/FileController.java`（修改）
+- `blade-backend/src/test/java/com/blade/file/FileControllerTest.java`（修改）
+- `docs/03-TASKS.md`（更新状态）
+- `docs/05-CHANGELOG.md`（本次变更）
+
+**验证结果**：
+- `mvn test -Dtest=FileControllerTest,FileAssetSchemaTest -DfailIfNoTests=false`：28/28 测试通过
+
+**执行人**：Hermes Agent 执行，Codex 审核
+
+---
+
+### [功能开发] - BE-1003 文件夹管理 API
+
+**变更内容**：
+- 新增 FileFolderCreateDTO：文件夹名称(必填)、parentId、sort
+- 新增 FileFolderUpdateDTO：folderName、parentId、sort（均为可选）
+- 新增 FileFolderVO：id、parentId、folderName、sort、children（树形结构）
+- 新增 FileFolderService 接口 + FileFolderServiceImpl 实现
+- 新增 FileFolderController：/api/file-folders/tree(GET)、/api/file-folders(POST)、/api/file-folders/{id}(PUT)、/api/file-folders/{id}(DELETE)
+- 新增 FileFolderControllerTest：7 个测试用例覆盖 tree/create/update/delete 四个入口的参数透传和响应
+- 新增 FileFolderServiceImplTest：4 个测试用例覆盖不存在、存在子文件夹、存在文件未移动、移动文件后软删除等删除规则
+- Codex 复核后补强 update/delete 的 tenantId、deleted、status 过滤，避免跨租户或已删除数据被误操作
+- 删除规则：验证存在→检查子文件夹阻止→检查文件→moveFilesToUnfiled=false 阻止/moveFilesToUnfiled=true 清空 folderId→软删除
+- 树构建：查询全部后按 parentId 分组在内存中构建层级
+
+**变更原因**：
+- BE-1003 需要文件夹管理能力作为文件中心左侧树的基础
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/file/dto/FileFolderVO.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/dto/FileFolderCreateDTO.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/dto/FileFolderUpdateDTO.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/service/FileFolderService.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/service/impl/FileFolderServiceImpl.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/controller/FileFolderController.java`（新建）
+- `blade-backend/src/test/java/com/blade/file/FileFolderControllerTest.java`（新建）
+- `blade-backend/src/test/java/com/blade/file/FileFolderServiceImplTest.java`（新建）
+- `docs/03-TASKS.md`（更新状态）
+- `docs/05-CHANGELOG.md`（本次变更）
+
+**验证结果**：
+- `mvn test -Dtest=FileFolderControllerTest,FileFolderServiceImplTest,FileControllerTest,FileAssetSchemaTest -DfailIfNoTests=false`：39/39 测试通过
+
+**执行人**：Hermes Agent 执行，Codex 审核
+
+---
+
+### [功能开发] - BE-1004 + BE-1006 多业务绑定与文件批量操作 API
+
+**变更内容**：
+- 新增 FileBindingCreateDTO：fileIds、businessType、businessId、bindRole、isPrimary（@NotEmpty/@NotNull/@NotBlank 校验）
+- 新增 FileBindingVO：绑定关系视图对象
+- 新增 FileBatchDeleteDTO：fileIds
+- 新增 FileBatchMoveDTO：fileIds、folderId
+- 新增 FileBindingService 接口 + FileBindingServiceImpl 实现
+- 新增 FileBindingController（/api/files），承载绑定和批量操作端点：
+  - GET /api/files/{id}/bindings：查询文件的有效绑定关系
+  - POST /api/files/bindings：批量绑定（验证文件存在→插入绑定记录→写操作日志）
+  - DELETE /api/files/bindings/{id}：软删除绑定（验证绑定存在→deleted=1→写日志）
+  - POST /api/files/batch-delete：批量软删除（status=0，只操作当前租户正常文件）
+  - POST /api/files/batch-move：批量移动文件夹（验证文件夹存在→更新folder_id→写日志）
+- 操作日志：bind、unbind、batch_delete、batch_move 四种类型写入 file_operation_log，带 operatorId/tenantId
+- Codex 复核后补强解绑写操作的 `tenantId/deleted` 过滤、批量 DTO 的 `fileIds` 非空校验，以及 Controller 测试的批量参数透传断言
+
+**变更原因**：
+- BE-1004 需要多业务绑定 API 将文件与商品/SKU/订单/入库日志关联
+- BE-1006 需要批量操作 API 作为文件中心管理功能的基础
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/file/dto/FileBindingCreateDTO.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/dto/FileBindingVO.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/dto/FileBatchDeleteDTO.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/dto/FileBatchMoveDTO.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/service/FileBindingService.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/service/impl/FileBindingServiceImpl.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/controller/FileBindingController.java`（新建）
+- `blade-backend/src/test/java/com/blade/file/FileBindingControllerTest.java`（新建，9 测试用例）
+- `blade-backend/src/test/java/com/blade/file/FileBindingServiceImplTest.java`（新建，12 测试用例）
+- `docs/03-TASKS.md`（更新 BE-1004/BE-1006 状态）
+- `docs/05-CHANGELOG.md`（本次变更）
+
+**验证结果**：
+- `mvn test -Dtest=FileBindingControllerTest,FileBindingServiceImplTest,FileFolderControllerTest,FileFolderServiceImplTest,FileControllerTest,FileAssetSchemaTest -DfailIfNoTests=false`：60/60 测试通过
+- Service 测试覆盖：getBindings 返回、createBindings 文件校验、createBindings 日志写入、deleteBinding 不存在、deleteBinding 软删除与日志、batchDelete 更新状态、batchDelete 空列表跳过、batchMove 文件夹不存在、batchMove null folderId、batchMove 正常移动
+- Controller 测试覆盖：绑定查询/创建/删除、批量删除/移动参数透传、空 fileIds 校验
+
+**执行人**：Hermes Agent 执行，Codex 审核
+
+---
+
+### [功能开发] - BE-1007 + BE-1008 未绑定文件治理与清理定时任务
+
+**变更内容**：
+- 新增 FileCleanupService 接口 + FileCleanupServiceImpl 实现：
+  - countUnboundCandidates(days)：统计未绑定未归档超期文件数（基于 file_business_bind.deleted=0 判断）
+  - softDeleteUnbound(days)：软删除候选文件（status=0, deletedTime=now），写入 file_cleanup_log
+  - markPurged(days)：标记可清理文件（purgedTime=now），仅处理未绑定、未归档，且 purpose IN ('temp','ocr','import') 或无 purpose 的文件；不物理删除
+- 新增 FileCleanupController（/api/files/cleanup/）：GET unbound-candidates、POST soft-delete-unbound、POST mark-purged
+- 新增 FileCleanupScheduler：@ConditionalOnProperty 控制（默认 disabled），第一版按配置 tenant-id + cron 执行两步清理
+- BladeApplication 新增 @EnableScheduling
+- FileStorageProperties 新增 Cleanup 嵌套配置类（enabled=false 默认），支持 blade.file.cleanup.* 配置
+- application.yml 新增 blade.file.cleanup.* 配置节（enabled、tenant-id、保留天数、cron）
+
+**变更原因**：
+- 文件中心需要自动清理未绑定临时文件和过期软删除元数据
+- 安全保守策略：仅操作元数据不做物理删除；业务凭证文件自动保留
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/BladeApplication.java`（修改：加 @EnableScheduling）
+- `blade-backend/src/main/java/com/blade/file/config/FileStorageProperties.java`（修改：加 Cleanup 嵌套类）
+- `blade-backend/src/main/resources/application.yml`（修改：加 cleanup 配置）
+- `blade-backend/src/main/java/com/blade/file/service/FileCleanupService.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/service/impl/FileCleanupServiceImpl.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/controller/FileCleanupController.java`（新建）
+- `blade-backend/src/main/java/com/blade/file/scheduler/FileCleanupScheduler.java`（新建）
+- `blade-backend/src/test/java/com/blade/file/FileCleanupControllerTest.java`（新建，6 测试用例）
+- `blade-backend/src/test/java/com/blade/file/FileCleanupServiceImplTest.java`（新建，7 测试用例）
+- `docs/03-TASKS.md`（更新 BE-1007/BE-1008 状态）
+- `docs/05-CHANGELOG.md`（本次变更）
+
+**验证结果**：
+- `mvn test '-Dtest=FileCleanup*Test,FileBindingControllerTest,FileBindingServiceImplTest,FileFolderControllerTest,FileFolderServiceImplTest,FileControllerTest,FileAssetSchemaTest' -DfailIfNoTests=false`：74/74 测试通过
+- `git diff --check`：通过
+- Service 测试覆盖：countUnbound 返回计数/零值、softDelete 状态保护更新+日志/空列表跳过、markPurged 绑定保护+日志写入/purgedTime 更新/空列表跳过、非法保留天数拒绝
+- Controller 测试覆盖：3 个端点参数透传与默认值、响应结构
+
+**执行人**：Hermes Agent 执行，Codex 审核并补齐状态/绑定/租户调度边界
+
+### [功能开发] - BE-1005 商品/SKU 图片绑定服务
+
+**变更内容**：
+- 新增 `ProductFileBindingDTO` 和 `SkuImageBindingDTO`：请求 DTO 支持 mainFileId（主图）、galleryFileIds（图集）、skuImageBindings（SKU 图片绑定列表）。
+- 新增 `PUT /api/products/{id}/file-bindings` 端点：支持替换语义的商品/SKU 图片绑定。
+- 新增 `ProductService.bindFiles(Long productId, ProductFileBindingDTO dto)` 方法，在 `ProductServiceImpl` 实现：
+  - mainFileId 存在时：软删除已有 product/main 绑定，插入新主图绑定（isPrimary=1），更新 product.imageUrl。
+  - galleryFileIds 非 null 时：软删除已有 product/gallery 绑定，按提供的列表插入新图集绑定。空列表=清空图集。
+  - skuImageBindings 非 null 时：逐 SKU 验证归属（productId、tenantId、status=1、deleted=0），软删除已有 sku/sku_image 绑定，插入新图片。
+  - 批量文件验证：所有去重后的 fileId 必须在当前租户存在且 status=1。
+  - 绑定写入带 tenantId、deleted=0、bindRole、isPrimary、sort、createBy。
+- `create()` 和 `update()` 新增 `syncMainImageBinding()` 调用：当 product.imageUrl 为纯数字 fileId 时，自动同步到 file_business_bind（main/1）。非数字历史 URL 忽略不抛异常。
+- `ProductServiceImpl` 新增 `FileBusinessBindMapper` 和 `FileStorageMapper` 依赖注入。
+
+**变更原因**：
+- BE-1005 需要商品主图/图集/SKU 图片统一走 file_business_bind 管理，支持替换语义的前端操作。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/product/controller/ProductController.java`（修改：新增端点）
+- `blade-backend/src/main/java/com/blade/product/service/ProductService.java`（修改：新增 bindFiles 方法）
+- `blade-backend/src/main/java/com/blade/product/service/impl/ProductServiceImpl.java`（修改：新增 bindFiles 实现 + syncMainImageBinding 辅助 + 依赖注入）
+- `blade-backend/src/main/java/com/blade/product/dto/ProductFileBindingDTO.java`（新建）
+- `blade-backend/src/main/java/com/blade/product/dto/SkuImageBindingDTO.java`（新建）
+- `blade-backend/src/test/java/com/blade/product/ProductFileBindingServiceTest.java`（新建：11 测试用例）
+- `blade-backend/src/test/java/com/blade/product/ProductFileBindingControllerTest.java`（新建：2 测试用例，验证 DTO 透传）
+- `docs/03-TASKS.md`（更新状态）
+- `docs/SESSION_CONTEXT.md`（更新接手快照）
+- `docs/05-CHANGELOG.md`（本次变更）
+
+**验证结果**：
+- `mvn test '-Dtest=ProductFileBinding*Test,FileBindingControllerTest,FileBindingServiceImplTest,FileControllerTest,FileAssetSchemaTest' -DfailIfNoTests=false`：62/62 测试通过
+- 包含 `ProductControllerTest` 的完整 SOW 命令已尝试运行，但本地 MySQL 连接失败导致 SpringBoot 上下文无法启动；新增 standalone controller 测试已覆盖本轮接口透传。
+- `git diff --check`：通过
+- Service 测试覆盖：mainFileId 替换主图+更新 imageUrl、重复 fileId 去重验证、gallery 空列表清空、gallery 正常插入、SKU 归属校验失败、SKU 正常绑定、SKU 空列表清空、商品不存在、文件不存在、三角色同时操作、非数字历史 URL 不写绑定
+- Controller 测试覆盖：path productId + main/gallery/sku DTO 透传、空图集清空语义透传
+
+**执行人**：Hermes Agent 执行，Codex 审核并补齐重复 fileId、主图替换、createBy、Controller DTO 透传和文档边界
+
+### [功能开发] - BE-1010 基础视频文件支持
+
+**变更内容**：
+- FileStorageProperties 默认 allowedTypes 新增 video/mp4、video/webm、video/quicktime。
+- application.yml 运行配置同步放行 video/mp4、video/webm、video/quicktime，避免默认属性被配置覆盖后运行时仍拒绝视频上传。
+- FileServiceImpl.upload 自动分类：contentType 以 image/ 开头→IMAGE，video/ 开头→VIDEO，其他→OTHER；文件扩展名从原始文件名提取（小写无点）。
+- FileUploadVO 新增 fileType 和 fileExt 字段，上传响应带这两个字段。
+- 无 DB 迁移、无转码/封面/Range/分片/物理删除。
+
+**变更原因**：
+- BE-1010 需要基础视频上传和预览能力；后续转码/封面等单独立项。
+
+**影响范围**：
+- FileStorageProperties.java、FileServiceImpl.java、FileUploadVO.java
+- application.yml
+- FileVideoSupportTest.java（新建：6 测试用例）
+- FileAllowedTypesRegressionTest.java（新增：1 个 application.yml allowed-types 配置漂移回归测试）
+- FileControllerTest.java（补充上传响应 fileType/fileExt 和视频响应断言）
+
+**验证结果**：
+- `mvn test '-Dtest=FileVideoSupportTest,FileControllerTest,FileAssetSchemaTest,FileCleanup*Test' -DfailIfNoTests=false`：49/49 测试通过
+- `mvn test '-Dtest=File*Test' -DfailIfNoTests=false`：82/82 测试通过
+
+**执行人**：Hermes Agent 执行，Codex 审核并补齐运行配置和 Controller 上传响应断言；Claude Code 执行小范围配置漂移回归测试，Codex 复核并修正报告口径
+
+### [功能开发] - BE-1009A 文件预览 PUBLIC/PRIVATE 基础收口
+
+**变更内容**：
+- `FileController.preview` 新增可见性校验：`visibility=PUBLIC` 可匿名预览；`PRIVATE` 或 `null` 需要已认证用户。
+- 预览端点仍保留 SecurityConfig 的 `permitAll` 入口能力，避免商品公开图无法匿名访问；权限判断下沉到 Controller。
+- 登录判断改为基于 Spring Security `Authentication.isAuthenticated()` 且排除 `AnonymousAuthenticationToken`，不绑定业务 `User` 实体。
+- `FileControllerTest` 新增 4 个预览访问控制用例：PUBLIC 匿名成功、PRIVATE 匿名拒绝、null visibility 匿名拒绝、PRIVATE 登录成功。
+- 未改 DB 迁移、未改 SecurityConfig、未做分享 token、未做物理删除、未做前端改造。
+
+**变更原因**：
+- BE-1009 要求商品公开图可 `PUBLIC`，私有文件预览必须校验登录、租户和业务权限。本次先完成 PUBLIC/PRIVATE 登录边界，业务权限映射后续继续。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/file/controller/FileController.java`
+- `blade-backend/src/test/java/com/blade/file/FileControllerTest.java`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `mvn test '-Dtest=FileControllerTest' -DfailIfNoTests=false`：11/11 测试通过
+- `mvn test '-Dtest=File*Test' -DfailIfNoTests=false`：86/86 测试通过
+
+**剩余事项**：
+- BE-1009 仍未完全完成：还需要定义并实现私有文件的业务权限映射，例如订单图、入库凭证、商品素材分别对应哪些权限码。
+
+**执行人**：Claude Code 执行初稿，Codex 复核并修正认证主体判断、测试预期和文档状态
+
+### [功能开发] - BE-1009B 文件预览业务权限映射
+
+**变更内容**：
+- `FileController` 新增业务权限映射 `BUSINESS_PERMISSION_MAP`：`product/sku → menu:product`、`order → btn:order:view`、`inventory_log → btn:inventory:viewLog`、`ocr_document → menu:file`。
+- 非 PUBLIC 文件在登录校验通过后，增加 `checkBusinessPermission(FileStorage)` 方法进行业务权限校验。
+- `btn:file:viewAll` 绕过所有业务权限映射，直接放行。
+- 有绑定的文件：查询 `file_business_bind`（deleted=0），任一绑定业务类型的映射权限匹配即放行；若绑定业务类型均未映射，则视为 temp/unknown，继续走 viewOwn 判断。
+- 无绑定的文件：回退到 `file_storage.businessType`，若仍无匹配则视为 unbound。
+- unbound/temp/unknown：仅 `btn:file:viewOwn` 可访问，且要求 `Authentication.getPrincipal()` 是 `com.blade.system.user.entity.User` 实例且 `userId.equals(file.createBy)`，不回退到默认 userId=1。
+- `FileService` 新增 `getActiveBindings(Long fileId)` 方法。
+- `FileControllerTest` 新增 8 个业务权限测试用例 + 修复 1 个已有测试的权限上下文。
+
+**变更原因**：
+- BE-1009 要求私有文件预览必须校验业务权限。BE-1009A 已完成 PUBLIC/PRIVATE 登录边界，本次完成业务权限映射部分，BE-1009 现已完整满足登录+租户+业务权限三项校验。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/file/controller/FileController.java`
+- `blade-backend/src/main/java/com/blade/file/service/FileService.java`
+- `blade-backend/src/main/java/com/blade/file/service/impl/FileServiceImpl.java`
+- `blade-backend/src/test/java/com/blade/file/FileControllerTest.java`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `mvn test '-Dtest=FileControllerTest' -DfailIfNoTests=false`：20/20 测试通过
+- `mvn test '-Dtest=File*Test' -DfailIfNoTests=false`：95/95 测试通过
+
+**执行人**：Claude Code 执行，Codex 复核并补齐 temp/unknown 绑定边界与最终测试口径
+
+### [功能开发] - Agent 颜色尺码结构数据包
+
+**变更内容**：
+- 新增 `GET /api/agent/analytics/sku-mix`，基于现有商品详情分析输出同款 SKU、颜色、尺码销售结构事实。
+- 新增 `AgentSkuMixDTO` 和 `AgentSkuMixService`，返回 `skus`、`colors`、`sizes`、`reasons`。
+- 每个结构行新增 `signal`，当前表示销售结构：`HOT` / `NORMAL` / `LOW`。
+- 接口要求 `agent:analytics:read`，不返回成本、毛利、毛利率。
+- 更新外部 Agent 接入指南和 API 文档，明确缺货、积压和补货优先级由 BE-558 库存建议接口承接。
+- 更新 Agent 接入任务状态，BE-555 标记为完成。
+
+**变更原因**：
+- 用户希望 Agent 能看出同款下哪些颜色、尺码、SKU 表现好或表现弱，避免只看商品总销量。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/agent/dto/AgentSkuMixDTO.java`
+- `blade-backend/src/main/java/com/blade/agent/service/AgentSkuMixService.java`
+- `blade-backend/src/main/java/com/blade/agent/controller/AgentAnalyticsController.java`
+- `blade-backend/src/test/java/com/blade/agent/AgentSkuMixServiceTest.java`
+- `docs/03-TASKS.md`
+- `docs/11-AGENT_ACCESS_GUIDE.md`
+- `docs/reference/API_SPEC.md`
+
+**验证结果**：
+- `mvn -q -Dtest=AgentAuthenticationFilterTest,AgentStyleTrendServiceTest,AgentKeyAuthenticationServiceTest,AgentCallAuditServiceTest,AgentSkuMixServiceTest test` 通过。
+- `mvn -q -DskipTests compile` 通过。
+- `git diff --check` 通过。
+
+**执行人**：AI
+
+---
+
+### [功能开发] - Agent 款式趋势多周期数据包
+
+**变更内容**：
+- `GET /api/agent/analytics/style-trends` 新增 `comparePeriods` 参数，默认对比 3 个周期，当前限制 1-6。
+- 款式趋势数据包从单周期销售排行升级为多周期事实序列，返回 `periodSeries`。
+- 新增趋势标签 `GROWING` / `STABLE` / `DECLINING` / `INSUFFICIENT_DATA`。
+- 新增建议字段 `KEEP` / `WATCH` / `REDUCE` 和 `reasons`，为 Agent 判断“持续向好/走弱/减少投入”提供结构化依据。
+- 更新外部 Agent 接入指南和 API 文档，明确当前趋势依据尚未叠加库存、客户覆盖面和利润事实。
+- 更新 Agent 接入任务状态，BE-554 从部分完成调整为完成。
+
+**变更原因**：
+- 用户希望 Agent 能分析哪些款持续向好、哪些款不建议继续做；单周期销售排行不足以支持趋势判断，需要至少多周期事实和可解释标签。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/agent/dto/AgentStyleTrendDTO.java`
+- `blade-backend/src/main/java/com/blade/agent/service/AgentStyleTrendService.java`
+- `blade-backend/src/main/java/com/blade/agent/controller/AgentAnalyticsController.java`
+- `blade-backend/src/test/java/com/blade/agent/AgentStyleTrendServiceTest.java`
+- `docs/03-TASKS.md`
+- `docs/11-AGENT_ACCESS_GUIDE.md`
+- `docs/reference/API_SPEC.md`
+
+**验证结果**：
+- `mvn -q -Dtest=AgentAuthenticationFilterTest,AgentStyleTrendServiceTest,AgentKeyAuthenticationServiceTest,AgentCallAuditServiceTest test` 通过。
+- `mvn -q -DskipTests compile` 通过。
+- `git diff --check` 通过。
+
+**执行人**：AI
+
+---
+
+### [功能开发] - Agent Gateway 调用审计
+
+**变更内容**：
+- 新增 V34 Agent 调用日志表，成功的 Agent 请求会记录 key 前缀、租户、路径、状态码、耗时、来源 IP 和 User-Agent，不记录原始 Agent Key。
+- `AgentAuthenticationFilter` 在认证成功并完成请求后写入调用审计事件。
+- 新增 `AgentCallAuditService`，写入调用日志并同步更新 Agent Key 最近使用时间/IP。
+- 更新 Agent 接入任务状态，BE-553 从部分完成调整为完成。
+- 更新外部 Agent 接入指南，补充调用审计和最近使用信息已实现。
+
+**变更原因**：
+- 外部 Agent 接入需要可追踪的调用来源、调用路径和最近使用信息，便于排查异常调用、后续限流和真实接入验证。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/agent/auth/AgentAuthenticationFilter.java`
+- `blade-backend/src/main/java/com/blade/agent/auth/AgentCallAuditEvent.java`
+- `blade-backend/src/main/java/com/blade/agent/auth/AgentCallAuditRecorder.java`
+- `blade-backend/src/main/java/com/blade/agent/service/AgentCallAuditService.java`
+- `blade-backend/src/main/java/com/blade/agent/entity/AgentCallLog.java`
+- `blade-backend/src/main/java/com/blade/agent/mapper/AgentCallLogMapper.java`
+- `blade-backend/src/main/resources/db/migration/V34__agent_call_log.sql`
+- `blade-backend/src/test/java/com/blade/agent/AgentAuthenticationFilterTest.java`
+- `blade-backend/src/test/java/com/blade/agent/AgentCallAuditServiceTest.java`
+- `docs/03-TASKS.md`
+- `docs/11-AGENT_ACCESS_GUIDE.md`
+
+**验证结果**：
+- `mvn -q -Dtest=AgentAuthenticationFilterTest,AgentStyleTrendServiceTest,AgentKeyAuthenticationServiceTest,AgentCallAuditServiceTest test` 通过。
+- `mvn -q -DskipTests compile` 通过。
+- `git diff --check` 通过。
+
+**执行人**：AI
+
+---
+
+## 2026-05-22 变更记录
+
+### [功能开发] - Agent Gateway 首个后端切片
+
+**变更内容**：
+- 新增 [11-AGENT_ACCESS_GUIDE.md](./11-AGENT_ACCESS_GUIDE.md)，给外部 Agent 接入方提供鉴权、当前接口、工具封装和安全检查清单。
+- 新增 `agent` 后端模块的首个只读入口 `GET /api/agent/analytics/style-trends`，以商品销售排行事实包作为款式趋势分析的第一版数据输入。
+- 新增 V33 Agent Key 表，key 采用公开 prefix + secret 哈希保存，凭证绑定租户并把逗号分隔 scope 映射为 `agent:*` authority，过期 key 会在认证阶段拒绝。
+- 新增 `X-Agent-Key` 认证过滤器，Agent 请求认证后写入 `TenantContext`，趋势接口要求 `agent:analytics:read`。
+- 收紧客户接口安全边界，`/api/customers/**` 不再位于 Spring Security 公开放行列表。
+- 增加 Agent 趋势事实包、Agent Key 认证服务、HTTP 认证过滤器 focused tests，并补充本轮 Superpowers 实现计划。
+
+**变更原因**：
+- Agent 第一阶段需要先建立独立、只读、租户隔离的 Gateway 链路，再继续扩展客户跟进、周期报告和 WhatsApp 信息分析。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/agent/**`
+- `blade-backend/src/main/java/com/blade/config/SecurityConfig.java`
+- `blade-backend/src/main/resources/db/migration/V33__agent_gateway_keys.sql`
+- `blade-backend/src/test/java/com/blade/agent/**`
+- `docs/superpowers/plans/2026-05-22-agent-gateway-style-trends.md`
+- `docs/11-AGENT_ACCESS_GUIDE.md`
+- `docs/03-TASKS.md`
+- `docs/reference/API_SPEC.md`
+
+**验证结果**：
+- `mvn -q -Dtest=AgentAuthenticationFilterTest,AgentStyleTrendServiceTest,AgentKeyAuthenticationServiceTest test` 通过。
+- `mvn -q -DskipTests compile` 通过。
+- `git diff --check` 通过。
+
+**执行人**：AI
+
+---
+
+### [需求规划] - 外部 AI Agent 对接第一版
+
+**变更内容**：
+- 新增 [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md)，明确外部 Agent 不直连数据库，第一期采用只读 Agent Gateway。
+- PRD 新增外部 AI Agent 对接章节，锁定款式趋势判断、颜色尺码结构、客户跟进/风险、库存建议事实、周期经营分析数据包和统一搜索。
+- TASKS 新增 BE-551~BE-565，覆盖 Agent 安全边界复核、独立凭证、scope、多租户接入、款式趋势、颜色尺码结构、客户经营、库存建议、周期报告、定时提醒验证、限流、真实 Agent 验证、统一事件日志设计、WhatsApp 接入方案验证和后续能力路线评审。
+- Agent 专项设计补充能力地图和分层路线，记录商品经营、库存与供应、订单运营、利润分析、沟通反馈、异常检测和经营记忆等后续方向。
+- 需求讨论记录新增需求 #006，入口文档和会话上下文增加 Agent 对接设计索引。
+
+**变更原因**：
+- 用户希望把外部 Agent 接入 BladeProject 的方案沉淀为正式需求，并基于当前系统事实筛选参考架构中可复用的部分。
+
+**影响范围**：
+- `docs/10-AGENT_INTEGRATION_DESIGN.md`
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/04-REQUISITION_LOG.md`
+- `docs/01-README.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/reference/API_SPEC.md`
+- `docs/reference/PROJECT_STRUCTURE.md`
+
+**执行人**：AI
+
+---
+
+## 2026-05-21 变更记录
+
+### [功能优化] - 订单编辑图片上传交互
+
+**变更内容**：
+- PC 订单列表编辑弹窗移除原始 `images` JSON 文本框，改为图片墙展示。
+- 编辑弹窗打开时解析已有 fileId 和历史 URL 图片，支持预览、追加上传和移除。
+- 上传新图时在当前图片集合后追加 fileId，不再覆盖编辑前保留的历史图片值。
+- 上传按钮在请求进行中显示上传状态，保存时仍统一提交到 `editForm.images`。
+- 上传 E2E 增加订单编辑弹窗回归，验证上传后预览图已加载。
+
+**变更原因**：
+- 编辑订单时要求用户手工理解 fileId JSON 不适合业务录入，且旧交互无法直接查看和管理已上传图片。
+
+**影响范围**：
+- `blade-admin/src/views/orders/index.vue`
+- `blade-admin/src/api/file.ts`
+- `blade-admin/e2e-file-upload.spec.ts`
+- `docs/03-TASKS.md`
+
+**验证结果**：
+- `npm run build` 通过。
+- `npx playwright test e2e-file-upload.spec.ts --project=chromium` 通过，商品主图和订单编辑图片上传均可预览。
+
+**执行人**：AI
+
+---
+
+### [Bug修复] - 商品主图上传后前端不显示
+
+**变更内容**：
+- 修复 PC 文件预览解析器：单图字段保存单个 fileId 字符串时，`parseImageSources("3")` 现在会生成 `/api/files/3/preview`，不再被误判为空数组。
+- `parseFileIds` 同步支持单个 JSON 标量 fileId，保持单图字段和多图数组字段行为一致。
+- 收紧商品主图上传 E2E，除断言上传接口返回 fileId 外，增加预览 `<img>` 可见、预览地址匹配、图片实际加载成功断言。
+
+**变更原因**：
+- 商品主图字段保存的是单个 fileId。旧解析逻辑对 `JSON.parse("3")` 的数字结果只按数组处理，导致上传成功但表单和列表拿不到预览地址。
+
+**影响范围**：
+- `blade-admin/src/api/file.ts`
+- `blade-admin/e2e-file-upload.spec.ts`
+- `docs/03-TASKS.md`
+
+**验证结果**：
+- `npm run build` 通过。
+- `npx playwright test e2e-file-upload.spec.ts --project=chromium` 通过，商品主图上传后预览图已加载。
+
+**执行人**：AI
+
+---
+
+### [功能优化] - 快速录单补齐订单图片上传
+
+**变更内容**：
+- PC 快速录单页在结算与配送区新增订单图片入口，支持多图上传、图片墙预览和移除。
+- 快速录单复用统一文件接口上传订单图片，创建订单时将 fileId JSON 数组字符串写入 `sale_order.images`。
+- 扩展 PC 文件上传 Playwright 回归，覆盖快速录单上传后预览图可加载且页面无系统错误。
+
+**变更原因**：
+- 快速录单此前缺少订单图片入口，导致纸质单据录入与标准新建订单的图片能力不一致。
+
+**影响范围**：
+- `blade-admin/src/views/orders/quick.vue`
+- `blade-admin/e2e-file-upload.spec.ts`
+- `docs/03-TASKS.md`
+
+**执行人**：AI
+
+---
+
 ## 格式
 
 ```markdown
@@ -16,6 +1219,692 @@
 **影响范围**：{影响哪些模块/功能}
 **执行人**：AI / 用户
 ```
+
+---
+
+## 2026-05-20 变更记录
+
+### [Bug修复] - 图片上传系统错误
+
+**变更内容**：
+- 定位上传接口返回 500 的原因：后端服务仍停留在 V31 数据库结构，生产库缺少 `file_storage` 表。
+- 重启后端并执行 Flyway V32，`file_storage` 表已创建，`POST /api/files/upload` 可正常返回 fileId。
+- 新增后端 `FileControllerTest`，覆盖 multipart 上传返回 fileId 和预览地址。
+- 新增 PC 管理端 `e2e-file-upload.spec.ts`，真实浏览器验证商品主图上传走统一文件接口且不出现系统错误。
+
+**变更原因**：
+- 统一文件存储代码已合入，但运行中的后端未重启，数据库迁移未执行，导致上传插入文件记录失败。
+
+**影响范围**：
+- `blade-backend/src/test/java/com/blade/file/FileControllerTest.java`
+- `blade-admin/e2e-file-upload.spec.ts`
+- `docs/03-TASKS.md`
+
+**验证结果**：
+- `mvn -q -Dtest=FileControllerTest test` 通过。
+- `npx playwright test e2e-file-upload.spec.ts --project=chromium` 通过。
+- 直接调用 `POST /api/files/upload` 返回 `code=200` 和 fileId。
+
+**执行人**：AI
+
+### [架构规划] - 统一文件存储与图片上传方案
+
+**变更内容**：
+- 新增 [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md)，明确统一文件入口、业务保存 fileId、本地存储第一版、后续可切七牛云/NAS 的整体方案。
+- PRD 中订单图片和入库凭证字段说明从直接保存 URL 调整为保存 fileId JSON 数组字符串。
+- OCR 拍照录单的图片上传任务调整为复用统一文件接口，不再单独设计孤立上传能力。
+- TASKS 新增统一文件存储任务组：BE-901~BE-906、BA-901~BA-903、FE-901。
+- SESSION_CONTEXT 和 README 增加统一文件存储设计入口。
+- 已完成统一文件存储第一版开发：V32 文件表、本地上传/预览/软删除/绑定接口、PC 订单图片上传、PC/移动端入库图片上传、PC 商品主图上传。
+
+**统一接入清单**：
+| 业务入口 | 保存字段 | 保存形式 | 状态 |
+|----------|----------|----------|------|
+| PC 新建订单图片 | `sale_order.images` | fileId JSON 数组字符串 | ✅ 已完成 |
+| PC 编辑订单图片 | `sale_order.images` | fileId JSON 数组字符串 | ✅ 已完成 |
+| PC 订单详情图片预览 | `/api/files/{id}/preview` | fileId 预览地址 | ✅ 已完成 |
+| PC 入库凭证图片 | `inventory_log.images` | fileId JSON 数组字符串 | ✅ 已完成 |
+| 移动端入库凭证图片 | `inventory_log.images` | fileId JSON 数组字符串 | ✅ 已完成 |
+| PC 商品主图 | `product.image_url` | 单个 fileId 字符串 | ✅ 已完成 |
+| OCR 原始单据图片 | 后续 OCR 业务表 | fileId | ⏳ OCR 功能未开发，统一入口可复用 |
+
+**变更原因**：
+- 当前代码只具备图片字段和部分前端临时预览，缺少真实上传、长期保存和统一访问链路。
+- 业务表保存 fileId 可以降低后续从本地迁移到七牛云或 NAS 的重构成本。
+
+**影响范围**：
+- `docs/09-FILE_STORAGE_DESIGN.md`
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/01-README.md`
+- `docs/SESSION_CONTEXT.md`
+- `blade-backend/src/main/java/com/blade/file/`
+- `blade-backend/src/main/resources/db/migration/V32__file_storage.sql`
+- `blade-admin/src/api/file.ts`
+- `blade-mobile/src/api/file.ts`
+
+**执行人**：AI
+
+---
+
+## 2026-05-13 变更记录
+
+### [Bug修复] - 前端 Material 图标英文裸露
+
+**变更内容**：
+- 移除 PC 管理端对 Google Material Symbols 字体的强依赖。
+- 新增本地 SVG 图标 fallback，将现有 `material-symbols-outlined` 图标名在运行时转换为内联 SVG。
+- 修复订单列表、侧边栏、顶部导航、按钮等位置出现 `dashboard`、`download`、`edit` 等英文图标名的问题。
+
+**变更原因**：
+- 本地开发环境无法稳定加载 Google 字体时，Material Symbols ligature 不生效，浏览器会直接展示图标名称文本。
+
+**影响范围**：
+- `blade-admin/src/main.ts`
+- `blade-admin/src/styles/main.css`
+- `blade-admin/src/utils/materialIconFallback.ts`
+
+**执行人**：AI
+
+---
+
+## 2026-05-05 变更记录
+
+### [Bug修复] - 保持登录 30 天生效
+
+**变更内容**：
+- 登录页“保持登录状态 (30天)”从仅前端勾选项改为真实影响后端 token 策略。
+- 前端登录请求新增 `remember` 参数，并默认勾选保持登录。
+- access token 有效期调整为 1 小时。
+- 后端新增 `jwt.remember-refresh-expiration=2592000000`，勾选保持登录时 refresh token 有效期为 30 天；未勾选时仍使用默认 7 天。
+- refresh token 续期时保留 remember 标记，后续续期继续按 30 天策略滚动。
+- 前端请求拦截器新增主动续期：业务请求发出前解析 access token 过期时间，若已过期或 10 分钟内过期，先 refresh 再提交原请求。
+
+**变更原因**：
+- 原实现 access token 30 分钟、refresh token 7 天，登录页 30 天文案未真正生效，长时间录单后可能出现登录异常。
+- 原前端只在请求返回 401/403 后被动 refresh，关键提交请求可能正好撞上 token 过期窗口。
+
+**影响范围**：
+- `blade-admin/src/views/login/index.vue`
+- `blade-admin/src/api/auth.ts`
+- `blade-admin/src/api/client.ts`
+- `blade-backend/src/main/java/com/blade/auth/dto/LoginRequest.java`
+- `blade-backend/src/main/java/com/blade/auth/controller/LoginController.java`
+- `blade-backend/src/main/java/com/blade/auth/service/AuthService.java`
+- `blade-backend/src/main/java/com/blade/auth/service/JwtTokenProvider.java`
+- `blade-backend/src/main/resources/application.yml`
+
+**执行人**：AI
+
+### [功能开发] - 数据分析页 v1
+
+**变更内容**：
+- 新增独立 PC 页面 `/analytics`，菜单为“数据分析”，用于经营决策分析。
+- 新增 `menu:analytics` 菜单权限与 `data:analytics:profit` 毛利数据权限；老板/系统管理员默认可见毛利，销售员默认只看销售额、销量、订单数等基础指标。
+- 新增 `/api/analytics/summary`、`/trend`、`/product-ranking`、`/product-detail` 接口，支持按商品、SKU、颜色、尺码维度分析。
+- 现有仪表盘保留概览定位，只增加“查看数据分析”入口。
+
+**变更原因**：
+- 现有仪表盘偏概览，缺少可用于经营决策的维度拆解和商品排行明细。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/analytics/`
+- `blade-backend/src/main/resources/db/migration/V31__analytics_permissions.sql`
+- `blade-admin/src/views/analytics/index.vue`
+- `blade-admin/src/api/analytics.ts`
+- `blade-admin/src/router/index.ts`
+- `blade-admin/src/views/layout/index.vue`
+
+**执行人**：AI
+
+### [Bug修复] - 订单列表编辑保存 ID 校验
+
+**变更内容**：
+- 修复订单列表点击“编辑”后保存提示“订单ID不能为空”的问题。
+- 后端更新订单接口改为以路径参数 `/orders/{id}` 为订单 ID 来源，不再要求请求体必须携带 `id` 才能通过参数校验。
+- 前端 `updateOrder` 请求体同步补充 `id` 字段，兼容现有接口处理逻辑。
+
+**变更原因**：
+- `@Valid` 在 Controller 内部 `dto.setId(id)` 之前执行，请求体未带 `id` 时会提前触发 `OrderUpdateDTO.id` 的非空校验。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/order/dto/OrderUpdateDTO.java`
+- `blade-admin/src/api/order.ts`
+
+**执行人**：AI
+
+### [功能优化] - 仪表盘统计卡片排序
+
+**变更内容**：
+- 仪表盘第一行跟随上方日期范围动态展示：周期订单、周期销售额、周期毛利、周期销量，卡片标题同步切换为“今日/本周/本月”等周期文案。
+- 将原“平均客单价”卡片替换为“销量”卡片，销量按当前周期内已产生收款订单的商品明细数量汇总。
+- 仪表盘第二行固定展示：本周订单、本周销售额、商品数量、待处理订单。
+- 仪表盘第三行固定展示：库存周转率、低库存预警、库存总量、库存积压预警。
+- 前端移除额外今日统计请求，第一行恢复使用当前筛选周期的统计数据。
+
+**变更原因**：
+- 按经营关注优先级重新排列仪表盘指标，同时保留顶部周期筛选对第一行核心经营指标的联动能力。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/dashboard/dto/DashboardStatsDTO.java`
+- `blade-backend/src/main/java/com/blade/dashboard/service/impl/DashboardServiceImpl.java`
+- `blade-admin/src/views/dashboard/index.vue`
+- `blade-admin/src/api/dashboard.ts`
+
+**执行人**：AI
+
+### [功能优化] - 仪表盘毛利统计
+
+**变更内容**：
+- 移除仪表盘“平均在库天数”统计卡片和 `avgDaysInStock` 字段。
+- `GET /api/dashboard/stats` 新增当前周期毛利、本周毛利及对应环比字段。
+- 毛利统计沿用订单统计口径：按 `order_date`、已产生收款订单统计，金额为 `max(gross_profit - refund_amount, 0)`。
+- 前端第一行统计卡片展示当前筛选周期毛利，库存相关指标保留在第三行展示。
+
+**变更原因**：
+- 平均在库天数当前业务价值不高，管理端更需要直接查看销售毛利。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/dashboard/dto/DashboardStatsDTO.java`
+- `blade-backend/src/main/java/com/blade/dashboard/dto/InventoryStatsVO.java`
+- `blade-backend/src/main/java/com/blade/dashboard/service/impl/DashboardServiceImpl.java`
+- `blade-admin/src/views/dashboard/index.vue`
+- `blade-admin/src/api/dashboard.ts`
+
+**执行人**：AI
+
+### [功能优化] - 仪表盘订单统计口径调整
+
+**变更内容**：
+- 仪表盘订单统计日期口径改为 `order_date`，旧数据为空时回退 `create_time`。
+- 订单数、销售额、趋势图、热销商品和状态分布统一只统计已产生收款订单：`paid_amount > 0` 或 `payment_status in (1, 2)`。
+- 销售额改为应收净额：`max(total_amount - refund_amount, 0)`。
+- 状态分布补齐 `7=退货中`、`8=已退货`。
+
+**变更原因**：
+- 仪表盘需要反映真实经营订单，定金订单和未发货的已付款订单也应纳入统计，退款订单按净额体现。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/dashboard/service/impl/DashboardServiceImpl.java`
+- `blade-backend/src/test/java/com/blade/dashboard/DashboardServiceTest.java`
+- `docs/02-PRD.md`
+- `docs/reference/API_SPEC.md`
+
+**执行人**：AI
+
+### [数据补充] - 国家区号补充利比里亚
+
+**变更内容**：
+- 国家区号选择器新增 `Liberia / 利比里亚 / +231`。
+- 核对并补齐非洲国家区号，覆盖 54 个非洲主权国家；新增贝宁、布隆迪、佛得角、中非共和国、乍得、科摩罗、吉布提、赤道几内亚、厄立特里亚、斯威士兰、加蓬、冈比亚、几内亚、几内亚比绍、莱索托、马拉维、毛里塔尼亚、尼日尔、圣多美和普林西比、塞舌尔、塞拉利昂、索马里、南苏丹、多哥等。
+- 补充 `CF` 中非共和国旗帜映射，避免国家选择器显示默认旗帜。
+
+**变更原因**：
+- 快速录单和客户建档需要支持更完整的非洲客户电话区号。
+
+**影响范围**：
+- `blade-admin/src/data/countries.ts`
+
+**执行人**：AI
+
+### [功能优化] - 快速录单连续录入细节
+
+**变更内容**：
+- “保存并录下一单”后，纸质单号按上一单末尾数字自动 +1，并回填到下一单的单据信息中。
+- 快速录单提交时，如果客户名称、电话、地址均为空，自动使用已建档的 `散客用户 / 88888888`。
+- SKU 商品明细的数量输入框初始为空，只有录入数量后才参与应收、成本、毛利和提交校验。
+
+**变更原因**：
+- 贴合纸质订单连续录入习惯，减少重复输入，并避免数量字段默认值误导录单。
+
+**影响范围**：
+- `blade-admin/src/views/orders/quick.vue`
+
+**执行人**：AI
+
+### [功能优化] - 快速录单客户建档一体化
+
+**变更内容**：
+- 快速录单客户信息区新增国家区号选择，默认 `+86`。
+- 修复国家区号组件在快速录单中无法选择的问题：将外层原生 `label` 改为普通容器，避免弹层点击事件被 label 干扰。
+- 老客户可通过客户名称下拉筛选选择，选中后自动回填国家区号、电话和地址。
+- 新客户可直接填写国家区号、电话、客户名称和地址；保存订单前会先自动创建客户，再将新客户 ID 带入订单创建。
+- “保存并录下一单”后客户区恢复默认国家区号 `+86`。
+
+**变更原因**：
+- 将客户模块的新建客户能力融入快速录单流程，减少纸质订单录入时来回切换客户管理页面。
+
+**影响范围**：
+- `blade-admin/src/views/orders/quick.vue`
+
+**执行人**：AI
+
+### [Bug修复] - 登录过期自动续期
+
+**变更内容**：
+- 前端保存登录接口返回的 `refreshToken`。
+- Axios 响应拦截器在请求返回 401/403 且存在 refresh token 时，自动调用 `/api/auth/refresh` 刷新 access token，并重试原请求。
+- 续期失败时统一清理 `token`、`refreshToken`、`userInfo`、`permissions` 并跳转登录页。
+- 后端刷新 token 时同步写入新 access token 和新 refresh token 的租户缓存，避免续期后权限/租户上下文丢失。
+
+**变更原因**：
+- 原 access token 有效期为 30 分钟，长时间停留页面后请求会过期，前端未续期导致页面变成无权限或被迫重新登录。
+
+**影响范围**：
+- `blade-admin/src/api/client.ts`
+- `blade-admin/src/stores/auth.ts`
+- `blade-admin/src/views/login/index.vue`
+- `blade-backend/src/main/java/com/blade/auth/service/AuthService.java`
+
+**执行人**：AI
+
+### [功能优化] - 快速录单来源档口默认值
+
+**变更内容**：
+- 快速录单页“来源档口/店铺”默认填入 `御龙`。
+- 点击“保存并录下一单”重置表单后，来源档口恢复默认值 `御龙`。
+
+**变更原因**：
+- 当前录单主要来自固定档口，默认值可减少重复输入。
+
+**影响范围**：
+- `blade-admin/src/views/orders/quick.vue`
+
+**执行人**：AI
+
+### [功能优化] - 快速录单客户名称下拉筛选
+
+**变更内容**：
+- 快速录单页客户名称输入框改为可筛选下拉。
+- 输入客户名称时按关键字查询已有客户，并展示客户名称、首个电话和地址。
+- 选中已有客户后自动回填 `customerId`、客户电话和客户地址。
+- 保留手动输入新客户名称能力，未选择下拉项时按新客户信息继续录单。
+
+**变更原因**：
+- 提升纸质订单录入效率，减少重复输入已有客户资料。
+
+**影响范围**：
+- `blade-admin/src/views/orders/quick.vue`
+
+**执行人**：AI
+
+### [Bug修复] - 登录页验证码初始化随机化
+
+**变更内容**：
+- 登录页验证码初始值从固定 `8K2M` 改为页面加载时随机生成。
+- 保留点击“看不清？换一张”和验证码错误后自动刷新的原有逻辑。
+
+**变更原因**：
+- 原实现刷新登录页时验证码总是固定值，容易造成误解且不符合验证码交互预期。
+
+**影响范围**：
+- `blade-admin/src/views/login/index.vue`
+
+**执行人**：AI
+
+### [Bug修复] - PC 管理端刷新后重复登录
+
+**变更内容**：
+- `blade-admin` 登录态持久化补齐：除 `token` 外，`userInfo` 和 `permissions` 也写入 `localStorage`。
+- 路由守卫增加刷新恢复逻辑：当本地存在 token 但 Pinia 内存态丢失时，优先从本地恢复；必要时调用 `/user/info` 和 `/auth/codes` 重新拉取用户信息与权限。
+- 修复刷新页面后权限列表为空，被误判为无权限并跳回登录页的问题。
+
+**变更原因**：
+- Pinia 状态刷新后会清空，原实现只持久化 token，导致路由权限守卫无法识别已登录用户。
+
+**影响范围**：
+- `blade-admin/src/stores/auth.ts`
+- `blade-admin/src/router/index.ts`
+
+**执行人**：AI
+
+### [数据变更] - 复制 624 系列商品
+
+**变更内容**：
+- 参照 `624-1#` 在本地生产库 `blade_project_prod` 新增商品 `624-2#` 至 `624-5#`。
+- 新商品仅 `product_code` 和 `name` 改为对应编号，其余商品基础字段保持与 `624-1#` 一致。
+- 同步复制商品颜色关联、尺码关联和 SKU 数据，SKU 编码前缀替换为对应商品编号。
+
+**变更原因**：
+- 用户要求批量创建同款不同编号商品，减少人工重复录入。
+
+**影响范围**：
+- 本地 MySQL 数据库：`blade_project_prod`
+- 表：`product`、`product_color_rel`、`product_size_rel`、`product_sku`
+
+**执行人**：AI
+
+## 2026-05-04 变更记录
+
+### [Bug修复] - 商品编辑同步 SKU
+
+**变更内容**：
+- 修复商品编辑后只更新颜色/尺码关联、不同步 SKU 的问题。
+- 商品更新颜色或尺码后，后端会按当前颜色 × 尺码组合自动补齐缺失 SKU。
+- 对已不属于当前颜色/尺码组合的 SKU 执行软删除，避免快速录单继续看到旧颜色。
+- 新增商品接口测试，覆盖编辑商品后 SKU 数量与颜色配置同步的场景。
+
+**变更原因**：
+- 快速录单页面按 SKU 列表展示商品颜色，商品编辑只改关联不改 SKU 会导致新增颜色在快速录单中不可见。
+
+**影响范围**：
+- [ProductServiceImpl.java](/Users/chenjiarun/Documents/BladeProject/blade-backend/src/main/java/com/blade/product/service/impl/ProductServiceImpl.java)
+- [ProductControllerTest.java](/Users/chenjiarun/Documents/BladeProject/blade-backend/src/test/java/com/blade/product/ProductControllerTest.java)
+
+**执行人**：AI
+
+### [数据变更] - 复制 616 系列商品
+
+**变更内容**：
+- 参照 `616-1#` 在本地生产库 `blade_project_prod` 新增商品 `616-2#` 至 `616-10#`，以及 `616-21#` 至 `616-23#`。
+- 新商品仅 `product_code` 和 `name` 改为对应编号，其余商品基础字段保持与 `616-1#` 一致。
+- 同步复制商品颜色关联、尺码关联和 SKU 数据，SKU 编码前缀替换为对应商品编号。
+
+**变更原因**：
+- 用户要求批量创建同款不同编号商品，减少人工重复录入。
+
+**影响范围**：
+- 本地 MySQL 数据库：`blade_project_prod`
+- 表：`product`、`product_color_rel`、`product_size_rel`、`product_sku`
+
+**执行人**：AI
+
+### [数据变更] - 复制 70020 系列商品
+
+**变更内容**：
+- 参照 `70020#01` 在本地生产库 `blade_project_prod` 新增商品 `70020#02` 至 `70020#06`。
+- 新商品仅 `product_code` 和 `name` 改为对应编号，其余商品基础字段保持与 `70020#01` 一致。
+- 同步复制商品颜色关联、尺码关联和 SKU 数据，SKU 编码前缀替换为对应商品编号。
+
+**变更原因**：
+- 用户要求批量创建同款不同编号商品，减少人工重复录入。
+
+**影响范围**：
+- 本地 MySQL 数据库：`blade_project_prod`
+- 表：`product`、`product_color_rel`、`product_size_rel`、`product_sku`
+
+**执行人**：AI
+
+### [数据变更] - 复制 70019 系列商品
+
+**变更内容**：
+- 参照 `70019#01` 在本地生产库 `blade_project_prod` 新增商品 `70019#02` 至 `70019#19`。
+- 新商品仅 `product_code` 和 `name` 改为对应编号，其余商品基础字段保持与 `70019#01` 一致。
+- 同步复制商品颜色关联、尺码关联和 SKU 数据，SKU 编码前缀替换为对应商品编号。
+
+**变更原因**：
+- 用户要求批量创建同款不同编号商品，减少人工重复录入。
+
+**影响范围**：
+- 本地 MySQL 数据库：`blade_project_prod`
+- 表：`product`、`product_color_rel`、`product_size_rel`、`product_sku`
+
+**执行人**：AI
+
+### [数据变更] - 复制 70018 系列商品
+
+**变更内容**：
+- 参照 `70018#01` 在本地生产库 `blade_project_prod` 新增商品 `70018#02` 至 `70018#12`。
+- 新商品仅 `product_code` 和 `name` 改为对应编号，其余商品基础字段保持与 `70018#01` 一致。
+- 同步复制商品颜色关联、尺码关联和 SKU 数据，SKU 编码前缀替换为对应商品编号。
+
+**变更原因**：
+- 用户要求批量创建同款不同编号商品，减少人工重复录入。
+
+**影响范围**：
+- 本地 MySQL 数据库：`blade_project_prod`
+- 表：`product`、`product_color_rel`、`product_size_rel`、`product_sku`
+
+**执行人**：AI
+
+### [环境变更] - 本地系统切换到生产数据库
+
+**变更内容**：
+- 在本地 MySQL 容器 `blade-mysql` 中新增生产库 `blade_project_prod`。
+- 后端默认数据源从 `blade_project` 切换到 `blade_project_prod`。
+- `application.yml` 改为支持 `BLADE_DB_URL` / `BLADE_DB_USERNAME` / `BLADE_DB_PASSWORD` 环境变量覆盖，便于后续临时切回开发库或接入真实生产数据库。
+- 开发库 `blade_project` 保留，不迁移、不清空。
+- 清理生产库演示业务数据：订单、订单明细、配货/出库记录、商品、SKU、商品颜色/尺码关联、客户、客户电话、客户标签、库存与库存日志均已清空。
+- 保留生产库系统基础数据：登录账号、租户、角色、权限、颜色、尺码、分类、默认仓库和 Flyway 迁移记录。
+
+**变更原因**：
+- 将系统运行环境切换到独立生产库，避免继续使用开发库承载生产录入数据。
+- 清除初始化迁移脚本带入的演示业务数据，使生产库可用于真实录入。
+
+**影响范围**：
+- `blade-backend/src/main/resources/application.yml`
+- 本地 MySQL 数据库：`blade_project_prod`
+- `docs/00-SETUP.md`
+- `docs/SESSION_CONTEXT.md`
+
+**执行人**：AI
+
+### [功能新增] - PC 快速录单增强
+
+**变更内容**：
+- 新增 PC 后台 `/orders/quick` 快速录单页，支持单张纸质订单连续录入。
+- 优化快速录单 PC 布局：商品明细下方将“结算与配送”和“金额汇总”改为左右并列，窄屏自动回落为上下排列。
+- 订单新增纸质单号、订单日期、订单类型（现货/订货）、运费收入、运费成本、总成本、毛利字段。
+- 新增订单来源档口/店铺字段 `source_shop`；快速录单不再把“档口”绑定到仓库，仓库仅保留给后续配货和库存流程。
+- 订单明细新增成本价、成本金额、明细毛利快照。
+- 创建订单支持初始实收金额；追加收款放宽为未完成/未取消/未退货订单可继续收尾款。
+- 订单列表新增订单类型、欠款筛选和尾款/毛利展示；订单详情展示运费、成本、毛利；订单导出补充财务字段。
+
+**变更原因**：
+- 将原 Excel 月度记账表中的纸质订单录入流程迁移到系统中，并保留历史成本与利润快照。
+
+**影响范围**：
+- `blade-backend/src/main/resources/db/migration/V29__order_quick_entry_finance.sql`
+- `blade-backend/src/main/resources/db/migration/V30__order_source_shop.sql`
+- `blade-backend/src/main/java/com/blade/order/**`
+- `blade-admin/src/views/orders/quick.vue`
+- `blade-admin/src/views/orders/index.vue`
+- `blade-admin/src/views/orders/detail.vue`
+- `blade-admin/src/api/order.ts`
+- `packages/types/src/order.ts`
+
+**执行人**：AI
+
+## 2026-04-27 变更记录
+
+### [功能优化] - 看板系统 BA-603 库存统计（周转分析）
+
+**变更内容**：
+- 新增 `GET /api/dashboard/inventory-stats` 接口
+- 新增 `InventoryStatsVO` DTO：库存周转率、平均在库天数、库存总量、SKU数、低库存预警数、库存积压预警数
+- `DashboardService` 新增 `getInventoryStats()` 方法
+- `DashboardController` 新增 `/inventory-stats` 端点
+- 仪表盘新增第三行统计卡片：库存周转率、平均在库天数、库存总量、库存积压预警
+- 周转率 = 90天销售量 / 当前库存；平均在库天数 = 90 / 周转率
+
+**影响范围**：
+- `blade-backend/.../dashboard/dto/InventoryStatsVO.java`（新建）
+- `blade-backend/.../dashboard/service/DashboardService.java`
+- `blade-backend/.../dashboard/service/impl/DashboardServiceImpl.java`
+- `blade-backend/.../dashboard/controller/DashboardController.java`
+- `blade-admin/src/api/dashboard.ts`
+- `blade-admin/src/views/dashboard/index.vue`
+
+**执行人**：AI
+
+### [功能优化] - 订单管理 BA-204 订单导出
+
+**变更内容**：
+- 新增 `GET /api/orders/export` 接口，支持筛选条件导出Excel
+- 新增 `OrderExportDTO` Excel模型：订单号、状态、客户、商品明细（SKU/颜色/尺码/数量/单价/小计）、金额、开单人、创建时间、备注
+- `OrderService` 新增 `exportOrders()` 方法，查询订单及明细，按订单明细展开行
+- EasyExcel 3.3.4 依赖添加到 pom.xml
+- 订单列表页新增"导出"按钮，浏览器直接下载Excel文件
+
+**影响范围**：
+- `blade-backend/pom.xml`（新增 EasyExcel 依赖）
+- `blade-backend/.../order/dto/OrderExportDTO.java`（新建）
+- `blade-backend/.../order/service/OrderService.java`
+- `blade-backend/.../order/service/impl/OrderServiceImpl.java`
+- `blade-backend/.../order/controller/OrderController.java`
+- `blade-admin/src/api/order.ts`
+- `blade-admin/src/views/orders/index.vue`
+
+**执行人**：AI
+
+### [功能优化] - 个人中心 BA-704
+
+**变更内容**：
+- 新增个人中心页面 `/personal`
+- 用户信息展示：头像、昵称、账号、邮箱、手机号、角色、创建时间
+- 修改密码功能：弹窗表单，验证旧密码 + 新密码 + 确认密码
+- 头部用户区域改为下拉菜单：个人中心 / 退出登录
+
+**影响范围**：
+- `blade-admin/src/router/index.ts`（新增 /personal 路由）
+- `blade-admin/src/views/personal/index.vue`（新建）
+- `blade-admin/src/views/layout/index.vue`（用户区改为下拉菜单）
+
+**执行人**：AI
+
+---
+
+## 2026-04-26 变更记录
+
+### [功能优化] - 客户模块 M1 数据质量（BE-412~BE-414）
+
+**变更内容**：
+
+1. **BE-412 电话重复检查**：
+   - 新增迁移脚本 `V25__customer_phone_unique.sql`，对 `crm_customer_phone(tenant_id, phone, deleted)` 建唯一索引
+   - `CustomerServiceImpl` 新增 `checkPhoneDuplicate()` 方法
+   - `createCustomer()` 创建客户前校验电话是否重复
+   - `updateCustomer()` 更新客户前校验新电话是否与其他客户冲突（排除自己）
+
+2. **BE-413 删除客户订单保护**：
+   - `deleteCustomer()` 删除前检查 `status NOT IN (4, 5)` 的进行中订单
+   - 有进行中订单时抛出 RuntimeException，提示订单号
+
+3. **BE-414 N+1 查询优化**：
+   - `getCustomerOrders()` 方法优化：原为循环内单条查询 OrderItem（ N+1 问题）
+   - 改为单条 IN 查询获取所有订单项，内存中按 orderId 分组
+   - 数据库查询次数从 N+1 降为 2（1 次订单查询 + 1 次订单项查询）
+
+**影响范围**：
+- `blade-backend/src/main/resources/db/migration/V25__customer_phone_unique.sql`（新建）
+- `blade-backend/.../CustomerServiceImpl.java`
+
+**执行人**：AI
+
+### [功能优化] - 客户模块 M2 用户体验（BE-415~BE-417）
+
+**变更内容**：
+
+1. **BE-415 订单记录分页**：
+   - 新增 `CustomerOrderPageDTO` 分页参数类
+   - `GET /api/customers/{id}/orders` 支持 `page` + `size` 参数（默认 1/20，最大 100）
+   - 返回 `PageResult<CustomerOrderVO>` 包含 total/pages/size/current
+
+2. **BE-416 常用国家置顶**：
+   - `CountryCodeSelect.vue` 新增 `loadRecentCountry()` / `saveRecentCountry()` 方法
+   - localStorage key = `recentCountries`，最多存储 5 个国家码
+   - 选择国家时自动写入，列表顶部显示「常用」分区
+
+3. **BE-417 国家选择器键盘导航**：
+   - 搜索输入框 `@keydown` 处理 `ArrowUp/ArrowDown/Enter/Escape`
+   - `focusedIndex` 追踪当前聚焦项，↑↓ 键移动，Enter 选中，Esc 关闭
+   - 列表项 `@mouseenter` 同步更新 `focusedIndex`
+
+**影响范围**：
+- `blade-backend/.../CustomerController.java`
+- `blade-backend/.../CustomerService.java`
+- `blade-backend/.../CustomerServiceImpl.java`
+- `blade-admin/src/components/CountryCodeSelect.vue`
+
+**执行人**：AI
+
+### [功能优化] - 客户模块 M3 业务功能（BE-418~BE-420）
+
+**变更内容**：
+
+1. **BE-418 客户标签功能**：
+   - 新增迁移脚本 `V26__customer_tag.sql`，创建 `crm_customer_tag` 和 `crm_customer_tag_rel` 表
+   - 新增实体类：`CustomerTag.java`、`CustomerTagRel.java`
+   - 新增 Mapper：`CustomerTagMapper.java`、`CustomerTagRelMapper.java`
+   - 新增 Service：`CustomerTagService.java`、`CustomerTagServiceImpl.java`
+   - 新增 Controller：`CustomerTagController.java`，REST API 完整 CRUD + 客户标签分配/移除
+   - API 接口：
+     - `GET /api/customer-tags` - 标签列表
+     - `POST /api/customer-tags` - 创建标签
+     - `PUT /api/customer-tags` - 更新标签
+     - `DELETE /api/customer-tags/{id}` - 删除标签
+     - `GET /api/customer-tags/customer/{customerId}` - 获取客户标签
+     - `POST /api/customer-tags/customer/{customerId}` - 为客户分配标签
+     - `DELETE /api/customer-tags/customer/{customerId}/tag/{tagId}` - 移除客户标签
+
+2. **BE-419 沉默客户预警**：
+   - `DashboardService` 新增 `getSilentCustomers(Integer days)` 方法
+   - `DashboardController` 新增 `GET /api/dashboard/silent-customers?days=90` 接口
+   - 沉默客户定义：最后订单距今 >N 天（N 默认为 90），且有已完成订单（status >= 4）
+   - 返回数据结构：`SilentCustomerResultDTO` 包含 total 和 customers 列表
+
+3. **BE-420 偏好时间范围筛选**：
+   - 新增 `CustomerPreferenceQueryDTO.java`，包含 startDate/endDate 字段
+   - `CustomerService.getPreference()` 方法签名更新为接受 `CustomerPreferenceQueryDTO dto`
+   - `CustomerServiceImpl.getPreference()` 实现时间范围过滤逻辑
+   - 接口调用示例：`GET /api/customers/1/preference?startDate=2025-01-01&endDate=2026-12-31`
+
+**影响范围**：
+- `blade-backend/src/main/resources/db/migration/V26__customer_tag.sql`（新建）
+- `blade-backend/.../customer/entity/CustomerTag.java`（新建）
+- `blade-backend/.../customer/entity/CustomerTagRel.java`（新建）
+- `blade-backend/.../customer/mapper/CustomerTagMapper.java`（新建）
+- `blade-backend/.../customer/mapper/CustomerTagRelMapper.java`（新建）
+- `blade-backend/.../customer/dto/CustomerTagCreateDTO.java`（新建）
+- `blade-backend/.../customer/dto/CustomerTagUpdateDTO.java`（新建）
+- `blade-backend/.../customer/dto/CustomerTagVO.java`（新建）
+- `blade-backend/.../customer/service/CustomerTagService.java`（新建）
+- `blade-backend/.../customer/service/impl/CustomerTagServiceImpl.java`（新建）
+- `blade-backend/.../customer/controller/CustomerTagController.java`（新建）
+- `blade-backend/.../dashboard/dto/SilentCustomerDTO.java`（新建）
+- `blade-backend/.../dashboard/dto/SilentCustomerResultDTO.java`（新建）
+- `blade-backend/.../dashboard/service/DashboardService.java`
+- `blade-backend/.../dashboard/service/impl/DashboardServiceImpl.java`
+- `blade-backend/.../dashboard/controller/DashboardController.java`
+- `blade-backend/.../customer/dto/CustomerPreferenceQueryDTO.java`（新建）
+- `blade-backend/.../customer/service/CustomerService.java`
+- `blade-backend/.../customer/service/impl/CustomerServiceImpl.java`
+
+**执行人**：AI
+
+### [功能优化] - 客户模块 M4 数据权限与审计（BE-421~BE-423）
+
+**变更内容**：
+
+1. **BE-421 客户数据权限（mine筛选）**：
+   - 新增迁移脚本 `V27__customer_add_create_by.sql`，为 `crm_customer` 表新增 `create_by` 字段
+   - `Customer.java` 实体新增 `createBy` 字段
+   - `CustomerPageDTO` 新增 `private Boolean mine = false` 字段
+   - `CustomerServiceImpl.pageList()` 支持 `mine=true` 筛选：仅返回当前用户创建的客户
+   - `getCurrentUserId()` 方法：从 `SecurityContextHolder` 获取当前登录用户ID
+
+2. **BE-422 操作审计日志**：
+   - 新增迁移脚本 `V28__customer_operation_log.sql`，创建 `crm_customer_operation_log` 表
+   - 新增实体类：`CustomerOperationLog.java`
+   - `CustomerServiceImpl` 新增 `logOperation()` 方法：在 create/update/delete 操作后记录审计日志
+   - 操作类型：`CREATE`/`UPDATE`/`DELETE`，detail 字段存储变更详情JSON
+
+3. **BE-423 偏好数据Redis缓存**：
+   - `CustomerServiceImpl.getPreference()` 方法新增 Redis 缓存
+   - 缓存Key格式：`customer:preference:{customerId}:{startDate}:{endDate}`
+   - 缓存有效期：1小时
+   - 缓存命中时直接返回，避免重复查询数据库
+
+**影响范围**：
+- `blade-backend/src/main/resources/db/migration/V27__customer_add_create_by.sql`（新建）
+- `blade-backend/src/main/resources/db/migration/V28__customer_operation_log.sql`（新建）
+- `blade-backend/.../customer/entity/CustomerOperationLog.java`（新建）
+- `blade-backend/.../customer/mapper/CustomerOperationLogMapper.java`（新建）
+- `blade-backend/.../customer/entity/Customer.java`
+- `blade-backend/.../customer/dto/CustomerPageDTO.java`
+- `blade-backend/.../customer/service/impl/CustomerServiceImpl.java`
+
+**执行人**：AI
 
 ---
 
@@ -46,7 +1935,7 @@
 1. **订单编辑弹窗优化**（`blade-admin/src/views/orders/index.vue`）：
    - 弹窗顶部新增订单上下文摘要（订单号、状态标签、金额）
    - `editingOrderId` ref 替换为 `editingOrder` ref（保存整行数据）
-   - 新增图片链接字段（images，textarea 输入，逗号分隔 URL）
+   - 历史记录：当时新增 `images` 文本字段；现已在统一文件存储改造中调整为 fileId JSON 数组字符串
 2. **追加收款功能**（`blade-admin/src/views/orders/detail.vue`）：
    - 新增"追加收款"按钮，条件：`order.status === 0 && order.paymentStatus !== 2`
    - 新增追加收款弹窗（显示订单总额/已付金额/待付余额，输入本次收款金额）
@@ -2162,3 +4051,140 @@ Order (order_id, warehouse_id = 默认发货仓库)
 - blade-admin/src/views/layout/index.vue
 
 **执行人**：AI
+
+---
+
+### [功能开发] - 客户模块国际化升级
+
+**变更内容**：
+
+1. **数据库变更**（V24 迁移）：
+   - `crm_customer` 表新增 `country_code`（区号，如+86）、`country_name`（国家名称）
+   ```sql
+   ALTER TABLE crm_customer
+     ADD COLUMN country_code VARCHAR(8)  COMMENT '国家区号，如+86',
+     ADD COLUMN country_name VARCHAR(64) COMMENT '国家名称，如China';
+   ```
+
+2. **后端实体/DTO**：
+   - `Customer.java`：新增 `countryCode`、`countryName` 字段
+   - `CustomerCreateDTO.java`：新增 `countryCode`
+   - `CustomerUpdateDTO.java`：新增 `countryCode`
+   - `CustomerVO.java`：新增 `countryCode`、`countryName`、`countryFlag`（计算属性，根据区号返回国旗emoji）
+
+3. **后端新接口**：
+   - `GET /api/customers/{id}/stats`：客户基础统计（订单数/消费总额/完成订单数/时间范围）
+   - `GET /api/customers/{id}/orders`：客户历史订单列表（完整订单项信息）
+   - `GET /api/customers/{id}/preference`：客户商品偏好分析（颜色/尺码/品类偏好，支持已发货/已完成订单统计）
+
+4. **前端国家选择器**：
+   - 新建 `CountryCodeSelect.vue`：WhatsApp 风格可搜索下拉（el-popover + 搜索输入框）
+   - 新建 `countries.ts` 数据文件：~140 个国家/地区数据，包含 ISO 代码和 emoji 国旗
+   - 支持搜索：国家名（中英文）、区号实时筛选
+
+5. **客户列表页**：
+   - 新增"国家"列，显示区号（如 +86）
+   - 电话列显示完整格式：🇨🇳 +86 13800001111
+
+6. **新建/编辑客户弹窗**：
+   - 新增"国家区号"字段，使用 CountryCodeSelect 组件
+   - 电话输入框前缀显示当前选中区号
+
+7. **客户详情页**（`/customers/:id`）：
+   - 3 个独立 Tab：基本信息 / 订单记录 / 商品偏好
+   - 基本信息：国家区号、地址、备注等完整信息
+   - 订单记录：历史订单列表，含金额、状态、商品明细
+   - 商品偏好：颜色/尺码/品类偏好柱状图
+
+**影响范围**：
+- 数据库：`V24__customer_add_country.sql`
+- 后端：com.blade.customer 模块（entity/dto/service/controller）
+- 前端：api/customer.ts、views/clients/index.vue、views/customers/detail.vue、components/CountryCodeSelect.vue、data/countries.ts、router/index.ts、views/layout/index.vue
+
+**执行人**：AI
+
+---
+
+## 客户模块技术设计
+
+### 客户与订单关联关系
+
+```
+客户表 (crm_customer)  1:N  订单表 (order)
+       │                        │
+       │◄── customer_id ───────►│
+       │                        │
+       │              1:N        │
+       │◄── order_id ─────────►│
+       │                        │
+  电话表                     订单项表
+(crm_customer_phone)      (order_item)
+```
+
+**关联字段**：`Order.customer_id` → `Customer.id`
+
+### 客户商品偏好计算逻辑
+
+**数据来源**：
+```java
+// 只统计已完成/已发货的订单
+orderWrapper.in(Order::getStatus, Arrays.asList(4, 5));  // 已发货、已完成
+```
+
+**偏好类型**：
+1. **颜色偏好** (`colors`)：统计 `OrderItem.colorName`
+2. **尺码偏好** (`sizes`)：统计 `OrderItem.sizeName`
+3. **品类偏好** (`categories`)：统计 `OrderItem.productName`
+
+**百分比计算**：
+```java
+percentage = (该偏好count / 总订单项数) * 100
+// 保留1位小数，最多返回top 10
+```
+
+**示例**：
+```
+订单项总数：40件
+颜色统计：黑色18件、白色10件、蓝色7件
+百分比：黑色 45%、白色 25%、蓝色 17.5%
+```
+
+---
+
+## 2026-04-26 变更记录
+
+### [规划] - 客户模块优化计划
+
+**变更内容**：
+完成客户模块国际化（Phase 4.5）后，深度分析发现以下优化方向，制定 Phase 4.6 优化计划：
+
+**M1: 数据质量（P1）**：
+- BE-412: 电话重复检查 — 创建/更新客户时校验租户内电话唯一
+- BE-413: 删除客户订单保护 — 删除前检查进行中订单
+- BE-414: N+1 查询优化 — getPreference() 改用单条 IN 查询
+
+**M2: 用户体验（P2）**：
+- BE-415: 订单记录分页 — 客户详情订单记录支持分页
+- BE-416: 常用国家置顶 — localStorage 记忆常用国家
+- BE-417: 国家选择器键盘导航 — ↑↓/Enter/Esc 支持
+
+**M3: 业务功能（P2）**：
+- BE-418: 客户标签功能 — 新建标签表和关联表，支持客户打标签
+- BE-419: 沉默客户预警 — 仪表盘新增沉默客户统计（>90天无订单）
+- BE-420: 偏好时间范围筛选 — 偏好分析支持自定义时间范围
+
+**M4: 架构能力（P3）**：
+- BE-421: 客户数据权限 — 支持「只看我的客户」
+- BE-422: 操作审计日志 — 客户增删改记录到日志表
+- BE-423: 偏好数据缓存 — Redis 缓存偏好结果，TTL=1小时
+
+**详细文档**：docs/08-CUSTOMER_OPTIMIZATION.md
+
+**影响范围**：
+- 数据库：V25（唯一索引）、V26（标签表）
+- 后端：com.blade.customer 模块优化
+- 前端：客户模块交互优化
+
+**执行人**：AI
+
+---

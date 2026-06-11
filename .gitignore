@@ -37,10 +37,12 @@ packages/*/package-lock.json
 *.tmp
 *.temp
 .tmp/
+tmp/
 
 # Backend
 blade-backend/target/
 blade-backend/*.log
+blade-backend/uploads/
 
 # Gradle
 blade-backend/.gradle/
@@ -59,6 +61,7 @@ blade-backend/wrapper/
 # Screenshots and test artifacts (not source code)
 **/test-screenshots/
 **/test-results/
+**/playwright-report/
 **/*test-screenshot*.png
 **/multi-phone*.png
 **/phone-bug*.png
@@ -71,3 +74,6 @@ dump.rdb
 stitch/
 .claude/
 AGENTS.md
+
+# Production secrets and private keys
+deploy/nas/nginx/ssl/*.key

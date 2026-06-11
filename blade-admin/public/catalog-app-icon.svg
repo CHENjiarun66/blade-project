@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="84" y1="42" x2="430" y2="468" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fffaf2"/>
+      <stop offset="0.54" stop-color="#f3eadc"/>
+      <stop offset="1" stop-color="#d5bea0"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="146" y1="116" x2="358" y2="397" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b98735"/>
+      <stop offset="1" stop-color="#7e5414"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="38" y="38" width="436" height="436" rx="88" fill="none" stroke="#9b6b22" stroke-opacity="0.28" stroke-width="6"/>
+  <path d="M155 152h202c18 0 31 16 27 34l-32 153c-4 17-19 29-36 29H196c-17 0-32-12-36-29l-32-153c-4-18 9-34 27-34Z" fill="#fffaf2" stroke="#9b6b22" stroke-width="16" stroke-linejoin="round"/>
+  <path d="M196 153c0-47 25-78 60-78s60 31 60 78" fill="none" stroke="url(#gold)" stroke-width="18" stroke-linecap="round"/>
+  <path d="M205 221h102c8 0 13 8 10 15l-21 52c-3 8-11 13-19 13h-42c-8 0-16-5-19-13l-21-52c-3-7 2-15 10-15Z" fill="url(#gold)"/>
+  <text x="256" y="408" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="700" letter-spacing="4" fill="#7e5414">JIAJIA</text>
+</svg>

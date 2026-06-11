@@ -1,0 +1,22 @@
+CREATE TABLE `file_storage` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '文件ID',
+  `file_key` varchar(255) NOT NULL COMMENT '逻辑文件key',
+  `original_name` varchar(255) DEFAULT NULL COMMENT '原始文件名',
+  `file_name` varchar(128) NOT NULL COMMENT '存储文件名',
+  `content_type` varchar(100) DEFAULT NULL COMMENT 'MIME类型',
+  `file_size` bigint NOT NULL DEFAULT 0 COMMENT '文件大小(byte)',
+  `storage_type` varchar(20) NOT NULL COMMENT '存储类型: local/qiniu/nas',
+  `storage_path` varchar(500) NOT NULL COMMENT '实际存储路径或对象key',
+  `access_url` varchar(500) DEFAULT NULL COMMENT '访问地址',
+  `business_type` varchar(50) DEFAULT NULL COMMENT '业务类型: order/inventory/ocr/product',
+  `business_id` bigint DEFAULT NULL COMMENT '业务ID',
+  `status` tinyint NOT NULL DEFAULT 1 COMMENT '状态: 1正常 0禁用',
+  `tenant_id` bigint NOT NULL DEFAULT 1 COMMENT '租户ID',
+  `create_by` bigint DEFAULT NULL COMMENT '上传人ID',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_file_key` (`file_key`),
+  KEY `idx_business` (`business_type`, `business_id`),
+  KEY `idx_tenant_status` (`tenant_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统一文件存储表';

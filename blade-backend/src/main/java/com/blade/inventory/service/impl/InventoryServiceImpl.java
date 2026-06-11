@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
+import com.blade.file.service.FileService;
 import com.blade.inventory.dto.*;
 import com.blade.inventory.entity.Inventory;
 import com.blade.inventory.entity.InventoryLog;
@@ -18,6 +19,7 @@ import com.blade.order.entity.OrderDeliveryPlan;
 import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.ProductSkuMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
@@ -28,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 public class InventoryServiceImpl implements InventoryService {
@@ -49,6 +52,12 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Autowired
     private OrderDeliveryPlanMapper deliveryPlanMapper;
+
+    @Autowired
+    private FileService fileService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     // 锁 Key 前缀
     private static final String INVENTORY_LOCK_PREFIX = "inventory:lock:";
@@ -139,7 +148,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional
     public void in(InventoryInDTO dto, Long operatorId) {
         Long tenantId = TenantContext.getTenantId();
-        String images = dto.getImages() != null ? String.join(",", dto.getImages()) : null;
+        String images = toImagesJson(dto.getImages());
 
         for (InventoryInItemDTO item : dto.getItems()) {
             String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
@@ -195,6 +204,7 @@ public class InventoryServiceImpl implements InventoryService {
                 log.setImages(images);
                 log.setTenantId(tenantId);
                 inventoryLogMapper.insert(log);
+                fileService.bindFiles("inventory", log.getId(), parseFileIds(dto.getImages()));
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -893,5 +903,26 @@ public class InventoryServiceImpl implements InventoryService {
         int globalReserved = inv.getGlobalReservedQty() != null ? inv.getGlobalReservedQty() : 0;
         vo.setAvailableQty(inv.getQuantity() - inv.getReservedQty() - globalReserved);
         return vo;
+    }
+
+    private List<Long> parseFileIds(List<String> images) {
+        if (images == null || images.isEmpty()) {
+            return List.of();
+        }
+        return images.stream()
+                .filter(value -> value != null && value.matches("\\d+"))
+                .map(Long::valueOf)
+                .collect(Collectors.toList());
+    }
+
+    private String toImagesJson(List<String> images) {
+        if (images == null || images.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(images);
+        } catch (Exception e) {
+            throw new RuntimeException("入库凭证图片保存失败");
+        }
     }
 }

@@ -54,7 +54,7 @@ export interface InventoryInDTO {
   warehouseId: number
   items: InventoryInItemDTO[]
   remark?: string
-  images?: string
+  images?: string[]
 }
 
 // 出库项

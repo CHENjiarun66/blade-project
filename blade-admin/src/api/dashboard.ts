@@ -13,6 +13,10 @@ export interface DashboardStats {
   periodOrdersTrend: number
   periodSales: number
   periodSalesTrend: number
+  periodGrossProfit: number
+  periodGrossProfitTrend: number
+  periodSalesQuantity: number
+  periodSalesQuantityTrend: number
   totalProducts: number
   pendingOrders: number
   pendingOrdersTrend: number
@@ -22,6 +26,8 @@ export interface DashboardStats {
   weekOrdersTrend: number
   weekSales: number
   weekSalesTrend: number
+  weekGrossProfit: number
+  weekGrossProfitTrend: number
   avgOrderValue: number
 }
 
@@ -53,6 +59,14 @@ export interface InventoryAlert {
   alertThreshold: number
 }
 
+export interface InventoryStats {
+  turnoverRate: number
+  totalQuantity: number
+  totalSkuCount: number
+  lowStockCount: number
+  overstockCount: number
+}
+
 export function getDashboardStats(filter?: DateRangeFilter) {
   return client.get<{ code: number; data: DashboardStats }>('/dashboard/stats', { params: filter }) as any
 }
@@ -71,4 +85,8 @@ export function getOrderStatus(filter?: DateRangeFilter) {
 
 export function getInventoryAlerts() {
   return client.get<{ code: number; data: InventoryAlert[] }>('/dashboard/inventory-alerts') as any
+}
+
+export function getInventoryStats() {
+  return client.get<{ code: number; data: InventoryStats }>('/dashboard/inventory-stats') as any
 }

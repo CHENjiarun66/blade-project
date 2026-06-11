@@ -10,30 +10,43 @@ export interface OrderItemVO {
   colorName: string
   sizeName: string
   price: number
+  costPrice?: number
   quantity: number
   plannedQuantity?: number
   allocatedQuantity?: number
   outQuantity?: number
   adjustmentRemark?: string
   subtotal: number
+  costAmount?: number
+  grossProfit?: number
 }
 
 export interface OrderVO {
   id: number
   orderNo: string
+  orderDate?: string
+  sourceDocNo?: string
+  sourceShop?: string
+  orderType?: string
+  orderTypeName?: string
   customerId: number
   customerName: string
   customerPhone: string
   customerAddress: string
-  warehouseId: number
+  warehouseId?: number
   warehouseName: string
   salesmanId: number
   salesmanName: string
   totalAmount: number
+  totalCostAmount?: number
+  grossProfit?: number
   originalAmount?: number
   refundAmount?: number
   paidAmount: number
+  balanceAmount?: number
   depositAmount: number
+  freightAmount?: number
+  freightCost?: number
   status: number
   statusName: string
   paymentStatus: number
@@ -61,6 +74,9 @@ export interface OrderPageDTO {
   orderNo?: string
   customerName?: string
   status?: number
+  paymentStatus?: number
+  orderType?: string
+  hasBalance?: boolean
 }
 
 export interface OrderPageResponse {
@@ -84,18 +100,27 @@ export interface OrderItemDTO {
   skuId: number
   quantity: number
   price?: number
+  costPrice?: number
+  warehouseId?: number
 }
 
 export interface OrderCreateDTO {
   customerId?: number
+  orderDate?: string
+  sourceDocNo?: string
+  sourceShop?: string
+  orderType?: string
   customerName: string
   customerPhone?: string
   customerAddress?: string
   paymentStatus: number
   depositAmount?: number
+  paidAmount?: number
+  freightAmount?: number
+  freightCost?: number
   needDelivery: number
   deliveryAddress?: string
-  warehouseId: number
+  warehouseId?: number
   remark?: string
   images?: string
   items: OrderItemDTO[]
@@ -107,17 +132,25 @@ export function createOrder(data: OrderCreateDTO) {
 
 // 更新订单基础信息
 export interface OrderUpdateDTO {
+  id?: number
+  orderDate?: string
+  sourceDocNo?: string
+  sourceShop?: string
+  orderType?: string
   customerName?: string
   customerPhone?: string
   customerAddress?: string
   needDelivery?: number
   deliveryAddress?: string
+  freightAmount?: number
+  freightCost?: number
   remark?: string
   images?: string
+  items?: OrderItemDTO[]
 }
 
 export function updateOrder(id: number, data: OrderUpdateDTO) {
-  return client.put(`/orders/${id}`, data) as any
+  return client.put(`/orders/${id}`, { ...data, id }) as any
 }
 
 // 确认付款
@@ -298,4 +331,9 @@ export function getAdjustmentLogs(orderId: number) {
 // 记录调整
 export function recordAdjustment(data: AdjustmentLogDTO) {
   return client.post(`/orders/${data.orderId}/adjustment-log`, data) as any
+}
+
+// 导出订单列表
+export function exportOrders(params: OrderPageDTO) {
+  return client.get('/orders/export', { params, responseType: 'blob' }) as Promise<Blob>
 }

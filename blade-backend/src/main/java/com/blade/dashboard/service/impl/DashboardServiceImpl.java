@@ -34,6 +34,8 @@ import java.util.stream.Collectors;
 @Service
 public class DashboardServiceImpl implements DashboardService {
 
+    private static final List<Integer> PAID_PAYMENT_STATUSES = Arrays.asList(1, 2);
+
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
     private final ProductMapper productMapper;
@@ -65,44 +67,23 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate[] currentPeriod = getCurrentPeriod(today, query);
         LocalDate[] previousPeriod = getPreviousPeriod(query, currentPeriod);
 
-        LocalDateTime startOfPeriod = currentPeriod[0].atStartOfDay();
-        LocalDateTime endOfPeriod = currentPeriod[1].atTime(LocalTime.MAX);
-        LocalDateTime startOfPrevPeriod = previousPeriod[0].atStartOfDay();
-        LocalDateTime endOfPrevPeriod = previousPeriod[1].atTime(LocalTime.MAX);
+        // 当前周期已产生收款的订单数与应收净额
+        List<Order> paidOrders = selectPaidOrdersInPeriod(tenantId, currentPeriod[0], currentPeriod[1]);
+        long periodOrders = paidOrders.size();
+        BigDecimal periodSales = sumNetSales(paidOrders);
+        BigDecimal periodGrossProfit = sumNetGrossProfit(paidOrders);
+        long periodSalesQuantity = sumSalesQuantity(paidOrders);
 
-        // 当前周期订单数
-        LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
-        orderWrapper.eq(Order::getTenantId, tenantId)
-                .between(Order::getCreateTime, startOfPeriod, endOfPeriod);
-        long periodOrders = orderMapper.selectCount(orderWrapper);
-
-        // 上周期订单数（用于计算趋势）
-        LambdaQueryWrapper<Order> prevOrderWrapper = new LambdaQueryWrapper<>();
-        prevOrderWrapper.eq(Order::getTenantId, tenantId)
-                .between(Order::getCreateTime, startOfPrevPeriod, endOfPrevPeriod);
-        long previousOrders = orderMapper.selectCount(prevOrderWrapper);
+        // 上周期已产生收款的订单数与应收净额（用于计算趋势）
+        List<Order> prevPaidOrders = selectPaidOrdersInPeriod(tenantId, previousPeriod[0], previousPeriod[1]);
+        long previousOrders = prevPaidOrders.size();
+        BigDecimal previousSales = sumNetSales(prevPaidOrders);
+        BigDecimal previousGrossProfit = sumNetGrossProfit(prevPaidOrders);
+        long previousSalesQuantity = sumSalesQuantity(prevPaidOrders);
         long ordersTrend = calculateTrend(periodOrders, previousOrders);
-
-        // 当前周期销售额
-        LambdaQueryWrapper<Order> salesWrapper = new LambdaQueryWrapper<>();
-        salesWrapper.eq(Order::getTenantId, tenantId)
-                .between(Order::getCreateTime, startOfPeriod, endOfPeriod)
-                .ge(Order::getStatus, 1);
-        List<Order> paidOrders = orderMapper.selectList(salesWrapper);
-        BigDecimal periodSales = paidOrders.stream()
-                .map(Order::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // 上周期销售额
-        LambdaQueryWrapper<Order> prevSalesWrapper = new LambdaQueryWrapper<>();
-        prevSalesWrapper.eq(Order::getTenantId, tenantId)
-                .between(Order::getCreateTime, startOfPrevPeriod, endOfPrevPeriod)
-                .ge(Order::getStatus, 1);
-        List<Order> prevPaidOrders = orderMapper.selectList(prevSalesWrapper);
-        BigDecimal previousSales = prevPaidOrders.stream()
-                .map(Order::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
         long salesTrend = calculateTrend(periodSales, previousSales);
+        long grossProfitTrend = calculateTrend(periodGrossProfit, previousGrossProfit);
+        long salesQuantityTrend = calculateTrend(periodSalesQuantity, previousSalesQuantity);
 
         // 商品总数
         LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
@@ -131,39 +112,25 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 本周订单数（周一至今）- 固定统计，不受筛选影响
         LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        LambdaQueryWrapper<Order> weekOrderWrapper = new LambdaQueryWrapper<>();
-        weekOrderWrapper.eq(Order::getTenantId, tenantId)
-                .between(Order::getCreateTime, weekStart.atStartOfDay(), today.atTime(LocalTime.MAX));
-        long weekOrders = orderMapper.selectCount(weekOrderWrapper);
+        List<Order> weekPaidOrders = selectPaidOrdersInPeriod(tenantId, weekStart, today);
+        long weekOrders = weekPaidOrders.size();
 
         // 上周同期订单数
         LocalDate lastWeekStart = weekStart.minusDays(7);
-        LambdaQueryWrapper<Order> lastWeekOrderWrapper = new LambdaQueryWrapper<>();
-        lastWeekOrderWrapper.eq(Order::getTenantId, tenantId)
-                .between(Order::getCreateTime, lastWeekStart.atStartOfDay(), weekStart.atStartOfDay().minusSeconds(1));
-        long lastWeekOrders = orderMapper.selectCount(lastWeekOrderWrapper);
+        LocalDate lastWeekEnd = today.minusDays(7);
+        List<Order> lastWeekPaidOrders = selectPaidOrdersInPeriod(tenantId, lastWeekStart, lastWeekEnd);
+        long lastWeekOrders = lastWeekPaidOrders.size();
         long weekOrdersTrend = calculateTrend(weekOrders, lastWeekOrders);
 
         // 本周销售额
-        LambdaQueryWrapper<Order> weekSalesWrapper = new LambdaQueryWrapper<>();
-        weekSalesWrapper.eq(Order::getTenantId, tenantId)
-                .between(Order::getCreateTime, weekStart.atStartOfDay(), today.atTime(LocalTime.MAX))
-                .ge(Order::getStatus, 1);
-        List<Order> weekPaidOrders = orderMapper.selectList(weekSalesWrapper);
-        BigDecimal weekSales = weekPaidOrders.stream()
-                .map(Order::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal weekSales = sumNetSales(weekPaidOrders);
+        BigDecimal weekGrossProfit = sumNetGrossProfit(weekPaidOrders);
 
         // 上周同期销售额
-        LambdaQueryWrapper<Order> lastWeekSalesWrapper = new LambdaQueryWrapper<>();
-        lastWeekSalesWrapper.eq(Order::getTenantId, tenantId)
-                .between(Order::getCreateTime, lastWeekStart.atStartOfDay(), weekStart.atStartOfDay().minusSeconds(1))
-                .ge(Order::getStatus, 1);
-        List<Order> lastWeekPaidOrders = orderMapper.selectList(lastWeekSalesWrapper);
-        BigDecimal lastWeekSales = lastWeekPaidOrders.stream()
-                .map(Order::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal lastWeekSales = sumNetSales(lastWeekPaidOrders);
+        BigDecimal lastWeekGrossProfit = sumNetGrossProfit(lastWeekPaidOrders);
         long weekSalesTrend = calculateTrend(weekSales, lastWeekSales);
+        long weekGrossProfitTrend = calculateTrend(weekGrossProfit, lastWeekGrossProfit);
 
         // 平均客单价（使用当前周期数据）
         BigDecimal avgOrderValue = BigDecimal.ZERO;
@@ -176,6 +143,10 @@ public class DashboardServiceImpl implements DashboardService {
         stats.setPeriodOrdersTrend(ordersTrend);
         stats.setPeriodSales(periodSales);
         stats.setPeriodSalesTrend(salesTrend);
+        stats.setPeriodGrossProfit(periodGrossProfit);
+        stats.setPeriodGrossProfitTrend(grossProfitTrend);
+        stats.setPeriodSalesQuantity(periodSalesQuantity);
+        stats.setPeriodSalesQuantityTrend(salesQuantityTrend);
         stats.setTotalProducts(totalProducts);
         stats.setPendingOrders(pendingOrders);
         stats.setPendingOrdersTrend(pendingOrdersTrend);
@@ -184,6 +155,8 @@ public class DashboardServiceImpl implements DashboardService {
         stats.setWeekOrdersTrend(weekOrdersTrend);
         stats.setWeekSales(weekSales);
         stats.setWeekSalesTrend(weekSalesTrend);
+        stats.setWeekGrossProfit(weekGrossProfit);
+        stats.setWeekGrossProfitTrend(weekGrossProfitTrend);
         stats.setAvgOrderValue(avgOrderValue);
 
         return stats;
@@ -199,50 +172,20 @@ public class DashboardServiceImpl implements DashboardService {
         List<Long> orderCounts = new ArrayList<>();
         List<BigDecimal> salesAmounts = new ArrayList<>();
 
-        PeriodType periodType = query.getPeriodType() != null ? query.getPeriodType() : PeriodType.WEEK;
+        LocalDate[] currentPeriod = getCurrentPeriod(today, query);
+        long days = java.time.temporal.ChronoUnit.DAYS.between(currentPeriod[0], currentPeriod[1]) + 1;
+        int daysToShow = (int) Math.min(Math.max(days, 1), 365);
+        LocalDate firstDate = currentPeriod[1].minusDays(daysToShow - 1L);
 
-        int daysToShow;
-        if (periodType == PeriodType.TODAY) {
-            daysToShow = 1;
-        } else if (periodType == PeriodType.WEEK) {
-            daysToShow = 7;
-        } else if (periodType == PeriodType.MONTH) {
-            daysToShow = 30;
-        } else if (periodType == PeriodType.QUARTER) {
-            daysToShow = 90;
-        } else if (periodType == PeriodType.YEAR) {
-            daysToShow = 365;
-        } else {
-            // CUSTOM - 显示整个范围内的数据
-            LocalDate[] currentPeriod = getCurrentPeriod(today, query);
-            long days = java.time.temporal.ChronoUnit.DAYS.between(currentPeriod[0], currentPeriod[1]) + 1;
-            daysToShow = (int) Math.min(days, 365);
-        }
-
-        for (int i = daysToShow - 1; i >= 0; i--) {
-            LocalDate date = today.minusDays(i);
-            LocalDateTime startOfDay = date.atStartOfDay();
-            LocalDateTime endOfDay = date.atTime(LocalTime.MAX);
+        for (int i = 0; i < daysToShow; i++) {
+            LocalDate date = firstDate.plusDays(i);
 
             dates.add(date.format(formatter));
 
             // 当日订单数
-            LambdaQueryWrapper<Order> countWrapper = new LambdaQueryWrapper<>();
-            countWrapper.eq(Order::getTenantId, tenantId)
-                    .between(Order::getCreateTime, startOfDay, endOfDay);
-            long count = orderMapper.selectCount(countWrapper);
-            orderCounts.add(count);
-
-            // 当日销售额
-            LambdaQueryWrapper<Order> salesWrapper = new LambdaQueryWrapper<>();
-            salesWrapper.eq(Order::getTenantId, tenantId)
-                    .between(Order::getCreateTime, startOfDay, endOfDay)
-                    .ge(Order::getStatus, 1);
-            List<Order> orders = orderMapper.selectList(salesWrapper);
-            BigDecimal sales = orders.stream()
-                    .map(Order::getTotalAmount)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            salesAmounts.add(sales);
+            List<Order> orders = selectPaidOrdersInPeriod(tenantId, date, date);
+            orderCounts.add((long) orders.size());
+            salesAmounts.add(sumNetSales(orders));
         }
 
         OrderTrendDTO trend = new OrderTrendDTO();
@@ -259,15 +202,8 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 计算当前周期
         LocalDate[] currentPeriod = getCurrentPeriod(today, query);
-        LocalDateTime startOfPeriod = currentPeriod[0].atStartOfDay();
-        LocalDateTime endOfPeriod = currentPeriod[1].atTime(LocalTime.MAX);
-
-        // 获取当前周期内已支付的订单IDs
-        LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
-        orderWrapper.eq(Order::getTenantId, tenantId)
-                .between(Order::getCreateTime, startOfPeriod, endOfPeriod)
-                .ge(Order::getStatus, 1);
-        List<Order> paidOrders = orderMapper.selectList(orderWrapper);
+        // 获取当前周期内已产生收款的订单IDs
+        List<Order> paidOrders = selectPaidOrdersInPeriod(tenantId, currentPeriod[0], currentPeriod[1]);
 
         if (paidOrders.isEmpty()) {
             return new ArrayList<>();
@@ -311,11 +247,9 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 计算当前周期
         LocalDate[] currentPeriod = getCurrentPeriod(today, query);
-        LocalDateTime startOfPeriod = currentPeriod[0].atStartOfDay();
-        LocalDateTime endOfPeriod = currentPeriod[1].atTime(LocalTime.MAX);
 
         // 订单状态映射
-        Map<Integer, String> statusLabels = new HashMap<>();
+        Map<Integer, String> statusLabels = new LinkedHashMap<>();
         statusLabels.put(0, "待付款");
         statusLabels.put(1, "已付款");
         statusLabels.put(2, "配货中");
@@ -323,14 +257,14 @@ public class DashboardServiceImpl implements DashboardService {
         statusLabels.put(4, "已发货");
         statusLabels.put(5, "已完成");
         statusLabels.put(6, "已取消");
+        statusLabels.put(7, "退货中");
+        statusLabels.put(8, "已退货");
 
         List<OrderStatusDTO> result = new ArrayList<>();
 
         for (Map.Entry<Integer, String> entry : statusLabels.entrySet()) {
             Integer status = entry.getKey();
-            LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(Order::getTenantId, tenantId)
-                    .between(Order::getCreateTime, startOfPeriod, endOfPeriod)
+            LambdaQueryWrapper<Order> wrapper = buildPaidOrderPeriodWrapper(tenantId, currentPeriod[0], currentPeriod[1])
                     .eq(Order::getStatus, status);
             long count = orderMapper.selectCount(wrapper);
 
@@ -342,6 +276,74 @@ public class DashboardServiceImpl implements DashboardService {
         }
 
         return result;
+    }
+
+    private List<Order> selectPaidOrdersInPeriod(Long tenantId, LocalDate startDate, LocalDate endDate) {
+        return orderMapper.selectList(buildPaidOrderPeriodWrapper(tenantId, startDate, endDate));
+    }
+
+    private LambdaQueryWrapper<Order> buildPaidOrderPeriodWrapper(Long tenantId, LocalDate startDate, LocalDate endDate) {
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getTenantId, tenantId);
+        applyOrderDateRange(wrapper, startDate, endDate);
+        applyPaidOrderCondition(wrapper);
+        return wrapper;
+    }
+
+    private void applyOrderDateRange(LambdaQueryWrapper<Order> wrapper, LocalDate startDate, LocalDate endDate) {
+        wrapper.apply("COALESCE(order_date, DATE(create_time)) BETWEEN {0} AND {1}", startDate, endDate);
+    }
+
+    private void applyPaidOrderCondition(LambdaQueryWrapper<Order> wrapper) {
+        wrapper.and(w -> w.gt(Order::getPaidAmount, BigDecimal.ZERO)
+                .or()
+                .in(Order::getPaymentStatus, PAID_PAYMENT_STATUSES));
+    }
+
+    private BigDecimal sumNetSales(List<Order> orders) {
+        return orders.stream()
+                .map(this::netSalesAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal netSalesAmount(Order order) {
+        BigDecimal netAmount = safeAmount(order.getTotalAmount()).subtract(safeAmount(order.getRefundAmount()));
+        return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
+    }
+
+    private BigDecimal sumNetGrossProfit(List<Order> orders) {
+        return orders.stream()
+                .map(this::netGrossProfitAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal netGrossProfitAmount(Order order) {
+        BigDecimal netAmount = safeAmount(order.getGrossProfit()).subtract(safeAmount(order.getRefundAmount()));
+        return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
+    }
+
+    private long sumSalesQuantity(List<Order> orders) {
+        if (orders == null || orders.isEmpty()) {
+            return 0L;
+        }
+        List<Long> orderIds = orders.stream()
+                .map(Order::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (orderIds.isEmpty()) {
+            return 0L;
+        }
+
+        LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+        itemWrapper.in(OrderItem::getOrderId, orderIds);
+        List<OrderItem> items = orderItemMapper.selectList(itemWrapper);
+        return items.stream()
+                .mapToLong(item -> item.getQuantity() != null ? item.getQuantity() : 0L)
+                .sum();
+    }
+
+    private BigDecimal safeAmount(BigDecimal amount) {
+        return amount != null ? amount : BigDecimal.ZERO;
     }
 
     @Override
@@ -406,6 +408,144 @@ public class DashboardServiceImpl implements DashboardService {
         }
 
         return alerts;
+    }
+
+    @Override
+    public SilentCustomerResultDTO getSilentCustomers(Integer days) {
+        Long tenantId = TenantContext.getTenantId();
+        int silentDays = days != null ? days : 90;
+        LocalDate cutoffDate = LocalDate.now().minusDays(silentDays);
+
+        // 找出有已完成订单但最后订单距今 > silentDays 的客户
+        // 首先获取有已完成订单的客户及其最后订单日期
+        LambdaQueryWrapper<Order> completedWrapper = new LambdaQueryWrapper<>();
+        completedWrapper.eq(Order::getTenantId, tenantId)
+                .ge(Order::getStatus, 4); // 已发货或已完成
+        List<Order> completedOrders = orderMapper.selectList(completedWrapper);
+
+        if (completedOrders.isEmpty()) {
+            SilentCustomerResultDTO result = new SilentCustomerResultDTO();
+            result.setTotal(0);
+            result.setCustomers(new ArrayList<>());
+            return result;
+        }
+
+        // 按客户分组，找出每个客户的最后订单日期
+        Map<Long, LocalDate> customerLastOrderDate = new HashMap<>();
+        for (Order order : completedOrders) {
+            LocalDate orderDate = order.getCreateTime().toLocalDate();
+            customerLastOrderDate.merge(order.getCustomerId(), orderDate, (d1, d2) -> d1.isAfter(d2) ? d1 : d2);
+        }
+
+        // 过滤出最后订单日期早于截止日期的客户
+        List<Long> silentCustomerIds = customerLastOrderDate.entrySet().stream()
+                .filter(e -> e.getValue().isBefore(cutoffDate))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        if (silentCustomerIds.isEmpty()) {
+            SilentCustomerResultDTO result = new SilentCustomerResultDTO();
+            result.setTotal(0);
+            result.setCustomers(new ArrayList<>());
+            return result;
+        }
+
+        // 查询沉默客户的详细信息
+        // 这里需要通过客户手机表获取电话，需要关联查询
+        // 简化处理：直接从customer表查询（假设有customer表）
+        List<SilentCustomerDTO> silentCustomers = new ArrayList<>();
+        for (Long customerId : silentCustomerIds) {
+            // 获取客户信息
+            LambdaQueryWrapper<Order> customerOrderWrapper = new LambdaQueryWrapper<>();
+            customerOrderWrapper.eq(Order::getTenantId, tenantId)
+                    .eq(Order::getCustomerId, customerId)
+                    .orderByDesc(Order::getCreateTime)
+                    .last("LIMIT 1");
+            Order lastOrder = orderMapper.selectOne(customerOrderWrapper);
+
+            if (lastOrder != null) {
+                SilentCustomerDTO dto = new SilentCustomerDTO();
+                dto.setId(customerId);
+                dto.setLastOrderDate(lastOrder.getCreateTime().toLocalDate().toString());
+                dto.setDaysSinceLastOrder((int) java.time.temporal.ChronoUnit.DAYS.between(lastOrder.getCreateTime().toLocalDate(), LocalDate.now()));
+                silentCustomers.add(dto);
+            }
+        }
+
+        SilentCustomerResultDTO result = new SilentCustomerResultDTO();
+        result.setTotal(silentCustomers.size());
+        result.setCustomers(silentCustomers);
+        return result;
+    }
+
+    @Override
+    public InventoryStatsVO getInventoryStats() {
+        Long tenantId = TenantContext.getTenantId();
+
+        // 1. 当前库存总量
+        LambdaQueryWrapper<Inventory> totalWrapper = new LambdaQueryWrapper<>();
+        totalWrapper.eq(Inventory::getTenantId, tenantId);
+        List<Inventory> allInventory = inventoryMapper.selectList(totalWrapper);
+        long totalQuantity = allInventory.stream()
+                .mapToLong(inv -> inv.getQuantity() != null ? inv.getQuantity() : 0L)
+                .sum();
+        long totalSkuCount = allInventory.stream()
+                .map(Inventory::getSkuId)
+                .distinct()
+                .count();
+
+        // 2. 低库存预警数（< 10）
+        LambdaQueryWrapper<Inventory> lowStockWrapper = new LambdaQueryWrapper<>();
+        lowStockWrapper.eq(Inventory::getTenantId, tenantId)
+                .lt(Inventory::getQuantity, 10);
+        long lowStockCount = inventoryMapper.selectCount(lowStockWrapper);
+
+        // 3. 高库存积压数（> 100）
+        LambdaQueryWrapper<Inventory> overstockWrapper = new LambdaQueryWrapper<>();
+        overstockWrapper.eq(Inventory::getTenantId, tenantId)
+                .gt(Inventory::getQuantity, 100);
+        long overstockCount = inventoryMapper.selectCount(overstockWrapper);
+
+        // 4. 计算库存周转率（基于过去90天已发货订单的销售量 / 平均库存）
+        LocalDate today = LocalDate.now();
+        LocalDate ninetyDaysAgo = today.minusDays(90);
+        LocalDateTime startDate = ninetyDaysAgo.atStartOfDay();
+        LocalDateTime endDate = today.atTime(LocalTime.MAX);
+
+        // 过去90天已发货/已完成的订单
+        LambdaQueryWrapper<Order> shippedWrapper = new LambdaQueryWrapper<>();
+        shippedWrapper.eq(Order::getTenantId, tenantId)
+                .between(Order::getCreateTime, startDate, endDate)
+                .ge(Order::getStatus, 4);
+        List<Order> shippedOrders = orderMapper.selectList(shippedWrapper);
+
+        long totalSoldQuantity = 0L;
+        if (!shippedOrders.isEmpty()) {
+            List<Long> orderIds = shippedOrders.stream().map(Order::getId).collect(Collectors.toList());
+            LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+            itemWrapper.in(OrderItem::getOrderId, orderIds);
+            List<OrderItem> items = orderItemMapper.selectList(itemWrapper);
+            totalSoldQuantity = items.stream()
+                    .mapToLong(item -> item.getQuantity() != null ? item.getQuantity() : 0L)
+                    .sum();
+        }
+
+        // 平均库存 = (期初库存 + 期末库存) / 2，这里简化为当前库存
+        // 周转率 = 销售数量 / 平均库存
+        BigDecimal turnoverRate = BigDecimal.ZERO;
+        if (totalQuantity > 0) {
+            // 周转率 = 90天内销售量 / 当前库存量（简化计算）
+            turnoverRate = new BigDecimal(totalSoldQuantity)
+                    .divide(new BigDecimal(totalQuantity), 2, RoundingMode.HALF_UP);
+        }
+
+        InventoryStatsVO vo = new InventoryStatsVO();
+        vo.setTurnoverRate(turnoverRate);
+        vo.setTotalQuantity(totalQuantity);
+        vo.setTotalSkuCount(totalSkuCount);
+        vo.setLowStockCount(lowStockCount);
+        vo.setOverstockCount(overstockCount);
+        return vo;
     }
 
     /**

@@ -14,6 +14,12 @@ public class DashboardStatsDTO {
     /** 周期内销售额（受筛选器影响） */
     private BigDecimal periodSales;
     private Long periodSalesTrend;
+    /** 周期内毛利（受筛选器影响） */
+    private BigDecimal periodGrossProfit;
+    private Long periodGrossProfitTrend;
+    /** 周期内销量（受筛选器影响，按订单明细数量汇总） */
+    private Long periodSalesQuantity;
+    private Long periodSalesQuantityTrend;
     private Long totalProducts;
     private Long pendingOrders;
     private Long pendingOrdersTrend;
@@ -24,5 +30,7 @@ public class DashboardStatsDTO {
     private Long weekOrdersTrend;
     private BigDecimal weekSales;
     private Long weekSalesTrend;
+    private BigDecimal weekGrossProfit;
+    private Long weekGrossProfitTrend;
     private BigDecimal avgOrderValue;
 }

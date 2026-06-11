@@ -43,7 +43,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
+        <el-table-column label="创建时间" width="180">
+          <template #default="{ row }">
+            <span class="text-sm text-gray-500">{{ formatDate(row.createTime) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openUserDialog('edit', row)">编辑</el-button>
@@ -94,7 +98,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
+        <el-table-column label="创建时间" width="180">
+          <template #default="{ row }">
+            <span class="text-sm text-gray-500">{{ formatDate(row.createTime) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openRoleDialog('edit', row)">编辑</el-button>
@@ -284,6 +292,7 @@
         <el-form-item label="所属模块" prop="module">
           <el-select v-model="permissionForm.module" clearable class="w-full">
             <el-option label="仪表盘" value="dashboard" />
+            <el-option label="数据分析" value="analytics" />
             <el-option label="订单" value="order" />
             <el-option label="库存" value="inventory" />
             <el-option label="商品" value="product" />
@@ -334,6 +343,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { getUserPage, getAllRoles, createUser, updateUser, deleteUser, resetUserPassword, type UserVO } from '@/api/user'
 import { getRolePage, createRole, updateRole, deleteRole, getRolePermissions, type RoleVO } from '@/api/role'
 import { getPermissionTree, createPermission, updatePermission, deletePermission, assignRolePermissions, type PermissionVO } from '@/api/permission'
+import { formatDate } from '@/utils/format'
 
 const activeTab = ref('users')
 
@@ -478,7 +488,8 @@ async function submitUserForm() {
     userDialogVisible.value = false
     loadUsers()
   } catch (e: any) {
-    ElMessage.error(e.message || '操作失败')
+    const msg = e?.message || e?.response?.data?.message || '操作失败'
+    ElMessage.error(msg)
   }
 }
 

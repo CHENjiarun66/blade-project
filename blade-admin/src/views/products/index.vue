@@ -70,7 +70,13 @@
         <el-table-column label="商品名称" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-lg bg-[#408aee]/10 flex items-center justify-center">
+              <img
+                v-if="getProductImage(row.imageUrl)"
+                :src="getProductImage(row.imageUrl)"
+                alt=""
+                class="w-10 h-10 rounded-lg object-cover border border-gray-200"
+              />
+              <div v-else class="w-10 h-10 rounded-lg bg-[#408aee]/10 flex items-center justify-center">
                 <span class="material-symbols-outlined text-[#408aee]">inventory_2</span>
               </div>
               <div>
@@ -204,6 +210,24 @@
           <el-input v-model="form.description" type="textarea" :rows="2" placeholder="商品描述" />
         </el-form-item>
 
+        <el-form-item label="商品主图">
+          <div class="flex items-center gap-4">
+            <img
+              v-if="getProductImage(form.imageUrl)"
+              :src="getProductImage(form.imageUrl)"
+              alt=""
+              class="w-20 h-20 rounded-lg object-cover border border-gray-200"
+            />
+            <div v-else class="w-20 h-20 rounded-lg bg-gray-100 flex items-center justify-center">
+              <span class="material-symbols-outlined text-gray-400">image</span>
+            </div>
+            <div>
+              <input type="file" accept="image/*" class="text-xs text-gray-500" @change="handleProductImageUpload" />
+              <p class="text-xs text-gray-400 mt-2">上传后保存 fileId，历史 URL 可继续展示</p>
+            </div>
+          </div>
+        </el-form-item>
+
         <div class="grid grid-cols-2 gap-x-6">
           <el-form-item label="重量(kg)">
             <el-input-number v-model="form.weight" :min="0" :precision="2" :controls="false" class="w-full" placeholder="用于运费计算" />
@@ -262,6 +286,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProductPage, getProductById, createProduct, updateProduct, deleteProduct, getAllColors, getAllSizes, getAllCategories, type ProductVO, type ProductColor, type ProductSize, type ProductCreateDTO, type ProductCategory } from '@/api/product'
+import { parseImageSources, uploadFile } from '@/api/file'
 
 const searchQuery = ref('')
 const categoryFilter = ref<number | undefined>(undefined)
@@ -296,6 +321,7 @@ const form = ref<{
   weight: number | undefined
   status: number
   description: string
+  imageUrl: string
   remark: string
   colorIds: number[]
   sizeIds: number[]
@@ -309,6 +335,7 @@ const form = ref<{
   weight: undefined,
   status: 1,
   description: '',
+  imageUrl: '',
   remark: '',
   colorIds: [],
   sizeIds: []
@@ -412,6 +439,7 @@ function handleCreate() {
     weight: undefined,
     status: 1,
     description: '',
+    imageUrl: '',
     remark: '',
     colorIds: [],
     sizeIds: []
@@ -437,6 +465,7 @@ async function handleEdit(row: ProductVO) {
         weight: product.weight,
         status: product.status,
         description: product.description || '',
+        imageUrl: product.imageUrl || '',
         remark: product.remark || '',
         colorIds: product.colors?.map((c: ProductColor) => c.id) || [],
         sizeIds: product.sizes?.map((s: ProductSize) => s.id) || []
@@ -470,6 +499,7 @@ async function handleSubmit() {
       weight: form.value.weight,
       status: form.value.status,
       description: form.value.description,
+      imageUrl: form.value.imageUrl || undefined,
       remark: form.value.remark,
       colorIds: form.value.colorIds,
       sizeIds: form.value.sizeIds
@@ -493,6 +523,24 @@ async function handleSubmit() {
     ElMessage.error(error?.message || '操作失败')
   } finally {
     submitLoading.value = false
+  }
+}
+
+function getProductImage(imageUrl?: string) {
+  return parseImageSources(imageUrl)[0] || ''
+}
+
+async function handleProductImageUpload(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  try {
+    const res = await uploadFile(file, 'product', editingId.value || undefined)
+    form.value.imageUrl = String(res.data.id)
+  } catch (error: any) {
+    ElMessage.error(error.message || '图片上传失败')
+  } finally {
+    target.value = ''
   }
 }
 

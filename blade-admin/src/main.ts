@@ -5,6 +5,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import router from './router'
 import { createPinia } from 'pinia'
 import App from './App.vue'
+import { installMaterialIconFallback } from './utils/materialIconFallback'
 import './styles/main.css'
 import './styles/pro-admin.css'
 
@@ -21,3 +22,4 @@ app.use(router)
 app.use(ElementPlus)
 
 app.mount('#app')
+installMaterialIconFallback()

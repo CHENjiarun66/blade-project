@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Shirt, Building2, User, Lock, ShieldCheck, ArrowRight } from 'lucide-vue-next'
 import { login, getAuthCodes, getUserInfo } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const loading = ref(false)
 
@@ -15,25 +16,28 @@ const loginForm = reactive({
   account: '',
   password: '',
   captcha: '',
-  remember: false
+  remember: true
 })
 
 const showPassword = ref(false)
-const captchaCode = ref('8K2M')
+const captchaCode = ref('')
 
 // 根据用户权限计算第一个可访问的页面
 function getFirstAccessiblePage(permissions: string[]): string {
   const pagePermissionMap: Record<string, string> = {
     '/dashboard': 'menu:dashboard',
+    '/analytics': 'menu:analytics',
     '/orders': 'menu:order',
     '/inventory': 'menu:inventory',
     '/products': 'menu:product',
     '/clients': 'menu:customer',
+    '/files': 'menu:file',
     '/system': 'menu:system',
+    '/catalog': 'data:catalog:view',
   }
 
   // 按优先级顺序查找第一个有权限的页面
-  const priorityPages = ['/dashboard', '/orders', '/inventory', '/products', '/clients', '/system']
+  const priorityPages = ['/dashboard', '/analytics', '/orders', '/inventory', '/products', '/clients', '/files', '/system', '/catalog']
   for (const page of priorityPages) {
     const requiredPermission = pagePermissionMap[page]
     if (permissions.includes(requiredPermission)) {
@@ -43,6 +47,35 @@ function getFirstAccessiblePage(permissions: string[]): string {
 
   // 如果没有任何页面权限，默认跳转到登录页（不常见）
   return '/login'
+}
+
+function getSafeRedirect(redirect: unknown): string {
+  if (typeof redirect !== 'string') return ''
+  if (!redirect.startsWith('/') || redirect.startsWith('//')) return ''
+  if (redirect.startsWith('/login')) return ''
+  return redirect
+}
+
+function canAccessPath(path: string, permissions: string[]): boolean {
+  const pathname = path.split('?')[0].split('#')[0]
+  const pagePermissionMap: Record<string, string> = {
+    '/dashboard': 'menu:dashboard',
+    '/analytics': 'menu:analytics',
+    '/orders': 'menu:order',
+    '/inventory': 'menu:inventory',
+    '/products': 'menu:product',
+    '/clients': 'menu:customer',
+    '/files': 'menu:file',
+    '/system': 'menu:system',
+    '/catalog': 'data:catalog:view',
+  }
+
+  const match = Object.keys(pagePermissionMap)
+    .sort((a, b) => b.length - a.length)
+    .find((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+
+  if (!match) return false
+  return permissions.includes(pagePermissionMap[match])
 }
 
 const handleLogin = async () => {
@@ -63,10 +96,11 @@ const handleLogin = async () => {
     const res = await login({
       tenantCode: loginForm.tenant,
       username: loginForm.account,
-      password: loginForm.password
+      password: loginForm.password,
+      remember: loginForm.remember
     })
     const token = (res as any).accessToken || (res as any).token
-    authStore.setToken(token)
+    authStore.setTokens(token, (res as any).refreshToken)
 
     // 获取用户信息和权限码
     try {
@@ -97,7 +131,10 @@ const handleLogin = async () => {
 
     // 计算用户有权限访问的第一个页面
     const permissions = authStore.permissions || []
-    const firstAccessiblePage = getFirstAccessiblePage(permissions)
+    const redirect = getSafeRedirect(route.query.redirect)
+    const firstAccessiblePage = redirect && canAccessPath(redirect, permissions)
+      ? redirect
+      : getFirstAccessiblePage(permissions)
     try {
       await router.replace(firstAccessiblePage)
       console.log('[Login] Navigation to:', firstAccessiblePage)
@@ -120,6 +157,10 @@ const refreshCaptcha = () => {
   }
   captchaCode.value = newCode
 }
+
+onMounted(() => {
+  refreshCaptcha()
+})
 </script>
 
 <template>

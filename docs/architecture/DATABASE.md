@@ -229,7 +229,7 @@
 | wholesale_price | decimal(12,2) | | 批发价 |
 | weight | decimal(10,2) | | 重量 |
 | description | text | | 描述 |
-| image_url | varchar(255) | | 商品图片 |
+| image_url | varchar(255) | | 商品主图 fileId，历史数据可为URL |
 | remark | varchar(500) | | 备注 |
 | status | tinyint | DEFAULT 1 | 状态: 1启用 0禁用 |
 | tenant_id | bigint | NOT NULL | 租户ID |
@@ -414,7 +414,7 @@
 | supplier_name | varchar(100) | | 供应商名称（冗余） |
 | operator_id | bigint | | 操作人ID |
 | remark | varchar(500) | | 备注 |
-| images | varchar(1000) | | 图片URLs，逗号分隔 |
+| images | varchar(1000) | | 入库凭证 fileId JSON数组格式 |
 | tenant_id | bigint | NOT NULL | 租户ID |
 | create_time | datetime | DEFAULT | 操作时间 |
 
@@ -447,12 +447,16 @@
 
 ### 4.1 sale_order 订单表
 
-**来源迁移**：`V2__product_order.sql`、`V5__order_refactor.sql`、`V7__order_table_rename.sql`、`V8__order_images.sql`、`V8__order_payment_delivery_fields.sql`、`V10__order_salesman.sql`、`V19__order_add_salesman_name.sql`、`V21__order_delivery_plan.sql`
+**来源迁移**：`V2__product_order.sql`、`V5__order_refactor.sql`、`V7__order_table_rename.sql`、`V8__order_images.sql`、`V8__order_payment_delivery_fields.sql`、`V10__order_salesman.sql`、`V19__order_add_salesman_name.sql`、`V21__order_delivery_plan.sql`、`V29__order_quick_entry_finance.sql`、`V30__order_source_shop.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | bigint | PK | 订单ID |
 | order_no | varchar(30) | UNIQUE, NOT NULL | 订单号 |
+| order_date | date | | 订单日期（纸质单据日期） |
+| source_doc_no | varchar(50) | | 纸质单据号/外部单号 |
+| source_shop | varchar(100) | | 订单来源档口/店铺，不等同于仓库 |
+| order_type | varchar(20) | NOT NULL, DEFAULT 'SPOT' | 订单类型：SPOT现货/PREORDER订货 |
 | customer_id | bigint | | 客户ID |
 | customer_name | varchar(50) | NOT NULL | 客户名称 |
 | customer_phone | varchar(11) | | 客户电话 |
@@ -463,6 +467,10 @@
 | paid_amount | decimal(12,2) | DEFAULT 0 | 已支付金额 |
 | payment_status | tinyint | NOT NULL, DEFAULT 0 | 支付状态: 0未付款 1已付定金 2已付全款 |
 | deposit_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 定金金额 |
+| freight_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 客户运费收入 |
+| freight_cost | decimal(12,2) | NOT NULL, DEFAULT 0 | 实际运费成本 |
+| total_cost_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 订单总成本 |
+| gross_profit | decimal(12,2) | NOT NULL, DEFAULT 0 | 订单毛利 |
 | adjustment_status | varchar(20) | DEFAULT 'NONE' | 调整状态 |
 | status | tinyint | NOT NULL, DEFAULT 0 | 订单状态 |
 | warehouse_id | bigint | | 发货仓库 |
@@ -476,7 +484,7 @@
 | confirm_time | datetime | | 历史确认时间字段 |
 | deliver_time | datetime | | 发货时间 |
 | complete_time | datetime | | 完成时间 |
-| images | varchar(1000) | | 订单图片，JSON数组格式 |
+| images | varchar(1000) | | 订单图片 fileId JSON数组格式 |
 | remark | varchar(255) | | 备注 |
 | tenant_id | bigint | NOT NULL | 租户ID |
 | deleted | tinyint | DEFAULT 0 | 删除标记 |
@@ -507,12 +515,15 @@
 | size_name | varchar(10) | | 尺码（冗余） |
 | product_name | varchar(100) | NOT NULL | 商品名称（冗余） |
 | price | decimal(12,2) | NOT NULL | 单价 |
+| cost_price | decimal(12,2) | NOT NULL, DEFAULT 0 | 下单成本价快照 |
 | quantity | int | NOT NULL | 下单数量 |
 | planned_quantity | int | DEFAULT 0 | 计划数量（原订单数量） |
 | allocated_quantity | int | DEFAULT 0 | 配货数量（调整后数量） |
 | out_quantity | int | DEFAULT 0 | 已出库数量 |
 | adjustment_remark | varchar(255) | | 调整说明 |
 | subtotal | decimal(12,2) | NOT NULL | 小计金额 |
+| cost_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 成本金额快照 |
+| gross_profit | decimal(12,2) | NOT NULL, DEFAULT 0 | 明细毛利快照 |
 | tenant_id | bigint | NOT NULL | 租户ID |
 | create_time | datetime | DEFAULT | 创建时间 |
 

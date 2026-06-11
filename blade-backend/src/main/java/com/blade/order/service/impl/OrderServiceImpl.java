@@ -5,11 +5,13 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
+import com.blade.file.service.FileService;
 import com.blade.inventory.dto.InventoryReserveDTO;
 import com.blade.inventory.entity.Warehouse;
 import com.blade.inventory.mapper.WarehouseMapper;
 import com.blade.inventory.service.InventoryService;
 import com.blade.order.dto.OrderCreateDTO;
+import com.blade.order.dto.OrderExportDTO;
 import com.blade.order.dto.OrderPageDTO;
 import com.blade.order.dto.OrderUpdateDTO;
 import com.blade.order.dto.OrderVO;
@@ -40,6 +42,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -61,6 +64,7 @@ public class OrderServiceImpl implements OrderService {
     private final UserMapper userMapper;
     private final WarehouseMapper warehouseMapper;
     private final RedissonClient redissonClient;
+    private final FileService fileService;
 
     @Autowired
     public OrderServiceImpl(OrderMapper orderMapper, OrderItemMapper orderItemMapper,
@@ -68,7 +72,8 @@ public class OrderServiceImpl implements OrderService {
                            ProductSkuMapper productSkuMapper, ProductColorMapper productColorMapper,
                            ProductSizeMapper productSizeMapper, ProductMapper productMapper,
                            InventoryService inventoryService, UserMapper userMapper,
-                           WarehouseMapper warehouseMapper, RedissonClient redissonClient) {
+                           WarehouseMapper warehouseMapper, RedissonClient redissonClient,
+                           FileService fileService) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.deliveryPlanMapper = deliveryPlanMapper;
@@ -80,6 +85,7 @@ public class OrderServiceImpl implements OrderService {
         this.userMapper = userMapper;
         this.warehouseMapper = warehouseMapper;
         this.redissonClient = redissonClient;
+        this.fileService = fileService;
     }
 
     // 订单状态常量（9状态设计）
@@ -97,6 +103,9 @@ public class OrderServiceImpl implements OrderService {
     private static final int PAYMENT_UNPAID = 0;      // 未付款
     private static final int PAYMENT_DEPOSIT = 1;      // 已付定金
     private static final int PAYMENT_FULL = 2;         // 已付全款
+    private static final String ORDER_TYPE_SPOT = "SPOT";
+    private static final String ORDER_TYPE_PREORDER = "PREORDER";
+    private static final BigDecimal ZERO = BigDecimal.ZERO;
 
     @Override
     public PageResult<OrderVO> pageList(OrderPageDTO dto) {
@@ -115,6 +124,14 @@ public class OrderServiceImpl implements OrderService {
         }
         if (dto.getPaymentStatus() != null) {
             wrapper.eq(Order::getPaymentStatus, dto.getPaymentStatus());
+        }
+        if (dto.getOrderType() != null && !dto.getOrderType().isEmpty()) {
+            wrapper.eq(Order::getOrderType, dto.getOrderType());
+        }
+        if (Boolean.TRUE.equals(dto.getHasBalance())) {
+            wrapper.apply("paid_amount < total_amount");
+        } else if (Boolean.FALSE.equals(dto.getHasBalance())) {
+            wrapper.apply("paid_amount >= total_amount");
         }
 
         wrapper.orderByDesc(Order::getCreateTime);
@@ -148,6 +165,10 @@ public class OrderServiceImpl implements OrderService {
 
         Order order = new Order();
         order.setOrderNo(generateOrderNo());
+        order.setOrderDate(dto.getOrderDate() != null ? dto.getOrderDate() : LocalDate.now());
+        order.setSourceDocNo(dto.getSourceDocNo());
+        order.setSourceShop(dto.getSourceShop());
+        order.setOrderType(normalizeOrderType(dto.getOrderType()));
         order.setCustomerId(dto.getCustomerId());
         order.setCustomerName(dto.getCustomerName());
         order.setCustomerPhone(dto.getCustomerPhone());
@@ -164,97 +185,191 @@ public class OrderServiceImpl implements OrderService {
         order.setRemark(dto.getRemark());
         order.setImages(dto.getImages());
         order.setStatus(STATUS_CREATED);
-        order.setPaidAmount(BigDecimal.ZERO);
+        order.setPaidAmount(ZERO);
         order.setAdjustmentStatus(Order.AdjustmentStatus.NONE);
         order.setTenantId(tenantId);
-
-        // 设置支付状态和配送设置
-        order.setPaymentStatus(dto.getPaymentStatus());
-        order.setDepositAmount(dto.getDepositAmount());
+        order.setFreightAmount(safeAmount(dto.getFreightAmount()));
+        order.setFreightCost(safeAmount(dto.getFreightCost()));
         order.setNeedDelivery(dto.getNeedDelivery());
         order.setDeliveryAddress(dto.getDeliveryAddress());
         order.setIsDelivered(0);
         order.setDeliveredAt(null);
 
-        // 计算订单总额
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        for (OrderCreateDTO.OrderItemDTO itemDTO : dto.getItems()) {
-            // 获取 SKU 信息
-            ProductSku sku = productSkuMapper.selectById(itemDTO.getSkuId());
-            BigDecimal price = itemDTO.getPrice() != null ? itemDTO.getPrice() : sku.getPrice();
-            BigDecimal subtotal = price.multiply(BigDecimal.valueOf(itemDTO.getQuantity()));
-            totalAmount = totalAmount.add(subtotal);
-        }
-        order.setTotalAmount(totalAmount);
-
-        // 支付状态验证（在总额计算后进行）
-        if (dto.getPaymentStatus() == PAYMENT_DEPOSIT) {
-            if (dto.getDepositAmount() == null || dto.getDepositAmount().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new RuntimeException("已付定金时，定金金额必须大于0");
-            }
-            if (dto.getDepositAmount().compareTo(totalAmount) > 0) {
-                throw new RuntimeException("定金金额不能大于订单总额");
-            }
-        }
-
-        // 全款付款时，自动设置已支付金额为订单总额
-        if (dto.getPaymentStatus() == PAYMENT_FULL) {
-            order.setPaidAmount(totalAmount);
-        }
+        OrderTotals totals = calculateTotals(dto.getItems(), order.getFreightAmount(), order.getFreightCost());
+        applyTotals(order, totals);
+        applyPaymentSnapshot(order, resolveInitialPaidAmount(dto, order.getTotalAmount()));
 
         orderMapper.insert(order);
-
-        // 保存订单明细
-        for (OrderCreateDTO.OrderItemDTO itemDTO : dto.getItems()) {
-            ProductSku sku = productSkuMapper.selectById(itemDTO.getSkuId());
-            BigDecimal price = itemDTO.getPrice() != null ? itemDTO.getPrice() : sku.getPrice();
-
-            // 填充冗余字段（快照）
-            String productName = "";
-            String colorName = "";
-            String sizeName = "";
-            if (sku != null) {
-                // 获取商品名称
-                if (sku.getProductId() != null) {
-                    Product product = productMapper.selectById(sku.getProductId());
-                    if (product != null) {
-                        productName = product.getName();
-                    }
-                }
-                // 获取颜色名称
-                if (sku.getColorId() != null) {
-                    ProductColor color = productColorMapper.selectById(sku.getColorId());
-                    if (color != null) {
-                        colorName = color.getColorName();
-                    }
-                }
-                // 获取尺码名称
-                if (sku.getSizeId() != null) {
-                    ProductSize size = productSizeMapper.selectById(sku.getSizeId());
-                    if (size != null) {
-                        sizeName = size.getSizeCode();
-                    }
-                }
-            }
-
-            OrderItem item = new OrderItem();
-            item.setOrderId(order.getId());
-            item.setSkuId(itemDTO.getSkuId());
-            // 如果订单明细指定了仓库，则使用指定的；否则使用订单级别的仓库
-            item.setWarehouseId(itemDTO.getWarehouseId() != null ? itemDTO.getWarehouseId() : order.getWarehouseId());
-            item.setSkuCode(sku != null ? sku.getSkuCode() : "");
-            item.setProductName(productName);
-            item.setColorName(colorName);
-            item.setSizeName(sizeName);
-            item.setPrice(price);
-            item.setQuantity(itemDTO.getQuantity());
-            item.setSubtotal(price.multiply(BigDecimal.valueOf(itemDTO.getQuantity())));
-            item.setTenantId(tenantId);
-            orderItemMapper.insert(item);
-        }
+        insertOrderItems(order, dto.getItems(), tenantId);
+        fileService.bindFilesFromJson("order", order.getId(), order.getImages());
 
         return order.getId();
     }
+
+    private void insertOrderItems(Order order, List<OrderCreateDTO.OrderItemDTO> itemDTOs, Long tenantId) {
+        for (OrderCreateDTO.OrderItemDTO itemDTO : itemDTOs) {
+            OrderItem item = buildOrderItem(order, itemDTO, tenantId);
+            orderItemMapper.insert(item);
+        }
+    }
+
+    private OrderItem buildOrderItem(Order order, OrderCreateDTO.OrderItemDTO itemDTO, Long tenantId) {
+        ProductSku sku = productSkuMapper.selectById(itemDTO.getSkuId());
+        if (sku == null) {
+            throw new RuntimeException("SKU不存在：" + itemDTO.getSkuId());
+        }
+        Product product = sku.getProductId() != null ? productMapper.selectById(sku.getProductId()) : null;
+        BigDecimal price = itemDTO.getPrice() != null ? itemDTO.getPrice() : safeAmount(sku.getPrice());
+        BigDecimal costPrice = itemDTO.getCostPrice() != null ? itemDTO.getCostPrice() : resolveCostPrice(sku, product);
+        Integer quantity = itemDTO.getQuantity() != null ? itemDTO.getQuantity() : 0;
+        if (quantity <= 0) {
+            throw new RuntimeException("商品数量必须大于0");
+        }
+        BigDecimal subtotal = price.multiply(BigDecimal.valueOf(quantity));
+        BigDecimal costAmount = costPrice.multiply(BigDecimal.valueOf(quantity));
+
+        String colorName = "";
+        String sizeName = "";
+        if (sku.getColorId() != null) {
+            ProductColor color = productColorMapper.selectById(sku.getColorId());
+            if (color != null) {
+                colorName = color.getColorName();
+            }
+        }
+        if (sku.getSizeId() != null) {
+            ProductSize size = productSizeMapper.selectById(sku.getSizeId());
+            if (size != null) {
+                sizeName = size.getSizeCode();
+            }
+        }
+
+        OrderItem item = new OrderItem();
+        item.setOrderId(order.getId());
+        item.setSkuId(itemDTO.getSkuId());
+        item.setWarehouseId(itemDTO.getWarehouseId() != null ? itemDTO.getWarehouseId() : order.getWarehouseId());
+        item.setSkuCode(sku.getSkuCode() != null ? sku.getSkuCode() : "");
+        item.setProductName(product != null ? product.getName() : "");
+        item.setColorName(colorName);
+        item.setSizeName(sizeName);
+        item.setPrice(price);
+        item.setCostPrice(costPrice);
+        item.setQuantity(quantity);
+        item.setSubtotal(subtotal);
+        item.setCostAmount(costAmount);
+        item.setGrossProfit(subtotal.subtract(costAmount));
+        item.setTenantId(tenantId);
+        return item;
+    }
+
+    private OrderTotals calculateTotals(List<OrderCreateDTO.OrderItemDTO> items, BigDecimal freightAmount, BigDecimal freightCost) {
+        BigDecimal salesAmount = ZERO;
+        BigDecimal productCostAmount = ZERO;
+        for (OrderCreateDTO.OrderItemDTO itemDTO : items) {
+            ProductSku sku = productSkuMapper.selectById(itemDTO.getSkuId());
+            if (sku == null) {
+                throw new RuntimeException("SKU不存在：" + itemDTO.getSkuId());
+            }
+            Product product = sku.getProductId() != null ? productMapper.selectById(sku.getProductId()) : null;
+            BigDecimal price = itemDTO.getPrice() != null ? itemDTO.getPrice() : safeAmount(sku.getPrice());
+            BigDecimal costPrice = itemDTO.getCostPrice() != null ? itemDTO.getCostPrice() : resolveCostPrice(sku, product);
+            Integer quantity = itemDTO.getQuantity() != null ? itemDTO.getQuantity() : 0;
+            if (quantity <= 0) {
+                throw new RuntimeException("商品数量必须大于0");
+            }
+            salesAmount = salesAmount.add(price.multiply(BigDecimal.valueOf(quantity)));
+            productCostAmount = productCostAmount.add(costPrice.multiply(BigDecimal.valueOf(quantity)));
+        }
+        BigDecimal freightIncome = safeAmount(freightAmount);
+        BigDecimal freightExpense = safeAmount(freightCost);
+        BigDecimal totalAmount = salesAmount.add(freightIncome);
+        BigDecimal totalCost = productCostAmount.add(freightExpense);
+        return new OrderTotals(totalAmount, totalCost, totalAmount.subtract(totalCost));
+    }
+
+    private OrderTotals calculateTotalsFromExistingItems(Long orderId, BigDecimal freightAmount, BigDecimal freightCost) {
+        LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(OrderItem::getOrderId, orderId);
+        List<OrderItem> items = orderItemMapper.selectList(wrapper);
+        BigDecimal salesAmount = items.stream()
+                .map(item -> safeAmount(item.getSubtotal()))
+                .reduce(ZERO, BigDecimal::add);
+        BigDecimal productCostAmount = items.stream()
+                .map(item -> safeAmount(item.getCostAmount()))
+                .reduce(ZERO, BigDecimal::add);
+        BigDecimal totalAmount = salesAmount.add(safeAmount(freightAmount));
+        BigDecimal totalCost = productCostAmount.add(safeAmount(freightCost));
+        return new OrderTotals(totalAmount, totalCost, totalAmount.subtract(totalCost));
+    }
+
+    private void applyTotals(Order order, OrderTotals totals) {
+        order.setTotalAmount(totals.totalAmount());
+        order.setTotalCostAmount(totals.totalCostAmount());
+        order.setGrossProfit(totals.grossProfit());
+    }
+
+    private BigDecimal resolveInitialPaidAmount(OrderCreateDTO dto, BigDecimal totalAmount) {
+        if (dto.getPaidAmount() != null) {
+            return dto.getPaidAmount();
+        }
+        if (dto.getPaymentStatus() != null && dto.getPaymentStatus() == PAYMENT_FULL) {
+            return totalAmount;
+        }
+        if (dto.getPaymentStatus() != null && dto.getPaymentStatus() == PAYMENT_DEPOSIT) {
+            return safeAmount(dto.getDepositAmount());
+        }
+        return ZERO;
+    }
+
+    private void applyPaymentSnapshot(Order order, BigDecimal paidAmount) {
+        BigDecimal paid = safeAmount(paidAmount);
+        if (paid.compareTo(ZERO) < 0) {
+            throw new RuntimeException("实收金额不能小于0");
+        }
+        if (paid.compareTo(order.getTotalAmount()) > 0) {
+            throw new RuntimeException("实收金额不能超过订单应收总额");
+        }
+        order.setPaidAmount(paid);
+        if (paid.compareTo(order.getTotalAmount()) >= 0 && order.getTotalAmount().compareTo(ZERO) > 0) {
+            order.setPaymentStatus(PAYMENT_FULL);
+            order.setDepositAmount(ZERO);
+        } else if (paid.compareTo(ZERO) > 0) {
+            order.setPaymentStatus(PAYMENT_DEPOSIT);
+            order.setDepositAmount(paid);
+        } else {
+            order.setPaymentStatus(PAYMENT_UNPAID);
+            order.setDepositAmount(ZERO);
+        }
+    }
+
+    private BigDecimal resolveCostPrice(ProductSku sku, Product product) {
+        if (sku != null && sku.getCostPrice() != null && sku.getCostPrice().compareTo(ZERO) > 0) {
+            return sku.getCostPrice();
+        }
+        if (product != null && product.getCostPrice() != null) {
+            return product.getCostPrice();
+        }
+        return ZERO;
+    }
+
+    private BigDecimal safeAmount(BigDecimal value) {
+        return value != null ? value : ZERO;
+    }
+
+    private String normalizeOrderType(String orderType) {
+        if (ORDER_TYPE_PREORDER.equals(orderType)) {
+            return ORDER_TYPE_PREORDER;
+        }
+        return ORDER_TYPE_SPOT;
+    }
+
+    private String getOrderTypeName(String orderType) {
+        if (ORDER_TYPE_PREORDER.equals(orderType)) {
+            return "订货订单";
+        }
+        return "现货订单";
+    }
+
+    private record OrderTotals(BigDecimal totalAmount, BigDecimal totalCostAmount, BigDecimal grossProfit) {}
 
     @Override
     @Transactional
@@ -263,10 +378,24 @@ public class OrderServiceImpl implements OrderService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
-        // 已发货、已完成不允许编辑
+        // 已发货后只允许补充备注/图片，金额结构和明细不再修改
         if (order.getStatus() >= STATUS_DELIVERED) {
-            throw new RuntimeException("该订单状态不允许修改");
+            if (dto.getRemark() != null) order.setRemark(dto.getRemark());
+            if (dto.getImages() != null) order.setImages(dto.getImages());
+            order.setUpdateTime(LocalDateTime.now());
+            orderMapper.updateById(order);
+            fileService.bindFilesFromJson("order", order.getId(), order.getImages());
+            return;
         }
+        boolean hasFinancialChange = dto.getFreightAmount() != null || dto.getFreightCost() != null
+                || (dto.getItems() != null && !dto.getItems().isEmpty());
+        if (order.getStatus() != STATUS_CREATED && hasFinancialChange) {
+            throw new RuntimeException("已收款或配货订单不允许直接修改金额和明细，请先取消订单或调整配货计划");
+        }
+        if (dto.getOrderDate() != null) order.setOrderDate(dto.getOrderDate());
+        if (dto.getSourceDocNo() != null) order.setSourceDocNo(dto.getSourceDocNo());
+        if (dto.getSourceShop() != null) order.setSourceShop(dto.getSourceShop());
+        if (dto.getOrderType() != null) order.setOrderType(normalizeOrderType(dto.getOrderType()));
         if (dto.getCustomerName() != null) order.setCustomerName(dto.getCustomerName());
         if (dto.getCustomerPhone() != null) order.setCustomerPhone(dto.getCustomerPhone());
         if (dto.getCustomerAddress() != null) order.setCustomerAddress(dto.getCustomerAddress());
@@ -274,8 +403,24 @@ public class OrderServiceImpl implements OrderService {
         if (dto.getDeliveryAddress() != null) order.setDeliveryAddress(dto.getDeliveryAddress());
         if (dto.getRemark() != null) order.setRemark(dto.getRemark());
         if (dto.getImages() != null) order.setImages(dto.getImages());
+        if (dto.getFreightAmount() != null) order.setFreightAmount(safeAmount(dto.getFreightAmount()));
+        if (dto.getFreightCost() != null) order.setFreightCost(safeAmount(dto.getFreightCost()));
+        if (dto.getItems() != null && !dto.getItems().isEmpty()) {
+            LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(OrderItem::getOrderId, order.getId());
+            orderItemMapper.delete(wrapper);
+            insertOrderItems(order, dto.getItems(), order.getTenantId());
+        }
+        if (hasFinancialChange) {
+            OrderTotals totals = dto.getItems() != null && !dto.getItems().isEmpty()
+                    ? calculateTotals(dto.getItems(), order.getFreightAmount(), order.getFreightCost())
+                    : calculateTotalsFromExistingItems(order.getId(), order.getFreightAmount(), order.getFreightCost());
+            applyTotals(order, totals);
+            applyPaymentSnapshot(order, order.getPaidAmount());
+        }
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
+        fileService.bindFilesFromJson("order", order.getId(), order.getImages());
     }
 
     @Override
@@ -350,8 +495,9 @@ public class OrderServiceImpl implements OrderService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
-        if (order.getStatus() != STATUS_CREATED) {
-            throw new RuntimeException("只有创建状态的订单才可追加收款");
+        if (order.getStatus() == STATUS_COMPLETED || order.getStatus() == STATUS_CANCELLED
+                || order.getStatus() == STATUS_RETURNING || order.getStatus() == STATUS_RETURNED) {
+            throw new RuntimeException("该订单当前状态不支持追加收款");
         }
         if (order.getPaymentStatus() == PAYMENT_FULL) {
             throw new RuntimeException("订单已付全款，无需追加");
@@ -361,14 +507,111 @@ public class OrderServiceImpl implements OrderService {
         if (newPaidAmount.compareTo(order.getTotalAmount()) > 0) {
             throw new RuntimeException("追加后金额不能超过订单总额");
         }
-        order.setPaidAmount(newPaidAmount);
-        if (newPaidAmount.compareTo(order.getTotalAmount()) >= 0) {
-            order.setPaymentStatus(PAYMENT_FULL);
-        } else {
-            order.setPaymentStatus(PAYMENT_DEPOSIT);
-        }
+        applyPaymentSnapshot(order, newPaidAmount);
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
+    }
+
+    @Override
+    public List<OrderExportDTO> exportOrders(OrderPageDTO dto) {
+        Long tenantId = TenantContext.getTenantId();
+
+        // 查询所有符合筛选条件的订单（不分页）
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getTenantId, tenantId);
+
+        if (dto.getOrderNo() != null && !dto.getOrderNo().isEmpty()) {
+            wrapper.eq(Order::getOrderNo, dto.getOrderNo());
+        }
+        if (dto.getCustomerName() != null && !dto.getCustomerName().isEmpty()) {
+            wrapper.like(Order::getCustomerName, dto.getCustomerName());
+        }
+        if (dto.getStatus() != null) {
+            wrapper.eq(Order::getStatus, dto.getStatus());
+        }
+        if (dto.getPaymentStatus() != null) {
+            wrapper.eq(Order::getPaymentStatus, dto.getPaymentStatus());
+        }
+        if (dto.getOrderType() != null && !dto.getOrderType().isEmpty()) {
+            wrapper.eq(Order::getOrderType, dto.getOrderType());
+        }
+        if (Boolean.TRUE.equals(dto.getHasBalance())) {
+            wrapper.apply("paid_amount < total_amount");
+        } else if (Boolean.FALSE.equals(dto.getHasBalance())) {
+            wrapper.apply("paid_amount >= total_amount");
+        }
+
+        wrapper.orderByDesc(Order::getCreateTime);
+
+        // 查询订单（设置一个很大的分页大小）
+        Page<Order> page = new Page<>(1, 10000);
+        IPage<Order> orderPage = orderMapper.selectPage(page, wrapper);
+        List<Order> orders = orderPage.getRecords();
+
+        if (orders.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 查询所有订单项
+        List<Long> orderIds = orders.stream().map(Order::getId).collect(Collectors.toList());
+        LambdaQueryWrapper<OrderItem> itemWrapper = new LambdaQueryWrapper<>();
+        itemWrapper.in(OrderItem::getOrderId, orderIds);
+        List<OrderItem> allItems = orderItemMapper.selectList(itemWrapper);
+
+        // 按订单ID分组
+        java.util.Map<Long, List<OrderItem>> itemsByOrderId = allItems.stream()
+                .collect(Collectors.groupingBy(OrderItem::getOrderId));
+
+        // 构建导出数据（每行 = 1个订单明细）
+        List<OrderExportDTO> result = new ArrayList<>();
+        for (Order order : orders) {
+            List<OrderItem> items = itemsByOrderId.getOrDefault(order.getId(), new ArrayList<>());
+            if (items.isEmpty()) {
+                // 订单没有明细，也导出一行
+                OrderExportDTO exportDto = new OrderExportDTO();
+                fillOrderFields(exportDto, order);
+                result.add(exportDto);
+            } else {
+                for (OrderItem item : items) {
+                    OrderExportDTO exportDto = new OrderExportDTO();
+                    fillOrderFields(exportDto, order);
+                    exportDto.setProductName(item.getProductName());
+                    exportDto.setSkuCode(item.getSkuCode());
+                    exportDto.setColorName(item.getColorName());
+                    exportDto.setSizeName(item.getSizeName());
+                    exportDto.setQuantity(item.getQuantity());
+                    exportDto.setPrice(item.getPrice());
+                    exportDto.setCostPrice(item.getCostPrice());
+                    exportDto.setSubtotal(item.getSubtotal());
+                    exportDto.setCostAmount(item.getCostAmount());
+                    exportDto.setItemGrossProfit(item.getGrossProfit());
+                    result.add(exportDto);
+                }
+            }
+        }
+        return result;
+    }
+
+    private void fillOrderFields(OrderExportDTO exportDto, Order order) {
+        exportDto.setOrderNo(order.getOrderNo());
+        exportDto.setSourceDocNo(order.getSourceDocNo());
+        exportDto.setSourceShop(order.getSourceShop());
+        exportDto.setOrderDate(order.getOrderDate() != null ? order.getOrderDate().toString() : "");
+        exportDto.setOrderTypeName(getOrderTypeName(order.getOrderType()));
+        exportDto.setStatusName(getStatusName(order.getStatus()));
+        exportDto.setPaymentStatusName(getPaymentStatusName(order.getPaymentStatus()));
+        exportDto.setCustomerName(order.getCustomerName());
+        exportDto.setCustomerPhone(order.getCustomerPhone());
+        exportDto.setTotalAmount(order.getTotalAmount());
+        exportDto.setPaidAmount(order.getPaidAmount());
+        exportDto.setBalanceAmount(safeAmount(order.getTotalAmount()).subtract(safeAmount(order.getPaidAmount())));
+        exportDto.setFreightAmount(order.getFreightAmount());
+        exportDto.setFreightCost(order.getFreightCost());
+        exportDto.setTotalCostAmount(order.getTotalCostAmount());
+        exportDto.setGrossProfit(order.getGrossProfit());
+        exportDto.setSalesmanName(order.getSalesmanName());
+        exportDto.setCreateTime(order.getCreateTime() != null ? order.getCreateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
+        exportDto.setRemark(order.getRemark());
     }
 
     /**
@@ -627,6 +870,8 @@ public class OrderServiceImpl implements OrderService {
         BeanUtils.copyProperties(order, vo);
         vo.setStatusName(getStatusName(order.getStatus()));
         vo.setPaymentStatusName(getPaymentStatusName(order.getPaymentStatus()));
+        vo.setOrderTypeName(getOrderTypeName(order.getOrderType()));
+        vo.setBalanceAmount(safeAmount(order.getTotalAmount()).subtract(safeAmount(order.getPaidAmount())));
 
         // 设置销售人员名称（优先使用存储的冗余字段，避免跨租户查询）
         if (order.getSalesmanName() != null && !order.getSalesmanName().isEmpty()) {
@@ -669,12 +914,15 @@ public class OrderServiceImpl implements OrderService {
                 itemVO.setColorName(item.getColorName());
                 itemVO.setSizeName(item.getSizeName());
                 itemVO.setPrice(item.getPrice());
+                itemVO.setCostPrice(item.getCostPrice());
                 itemVO.setQuantity(item.getQuantity());
                 itemVO.setPlannedQuantity(item.getPlannedQuantity());
                 itemVO.setAllocatedQuantity(item.getAllocatedQuantity());
                 itemVO.setOutQuantity(item.getOutQuantity());
                 itemVO.setAdjustmentRemark(item.getAdjustmentRemark());
                 itemVO.setSubtotal(item.getSubtotal());
+                itemVO.setCostAmount(item.getCostAmount());
+                itemVO.setGrossProfit(item.getGrossProfit());
                 return itemVO;
             }).collect(Collectors.toList());
             vo.setItems(itemVOList);
