@@ -269,8 +269,8 @@
 | BE-1010 | 基础视频文件支持 | ✅ 完成 | 上传支持 video/mp4、video/webm、video/quicktime；上传上限默认 200MB 且支持环境变量覆盖；自动分类 fileType（IMAGE/VIDEO/OTHER）和 fileExt；FileUploadVO 新增 fileType/fileExt；不做转码/封面/Range/分片 |
 | BE-1011 | 文件中心回归测试 | ✅ 完成 | 覆盖上传、列表、绑定、未绑定清理、删除保护；补充批量删除有效绑定文件拒绝测试；`File*Test` 98/98 通过 |
 | BE-1012 | 图片派生图/缩略图底座 | ⏳ TODO | 新增 file_derivative；上传图片后生成 thumb/card；新增 GET /api/files/{id}/variant?type=thumb/card；权限继承原图预览权限；历史图片批量补生成后续实现 |
-| BE-1013 | 商品素材查询 API | ⏳ TODO | 为商品编辑 v2 提供商品主图、商品图集、SKU 图片查询能力；建议 GET /api/products/{id}/file-bindings 或复用文件绑定聚合接口；返回 fileId、previewUrl、bindRole、sort、skuId |
-| BE-1014 | 商品/SKU 删除引用保护验收 | ⏳ TODO | 验证商品、SKU、颜色、尺码、分类删除均不破坏历史订单/库存/文件绑定；存在订单明细、库存或有效绑定时默认禁止删除并提示禁用 |
+| BE-1013 | 商品素材查询 API | ✅ 完成 | GET /api/products/{id}/file-bindings，返回 main/gallery/skuImages 分组，previewUrl 统一为 /api/files/{fileId}/preview |
+| BE-1014 | 商品/SKU 删除引用保护验收 + SKU精细更新 | ✅ 完成 | 新增 PUT /api/products/skus 单个SKU更新；syncProductSkus 保留已有 SKU price/costPrice/barCode/status；delete/deleteColor/deleteSize 添加引用保护，有引用时提示建议禁用；39 个后端测试全部通过 |
 
 ### Phase 6.7: 客户 iPad 现货展示页后端（P1）
 
@@ -549,6 +549,11 @@
 - 执行时间：2026-06-04 09:57
 - 执行结果：✅ 完成
 - 备注：Claude Code 执行尝试因预算上限中断，Codex 接手完成。确认现有文件中心回归覆盖上传、列表/详情、绑定、文件夹、未绑定治理、清理标记、视频类型和私有预览权限；补齐批量删除保护，`FileBindingServiceImpl.batchDelete()` 发现当前租户有效绑定时拒绝软删除，新增 `batchDelete_rejectsActiveBoundFiles` 回归测试。`FileBindingServiceImplTest` 13/13 通过；`File*Test` 96/96 通过。
+
+### BE-1013 + BE-1014 - 商品管理 v2 后端 Slice 1
+- 执行时间：2026-06-14 15:47
+- 执行结果：✅ 完成
+- 备注：Claude Code 实现，Codex 两轮审核后补正租户过滤、businessType 分离、空颜色/尺码禁用 SKU 和空数组返回等问题。新增 GET /api/products/{id}/file-bindings（返回主图/图集/SKU图片分组）、PUT /api/products/skus（单个SKU更新 price/costPrice/barCode/status）；修复 syncProductSkus 保留已有 SKU 字段不覆盖；delete/deleteColor/deleteSize 添加引用保护；ProductServiceV2Test 26/26 通过，ProductFileBindingServiceTest 11/11 通过，ProductFileBindingControllerTest 2/2 通过。新增文件：ProductFileBindingsVO.java、SkuUpdateDTO.java、ProductServiceV2Test.java。
 
 ### BE-001 ~ BE-008 - 后端骨架搭建
 - 执行时间：2026-03-21 18:10

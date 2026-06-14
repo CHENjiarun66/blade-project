@@ -38,6 +38,31 @@
 
 ---
 
+### [实现] - BE-1013 + BE-1014 商品管理 v2 后端 Slice 1 (2026-06-14)
+
+**变更内容**：
+- 新增 `GET /api/products/{id}/file-bindings` 商品素材查询 API，返回主图/图集/SKU图片分组（ProductFileBindingsVO），预览 URL 统一为 `/api/files/{fileId}/preview`
+- 新增 `PUT /api/products/skus` 单个 SKU 更新 API（SkuUpdateDTO），支持更新 price/costPrice/barCode/status，含租户归属校验
+- 修复 `syncProductSkus`：已有 SKU 保留其 price/costPrice/barCode/status，不再被商品级更新覆盖；颜色/尺码组合移除时禁用而非物理删除
+- 添加删除引用保护：商品删除检查订单明细/库存/文件绑定；颜色/尺码删除检查活跃商品关联；存在引用时抛 RuntimeException 建议禁用
+- 新增 ProductFileBindingsVO.java、SkuUpdateDTO.java、ProductServiceV2Test.java
+- Claude Code 完成实现后，Codex 两轮审核补正租户过滤、businessType 分离、空颜色/尺码禁用 SKU、空数组返回和脏绑定过滤等问题
+- 39 个后端测试全部通过（ProductServiceV2Test 26/26 + ProductFileBindingServiceTest 11/11 + ProductFileBindingControllerTest 2/2）
+
+**变更原因**：
+- 商品管理 v2 需要为 SKU 精细维护和商品素材管理提供后端数据支持
+- 原有 SKU 同步逻辑会覆盖手动维护的 SKU 价格，不符合 PRD 4.8.2 规则
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/product/`
+- `blade-backend/src/test/java/com/blade/product/`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**执行人**：AI
+
+---
+
 ## 2026-06-12 变更记录
 
 ### [规划] - 文件中心图片派生图/缩略图性能优化
