@@ -105,11 +105,15 @@
 
 **影响范围**：
 - `blade-admin/src/views/products/index.vue`
+- `blade-admin/src/views/clients/index.vue`（修正历史 `::deep` 写法，消除构建 CSS 语法警告）
 - `docs/05-CHANGELOG.md`
 
 **验证结果**：
-- `cd blade-admin && npm run build` 通过，无 TS/模板错误；保留项目既有 `::deep` 与 chunk size 构建警告。
+- `cd blade-backend && mvn test -Dtest=ProductServiceV2Test,ProductFileBindingServiceTest,ProductFileBindingControllerTest -DfailIfNoTests=false` 通过，39/39。
+- `cd blade-admin && npm run build` 通过，无 TS/模板错误，无 `::deep` CSS 语法警告；仅保留项目既有 chunk size 提示。
+- 真实 API 回归通过：临时商品创建、SKU 单独价格/成本/条码更新、商品更新后不覆盖手动 SKU 价格、素材绑定空保存/查询、临时商品删除清理均正常。
 - 本地浏览器烟测通过：临时创建测试商品后打开编辑弹窗，基础信息、SKU 明细、商品素材 Tab 均正常渲染，无页面横向溢出；测试商品已删除。
+- 当前登录页面只读 UI 回归通过：现有商品编辑弹窗基础信息、SKU 明细、商品素材、颜色尺码均正常渲染，无横向溢出，浏览器 console 无 error。
 
 **执行人**：AI
 
