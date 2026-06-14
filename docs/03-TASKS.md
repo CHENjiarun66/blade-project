@@ -268,6 +268,9 @@
 | BE-1009B | 文件预览业务权限映射 | ✅ 完成 | 子任务，已合并到 BE-1009 |
 | BE-1010 | 基础视频文件支持 | ✅ 完成 | 上传支持 video/mp4、video/webm、video/quicktime；上传上限默认 200MB 且支持环境变量覆盖；自动分类 fileType（IMAGE/VIDEO/OTHER）和 fileExt；FileUploadVO 新增 fileType/fileExt；不做转码/封面/Range/分片 |
 | BE-1011 | 文件中心回归测试 | ✅ 完成 | 覆盖上传、列表、绑定、未绑定清理、删除保护；补充批量删除有效绑定文件拒绝测试；`File*Test` 98/98 通过 |
+| BE-1012 | 图片派生图/缩略图底座 | ⏳ TODO | 新增 file_derivative；上传图片后生成 thumb/card；新增 GET /api/files/{id}/variant?type=thumb/card；权限继承原图预览权限；历史图片批量补生成后续实现 |
+| BE-1013 | 商品素材查询 API | ⏳ TODO | 为商品编辑 v2 提供商品主图、商品图集、SKU 图片查询能力；建议 GET /api/products/{id}/file-bindings 或复用文件绑定聚合接口；返回 fileId、previewUrl、bindRole、sort、skuId |
+| BE-1014 | 商品/SKU 删除引用保护验收 | ⏳ TODO | 验证商品、SKU、颜色、尺码、分类删除均不破坏历史订单/库存/文件绑定；存在订单明细、库存或有效绑定时默认禁止删除并提示禁用 |
 
 ### Phase 6.7: 客户 iPad 现货展示页后端（P1）
 
@@ -325,6 +328,10 @@
 | BA-404 | 颜色列表页 | ✅ 完成 | 颜色管理 + 新建/编辑弹窗 |
 | BA-405 | 尺码列表页 | ✅ 完成 | 尺码管理 + 新建/编辑弹窗 |
 | BA-406 | 商品分类页 | ✅ 完成 | 分类管理 + 新建/编辑弹窗 + 后端 API |
+| BA-407 | 商品编辑页 v2 信息架构 | ⏳ TODO | 将商品编辑从单一长表单升级为分区/Tab：基础信息、颜色尺码、SKU 明细、商品素材；若弹窗过重，改为独立详情/编辑页 |
+| BA-408 | SKU 明细精细维护 | ⏳ TODO | 商品编辑页展示 SKU 行，支持单独维护售价、成本价、条码、状态和 SKU 图片入口；颜色/尺码变化时保留历史 SKU 引用，不物理删除 |
+| BA-409 | 商品素材管理内聚到商品页 | ⏳ TODO | 在商品编辑页维护商品主图、商品图集、SKU 图片；支持上传、从文件中心选择、预览、排序、移除；底层仍走 file_business_bind |
+| BA-410 | 商品删除/禁用交互优化 | ⏳ TODO | 删除前展示引用风险；存在历史订单、库存、有效文件绑定时提示改为禁用；避免误删影响生产数据 |
 
 ### Phase 5: 客户管理
 
@@ -392,6 +399,7 @@
 | BA-1004 | 上传/预览/移动/删除 | ✅ 完成 | 上传按钮支持多文件到 temp；前端按 200MB 做上传前校验；网格/列表视图可多选；批量工具栏移动/绑定/删除；移动弹窗选文件夹或未归档；删除前查询绑定关系展示风险信息；仅 POST /api/files/batch-delete |
 | BA-1005 | 商品/SKU 绑定弹窗 | ✅ 完成 | FileBindDialog：远程搜索商品，选角色 main/gallery/sku_image，SKU 图片角色显示 SKU 多选，PUT /api/products/{id}/file-bindings |
 | BA-1006 | 未绑定文件清理管理 | ✅ 完成 | FileCleanupPanel：清理说明/保留天数/候选统计/刷新/软删除确认/回收站快捷入口；使用 GET unbound-candidates + POST soft-delete-unbound |
+| BA-1007 | PC 图片缩略图接入 | ⏳ TODO | 新增 fileVariantUrl 工具；商品列表、订单图片墙、文件中心网格/列表优先加载 thumb/card，点击预览/打开原文件仍加载原图 |
 
 ### Phase 11: 客户 iPad 现货展示页（P1）
 
@@ -407,6 +415,7 @@
 | BA-1025 | Catalog 无限滚动与本地缓存 | ✅ 完成 | 商品网格取消分页器，滚动触底自动请求下一页；筛选维度缓存商品列表；图片按 fileId 写入 IndexedDB，命中后使用本地 Blob URL |
 | BA-1026 | Catalog 图片滑动切换 | ✅ 完成 | 详情轮播和全屏大图支持左右滑动切图；增加跟手滑动与 220ms 相册式过渡；保留按钮/缩略图；仅拦截单指双击页面放大，保留两指缩放；横竖屏切换后恢复正常视口 |
 | BA-1027 | Catalog 手机竖屏版 | ✅ 完成 | iPhone 14 Pro 竖屏断点；保持 iPad quiet luxury 风格；两列商品卡片、底部详情抽屉、全屏大图；手机版横屏显示切回竖屏提示，不提供横屏浏览布局 |
+| BA-1028 | Catalog 派生图加载优化 | ⏳ TODO | Catalog 商品卡片使用 card，缩略图条使用 thumb，全屏大图/下载仍使用原图；与 IndexedDB 图片缓存策略兼容 |
 
 ---
 
