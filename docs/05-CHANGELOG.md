@@ -63,6 +63,33 @@
 
 ---
 
+### [实现] - BA-407 to BA-410 商品管理 v2 前端 Slice (2026-06-14)
+
+**变更内容**：
+- **api/product.ts**：新增 `getProductFileBindings`、`updateSku`、`batchUpdateSkus` 函数及类型定义
+- **products/index.vue**：商品编辑弹窗升级为 1100px 宽 4-Tab 分区（基础信息/颜色尺码/SKU明细/商品素材）；SKU明细支持 inline 编辑售价/成本价/条码/状态 + 批量保存；素材Tab展示主图/图集/SKU图片，支持上传和 fileId 输入，复用 `filePreviewUrl()` 预览；素材独立保存
+- **BA-409 审核补正**：SKU 图片区域从只读展示补齐为可维护；每个 SKU 行支持当前图片预览、点击移除、上传图片、fileId 添加；保存素材时会提交全部 SKU 的 `skuImageBindings`
+- **products/colors.vue / sizes.vue / categories.vue**：删除确认提示增加引用风险说明；删除失败弹窗展示后端引用保护消息
+- **删除错误处理补正**：商品、颜色、尺码、分类删除接口若以异常形式返回，前端不再静默吞掉错误；取消/关闭仍静默忽略，其他错误弹窗展示后端消息
+- **categories.vue 字段补正**：分类列表和删除文案使用 `row.categoryName || row.name` 回退，避免字段名不一致导致显示空值
+
+**变更原因**：完成商品管理 v2 前端四个任务 (BA-407 ~ BA-410)，实现 SKU 精细维护、商品素材内聚和删除交互优化
+
+**影响范围**：
+- `blade-admin/src/api/product.ts`
+- `blade-admin/src/views/products/index.vue`
+- `blade-admin/src/views/products/colors.vue`
+- `blade-admin/src/views/products/sizes.vue`
+- `blade-admin/src/views/products/categories.vue`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**构建结果**：`vue-tsc -b && vite build` 通过，无 TS/编译错误
+
+**执行人**：AI
+
+---
+
 ## 2026-06-12 变更记录
 
 ### [规划] - 文件中心图片派生图/缩略图性能优化
