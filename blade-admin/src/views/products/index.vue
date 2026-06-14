@@ -165,100 +165,166 @@
     <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑商品' : '新建商品'"
-      width="1100px"
+      width="1180px"
+      class="product-edit-dialog"
       :close-on-click-modal="false"
       @opened="onDialogOpened"
     >
-      <el-tabs v-model="activeTab" type="border-card" class="product-edit-tabs">
+      <div class="edit-overview">
+        <div class="edit-overview-main">
+          <div class="edit-avatar">
+            <img v-if="mainImagePreview || getProductImage(form.imageUrl)" :src="mainImagePreview || getProductImage(form.imageUrl)" alt="" />
+            <span v-else class="material-symbols-outlined">checkroom</span>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <h3 class="edit-title">{{ form.name || '未命名商品' }}</h3>
+              <span :class="form.status === 1 ? 'status-pill is-on' : 'status-pill is-off'">
+                {{ form.status === 1 ? '启用' : '禁用' }}
+              </span>
+            </div>
+            <div class="edit-subtitle">
+              <span>{{ form.productCode || '暂无编码' }}</span>
+              <span>颜色 {{ form.colorIds.length }}</span>
+              <span>尺码 {{ form.sizeIds.length }}</span>
+              <span v-if="isEdit">SKU {{ skuEditList.length }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="edit-overview-metrics">
+          <div class="metric-chip">
+            <span>进货价</span>
+            <strong>¥{{ formatNumber(form.costPrice) }}</strong>
+          </div>
+          <div class="metric-chip">
+            <span>批发价</span>
+            <strong>¥{{ formatNumber(form.wholesalePrice) }}</strong>
+          </div>
+          <div class="metric-chip" v-if="isEdit">
+            <span>素材</span>
+            <strong>{{ materialCount }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <el-tabs v-model="activeTab" class="product-edit-tabs">
         <!-- Tab 1: 基础信息 -->
         <el-tab-pane label="基础信息" name="basic">
-          <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px" class="product-form">
-            <div class="grid grid-cols-2 gap-x-6">
-              <el-form-item label="商品编码" prop="productCode">
-                <el-input v-model="form.productCode" placeholder="如: P001" :disabled="isEdit" />
-              </el-form-item>
+          <el-form ref="formRef" :model="form" :rules="formRules" label-position="top" class="product-form">
+            <div class="edit-panel-grid">
+              <section class="edit-panel edit-panel-main">
+                <div class="section-head">
+                  <div>
+                    <h4>商品资料</h4>
+                    <p>用于列表、订单和选款页面展示</p>
+                  </div>
+                </div>
+                <div class="form-grid two">
+                  <el-form-item label="商品编码" prop="productCode">
+                    <el-input v-model="form.productCode" placeholder="如: 6000#" :disabled="isEdit" />
+                  </el-form-item>
+                  <el-form-item label="商品名称" prop="name">
+                    <el-input v-model="form.name" placeholder="商品名称" />
+                  </el-form-item>
+                  <el-form-item label="商品分类">
+                    <el-select v-model="form.categoryId" placeholder="选择分类" class="w-full" clearable>
+                      <el-option v-for="cat in categoryOptions" :key="cat.id" :label="cat.categoryName" :value="cat.id" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="单位">
+                    <el-input v-model="form.unit" placeholder="如: 件/套" />
+                  </el-form-item>
+                </div>
+                <el-form-item label="商品描述">
+                  <el-input v-model="form.description" type="textarea" :rows="3" placeholder="商品描述" />
+                </el-form-item>
+                <el-form-item label="备注">
+                  <el-input v-model="form.remark" placeholder="内部备注信息" />
+                </el-form-item>
+              </section>
 
-              <el-form-item label="商品名称" prop="name">
-                <el-input v-model="form.name" placeholder="商品名称" />
-              </el-form-item>
-
-              <el-form-item label="商品分类">
-                <el-select v-model="form.categoryId" placeholder="选择分类" class="w-full" clearable>
-                  <el-option v-for="cat in categoryOptions" :key="cat.id" :label="cat.categoryName" :value="cat.id" />
-                </el-select>
-              </el-form-item>
-
-              <el-form-item label="单位">
-                <el-input v-model="form.unit" placeholder="如: 件/套" />
-              </el-form-item>
-
-              <el-form-item label="进货价">
-                <el-input-number v-model="form.costPrice" :min="0" :precision="2" :controls="false" class="w-full" placeholder="成本价" />
-              </el-form-item>
-
-              <el-form-item label="批发价">
-                <el-input-number v-model="form.wholesalePrice" :min="0" :precision="2" :controls="false" class="w-full" placeholder="批发价" />
-              </el-form-item>
-
-              <el-form-item label="重量(kg)">
-                <el-input-number v-model="form.weight" :min="0" :precision="2" :controls="false" class="w-full" placeholder="用于运费计算" />
-              </el-form-item>
-
-              <el-form-item label="状态">
-                <el-radio-group v-model="form.status">
-                  <el-radio :value="1">启用</el-radio>
-                  <el-radio :value="0">禁用</el-radio>
-                </el-radio-group>
-              </el-form-item>
+              <section class="edit-panel">
+                <div class="section-head">
+                  <div>
+                    <h4>价格与状态</h4>
+                    <p>SKU 可在明细页单独维护</p>
+                  </div>
+                </div>
+                <div class="form-grid one">
+                  <el-form-item label="进货价">
+                    <el-input-number v-model="form.costPrice" :min="0" :precision="2" :controls="false" class="w-full" placeholder="成本价" />
+                  </el-form-item>
+                  <el-form-item label="批发价">
+                    <el-input-number v-model="form.wholesalePrice" :min="0" :precision="2" :controls="false" class="w-full" placeholder="批发价" />
+                  </el-form-item>
+                  <el-form-item label="重量(kg)">
+                    <el-input-number v-model="form.weight" :min="0" :precision="2" :controls="false" class="w-full" placeholder="用于运费计算" />
+                  </el-form-item>
+                  <el-form-item label="状态">
+                    <el-radio-group v-model="form.status" class="segmented-radio">
+                      <el-radio-button :value="1">启用</el-radio-button>
+                      <el-radio-button :value="0">禁用</el-radio-button>
+                    </el-radio-group>
+                  </el-form-item>
+                </div>
+              </section>
             </div>
-
-            <el-form-item label="商品描述">
-              <el-input v-model="form.description" type="textarea" :rows="2" placeholder="商品描述" />
-            </el-form-item>
-
-            <el-form-item label="备注">
-              <el-input v-model="form.remark" placeholder="备注信息" />
-            </el-form-item>
           </el-form>
         </el-tab-pane>
 
         <!-- Tab 2: 颜色尺码 -->
         <el-tab-pane label="颜色尺码" name="colorsize">
-          <el-form label-width="100px" class="product-form">
-            <el-form-item label="颜色选择">
-              <el-checkbox-group v-model="form.colorIds">
-                <el-checkbox v-for="color in colorOptions" :key="color.id" :value="color.id" :label="color.id">
-                  {{ color.colorName }}
-                </el-checkbox>
-              </el-checkbox-group>
-            </el-form-item>
-
-            <el-form-item label="尺码选择">
-              <el-checkbox-group v-model="form.sizeIds">
-                <el-checkbox v-for="size in sizeOptions" :key="size.id" :value="size.id" :label="size.id">
-                  {{ size.sizeCode }}
-                </el-checkbox>
-              </el-checkbox-group>
-            </el-form-item>
-
-            <!-- SKU 预览 -->
-            <el-form-item label="SKU 预览" v-if="form.colorIds.length && form.sizeIds.length">
-              <div class="bg-gray-50 rounded-lg p-4 w-full">
-                <p class="text-xs text-gray-500 mb-2">
-                  将生成 {{ form.colorIds.length * form.sizeIds.length }} 个 SKU：
-                  颜色({{ form.colorIds.length }}) × 尺码({{ form.sizeIds.length }})
-                </p>
-                <div class="flex flex-wrap gap-2">
-                  <span
-                    v-for="(sku, index) in previewSkus"
-                    :key="index"
-                    class="inline-flex items-center px-2 py-1 bg-white border border-gray-200 rounded text-xs"
-                  >
-                    {{ sku }}
-                  </span>
+          <el-form label-position="top" class="product-form">
+            <div class="edit-panel-grid">
+              <section class="edit-panel">
+                <div class="section-head">
+                  <div>
+                    <h4>颜色</h4>
+                    <p>已选 {{ form.colorIds.length }} 个颜色</p>
+                  </div>
                 </div>
+                <el-form-item label="">
+                  <el-checkbox-group v-model="form.colorIds" class="option-grid">
+                    <el-checkbox v-for="color in colorOptions" :key="color.id" :value="color.id" :label="color.id">
+                      <span class="option-name">{{ color.colorName }}</span>
+                      <span class="option-code">{{ color.colorCode }}</span>
+                    </el-checkbox>
+                  </el-checkbox-group>
+                </el-form-item>
+              </section>
+
+              <section class="edit-panel">
+                <div class="section-head">
+                  <div>
+                    <h4>尺码</h4>
+                    <p>已选 {{ form.sizeIds.length }} 个尺码</p>
+                  </div>
+                </div>
+                <el-form-item label="">
+                  <el-checkbox-group v-model="form.sizeIds" class="option-grid size-grid">
+                    <el-checkbox v-for="size in sizeOptions" :key="size.id" :value="size.id" :label="size.id">
+                      <span class="option-name">{{ size.sizeCode }}</span>
+                    </el-checkbox>
+                  </el-checkbox-group>
+                </el-form-item>
+              </section>
+            </div>
+
+            <section class="edit-panel mt-4">
+              <div class="section-head">
+                <div>
+                  <h4>SKU 预览</h4>
+                  <p>颜色 × 尺码会自动生成 SKU，移除组合时已有 SKU 将禁用而不是删除</p>
+                </div>
+                <span class="summary-badge">{{ form.colorIds.length * form.sizeIds.length }} 个组合</span>
               </div>
-            </el-form-item>
+              <div v-if="form.colorIds.length && form.sizeIds.length" class="sku-preview-grid">
+                <span v-for="(sku, index) in previewSkus" :key="index" class="sku-preview-chip">{{ sku }}</span>
+              </div>
+              <div v-else class="empty-inline">
+                请先选择颜色和尺码
+              </div>
+            </section>
           </el-form>
         </el-tab-pane>
 
@@ -269,11 +335,11 @@
             <p>该商品暂无 SKU</p>
           </div>
           <div v-else>
-            <div class="flex items-center justify-between mb-3">
-              <p class="text-xs text-gray-500">
-                共 <span class="font-bold text-gray-900">{{ skuEditList.length }}</span> 个 SKU，
-                修改后请点击「保存 SKU 修改」
-              </p>
+            <div class="table-toolbar">
+              <div>
+                <h4>SKU 价格与状态</h4>
+                <p>共 {{ skuEditList.length }} 个 SKU，{{ skuActiveCount }} 个启用，{{ skuDisabledCount }} 个禁用</p>
+              </div>
               <el-button size="small" type="primary" :disabled="!hasSkuChanges" :loading="skuSaving" @click="saveSkuChanges">
                 保存 SKU 修改
               </el-button>
@@ -334,13 +400,16 @@
                 </el-table-column>
                 <el-table-column label="状态" width="80" align="center">
                   <template #default="{ row }">
-                    <el-switch
-                      v-model="row.status"
-                      :active-value="1"
-                      :inactive-value="0"
-                      size="small"
-                      @change="markSkuDirty(row.id)"
-                    />
+                    <div class="status-cell">
+                      <el-switch
+                        v-model="row.status"
+                        :active-value="1"
+                        :inactive-value="0"
+                        size="small"
+                        @change="markSkuDirty(row.id)"
+                      />
+                      <span>{{ row.status === 1 ? '启用' : '禁用' }}</span>
+                    </div>
                   </template>
                 </el-table-column>
               </el-table>
@@ -351,85 +420,104 @@
         <!-- Tab 4: 商品素材（仅编辑时显示） -->
         <el-tab-pane label="商品素材" name="materials" v-if="isEdit">
           <div v-loading="fileBindingsLoading" class="materials-content">
-            <!-- 商品主图 -->
-            <div class="mb-6">
-              <h4 class="text-sm font-bold text-gray-700 mb-3">商品主图</h4>
-              <div class="flex items-start gap-4">
-                <img
-                  v-if="mainImagePreview"
-                  :src="mainImagePreview"
-                  alt="商品主图"
-                  class="w-24 h-24 rounded-lg object-cover border border-gray-200"
-                />
-                <div v-else class="w-24 h-24 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <span class="material-symbols-outlined text-gray-400 text-2xl">image</span>
-                </div>
-                <div class="flex-1 space-y-2">
-                  <div class="flex items-center gap-2">
-                    <input type="file" accept="image/*" class="text-xs text-gray-500" @change="handleMainImageUpload" />
-                  </div>
-                  <p class="text-xs text-gray-400">上传自动绑定为主图，或下方输入已有 fileId</p>
-                  <div class="flex items-center gap-2">
-                    <el-input v-model="mainFileIdInput" size="small" placeholder="输入 fileId" class="!w-40" />
-                    <el-button size="small" @click="applyMainFileId">设置</el-button>
-                    <el-button v-if="mainImagePreview" size="small" type="danger" plain @click="clearMainImage">移除</el-button>
+            <div class="material-layout">
+              <!-- 商品主图 -->
+              <section class="edit-panel hero-panel">
+                <div class="section-head">
+                  <div>
+                    <h4>商品主图</h4>
+                    <p>用于商品列表、订单录入和 Catalog 封面展示</p>
                   </div>
                 </div>
-              </div>
-            </div>
+                <div class="hero-media">
+                  <div class="hero-preview">
+                    <img v-if="mainImagePreview" :src="mainImagePreview" alt="商品主图" />
+                    <span v-else class="material-symbols-outlined">image</span>
+                  </div>
+                  <div class="media-actions">
+                    <label class="upload-button">
+                      <span class="material-symbols-outlined">upload</span>
+                      上传主图
+                      <input type="file" accept="image/*" @change="handleMainImageUpload" />
+                    </label>
+                    <el-button v-if="mainImagePreview" size="small" plain type="danger" @click="clearMainImage">移除主图</el-button>
+                  </div>
+                </div>
+                <div class="file-id-row">
+                  <el-input v-model="mainFileIdInput" size="small" placeholder="输入已有 fileId" />
+                  <el-button size="small" @click="applyMainFileId">设置</el-button>
+                </div>
+              </section>
 
-            <!-- 商品图集 -->
-            <div class="mb-6">
-              <h4 class="text-sm font-bold text-gray-700 mb-3">
-                商品图集
-                <span class="text-xs text-gray-400 font-normal ml-2">（共 {{ galleryImages.length }} 张）</span>
-              </h4>
-              <div class="flex flex-wrap gap-3 mb-3">
-                <div
-                  v-for="(img, idx) in galleryImages"
-                  :key="idx"
-                  class="relative w-20 h-20 rounded-lg border border-gray-200 overflow-hidden group"
-                >
-                  <img :src="img.previewUrl" alt="" class="w-full h-full object-cover" />
-                  <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <el-button type="danger" size="small" circle @click="removeGalleryImage(idx)">
-                      <span class="material-symbols-outlined text-sm">close</span>
-                    </el-button>
+              <!-- 商品图集 -->
+              <section class="edit-panel gallery-panel">
+                <div class="section-head">
+                  <div>
+                    <h4>商品图集</h4>
+                    <p>维护商品细节图，支持多张图片绑定</p>
+                  </div>
+                  <span class="summary-badge">{{ galleryImages.length }} 张</span>
+                </div>
+                <div v-if="galleryImages.length" class="material-thumb-grid">
+                  <div v-for="(img, idx) in galleryImages" :key="img.fileId || idx" class="material-thumb">
+                    <img :src="img.previewUrl" alt="" />
+                    <button type="button" class="thumb-remove" @click="removeGalleryImage(idx)">
+                      <span class="material-symbols-outlined">close</span>
+                    </button>
                   </div>
                 </div>
-                <div v-if="galleryImages.length === 0" class="text-xs text-gray-400 py-4">暂无图集图片</div>
-              </div>
-              <div class="flex items-center gap-2">
-                <input type="file" accept="image/*" multiple class="text-xs text-gray-500" @change="handleGalleryUpload" />
-                <span class="text-xs text-gray-400">或</span>
-                <el-input v-model="galleryFileIdInput" size="small" placeholder="输入 fileId" class="!w-40" />
-                <el-button size="small" @click="addGalleryFileId">添加</el-button>
-              </div>
+                <div v-else class="empty-material">
+                  <span class="material-symbols-outlined">collections</span>
+                  <p>暂无图集图片</p>
+                </div>
+                <div class="gallery-actions">
+                  <label class="upload-button">
+                    <span class="material-symbols-outlined">add_photo_alternate</span>
+                    上传图集
+                    <input type="file" accept="image/*" multiple @change="handleGalleryUpload" />
+                  </label>
+                  <div class="file-id-row compact">
+                    <el-input v-model="galleryFileIdInput" size="small" placeholder="输入 fileId" />
+                    <el-button size="small" @click="addGalleryFileId">添加</el-button>
+                  </div>
+                </div>
+              </section>
             </div>
 
             <!-- SKU 图片 -->
-            <div class="mb-6">
-              <h4 class="text-sm font-bold text-gray-700 mb-3">SKU 图片</h4>
-              <div v-if="skuEditList.length === 0" class="text-xs text-gray-400 py-4">暂无 SKU</div>
-              <div v-else class="space-y-2">
-                <div v-for="sku in skuEditList" :key="sku.id" class="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                  <div class="w-28 flex-shrink-0">
-                    <span class="text-xs font-bold text-gray-700 block truncate">{{ sku.skuCode }}</span>
-                    <span class="text-[10px] text-gray-400">{{ sku.colorName }}/{{ sku.sizeName }}</span>
+            <section class="edit-panel sku-media-panel">
+              <div class="section-head">
+                <div>
+                  <h4>SKU 图片</h4>
+                  <p>为不同颜色/尺码维护单独展示图</p>
+                </div>
+                <span class="summary-badge">{{ skuEditList.length }} 个 SKU</span>
+              </div>
+              <div v-if="skuEditList.length === 0" class="empty-material sku-empty">
+                <span class="material-symbols-outlined">inventory_2</span>
+                <p>暂无 SKU</p>
+              </div>
+              <div v-else class="sku-media-list">
+                <div v-for="sku in skuEditList" :key="sku.id" class="sku-media-row">
+                  <div class="sku-media-info">
+                    <strong>{{ sku.skuCode }}</strong>
+                    <span>{{ sku.colorName }} / {{ sku.sizeName }}</span>
                   </div>
-                  <div class="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto">
-                    <img
+                  <div class="sku-image-strip">
+                    <div
                       v-for="(f, idx) in (skuImageFiles[sku.id] || [])"
                       :key="f.fileId"
-                      :src="f.previewUrl"
-                      alt=""
-                      class="w-10 h-10 rounded object-cover border border-gray-200 flex-shrink-0 cursor-pointer hover:opacity-70 hover:border-red-300"
-                      :title="'fileId: ' + f.fileId + '（点击移除）'"
-                      @click="removeSkuImage(sku.id, idx)"
-                    />
-                    <span v-if="!(skuImageFiles[sku.id] || []).length" class="text-[10px] text-gray-400 flex-shrink-0">无图</span>
+                      class="sku-image-thumb"
+                      :title="'fileId: ' + f.fileId"
+                    >
+                      <img :src="f.previewUrl" alt="" />
+                      <button type="button" @click="removeSkuImage(sku.id, idx)">
+                        <span class="material-symbols-outlined">close</span>
+                      </button>
+                    </div>
+                    <span v-if="!(skuImageFiles[sku.id] || []).length" class="sku-no-image">无图</span>
                   </div>
-                  <div class="flex items-center gap-1.5 flex-shrink-0">
+                  <div class="sku-media-actions">
                     <input
                       type="file"
                       accept="image/*"
@@ -439,7 +527,7 @@
                     />
                     <label
                       :for="'sku-img-upload-' + sku.id"
-                      class="cursor-pointer text-[10px] px-2 py-1 bg-white border border-gray-200 rounded text-gray-500 hover:text-[#408aee] hover:border-[#408aee] inline-block leading-none"
+                      class="upload-mini"
                     >
                       上传
                     </label>
@@ -447,19 +535,19 @@
                       v-model="skuFileIdInputs[sku.id]"
                       size="small"
                       placeholder="fileId"
-                      class="!w-20"
+                      class="sku-file-input"
                       @keyup.enter="addSkuImageByFileId(sku.id)"
                     />
-                    <el-button size="small" class="!text-[10px] !px-2" @click="addSkuImageByFileId(sku.id)">添加</el-button>
+                    <el-button size="small" @click="addSkuImageByFileId(sku.id)">添加</el-button>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
             <!-- 素材保存按钮 -->
-            <div class="border-t pt-4">
+            <div class="material-savebar">
               <el-button type="primary" :loading="materialSaving" @click="saveFileBindings">保存素材绑定</el-button>
-              <span class="text-xs text-gray-400 ml-3">素材修改独立保存，不影响基础信息和颜色尺码</span>
+              <span>素材修改独立保存，不影响基础信息和颜色尺码</span>
             </div>
           </div>
         </el-tab-pane>
@@ -570,6 +658,19 @@ const previewSkus = computed(() => {
   }
   return skus.slice(0, 20) // 最多显示20个
 })
+
+const skuActiveCount = computed(() => skuEditList.value.filter(sku => sku.status === 1).length)
+const skuDisabledCount = computed(() => skuEditList.value.filter(sku => sku.status !== 1).length)
+const materialCount = computed(() => {
+  const skuImageCount = Object.values(skuImageFiles.value).reduce((sum, files) => sum + files.length, 0)
+  return (mainFileIdInput.value ? 1 : 0) + galleryImages.value.length + skuImageCount
+})
+
+function formatNumber(value?: number) {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return '0'
+  return num.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+}
 
 // 加载数据
 async function loadData() {
@@ -1143,18 +1244,147 @@ function removeSkuImage(skuId: number, index: number) {
 }
 
 /* 分页样式 */
-::deep(.el-pagination.is-background .el-pager li.is-active) {
+.products-page :deep(.el-pagination.is-background .el-pager li.is-active) {
   background-color: #408aee !important;
 }
 
 /* v2 Tabs 编辑页样式 */
+.product-edit-dialog :deep(.el-dialog) {
+  border-radius: 14px;
+}
+
+.product-edit-dialog :deep(.el-dialog__body) {
+  padding: 0 24px 16px;
+}
+
+.product-edit-dialog :deep(.el-dialog__footer) {
+  border-top: 1px solid #eef2f7;
+  padding: 14px 24px 18px;
+}
+
+.edit-overview {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #f8fbff 0%, #ffffff 52%, #f7fafc 100%);
+  border: 1px solid #e8eef7;
+  border-radius: 12px;
+}
+
+.edit-overview-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.edit-avatar {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #eef5ff;
+  border: 1px solid #dbeafe;
+  color: #408aee;
+}
+
+.edit-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.edit-avatar .material-symbols-outlined {
+  font-size: 30px;
+}
+
+.edit-title {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 800;
+  color: #111827;
+}
+
+.edit-subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.edit-subtitle span {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-pill.is-on {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.status-pill.is-off {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+
+.edit-overview-metrics {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.metric-chip {
+  min-width: 112px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e5eaf2;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 4%);
+}
+
+.metric-chip span {
+  display: block;
+  margin-bottom: 4px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metric-chip strong {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 850;
+}
+
 .product-edit-tabs {
   min-height: 420px;
 }
 
 .product-edit-tabs :deep(.el-tabs__content) {
-  padding: 16px 0 0;
-  max-height: 480px;
+  padding: 18px 0 0;
+  max-height: 560px;
   overflow-y: auto;
 }
 
@@ -1162,10 +1392,191 @@ function removeSkuImage(skuId: number, index: number) {
   margin-bottom: 0;
 }
 
+.product-edit-tabs :deep(.el-tabs__item) {
+  font-weight: 700;
+}
+
+.edit-panel-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.8fr);
+  gap: 16px;
+}
+
+.edit-panel {
+  padding: 18px;
+  border: 1px solid #e8eef7;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgb(15 23 42 / 4%);
+}
+
+.edit-panel-main {
+  min-width: 0;
+}
+
+.section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-head h4 {
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 850;
+}
+
+.section-head p {
+  margin: 4px 0 0;
+  color: #8a95a8;
+  font-size: 12px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 14px 16px;
+}
+
+.form-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-grid.one {
+  grid-template-columns: 1fr;
+}
+
+.segmented-radio {
+  width: 100%;
+}
+
+.segmented-radio :deep(.el-radio-button) {
+  flex: 1;
+}
+
+.segmented-radio :deep(.el-radio-button__inner) {
+  width: 100%;
+}
+
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.size-grid {
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+}
+
+.option-grid :deep(.el-checkbox) {
+  height: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e5eaf2;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+.option-grid :deep(.el-checkbox.is-checked) {
+  border-color: #408aee;
+  background: #f0f7ff;
+}
+
+.option-grid :deep(.el-checkbox__label) {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 8px;
+}
+
+.option-name {
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.option-code {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.summary-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #408aee;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sku-preview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sku-preview-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e5eaf2;
+  color: #475569;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.empty-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  border: 1px dashed #d5dde8;
+  border-radius: 10px;
+  color: #94a3b8;
+  background: #fafcff;
+  font-size: 13px;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid #e8eef7;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.table-toolbar h4 {
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.table-toolbar p {
+  margin: 3px 0 0;
+  color: #8a95a8;
+  font-size: 12px;
+}
+
 /* SKU 明细表格 */
 .sku-table-wrapper {
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -1190,8 +1601,315 @@ function removeSkuImage(skuId: number, index: number) {
   border-radius: 6px !important;
 }
 
+.status-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 11px;
+}
+
 /* 素材内容区 */
 .materials-content {
   min-height: 300px;
+}
+
+.material-layout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.hero-panel,
+.gallery-panel,
+.sku-media-panel {
+  min-width: 0;
+}
+
+.hero-media {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.hero-preview {
+  width: 116px;
+  height: 116px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid #dfe7f2;
+  background: #f7faff;
+  color: #94a3b8;
+}
+
+.hero-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-preview .material-symbols-outlined {
+  font-size: 34px;
+}
+
+.media-actions,
+.gallery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #408aee;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.upload-button:hover {
+  background: #2f78dc;
+}
+
+.upload-button:active {
+  transform: translateY(1px);
+}
+
+.upload-button input {
+  display: none;
+}
+
+.upload-button .material-symbols-outlined {
+  font-size: 17px;
+}
+
+.file-id-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.file-id-row.compact {
+  width: min(360px, 100%);
+}
+
+.material-thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 10px;
+  min-height: 96px;
+  margin-bottom: 14px;
+}
+
+.material-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid #dfe7f2;
+  background: #f8fafc;
+}
+
+.material-thumb img,
+.sku-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb-remove,
+.sku-image-thumb button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 72%);
+  color: #ffffff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.material-thumb:hover .thumb-remove,
+.sku-image-thumb:hover button {
+  opacity: 1;
+}
+
+.thumb-remove .material-symbols-outlined,
+.sku-image-thumb button .material-symbols-outlined {
+  font-size: 15px;
+}
+
+.empty-material {
+  min-height: 116px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  border: 1px dashed #d5dde8;
+  border-radius: 12px;
+  background: #fbfdff;
+  color: #94a3b8;
+}
+
+.empty-material .material-symbols-outlined {
+  font-size: 28px;
+}
+
+.empty-material p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.sku-empty {
+  margin-bottom: 0;
+}
+
+.sku-media-list {
+  display: grid;
+  gap: 10px;
+}
+
+.sku-media-row {
+  display: grid;
+  grid-template-columns: 190px minmax(220px, 1fr) 300px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e8eef7;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+.sku-media-info {
+  min-width: 0;
+}
+
+.sku-media-info strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1f2937;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.sku-media-info span {
+  display: block;
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.sku-image-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.sku-image-thumb {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #dfe7f2;
+  background: #ffffff;
+}
+
+.sku-no-image {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.sku-media-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #cfe0f8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #408aee;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sku-file-input {
+  width: 100%;
+}
+
+.material-savebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid #e8eef7;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.material-savebar span {
+  color: #8a95a8;
+  font-size: 12px;
+}
+
+@media (max-width: 1120px) {
+  .edit-overview,
+  .edit-panel-grid,
+  .material-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .edit-overview {
+    display: grid;
+  }
+
+  .sku-media-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sku-media-actions {
+    max-width: 360px;
+  }
 }
 </style>
