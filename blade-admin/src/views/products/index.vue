@@ -672,6 +672,13 @@ function formatNumber(value?: number) {
   return num.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 }
 
+function normalizeBindingPreview(item: FileBindingItem): FileBindingItem {
+  return {
+    ...item,
+    previewUrl: filePreviewUrl(item.fileId)
+  }
+}
+
 // 加载数据
 async function loadData() {
   loading.value = true
@@ -987,12 +994,12 @@ async function loadFileBindings() {
     const res = await getProductFileBindings(editingId.value)
     if (res.code === 200) {
       const data = res.data
-      mainImagePreview.value = data.main?.previewUrl || ''
+      mainImagePreview.value = data.main ? filePreviewUrl(data.main.fileId) : ''
       mainFileIdInput.value = data.main?.fileId ? String(data.main.fileId) : ''
-      galleryImages.value = data.gallery || []
+      galleryImages.value = (data.gallery || []).map(normalizeBindingPreview)
       // Fill SKU image files from backend response
       for (const group of (data.skuImages || [])) {
-        files[group.skuId] = group.files || []
+        files[group.skuId] = (group.files || []).map(normalizeBindingPreview)
       }
     }
     skuImageFiles.value = files

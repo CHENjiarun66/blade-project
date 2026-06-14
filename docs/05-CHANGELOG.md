@@ -119,6 +119,28 @@
 
 ---
 
+### [修复] - 商品素材保存后预览图片失效 (2026-06-14)
+
+**变更内容**：
+- 修复商品编辑页保存素材绑定后，主图、商品图集、SKU 图片重新加载时显示破图的问题。
+- `loadFileBindings()` 不再直接使用后端返回的裸 `/api/files/{id}/preview`，而是统一按 `fileId` 调用 `filePreviewUrl(fileId)` 生成带 `previewToken` 的预览地址。
+
+**变更原因**：
+- 商品列表能显示主图，是因为列表图片走 `filePreviewUrl()`，浏览器 `<img>` 请求带有 `previewToken`。
+- 商品素材保存后重新加载绑定关系时，前端直接使用后端返回的裸 previewUrl；PRIVATE 文件预览接口要求登录，原生 `<img>` 不会携带 Authorization header，因此主图、图集、SKU 图片都会显示破图。
+- 该问题不是缩略图未完成导致，属于预览鉴权 URL 生成不一致。
+
+**影响范围**：
+- `blade-admin/src/views/products/index.vue`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `cd blade-admin && npm run build` 通过，无 TS/模板错误。
+
+**执行人**：AI
+
+---
+
 ## 2026-06-12 变更记录
 
 ### [规划] - 文件中心图片派生图/缩略图性能优化
