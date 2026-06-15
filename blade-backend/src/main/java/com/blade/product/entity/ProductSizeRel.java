@@ -8,7 +8,9 @@ public class ProductSizeRel {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("product_id")
     private Long productId;
+    @TableField("size_id")
     private Long sizeId;
 
     public Long getId() { return id; }

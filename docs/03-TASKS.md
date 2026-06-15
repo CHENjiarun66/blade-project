@@ -289,10 +289,10 @@
 
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
-| BE-1030 | 后端全量测试失败归因与基线记录 | ⏳ TODO | 当前 `mvn test` 失败 40 个；已确认 `master` 基线同样失败，非商品管理 v2 新增回归。需保留失败清单和修复前后对比。 |
-| BE-1031 | Catalog/Product Controller 测试认证基线修复 | ⏳ TODO | `CatalogControllerTest`、旧 `ProductControllerTest` 登录请求缺少 `tenantCode`，导致 token 为 null 后续 403；应按现有多租户登录规则更新测试夹具或测试辅助方法。 |
-| BE-1032 | OrderControllerTest 状态码与订单状态口径修复 | ⏳ TODO | 当前断言仍按旧 `500` 和旧取消状态值；需对齐现有 `GlobalExceptionHandler` 业务错误 400、订单取消状态值和订单状态机规则，必要时补充独立说明。 |
-| BE-1033 | 后端全量测试收口 | ⏳ TODO | 验收命令：`cd blade-backend && mvn test` 必须通过；同时保留商品管理 v2 定向测试、文件权限测试和前端 build 作为集成回归补充。 |
+| BE-1030 | 后端全量测试失败归因与基线记录 | ✅ 完成 | 初始 `mvn test` 失败 40 个；已确认 `master` 基线同样失败，非商品管理 v2 新增回归。失败主因：登录测试缺 `tenantCode`、订单测试状态机口径过旧、实体字段缺少显式列映射。 |
+| BE-1031 | Catalog/Product Controller 测试认证基线修复 | ✅ 完成 | `CatalogControllerTest`、旧 `ProductControllerTest` 已按现有多租户登录规则补齐 `tenantCode=test_tenant` 和正确测试密码；Product 测试改用唯一商品编码，避免重复执行污染。 |
+| BE-1032 | OrderControllerTest 状态码与订单状态口径修复 | ✅ 完成 | 断言已对齐 `GlobalExceptionHandler` 业务错误 400、当前订单状态值 0-8，以及发货前需创建配货计划并确认调整的状态机流程。 |
+| BE-1033 | 后端全量测试收口 | ✅ 完成 | `cd blade-backend && mvn test` 通过：Tests run 244, Failures 0, Errors 0, Skipped 0；定向回归 `ProductControllerTest,CatalogControllerTest,FileControllerTest,FileBindingControllerTest,ProductFileBindingServiceTest,ProductFileBindingControllerTest` 通过 73/73。 |
 
 ---
 

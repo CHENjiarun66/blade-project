@@ -8,17 +8,20 @@ public class ProductCategory {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("category_name")
     private String categoryName;
+    @TableField("parent_id")
     private Long parentId;
     private Integer sort;
     private Integer status;
+    @TableField("tenant_id")
     private Long tenantId;
     private Integer deleted;
 
-    @TableField(fill = FieldFill.INSERT)
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
-    @TableField(fill = FieldFill.INSERT_UPDATE)
+    @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
     public Long getId() { return id; }

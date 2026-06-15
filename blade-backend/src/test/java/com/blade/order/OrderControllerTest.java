@@ -104,6 +104,21 @@ class OrderControllerTest {
     }
 
     /**
+     * 当前订单状态机要求：已付款订单先生成配货计划，确认调整后进入待发货，才能执行发货。
+     */
+    private void prepareOrderForDelivery(Long orderId) throws Exception {
+        mockMvc.perform(post("/api/orders/" + orderId + "/delivery-plan")
+                .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/confirm-adjustment")
+                .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    /**
      * 创建测试商品和SKU，供后续测试使用
      */
     private void createTestProductAndSku() throws Exception {
@@ -355,7 +370,7 @@ class OrderControllerTest {
         mockMvc.perform(get("/api/orders/99999")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     // ========== 删除订单测试 ==========
@@ -396,7 +411,7 @@ class OrderControllerTest {
         mockMvc.perform(get("/api/orders/" + orderId)
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test
@@ -476,31 +491,40 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.data.paidAmount").value(199.00))
                 .andExpect(jsonPath("$.data.payTime").isString());
 
-        // 3. 发货（预留转出库）
+        // 3. 生成并确认配货计划，订单进入待发货
+        prepareOrderForDelivery(orderId);
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(3))
+                .andExpect(jsonPath("$.data.statusName").value("待发货"));
+
+        // 4. 发货（预留转出库）
         mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // 验证订单状态已更新（状态=2）
+        // 验证订单状态已更新（状态=4）
         mockMvc.perform(get("/api/orders/" + orderId)
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value(2))
+                .andExpect(jsonPath("$.data.status").value(4))
                 .andExpect(jsonPath("$.data.statusName").value("已发货"))
                 .andExpect(jsonPath("$.data.deliverTime").isString());
 
-        // 4. 完成订单
+        // 5. 完成订单
         mockMvc.perform(post("/api/orders/" + orderId + "/complete")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // 验证订单状态已更新（状态=3）
+        // 验证订单状态已更新（状态=5）
         mockMvc.perform(get("/api/orders/" + orderId)
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value(3))
+                .andExpect(jsonPath("$.data.status").value(5))
                 .andExpect(jsonPath("$.data.statusName").value("已完成"))
                 .andExpect(jsonPath("$.data.completeTime").isString());
     }
@@ -571,11 +595,11 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // 验证订单已取消（状态=4）
+        // 验证订单已取消（状态=6）
         mockMvc.perform(get("/api/orders/" + orderId)
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value(4))
+                .andExpect(jsonPath("$.data.status").value(6))
                 .andExpect(jsonPath("$.data.statusName").value("已取消"));
     }
 
@@ -622,10 +646,13 @@ class OrderControllerTest {
                 .content(paymentJson))
                 .andExpect(status().isOk());
 
-        // 3. 发货
+        // 3. 生成并确认配货计划后发货
+        prepareOrderForDelivery(orderId);
+
         mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
                 .header("Authorization", "Bearer " + adminToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
 
         // 4. 尝试取消已发货订单（应失败）
         String cancelJson = """
@@ -639,7 +666,7 @@ class OrderControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(cancelJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     /**
@@ -659,7 +686,7 @@ class OrderControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(paymentJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     /**
@@ -670,7 +697,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders/99999/deliver")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     /**
@@ -681,7 +708,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders/99999/complete")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     /**
@@ -700,7 +727,7 @@ class OrderControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(cancelJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     /**
@@ -736,7 +763,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     /**
@@ -786,7 +813,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders/" + orderId + "/complete")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     // ========== 冗余字段验证测试 ==========

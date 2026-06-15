@@ -8,7 +8,9 @@ public class ProductColorRel {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("product_id")
     private Long productId;
+    @TableField("color_id")
     private Long colorId;
 
     public Long getId() { return id; }

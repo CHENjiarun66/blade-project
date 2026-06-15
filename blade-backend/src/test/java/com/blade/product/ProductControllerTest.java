@@ -42,8 +42,9 @@ class ProductControllerTest {
     void setUp() throws Exception {
         // 登录获取 token
         LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setTenantCode("test_tenant");
         loginRequest.setUsername("admin");
-        loginRequest.setPassword("123456");
+        loginRequest.setPassword("admin123");
 
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -54,6 +55,10 @@ class ProductControllerTest {
         String response = result.getResponse().getContentAsString();
         LoginResponse loginResponse = objectMapper.readValue(response, LoginResponse.class);
         adminToken = loginResponse.getToken();
+    }
+
+    private String uniqueCode(String prefix) {
+        return prefix + System.nanoTime();
     }
 
     // ========== 认证测试 ==========
@@ -104,16 +109,16 @@ class ProductControllerTest {
 
     @Test
     void testCreateProduct() throws Exception {
-        String productJson = """
+        String productJson = String.format("""
             {
                 "name": "测试商品A",
-                "productCode": "TMPA001",
+                "productCode": "%s",
                 "categoryId": 1,
                 "unit": "件",
                 "price": 99.00,
                 "description": "测试描述"
             }
-            """;
+            """, uniqueCode("TMPA"));
 
         mockMvc.perform(post("/api/products")
                 .header("Authorization", "Bearer " + adminToken)
@@ -126,10 +131,10 @@ class ProductControllerTest {
 
     @Test
     void testCreateProductWithSku() throws Exception {
-        String productJson = """
+        String productJson = String.format("""
             {
                 "name": "测试商品B",
-                "productCode": "TMPA002",
+                "productCode": "%s",
                 "categoryId": 1,
                 "unit": "件",
                 "price": 199.00,
@@ -137,7 +142,7 @@ class ProductControllerTest {
                 "colorIds": [1, 2],
                 "sizeIds": [1, 2]
             }
-            """;
+            """, uniqueCode("TMPB"));
 
         mockMvc.perform(post("/api/products")
                 .header("Authorization", "Bearer " + adminToken)
@@ -150,15 +155,15 @@ class ProductControllerTest {
 
     @Test
     void testCreateProductWithoutSku() throws Exception {
-        String productJson = """
+        String productJson = String.format("""
             {
                 "name": "测试商品C",
-                "productCode": "TMPA003",
+                "productCode": "%s",
                 "categoryId": 1,
                 "unit": "件",
                 "price": 50.00
             }
-            """;
+            """, uniqueCode("TMPC"));
 
         mockMvc.perform(post("/api/products")
                 .header("Authorization", "Bearer " + adminToken)
@@ -170,15 +175,15 @@ class ProductControllerTest {
 
     @Test
     void testCreateProductWithoutAuth() throws Exception {
-        String productJson = """
+        String productJson = String.format("""
             {
                 "name": "测试商品",
-                "productCode": "TMPX001",
+                "productCode": "%s",
                 "categoryId": 1,
                 "unit": "件",
                 "price": 99.00
             }
-            """;
+            """, uniqueCode("TMPX"));
 
         mockMvc.perform(post("/api/products")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -191,15 +196,15 @@ class ProductControllerTest {
     @Test
     void testUpdateProduct() throws Exception {
         // 先创建商品
-        String createJson = """
+        String createJson = String.format("""
             {
                 "name": "待修改商品",
-                "productCode": "TMPB001",
+                "productCode": "%s",
                 "categoryId": 1,
                 "unit": "件",
                 "price": 100.00
             }
-            """;
+            """, uniqueCode("TMPU"));
 
         MvcResult createResult = mockMvc.perform(post("/api/products")
                 .header("Authorization", "Bearer " + adminToken)
@@ -230,10 +235,10 @@ class ProductControllerTest {
 
     @Test
     void testUpdateProductSyncsSkusWhenColorsChange() throws Exception {
-        String createJson = """
+        String createJson = String.format("""
             {
                 "name": "SKU同步测试商品",
-                "productCode": "TMPB002",
+                "productCode": "%s",
                 "categoryId": 1,
                 "unit": "件",
                 "costPrice": 60.00,
@@ -241,7 +246,7 @@ class ProductControllerTest {
                 "colorIds": [1],
                 "sizeIds": [1]
             }
-            """;
+            """, uniqueCode("TMPS"));
 
         MvcResult createResult = mockMvc.perform(post("/api/products")
                 .header("Authorization", "Bearer " + adminToken)
@@ -289,7 +294,7 @@ class ProductControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(updateJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     // ========== 删除商品测试 ==========
@@ -297,15 +302,15 @@ class ProductControllerTest {
     @Test
     void testDeleteProduct() throws Exception {
         // 先创建商品
-        String createJson = """
+        String createJson = String.format("""
             {
                 "name": "待删除商品",
-                "productCode": "TMPC001",
+                "productCode": "%s",
                 "categoryId": 1,
                 "unit": "件",
                 "price": 50.00
             }
-            """;
+            """, uniqueCode("TMPD"));
 
         MvcResult createResult = mockMvc.perform(post("/api/products")
                 .header("Authorization", "Bearer " + adminToken)
@@ -329,7 +334,7 @@ class ProductControllerTest {
         mockMvc.perform(delete("/api/products/99999")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     // ========== 查询商品测试 ==========
@@ -337,15 +342,15 @@ class ProductControllerTest {
     @Test
     void testGetProductById() throws Exception {
         // 先创建商品
-        String createJson = """
+        String createJson = String.format("""
             {
                 "name": "待查询商品",
-                "productCode": "TMPD001",
+                "productCode": "%s",
                 "categoryId": 1,
                 "unit": "件",
                 "price": 80.00
             }
-            """;
+            """, uniqueCode("TMPQ"));
 
         MvcResult createResult = mockMvc.perform(post("/api/products")
                 .header("Authorization", "Bearer " + adminToken)
@@ -370,7 +375,7 @@ class ProductControllerTest {
         mockMvc.perform(get("/api/products/99999")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(500));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
 }

@@ -45,6 +45,36 @@
 
 ---
 
+### [修复] - 后端测试基线恢复为全量通过
+
+**变更内容**：
+- 修复 `CatalogControllerTest`、旧 `ProductControllerTest` 登录夹具：补齐 `tenantCode=test_tenant`，使用当前测试数据密码，避免 token 为 null 后续接口统一 403。
+- 修复 `ProductControllerTest` 重复执行污染：测试商品编码改为运行时唯一值，重复跑测试不再因固定编码冲突失败。
+- 修复 `OrderControllerTest` 旧状态机断言：业务错误对齐 `400`，订单状态对齐当前 0-8 状态值，发货流程补齐创建配货计划和确认调整步骤。
+- 修复全量测试暴露的 SQL 字段映射问题：为 `Product`、`ProductSku`、`ProductColor`、`ProductSize`、`ProductCategory`、商品颜色/尺码关联、`FileStorage`、`FileBusinessBind` 等实体补齐显式 `@TableField`，避免 MyBatis-Plus 生成 `productCode`、`createTime`、`businessType`、`businessId`、`productId` 等错误列名。
+
+**变更原因**：
+- `master/develop` 既有后端测试基线长期红灯，导致后续集成无法区分真实回归和历史测试口径问题。
+- 全量测试进一步暴露部分实体依赖默认驼峰映射不稳定，影响商品/文件相关查询的可靠性。
+
+**验证结果**：
+- `cd blade-backend && mvn test -Dtest=CatalogControllerTest,ProductControllerTest,OrderControllerTest -DfailIfNoTests=false` 通过：55/55。
+- `cd blade-backend && mvn test -Dtest=ProductControllerTest,CatalogControllerTest,FileControllerTest,FileBindingControllerTest,ProductFileBindingServiceTest,ProductFileBindingControllerTest -DfailIfNoTests=false` 通过：73/73。
+- `cd blade-backend && mvn test` 通过：Tests run 244, Failures 0, Errors 0, Skipped 0。
+
+**影响范围**：
+- `blade-backend/src/test/java/com/blade/catalog/CatalogControllerTest.java`
+- `blade-backend/src/test/java/com/blade/product/ProductControllerTest.java`
+- `blade-backend/src/test/java/com/blade/order/OrderControllerTest.java`
+- `blade-backend/src/main/java/com/blade/product/entity/*`
+- `blade-backend/src/main/java/com/blade/file/entity/*`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**执行人**：AI
+
+---
+
 ## 2026-06-14 变更记录
 
 ### [规划] - 商品管理 v2：SKU 精细维护与商品素材管理

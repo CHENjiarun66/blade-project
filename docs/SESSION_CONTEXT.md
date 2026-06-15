@@ -89,6 +89,7 @@
 - **个人中心已完成**：个人中心页面（用户信息展示、修改密码）、头部下拉菜单（BA-704）
 - **统一文件存储第一版已完成**：新增 `file_storage` 表、统一上传/预览/软删除/绑定接口，本地存储落地；订单图片、PC/移动端入库凭证、商品主图均已改为上传后保存 fileId；浏览器原生 `<img>`/新窗口预览通过 `/api/files/{id}/preview?previewToken=...` 进入统一权限校验，后续可切七牛云/NAS。
 - **文件中心/数字资产中心后端底座已完成 Phase 6.6**：新增 [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md)，明确文件中心不是单纯图片/视频相册，而是通用数字资产中心；BE-1001~BE-1011 已完成到资产表结构、分页/详情、文件夹、多业务绑定、批量操作、有效绑定删除保护、未绑定治理、第一版安全清理调度、商品/SKU 图片绑定、基础视频上传分类、私有预览权限和文件中心回归测试。清理调度默认关闭，按配置 tenant-id 处理单租户，仅软删除/标记元数据，不做真实物理删除。
+- **后端测试基线已修复**：独立分支 `fix/backend-test-baseline` 已完成 BE-1030~BE-1033；`cd blade-backend && mvn test` 通过（Tests run 244, Failures 0, Errors 0, Skipped 0），修复范围包含测试认证夹具、订单状态机断言和商品/文件实体显式列映射。
 - **NAS 生产环境已初步部署完成**：生产目录 `/volume2/blade`，前端入口 `http://192.168.1.10:8899/catalog`；容器为 `blade-mysql`、`blade-redis`、`blade-backend`、`blade-web`；NAS 数据库已从本机生产库 `blade_project_prod` 迁移并将主租户 code 调整为 `dwy_jiajiadress`。后续发布/备份/回滚按 [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) 执行。
 
 ### 仍在进行或未完成的事项
