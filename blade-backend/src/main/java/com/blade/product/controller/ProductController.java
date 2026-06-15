@@ -119,4 +119,21 @@ public class ProductController {
         productService.bindFiles(id, dto);
         return R.ok();
     }
+
+    // ==================== BE-1013: 商品素材查询 ====================
+
+    @GetMapping("/{id}/file-bindings")
+    @Operation(summary = "查询商品素材绑定")
+    public R<ProductFileBindingsVO> getFileBindings(@PathVariable Long id) {
+        return R.ok(productService.getFileBindings(id));
+    }
+
+    // ==================== BE-1014: 单个 SKU 更新 ====================
+
+    @PutMapping("/skus")
+    @Operation(summary = "更新单个SKU")
+    public R<Void> updateSku(@RequestBody @Valid SkuUpdateDTO dto) {
+        productService.updateSku(dto);
+        return R.ok();
+    }
 }

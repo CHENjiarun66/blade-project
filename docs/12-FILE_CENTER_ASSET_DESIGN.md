@@ -126,6 +126,82 @@
 | duration_seconds | int | 视频时长 |
 | cover_file_id | bigint | 视频封面 fileId |
 
+### 4.1.1 后续扩展：图片派生图 `file_derivative`
+
+> 状态：待开发。用于解决商品列表、订单图片墙、文件中心网格、Catalog 卡片等场景直接加载原图导致页面慢的问题。
+
+保留原图不动，上传图片后生成派生图。业务模块仍只保存原始 `fileId`，不得保存缩略图路径。
+
+建议新增表：
+
+```sql
+file_derivative (
+  id,
+  file_id,
+  variant_type,
+  storage_type,
+  storage_path,
+  content_type,
+  file_size,
+  width,
+  height,
+  status,
+  tenant_id,
+  create_time,
+  update_time
+)
+```
+
+`variant_type` 第一版建议：
+
+| 类型 | 建议尺寸 | 使用场景 |
+|------|----------|----------|
+| thumb | 长边 320px 或 480px | 订单图片墙、文件中心列表小图、缩略图胶片条 |
+| card | 长边 800px 或 960px | 商品列表、文件中心网格、Catalog 商品卡片 |
+| original | 不入派生表 | 点击大图、全屏查看、下载原文件 |
+
+生成规则：
+
+1. 上传 `image/*` 原图后生成 `thumb` 和 `card`。
+2. 原图保存成功后，派生图生成失败不应导致上传整体失败。
+3. 派生图缺失时，前端或接口可兜底原图，保证页面可用。
+4. 历史图片通过后续批量任务补生成，不在第一版上传链路中强制处理。
+5. 生成缩略图时需限制超大像素图片，避免内存过高。
+6. 需要处理 EXIF 方向，避免 iPhone 图片缩略图旋转错误。
+
+接口建议：
+
+```text
+GET /api/files/{id}/variant?type=thumb
+GET /api/files/{id}/variant?type=card
+```
+
+权限规则：
+
+1. 派生图必须继承原图权限，不得因为是缩略图而公开。
+2. `previewToken` 机制需要同样支持派生图接口。
+3. 原图无权访问时，派生图也无权访问。
+
+前端使用规则：
+
+| 场景 | 图片来源 |
+|------|----------|
+| 商品列表主图 | `card` 或 `thumb` |
+| 订单列表/编辑弹窗图片墙 | `thumb` |
+| 文件中心网格 | `card` |
+| 文件中心列表小图 | `thumb` |
+| Catalog 商品卡片 | `card` |
+| Catalog 缩略图条 | `thumb` |
+| 点击大图 / 全屏查看 | 原图 `/preview` |
+| 下载原文件 | 原图 `/preview` |
+
+后续可扩展：
+
+- 视频封面 `video_cover`。
+- WebP/AVIF 派生格式。
+- CDN 缓存和对象存储直出。
+- 异步队列生成和失败重试。
+
 ### 4.2 新增 `file_folder`
 
 用于用户自建文件夹。
@@ -574,6 +650,16 @@ NOT EXISTS (
 3. PWA 主屏幕体验。
 4. 视频基础展示。
 5. 后续七牛云/NAS/CDN。
+
+### Phase F：图片派生图性能优化（待开发）
+
+1. 新增 `file_derivative` 表和实体/Mapper。
+2. 图片上传后生成 `thumb`、`card` 两种派生图。
+3. 新增 `/api/files/{id}/variant?type=thumb|card` 接口，权限复用原图预览权限。
+4. PC 文件中心、商品列表、订单图片墙优先使用派生图。
+5. Catalog 卡片和缩略图条优先使用派生图，全屏大图仍使用原图。
+6. 历史图片提供批量补生成任务或管理入口。
+7. 派生图缺失时兜底原图，避免页面不可用。
 
 ---
 

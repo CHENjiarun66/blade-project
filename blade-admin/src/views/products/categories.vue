@@ -28,7 +28,7 @@
                 <span class="material-symbols-outlined text-[#408aee]">category</span>
               </div>
               <div>
-                <div class="text-sm font-semibold text-gray-900">{{ row.name }}</div>
+                <div class="text-sm font-semibold text-gray-900">{{ row.categoryName || row.name }}</div>
                 <div class="text-xs text-gray-400">{{ row.code }}</div>
               </div>
             </div>
@@ -137,6 +137,7 @@ async function loadData() {
       tableData.value = res.data.map((c: ProductCategory) => ({
         id: c.id,
         name: c.categoryName,
+        categoryName: c.categoryName,
         code: `CAT${String(c.id).padStart(3, '0')}`,
         sort: c.sort,
         status: c.status,
@@ -170,20 +171,35 @@ function handleEdit(row: any) {
 
 async function handleDelete(row: any) {
   try {
-    await ElMessageBox.confirm(`确定要删除分类「${row.name}」吗？`, '删除确认', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      `确定要删除分类「${row.categoryName || row.name}」吗？若分类已被商品引用则无法删除，建议改为禁用。`,
+      '删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
     const res = await deleteCategory(row.id)
     if (res.code === 200) {
       ElMessage.success('删除成功')
       loadData()
     } else {
-      ElMessage.error(res.message || '删除失败')
+      ElMessageBox.alert(
+        res.message || '删除失败，可能存在商品引用',
+        '无法删除',
+        { confirmButtonText: '知道了', type: 'warning' }
+      )
     }
-  } catch {
-    // 用户取消
+  } catch (error: any) {
+    // only silently ignore cancel/close
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessageBox.alert(
+        error?.message || error?.response?.data?.message || '删除失败，可能存在商品引用',
+        '无法删除',
+        { confirmButtonText: '知道了', type: 'warning' }
+      )
+    }
   }
 }
 

@@ -8,13 +8,16 @@ public class ProductColor {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("color_code")
     private String colorCode;
+    @TableField("color_name")
     private String colorName;
+    @TableField("tenant_id")
     private Long tenantId;
     private Integer deleted;
     private Integer status;
 
-    @TableField(fill = FieldFill.INSERT)
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
     public Long getId() { return id; }

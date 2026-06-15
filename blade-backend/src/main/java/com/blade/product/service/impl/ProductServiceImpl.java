@@ -11,6 +11,10 @@ import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileBusinessBindMapper;
 import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.service.FileService;
+import com.blade.inventory.entity.Inventory;
+import com.blade.inventory.mapper.InventoryMapper;
+import com.blade.order.entity.OrderItem;
+import com.blade.order.mapper.OrderItemMapper;
 import com.blade.product.dto.*;
 import com.blade.product.entity.Product;
 import com.blade.product.entity.ProductCategory;
@@ -31,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,6 +58,8 @@ public class ProductServiceImpl implements ProductService {
     private final FileService fileService;
     private final FileBusinessBindMapper fileBusinessBindMapper;
     private final FileStorageMapper fileStorageMapper;
+    private final OrderItemMapper orderItemMapper;
+    private final InventoryMapper inventoryMapper;
 
     @Autowired
     public ProductServiceImpl(ProductMapper productMapper,
@@ -65,7 +72,9 @@ public class ProductServiceImpl implements ProductService {
                              JdbcTemplate jdbcTemplate,
                              FileService fileService,
                              FileBusinessBindMapper fileBusinessBindMapper,
-                             FileStorageMapper fileStorageMapper) {
+                             FileStorageMapper fileStorageMapper,
+                             OrderItemMapper orderItemMapper,
+                             InventoryMapper inventoryMapper) {
         this.productMapper = productMapper;
         this.categoryMapper = categoryMapper;
         this.colorMapper = colorMapper;
@@ -77,6 +86,8 @@ public class ProductServiceImpl implements ProductService {
         this.fileService = fileService;
         this.fileBusinessBindMapper = fileBusinessBindMapper;
         this.fileStorageMapper = fileStorageMapper;
+        this.orderItemMapper = orderItemMapper;
+        this.inventoryMapper = inventoryMapper;
     }
 
     @Override
@@ -222,14 +233,77 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void delete(Long id) {
-        Product product = productMapper.selectById(id);
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        // tenant-aware + deleted=0 查找商品
+        LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
+        productWrapper.eq(Product::getId, id);
+        productWrapper.eq(Product::getTenantId, tenantId);
+        productWrapper.eq(Product::getDeleted, 0);
+        Product product = productMapper.selectOne(productWrapper);
         if (product == null) {
             throw new RuntimeException("商品不存在");
         }
 
+        // BE-1014: 删除引用保护
+        // 1. 获取商品的所有未删除 SKU（租户+productId+deleted=0）
         LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
         skuWrapper.eq(ProductSku::getProductId, id);
-        skuMapper.delete(skuWrapper);
+        skuWrapper.eq(ProductSku::getTenantId, tenantId);
+        skuWrapper.eq(ProductSku::getDeleted, 0);
+        List<ProductSku> skus = skuMapper.selectList(skuWrapper);
+        List<Long> skuIds = skus.stream().map(ProductSku::getId).collect(Collectors.toList());
+
+        // 2. 检查订单明细引用（含租户过滤）
+        if (!skuIds.isEmpty()) {
+            Long orderItemCount = orderItemMapper.selectCount(
+                    new LambdaQueryWrapper<OrderItem>()
+                            .in(OrderItem::getSkuId, skuIds)
+                            .eq(OrderItem::getTenantId, tenantId));
+            if (orderItemCount > 0) {
+                throw new RuntimeException("该商品下有 " + orderItemCount + " 条订单明细记录，无法删除。建议改为禁用。");
+            }
+        }
+
+        // 3. 检查库存记录（含租户过滤）
+        if (!skuIds.isEmpty()) {
+            Long inventoryCount = inventoryMapper.selectCount(
+                    new LambdaQueryWrapper<Inventory>()
+                            .in(Inventory::getSkuId, skuIds)
+                            .eq(Inventory::getTenantId, tenantId));
+            if (inventoryCount > 0) {
+                throw new RuntimeException("该商品下有 " + inventoryCount + " 条库存记录，无法删除。建议改为禁用。");
+            }
+        }
+
+        // 4. 检查有效文件绑定：按 businessType 分离 product 和 sku 级绑定
+        LambdaQueryWrapper<FileBusinessBind> bindingWrapper = new LambdaQueryWrapper<>();
+        bindingWrapper.eq(FileBusinessBind::getTenantId, tenantId)
+                .eq(FileBusinessBind::getDeleted, 0);
+        if (!skuIds.isEmpty()) {
+            bindingWrapper.and(w -> w
+                    .and(wp -> wp.eq(FileBusinessBind::getBusinessType, "product")
+                            .eq(FileBusinessBind::getBusinessId, id))
+                    .or(ws -> ws.eq(FileBusinessBind::getBusinessType, "sku")
+                            .in(FileBusinessBind::getBusinessId, skuIds)));
+        } else {
+            bindingWrapper.eq(FileBusinessBind::getBusinessType, "product")
+                    .eq(FileBusinessBind::getBusinessId, id);
+        }
+        Long bindingCount = fileBusinessBindMapper.selectCount(bindingWrapper);
+        if (bindingCount > 0) {
+            throw new RuntimeException("该商品下有 " + bindingCount + " 条有效文件绑定，无法删除。建议改为禁用。");
+        }
+
+        // 无引用：软删除（禁用 SKU，软删除商品）
+        if (!skuIds.isEmpty()) {
+            LambdaUpdateWrapper<ProductSku> disableWrapper = new LambdaUpdateWrapper<>();
+            disableWrapper.in(ProductSku::getId, skuIds)
+                    .eq(ProductSku::getTenantId, tenantId)
+                    .eq(ProductSku::getDeleted, 0)
+                    .set(ProductSku::getStatus, 0);
+            skuMapper.update(null, disableWrapper);
+        }
 
         colorRelMapper.deleteByProductId(id);
         sizeRelMapper.deleteByProductId(id);
@@ -281,7 +355,29 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public void deleteColor(Long id) {
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        // 获取当前租户下所有未删除的商品 ID（ProductColorRel 无 tenantId，通过 Product 关联防跨租户）
+        LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
+        productWrapper.select(Product::getId);
+        productWrapper.eq(Product::getTenantId, tenantId);
+        productWrapper.eq(Product::getDeleted, 0);
+        List<Product> activeProducts = productMapper.selectList(productWrapper);
+        List<Long> activeProductIds = activeProducts.stream().map(Product::getId).collect(Collectors.toList());
+
+        if (!activeProductIds.isEmpty()) {
+            LambdaQueryWrapper<ProductColorRel> relWrapper = new LambdaQueryWrapper<>();
+            relWrapper.eq(ProductColorRel::getColorId, id);
+            relWrapper.in(ProductColorRel::getProductId, activeProductIds);
+            Long relCount = colorRelMapper.selectCount(relWrapper);
+            if (relCount > 0) {
+                throw new RuntimeException("该颜色被 " + relCount + " 个商品使用，无法删除。建议改为禁用。");
+            }
+        }
+        // 无活跃商品 → 计数为 0，允许删除
+
         colorMapper.deleteById(id);
     }
 
@@ -354,7 +450,29 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public void deleteSize(Long id) {
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        // 获取当前租户下所有未删除的商品 ID（ProductSizeRel 无 tenantId，通过 Product 关联防跨租户）
+        LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
+        productWrapper.select(Product::getId);
+        productWrapper.eq(Product::getTenantId, tenantId);
+        productWrapper.eq(Product::getDeleted, 0);
+        List<Product> activeProducts = productMapper.selectList(productWrapper);
+        List<Long> activeProductIds = activeProducts.stream().map(Product::getId).collect(Collectors.toList());
+
+        if (!activeProductIds.isEmpty()) {
+            LambdaQueryWrapper<ProductSizeRel> relWrapper = new LambdaQueryWrapper<>();
+            relWrapper.eq(ProductSizeRel::getSizeId, id);
+            relWrapper.in(ProductSizeRel::getProductId, activeProductIds);
+            Long relCount = sizeRelMapper.selectCount(relWrapper);
+            if (relCount > 0) {
+                throw new RuntimeException("该尺码被 " + relCount + " 个商品使用，无法删除。建议改为禁用。");
+            }
+        }
+        // 无活跃商品 → 计数为 0，允许删除
+
         sizeMapper.deleteById(id);
     }
 
@@ -455,6 +573,189 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
+    // ==================== BE-1013: 商品素材查询 ====================
+
+    @Override
+    public ProductFileBindingsVO getFileBindings(Long productId) {
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        // 验证商品存在且属于当前租户
+        LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
+        productWrapper.eq(Product::getId, productId);
+        productWrapper.eq(Product::getTenantId, tenantId);
+        productWrapper.eq(Product::getDeleted, 0);
+        Product product = productMapper.selectOne(productWrapper);
+        if (product == null) {
+            throw new RuntimeException("商品不存在");
+        }
+
+        // 获取商品的所有 SKU ID
+        LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
+        skuWrapper.eq(ProductSku::getProductId, productId);
+        skuWrapper.eq(ProductSku::getTenantId, tenantId);
+        skuWrapper.eq(ProductSku::getDeleted, 0);
+        List<ProductSku> skus = skuMapper.selectList(skuWrapper);
+        List<Long> skuIds = skus.stream().map(ProductSku::getId).collect(Collectors.toList());
+
+        // 构建 SKU ID -> (colorName, sizeName, skuCode) 映射
+        Map<Long, ProductSku> skuMap = skus.stream()
+                .collect(Collectors.toMap(ProductSku::getId, s -> s));
+        // 填充颜色名和尺码名
+        Map<Long, String> colorNameMap = new HashMap<>();
+        Map<Long, String> sizeNameMap = new HashMap<>();
+        for (ProductSku sku : skus) {
+            if (sku.getColorId() != null && !colorNameMap.containsKey(sku.getColorId())) {
+                ProductColor color = colorMapper.selectById(sku.getColorId());
+                colorNameMap.put(sku.getColorId(), color != null ? color.getColorName() : null);
+            }
+            if (sku.getSizeId() != null && !sizeNameMap.containsKey(sku.getSizeId())) {
+                ProductSize size = sizeMapper.selectById(sku.getSizeId());
+                sizeNameMap.put(sku.getSizeId(), size != null ? size.getSizeCode() : null);
+            }
+        }
+
+        // 查询所有相关绑定：按 businessType 分离，避免业务 ID 碰撞
+        LambdaQueryWrapper<FileBusinessBind> bindWrapper = new LambdaQueryWrapper<>();
+        bindWrapper.eq(FileBusinessBind::getTenantId, tenantId)
+                .eq(FileBusinessBind::getDeleted, 0);
+        if (!skuIds.isEmpty()) {
+            bindWrapper.and(w -> w
+                    .and(wp -> wp.eq(FileBusinessBind::getBusinessType, "product")
+                            .eq(FileBusinessBind::getBusinessId, productId))
+                    .or(ws -> ws.eq(FileBusinessBind::getBusinessType, "sku")
+                            .in(FileBusinessBind::getBusinessId, skuIds)));
+        } else {
+            bindWrapper.eq(FileBusinessBind::getBusinessType, "product")
+                    .eq(FileBusinessBind::getBusinessId, productId);
+        }
+        bindWrapper.orderByAsc(FileBusinessBind::getSort);
+        List<FileBusinessBind> allBinds = fileBusinessBindMapper.selectList(bindWrapper);
+
+        // 收集所有 fileId，查询有效文件
+        Set<Long> fileIds = allBinds.stream().map(FileBusinessBind::getFileId).collect(Collectors.toSet());
+        final Map<Long, FileStorage> fileMap;
+        if (!fileIds.isEmpty()) {
+            LambdaQueryWrapper<FileStorage> fileWrapper = new LambdaQueryWrapper<>();
+            fileWrapper.in(FileStorage::getId, fileIds)
+                    .eq(FileStorage::getTenantId, tenantId)
+                    .eq(FileStorage::getStatus, 1);
+            List<FileStorage> files = fileStorageMapper.selectList(fileWrapper);
+            fileMap = files.stream().collect(Collectors.toMap(FileStorage::getId, f -> f));
+        } else {
+            fileMap = Collections.emptyMap();
+        }
+
+        ProductFileBindingsVO vo = new ProductFileBindingsVO();
+
+        // 分组：product 绑定
+        List<FileBusinessBind> productBinds = allBinds.stream()
+                .filter(b -> "product".equals(b.getBusinessType()) && b.getBusinessId().equals(productId))
+                .collect(Collectors.toList());
+
+        // 主图（fileId 不在 fileMap 的脏绑定会被过滤）
+        List<FileBusinessBind> mainBinds = productBinds.stream()
+                .filter(b -> "main".equals(b.getBindRole()))
+                .collect(Collectors.toList());
+        if (!mainBinds.isEmpty()) {
+            ProductFileBindingsVO.FileBindingItem mainItem = toBindingItem(mainBinds.get(0), fileMap);
+            if (mainItem != null) {
+                vo.setMain(mainItem);
+            }
+        }
+
+        // 图集 — 始终设为列表（前端期望 [] 而非 null），过滤脏 fileId
+        List<FileBusinessBind> galleryBinds = productBinds.stream()
+                .filter(b -> "gallery".equals(b.getBindRole()))
+                .collect(Collectors.toList());
+        vo.setGallery(galleryBinds.stream()
+                .map(b -> toBindingItem(b, fileMap))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList()));
+
+        // SKU 图片分组 — 始终设为列表，过滤脏 fileId
+        List<FileBusinessBind> skuBinds = allBinds.stream()
+                .filter(b -> "sku".equals(b.getBusinessType()) && "sku_image".equals(b.getBindRole()))
+                .collect(Collectors.toList());
+        Map<Long, List<FileBusinessBind>> bindsBySkuId = skuBinds.stream()
+                .collect(Collectors.groupingBy(FileBusinessBind::getBusinessId));
+        List<ProductFileBindingsVO.SkuImageGroup> skuGroups = new ArrayList<>();
+        for (Map.Entry<Long, List<FileBusinessBind>> entry : bindsBySkuId.entrySet()) {
+            Long skuId = entry.getKey();
+            ProductFileBindingsVO.SkuImageGroup group = new ProductFileBindingsVO.SkuImageGroup();
+            group.setSkuId(skuId);
+            ProductSku sku = skuMap.get(skuId);
+            if (sku != null) {
+                group.setSkuCode(sku.getSkuCode());
+                group.setColorName(colorNameMap.getOrDefault(sku.getColorId(), null));
+                group.setSizeName(sizeNameMap.getOrDefault(sku.getSizeId(), null));
+            }
+            group.setFiles(entry.getValue().stream()
+                    .map(b -> toBindingItem(b, fileMap))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList()));
+            skuGroups.add(group);
+        }
+        vo.setSkuImages(skuGroups);
+
+        return vo;
+    }
+
+    private ProductFileBindingsVO.FileBindingItem toBindingItem(FileBusinessBind bind, Map<Long, FileStorage> fileMap) {
+        // 过滤脏 fileId：文件不存在或 status != 1 的绑定不返回
+        if (!fileMap.containsKey(bind.getFileId())) {
+            return null;
+        }
+        ProductFileBindingsVO.FileBindingItem item = new ProductFileBindingsVO.FileBindingItem();
+        item.setFileId(bind.getFileId());
+        item.setSort(bind.getSort());
+        item.setIsPrimary(bind.getIsPrimary());
+        // 构建预览 URL：统一使用 /api/files/{fileId}/preview
+        item.setPreviewUrl("/api/files/" + bind.getFileId() + "/preview");
+        return item;
+    }
+
+    // ==================== BE-1014: 单个 SKU 更新 ====================
+
+    @Override
+    @Transactional
+    public void updateSku(SkuUpdateDTO dto) {
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        // 查询 SKU，验证租户归属和未删除
+        LambdaQueryWrapper<ProductSku> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ProductSku::getId, dto.getId());
+        wrapper.eq(ProductSku::getTenantId, tenantId);
+        wrapper.eq(ProductSku::getDeleted, 0);
+        ProductSku sku = skuMapper.selectOne(wrapper);
+        if (sku == null) {
+            throw new RuntimeException("SKU 不存在");
+        }
+
+        boolean changed = false;
+        if (dto.getPrice() != null) {
+            sku.setPrice(dto.getPrice());
+            changed = true;
+        }
+        if (dto.getCostPrice() != null) {
+            sku.setCostPrice(dto.getCostPrice());
+            changed = true;
+        }
+        if (dto.getBarCode() != null) {
+            sku.setBarCode(dto.getBarCode());
+            changed = true;
+        }
+        if (dto.getStatus() != null) {
+            sku.setStatus(dto.getStatus());
+            changed = true;
+        }
+
+        if (!changed) {
+            throw new RuntimeException("没有需要更新的字段");
+        }
+
+        skuMapper.updateById(sku);
+    }
+
     // ==================== BE-1005 内部辅助方法 ====================
 
     private void softDeleteBindings(String businessType, Long businessId, String bindRole, Long tenantId) {
@@ -547,14 +848,27 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void syncProductSkus(Product product) {
+        Long tenantId = product.getTenantId();
+
         List<ProductColor> colors = colorRelMapper.selectByProductId(product.getId());
         List<ProductSize> sizes = sizeRelMapper.selectByProductId(product.getId());
         if (colors == null || colors.isEmpty() || sizes == null || sizes.isEmpty()) {
+            // 颜色或尺码被清空时，禁用所有活跃 SKU（不物理删除）
+            LambdaUpdateWrapper<ProductSku> disableAllWrapper = new LambdaUpdateWrapper<>();
+            disableAllWrapper.eq(ProductSku::getProductId, product.getId())
+                    .eq(ProductSku::getTenantId, tenantId)
+                    .eq(ProductSku::getDeleted, 0)
+                    .ne(ProductSku::getStatus, 0)
+                    .set(ProductSku::getStatus, 0);
+            skuMapper.update(null, disableAllWrapper);
             return;
         }
 
+        // 查询当前商品下未删除的 SKU（租户隔离 + 未删除）
         LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
         skuWrapper.eq(ProductSku::getProductId, product.getId());
+        skuWrapper.eq(ProductSku::getTenantId, tenantId);
+        skuWrapper.eq(ProductSku::getDeleted, 0);
         List<ProductSku> existingSkus = skuMapper.selectList(skuWrapper);
 
         Map<String, ProductSku> existingByCode = new HashMap<>();
@@ -563,8 +877,8 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Set<String> targetSkuCodes = new HashSet<>();
-        BigDecimal targetPrice = defaultAmount(product.getWholesalePrice());
-        BigDecimal targetCostPrice = defaultAmount(product.getCostPrice());
+        BigDecimal defaultPrice = defaultAmount(product.getWholesalePrice());
+        BigDecimal defaultCostPrice = defaultAmount(product.getCostPrice());
 
         for (ProductColor color : colors) {
             for (ProductSize size : sizes) {
@@ -573,6 +887,8 @@ public class ProductServiceImpl implements ProductService {
 
                 ProductSku existingSku = existingByCode.get(skuCode);
                 if (existingSku != null) {
+                    // 已存在的 SKU：保留其 price/costPrice/barCode/status，只同步 colorId/sizeId
+                    // 不自动重新启用被手动禁用的 SKU
                     boolean changed = false;
                     if (!Objects.equals(existingSku.getColorId(), color.getId())) {
                         existingSku.setColorId(color.getId());
@@ -582,31 +898,28 @@ public class ProductServiceImpl implements ProductService {
                         existingSku.setSizeId(size.getId());
                         changed = true;
                     }
-                    if (existingSku.getPrice() == null || existingSku.getPrice().compareTo(targetPrice) != 0) {
-                        existingSku.setPrice(targetPrice);
-                        changed = true;
-                    }
-                    if (existingSku.getCostPrice() == null || existingSku.getCostPrice().compareTo(targetCostPrice) != 0) {
-                        existingSku.setCostPrice(targetCostPrice);
-                        changed = true;
-                    }
-                    if (!Objects.equals(existingSku.getStatus(), product.getStatus())) {
-                        existingSku.setStatus(product.getStatus());
-                        changed = true;
-                    }
                     if (changed) {
                         skuMapper.updateById(existingSku);
                     }
                     continue;
                 }
 
-                restoreOrCreateSku(product, color, size, skuCode, targetPrice, targetCostPrice);
+                // 不存在的 SKU：新建或恢复
+                restoreOrCreateSku(product, color, size, skuCode, defaultPrice, defaultCostPrice);
             }
         }
 
+        // 不在目标组合中的 SKU：禁用而非物理删除（租户+未删除过滤）
         for (ProductSku existingSku : existingSkus) {
             if (!targetSkuCodes.contains(existingSku.getSkuCode())) {
-                skuMapper.deleteById(existingSku.getId());
+                if (!Objects.equals(existingSku.getStatus(), 0)) {
+                    LambdaUpdateWrapper<ProductSku> disableWrapper = new LambdaUpdateWrapper<>();
+                    disableWrapper.eq(ProductSku::getId, existingSku.getId())
+                            .eq(ProductSku::getTenantId, tenantId)
+                            .eq(ProductSku::getDeleted, 0)
+                            .set(ProductSku::getStatus, 0);
+                    skuMapper.update(null, disableWrapper);
+                }
             }
         }
     }

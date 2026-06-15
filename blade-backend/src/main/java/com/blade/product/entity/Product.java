@@ -9,25 +9,32 @@ public class Product {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("product_code")
     private String productCode;
     private String name;
+    @TableField("category_id")
     private Long categoryId;
+    @TableField("supplier_id")
     private Long supplierId;
     private String unit;
+    @TableField("cost_price")
     private BigDecimal costPrice;
+    @TableField("wholesale_price")
     private BigDecimal wholesalePrice;
     private BigDecimal weight;
     private String description;
+    @TableField("image_url")
     private String imageUrl;
     private String remark;
     private Integer status;
+    @TableField("tenant_id")
     private Long tenantId;
     private Integer deleted;
 
-    @TableField(fill = FieldFill.INSERT)
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
-    @TableField(fill = FieldFill.INSERT_UPDATE)
+    @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
     public Long getId() { return id; }

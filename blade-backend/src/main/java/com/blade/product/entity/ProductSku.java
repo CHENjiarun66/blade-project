@@ -9,18 +9,25 @@ public class ProductSku {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("product_id")
     private Long productId;
+    @TableField("color_id")
     private Long colorId;
+    @TableField("size_id")
     private Long sizeId;
+    @TableField("sku_code")
     private String skuCode;
     private BigDecimal price;
+    @TableField("cost_price")
     private BigDecimal costPrice;
+    @TableField("bar_code")
     private String barCode;
     private Integer status;
+    @TableField("tenant_id")
     private Long tenantId;
     private Integer deleted;
 
-    @TableField(fill = FieldFill.INSERT)
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
     public Long getId() { return id; }

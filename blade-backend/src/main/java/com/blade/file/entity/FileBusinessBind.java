@@ -16,16 +16,23 @@ public class FileBusinessBind {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("file_id")
     private Long fileId;
+    @TableField("business_type")
     private String businessType;
+    @TableField("business_id")
     private Long businessId;
+    @TableField("bind_role")
     private String bindRole;
     private Integer sort;
+    @TableField("is_primary")
     private Integer isPrimary;
+    @TableField("tenant_id")
     private Long tenantId;
+    @TableField("create_by")
     private Long createBy;
 
-    @TableField(fill = FieldFill.INSERT)
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
     private Integer deleted;

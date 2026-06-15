@@ -268,6 +268,9 @@
 | BE-1009B | 文件预览业务权限映射 | ✅ 完成 | 子任务，已合并到 BE-1009 |
 | BE-1010 | 基础视频文件支持 | ✅ 完成 | 上传支持 video/mp4、video/webm、video/quicktime；上传上限默认 200MB 且支持环境变量覆盖；自动分类 fileType（IMAGE/VIDEO/OTHER）和 fileExt；FileUploadVO 新增 fileType/fileExt；不做转码/封面/Range/分片 |
 | BE-1011 | 文件中心回归测试 | ✅ 完成 | 覆盖上传、列表、绑定、未绑定清理、删除保护；补充批量删除有效绑定文件拒绝测试；`File*Test` 98/98 通过 |
+| BE-1012 | 图片派生图/缩略图底座 | ⏳ TODO | 新增 file_derivative；上传图片后生成 thumb/card；新增 GET /api/files/{id}/variant?type=thumb/card；权限继承原图预览权限；历史图片批量补生成后续实现 |
+| BE-1013 | 商品素材查询 API | ✅ 完成 | GET /api/products/{id}/file-bindings，返回 main/gallery/skuImages 分组，previewUrl 统一为 /api/files/{fileId}/preview |
+| BE-1014 | 商品/SKU 删除引用保护验收 + SKU精细更新 | ✅ 完成 | 新增 PUT /api/products/skus 单个SKU更新；syncProductSkus 保留已有 SKU price/costPrice/barCode/status；delete/deleteColor/deleteSize 添加引用保护，有引用时提示建议禁用；39 个后端测试全部通过 |
 
 ### Phase 6.7: 客户 iPad 现货展示页后端（P1）
 
@@ -279,6 +282,17 @@
 | BE-1021 | Catalog 库存状态聚合 | ✅ 完成 | 按 quantity - reservedQty - globalReservedQty 判断有现货/暂无现货；stockMode=in_stock 在分页前过滤，避免 total 与卡片数量不一致 |
 | BE-1022 | Catalog 筛选项接口 | ✅ 完成 | GET /api/catalog/filters；分类、颜色、尺码、全部/现货/有图筛选 |
 | BE-1023 | Catalog 只读权限 | ✅ 完成 | V37 新增 menu:catalog、data:catalog:view，默认授权 ROLE_OWNER/ROLE_ADMIN/ROLE_SALES；第一版不做公开分享链接 |
+
+### Phase 6.8: 后端测试基线修复（P1）
+
+> 分支：`fix/backend-test-baseline`。目标是清理当前 `master/develop` 都存在的后端全量测试红灯，使后续集成测试可以可靠判断真实回归；不得为通过测试而放宽生产认证、权限或订单状态业务规则。
+
+| 任务 ID | 任务 | 状态 | 备注 |
+|---------|------|------|------|
+| BE-1030 | 后端全量测试失败归因与基线记录 | ✅ 完成 | 初始 `mvn test` 失败 40 个；已确认 `master` 基线同样失败，非商品管理 v2 新增回归。失败主因：登录测试缺 `tenantCode`、订单测试状态机口径过旧、实体字段缺少显式列映射。 |
+| BE-1031 | Catalog/Product Controller 测试认证基线修复 | ✅ 完成 | `CatalogControllerTest`、旧 `ProductControllerTest` 已按现有多租户登录规则补齐 `tenantCode=test_tenant` 和正确测试密码；Product 测试改用唯一商品编码，避免重复执行污染。 |
+| BE-1032 | OrderControllerTest 状态码与订单状态口径修复 | ✅ 完成 | 断言已对齐 `GlobalExceptionHandler` 业务错误 400、当前订单状态值 0-8，以及发货前需创建配货计划并确认调整的状态机流程。 |
+| BE-1033 | 后端全量测试收口 | ✅ 完成 | `cd blade-backend && mvn test` 通过：Tests run 244, Failures 0, Errors 0, Skipped 0；定向回归 `ProductControllerTest,CatalogControllerTest,FileControllerTest,FileBindingControllerTest,ProductFileBindingServiceTest,ProductFileBindingControllerTest` 通过 73/73。 |
 
 ---
 
@@ -325,6 +339,10 @@
 | BA-404 | 颜色列表页 | ✅ 完成 | 颜色管理 + 新建/编辑弹窗 |
 | BA-405 | 尺码列表页 | ✅ 完成 | 尺码管理 + 新建/编辑弹窗 |
 | BA-406 | 商品分类页 | ✅ 完成 | 分类管理 + 新建/编辑弹窗 + 后端 API |
+| BA-407 | 商品编辑页 v2 信息架构 | ✅ 完成 | 商品编辑弹窗升级为1100px宽4Tab分区：基础信息、颜色尺码、SKU明细、商品素材；Tab内容独立滚动；新建时仅显示基础信息和颜色尺码 |
+| BA-408 | SKU 明细精细维护 | ✅ 完成 | SKU明细Tab展示SKU表格，支持inline编辑售价/成本价/条码/状态（el-switch）；脏跟踪+批量保存调用PUT /api/products/skus |
+| BA-409 | 商品素材管理内聚到商品页 | ✅ 完成 | 素材Tab展示主图/图集/SKU图片管理；每个SKU行可上传/fileId添加/点击移除图片；saveFileBindings发送全部SKU的skuImageBindings；复用filePreviewUrl()预览；素材独立保存 |
+| BA-410 | 商品删除/禁用交互优化 | ✅ 完成 | 商品/颜色/尺码/分类删除前提示引用风险和建议禁用；删除失败时弹窗展示后端引用保护消息 |
 
 ### Phase 5: 客户管理
 
@@ -392,6 +410,7 @@
 | BA-1004 | 上传/预览/移动/删除 | ✅ 完成 | 上传按钮支持多文件到 temp；前端按 200MB 做上传前校验；网格/列表视图可多选；批量工具栏移动/绑定/删除；移动弹窗选文件夹或未归档；删除前查询绑定关系展示风险信息；仅 POST /api/files/batch-delete |
 | BA-1005 | 商品/SKU 绑定弹窗 | ✅ 完成 | FileBindDialog：远程搜索商品，选角色 main/gallery/sku_image，SKU 图片角色显示 SKU 多选，PUT /api/products/{id}/file-bindings |
 | BA-1006 | 未绑定文件清理管理 | ✅ 完成 | FileCleanupPanel：清理说明/保留天数/候选统计/刷新/软删除确认/回收站快捷入口；使用 GET unbound-candidates + POST soft-delete-unbound |
+| BA-1007 | PC 图片缩略图接入 | ⏳ TODO | 新增 fileVariantUrl 工具；商品列表、订单图片墙、文件中心网格/列表优先加载 thumb/card，点击预览/打开原文件仍加载原图 |
 
 ### Phase 11: 客户 iPad 现货展示页（P1）
 
@@ -407,6 +426,7 @@
 | BA-1025 | Catalog 无限滚动与本地缓存 | ✅ 完成 | 商品网格取消分页器，滚动触底自动请求下一页；筛选维度缓存商品列表；图片按 fileId 写入 IndexedDB，命中后使用本地 Blob URL |
 | BA-1026 | Catalog 图片滑动切换 | ✅ 完成 | 详情轮播和全屏大图支持左右滑动切图；增加跟手滑动与 220ms 相册式过渡；保留按钮/缩略图；仅拦截单指双击页面放大，保留两指缩放；横竖屏切换后恢复正常视口 |
 | BA-1027 | Catalog 手机竖屏版 | ✅ 完成 | iPhone 14 Pro 竖屏断点；保持 iPad quiet luxury 风格；两列商品卡片、底部详情抽屉、全屏大图；手机版横屏显示切回竖屏提示，不提供横屏浏览布局 |
+| BA-1028 | Catalog 派生图加载优化 | ⏳ TODO | Catalog 商品卡片使用 card，缩略图条使用 thumb，全屏大图/下载仍使用原图；与 IndexedDB 图片缓存策略兼容 |
 
 ---
 
@@ -540,6 +560,11 @@
 - 执行时间：2026-06-04 09:57
 - 执行结果：✅ 完成
 - 备注：Claude Code 执行尝试因预算上限中断，Codex 接手完成。确认现有文件中心回归覆盖上传、列表/详情、绑定、文件夹、未绑定治理、清理标记、视频类型和私有预览权限；补齐批量删除保护，`FileBindingServiceImpl.batchDelete()` 发现当前租户有效绑定时拒绝软删除，新增 `batchDelete_rejectsActiveBoundFiles` 回归测试。`FileBindingServiceImplTest` 13/13 通过；`File*Test` 96/96 通过。
+
+### BE-1013 + BE-1014 - 商品管理 v2 后端 Slice 1
+- 执行时间：2026-06-14 15:47
+- 执行结果：✅ 完成
+- 备注：Claude Code 实现，Codex 两轮审核后补正租户过滤、businessType 分离、空颜色/尺码禁用 SKU 和空数组返回等问题。新增 GET /api/products/{id}/file-bindings（返回主图/图集/SKU图片分组）、PUT /api/products/skus（单个SKU更新 price/costPrice/barCode/status）；修复 syncProductSkus 保留已有 SKU 字段不覆盖；delete/deleteColor/deleteSize 添加引用保护；ProductServiceV2Test 26/26 通过，ProductFileBindingServiceTest 11/11 通过，ProductFileBindingControllerTest 2/2 通过。新增文件：ProductFileBindingsVO.java、SkuUpdateDTO.java、ProductServiceV2Test.java。
 
 ### BE-001 ~ BE-008 - 后端骨架搭建
 - 执行时间：2026-03-21 18:10

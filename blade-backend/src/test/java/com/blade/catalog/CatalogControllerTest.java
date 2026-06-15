@@ -40,8 +40,9 @@ class CatalogControllerTest {
     @BeforeEach
     void setUp() throws Exception {
         LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setTenantCode("test_tenant");
         loginRequest.setUsername("admin");
-        loginRequest.setPassword("123456");
+        loginRequest.setPassword("admin123");
 
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)

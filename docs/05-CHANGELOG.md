@@ -6,6 +6,244 @@
 
 ---
 
+## 2026-06-15 变更记录
+
+### [规划] - 后端测试基线修复任务
+
+**变更内容**：
+- 新增独立修复分支：`fix/backend-test-baseline`。
+- 在 `docs/03-TASKS.md` 新增 Phase 6.8「后端测试基线修复」。
+- 新增任务：
+  - `BE-1030` 后端全量测试失败归因与基线记录
+  - `BE-1031` Catalog/Product Controller 测试认证基线修复
+  - `BE-1032` OrderControllerTest 状态码与订单状态口径修复
+  - `BE-1033` 后端全量测试收口
+
+**变更原因**：
+- 商品管理 v2 合入 `develop` 后，前端构建和商品/文件相关定向测试通过，但 `blade-backend mvn test` 仍有 40 个失败。
+- 复核 `master` 基线后确认同样存在这 40 个失败，属于历史测试口径未同步，不是本次商品管理 v2 新增回归。
+- 需要单独修复测试基线，避免后续每次集成时无法判断真实回归。
+
+**当前失败范围**：
+- `CatalogControllerTest`：15 个失败，登录请求缺少 `tenantCode`，返回“租户编码不能为空”，token 为 null。
+- `ProductControllerTest`：14 个失败，同样因旧登录测试夹具缺少 `tenantCode`，后续接口使用 `Bearer null` 返回 403。
+- `OrderControllerTest`：11 个失败，主要是测试断言仍按旧业务错误码 `500`、旧取消状态值和旧状态流转口径。
+
+**验收标准**：
+- `cd blade-backend && mvn test` 通过。
+- 不为通过测试而放宽生产认证、权限或订单状态业务规则。
+- 修复后保留全量测试结果和关键定向测试结果。
+
+**影响范围**：
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+- 后续预计修改 `blade-backend/src/test/java/com/blade/catalog/CatalogControllerTest.java`
+- 后续预计修改 `blade-backend/src/test/java/com/blade/product/ProductControllerTest.java`
+- 后续预计修改 `blade-backend/src/test/java/com/blade/order/OrderControllerTest.java`
+
+**执行人**：AI
+
+---
+
+### [修复] - 后端测试基线恢复为全量通过
+
+**变更内容**：
+- 修复 `CatalogControllerTest`、旧 `ProductControllerTest` 登录夹具：补齐 `tenantCode=test_tenant`，使用当前测试数据密码，避免 token 为 null 后续接口统一 403。
+- 修复 `ProductControllerTest` 重复执行污染：测试商品编码改为运行时唯一值，重复跑测试不再因固定编码冲突失败。
+- 修复 `OrderControllerTest` 旧状态机断言：业务错误对齐 `400`，订单状态对齐当前 0-8 状态值，发货流程补齐创建配货计划和确认调整步骤。
+- 修复全量测试暴露的 SQL 字段映射问题：为 `Product`、`ProductSku`、`ProductColor`、`ProductSize`、`ProductCategory`、商品颜色/尺码关联、`FileStorage`、`FileBusinessBind` 等实体补齐显式 `@TableField`，避免 MyBatis-Plus 生成 `productCode`、`createTime`、`businessType`、`businessId`、`productId` 等错误列名。
+
+**变更原因**：
+- `master/develop` 既有后端测试基线长期红灯，导致后续集成无法区分真实回归和历史测试口径问题。
+- 全量测试进一步暴露部分实体依赖默认驼峰映射不稳定，影响商品/文件相关查询的可靠性。
+
+**验证结果**：
+- `cd blade-backend && mvn test -Dtest=CatalogControllerTest,ProductControllerTest,OrderControllerTest -DfailIfNoTests=false` 通过：55/55。
+- `cd blade-backend && mvn test -Dtest=ProductControllerTest,CatalogControllerTest,FileControllerTest,FileBindingControllerTest,ProductFileBindingServiceTest,ProductFileBindingControllerTest -DfailIfNoTests=false` 通过：73/73。
+- `cd blade-backend && mvn test` 通过：Tests run 244, Failures 0, Errors 0, Skipped 0。
+
+**影响范围**：
+- `blade-backend/src/test/java/com/blade/catalog/CatalogControllerTest.java`
+- `blade-backend/src/test/java/com/blade/product/ProductControllerTest.java`
+- `blade-backend/src/test/java/com/blade/order/OrderControllerTest.java`
+- `blade-backend/src/main/java/com/blade/product/entity/*`
+- `blade-backend/src/main/java/com/blade/file/entity/*`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**执行人**：AI
+
+---
+
+## 2026-06-14 变更记录
+
+### [规划] - 商品管理 v2：SKU 精细维护与商品素材管理
+
+**变更内容**：
+- 在 PRD 商品模块新增“商品管理 v2”章节，明确商品编辑页需要覆盖基础信息、颜色尺码、SKU 明细和商品素材四个区域。
+- 明确 SKU 明细维护规则：SKU 可逐行维护售价、成本价、条码、状态和 SKU 图片；颜色/尺码变化时不得破坏历史订单和库存引用。
+- 明确商品素材统一走文件中心绑定关系：商品主图、商品图集、SKU 图片均使用 `file_business_bind`，不新增商品图集或 SKU 图片业务字段。
+- 明确图片性能规则：商品列表、商品编辑缩略图、文件中心、订单图片墙和 Catalog 后续优先加载 thumb/card 派生图。
+- 明确删除与历史引用规则：商品、SKU、颜色、尺码、分类删除前必须考虑订单、库存、文件绑定引用，存在有效引用时默认改为禁用。
+- 新增后端任务 `BE-1013` 商品素材查询 API、`BE-1014` 商品/SKU 删除引用保护验收。
+- 新增前端任务 `BA-407` 商品编辑页 v2 信息架构、`BA-408` SKU 明细精细维护、`BA-409` 商品素材管理内聚到商品页、`BA-410` 商品删除/禁用交互优化。
+- 新增 Claude Code ROM/SOW 文档：`docs/superpowers/plans/2026-06-14-product-management-v2-rom-sow.md`。
+
+**变更原因**：
+- 当前商品基础 CRUD 已完成，但生产使用中商品资料维护还缺 SKU 单独价格/成本/状态/条码、商品图集、SKU 图片和删除引用保护。
+- 商品图片同时服务 PC 商品页、快速录单、文件中心和 iPad Catalog，必须先规划统一素材入口和缩略图性能方案，避免后续重复实现。
+
+**影响范围**：
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+- `docs/superpowers/plans/2026-06-14-product-management-v2-rom-sow.md`
+
+**边界说明**：
+- 本次只做 PRD 和 ROM/SOW 规划，不开始代码开发。
+- 供应商管理继续后置；商品 v2 第一版只保留 supplierId 兼容，不做供应商 CRUD。
+
+**执行人**：AI
+
+---
+
+### [实现] - BE-1013 + BE-1014 商品管理 v2 后端 Slice 1 (2026-06-14)
+
+**变更内容**：
+- 新增 `GET /api/products/{id}/file-bindings` 商品素材查询 API，返回主图/图集/SKU图片分组（ProductFileBindingsVO），预览 URL 统一为 `/api/files/{fileId}/preview`
+- 新增 `PUT /api/products/skus` 单个 SKU 更新 API（SkuUpdateDTO），支持更新 price/costPrice/barCode/status，含租户归属校验
+- 修复 `syncProductSkus`：已有 SKU 保留其 price/costPrice/barCode/status，不再被商品级更新覆盖；颜色/尺码组合移除时禁用而非物理删除
+- 添加删除引用保护：商品删除检查订单明细/库存/文件绑定；颜色/尺码删除检查活跃商品关联；存在引用时抛 RuntimeException 建议禁用
+- 新增 ProductFileBindingsVO.java、SkuUpdateDTO.java、ProductServiceV2Test.java
+- Claude Code 完成实现后，Codex 两轮审核补正租户过滤、businessType 分离、空颜色/尺码禁用 SKU、空数组返回和脏绑定过滤等问题
+- 39 个后端测试全部通过（ProductServiceV2Test 26/26 + ProductFileBindingServiceTest 11/11 + ProductFileBindingControllerTest 2/2）
+
+**变更原因**：
+- 商品管理 v2 需要为 SKU 精细维护和商品素材管理提供后端数据支持
+- 原有 SKU 同步逻辑会覆盖手动维护的 SKU 价格，不符合 PRD 4.8.2 规则
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/product/`
+- `blade-backend/src/test/java/com/blade/product/`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**执行人**：AI
+
+---
+
+### [实现] - BA-407 to BA-410 商品管理 v2 前端 Slice (2026-06-14)
+
+**变更内容**：
+- **api/product.ts**：新增 `getProductFileBindings`、`updateSku`、`batchUpdateSkus` 函数及类型定义
+- **products/index.vue**：商品编辑弹窗升级为 1100px 宽 4-Tab 分区（基础信息/颜色尺码/SKU明细/商品素材）；SKU明细支持 inline 编辑售价/成本价/条码/状态 + 批量保存；素材Tab展示主图/图集/SKU图片，支持上传和 fileId 输入，复用 `filePreviewUrl()` 预览；素材独立保存
+- **BA-409 审核补正**：SKU 图片区域从只读展示补齐为可维护；每个 SKU 行支持当前图片预览、点击移除、上传图片、fileId 添加；保存素材时会提交全部 SKU 的 `skuImageBindings`
+- **products/colors.vue / sizes.vue / categories.vue**：删除确认提示增加引用风险说明；删除失败弹窗展示后端引用保护消息
+- **删除错误处理补正**：商品、颜色、尺码、分类删除接口若以异常形式返回，前端不再静默吞掉错误；取消/关闭仍静默忽略，其他错误弹窗展示后端消息
+- **categories.vue 字段补正**：分类列表和删除文案使用 `row.categoryName || row.name` 回退，避免字段名不一致导致显示空值
+
+**变更原因**：完成商品管理 v2 前端四个任务 (BA-407 ~ BA-410)，实现 SKU 精细维护、商品素材内聚和删除交互优化
+
+**影响范围**：
+- `blade-admin/src/api/product.ts`
+- `blade-admin/src/views/products/index.vue`
+- `blade-admin/src/views/products/colors.vue`
+- `blade-admin/src/views/products/sizes.vue`
+- `blade-admin/src/views/products/categories.vue`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**构建结果**：`vue-tsc -b && vite build` 通过，无 TS/编译错误
+
+**执行人**：AI
+
+---
+
+### [优化] - 商品编辑页 UI 布局精修 (2026-06-14)
+
+**变更内容**：
+- 将商品编辑弹窗宽度调整为 1180px，并新增顶部商品摘要区，集中展示主图/状态/编码/颜色尺码/SKU 数量、进货价、批发价和素材数量。
+- 基础信息 Tab 改为“商品资料 + 价格与状态”左右分区，表单标签改为顶部对齐，减少字段拥挤。
+- 颜色尺码 Tab 改为卡片式选项网格，并保留 SKU 组合预览。
+- SKU 明细 Tab 新增统计工具栏，展示 SKU 总数、启用数、禁用数，状态列补充文字说明。
+- 商品素材 Tab 重排为主图、商品图集、SKU 图片三个清晰工作区，上传、fileId 绑定和保存区域保持独立。
+- 新增响应式兜底样式，避免弹窗在窄屏下横向挤压。
+
+**变更原因**：
+- 商品管理 v2 功能已完成，但编辑页视觉层级和操作密度不足，影响生产环境维护商品资料的效率。
+
+**影响范围**：
+- `blade-admin/src/views/products/index.vue`
+- `blade-admin/src/views/clients/index.vue`（修正历史 `::deep` 写法，消除构建 CSS 语法警告）
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `cd blade-backend && mvn test -Dtest=ProductServiceV2Test,ProductFileBindingServiceTest,ProductFileBindingControllerTest -DfailIfNoTests=false` 通过，39/39。
+- `cd blade-admin && npm run build` 通过，无 TS/模板错误，无 `::deep` CSS 语法警告；仅保留项目既有 chunk size 提示。
+- 真实 API 回归通过：临时商品创建、SKU 单独价格/成本/条码更新、商品更新后不覆盖手动 SKU 价格、素材绑定空保存/查询、临时商品删除清理均正常。
+- 本地浏览器烟测通过：临时创建测试商品后打开编辑弹窗，基础信息、SKU 明细、商品素材 Tab 均正常渲染，无页面横向溢出；测试商品已删除。
+- 当前登录页面只读 UI 回归通过：现有商品编辑弹窗基础信息、SKU 明细、商品素材、颜色尺码均正常渲染，无横向溢出，浏览器 console 无 error。
+
+**执行人**：AI
+
+---
+
+### [修复] - 商品素材保存后预览图片失效 (2026-06-14)
+
+**变更内容**：
+- 修复商品编辑页保存素材绑定后，主图、商品图集、SKU 图片重新加载时显示破图的问题。
+- `loadFileBindings()` 不再直接使用后端返回的裸 `/api/files/{id}/preview`，而是统一按 `fileId` 调用 `filePreviewUrl(fileId)` 生成带 `previewToken` 的预览地址。
+
+**变更原因**：
+- 商品列表能显示主图，是因为列表图片走 `filePreviewUrl()`，浏览器 `<img>` 请求带有 `previewToken`。
+- 商品素材保存后重新加载绑定关系时，前端直接使用后端返回的裸 previewUrl；PRIVATE 文件预览接口要求登录，原生 `<img>` 不会携带 Authorization header，因此主图、图集、SKU 图片都会显示破图。
+- 该问题不是缩略图未完成导致，属于预览鉴权 URL 生成不一致。
+
+**影响范围**：
+- `blade-admin/src/views/products/index.vue`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `cd blade-admin && npm run build` 通过，无 TS/模板错误。
+
+**执行人**：AI
+
+---
+
+## 2026-06-12 变更记录
+
+### [规划] - 文件中心图片派生图/缩略图性能优化
+
+**变更内容**：
+- 在 PRD 文件中心章节补充“列表优先加载派生图”规则：商品列表、订单图片墙、文件中心网格、Catalog 卡片等列表/卡片场景优先加载缩略图或中图，点击大图/下载时再加载原图。
+- 在文件中心设计文档新增 `file_derivative` 派生图设计，第一版只规划图片 `thumb` 和 `card` 两类派生图。
+- 规划统一派生图访问接口：`GET /api/files/{id}/variant?type=thumb/card`，权限继承原文件预览权限，不绕过租户、登录和业务权限校验。
+- 明确业务表仍只保存原始 `fileId`，不保存缩略图路径，避免后续切换本地、七牛云、NAS 或 CDN 时大规模改表。
+- 明确历史图片可通过后续批量任务补生成派生图；派生图缺失或生成失败时允许回退原图，不影响上传主流程。
+- 新增待开发任务：`BE-1012` 图片派生图/缩略图底座、`BA-1007` PC 图片缩略图接入、`BA-1028` Catalog 派生图加载优化。
+
+**变更原因**：
+- 现有图片原图可能达到数 MB，商品列表、订单图片墙、文件中心和 iPad Catalog 浏览时直接加载原图会导致首屏和滚动加载变慢。
+- 文件中心已经统一了上传、预览和 fileId 引用，适合在统一入口生成派生图，后续能同时服务 PC、订单、商品、Catalog 和移动端。
+
+**影响范围**：
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/12-FILE_CENTER_ASSET_DESIGN.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/05-CHANGELOG.md`
+
+**边界说明**：
+- 本次只更新需求、设计和任务文档，未开始代码开发。
+- 第一版派生图优化不包含视频封面、视频转码、断点续传、WebP/AVIF、自适应 CDN，这些保留为后续扩展。
+
+**验证结果**：
+- 文档关键字核对和 Markdown diff 检查通过后再进入后续开发。
+
+**执行人**：AI
+
+---
+
 ## 2026-06-11 变更记录
 
 ### [功能开发] - BA-207 快速录单商品级批量 SKU 录入

@@ -13,39 +13,62 @@ public class FileStorage {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("file_key")
     private String fileKey;
+    @TableField("original_name")
     private String originalName;
+    @TableField("file_name")
     private String fileName;
+    @TableField("content_type")
     private String contentType;
+    @TableField("file_size")
     private Long fileSize;
+    @TableField("storage_type")
     private String storageType;
+    @TableField("storage_path")
     private String storagePath;
+    @TableField("access_url")
     private String accessUrl;
+    @TableField("business_type")
     private String businessType;
+    @TableField("business_id")
     private Long businessId;
+    @TableField("folder_id")
     private Long folderId;
+    @TableField("file_type")
     private String fileType;
+    @TableField("file_ext")
     private String fileExt;
+    @TableField("file_hash")
     private String fileHash;
     private String source;
     private String purpose;
+    @TableField("bind_count")
     private Integer bindCount;
     private String visibility;
+    @TableField("image_width")
     private Integer imageWidth;
+    @TableField("image_height")
     private Integer imageHeight;
+    @TableField("duration_seconds")
     private Integer durationSeconds;
+    @TableField("cover_file_id")
     private Long coverFileId;
     private Integer status;
+    @TableField("tenant_id")
     private Long tenantId;
+    @TableField("create_by")
     private Long createBy;
 
-    @TableField(fill = FieldFill.INSERT)
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
-    @TableField(fill = FieldFill.INSERT_UPDATE)
+    @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
+    @TableField("deleted_time")
     private LocalDateTime deletedTime;
+    @TableField("purged_time")
     private LocalDateTime purgedTime;
 
     // === getters & setters ===
