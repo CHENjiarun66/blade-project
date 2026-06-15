@@ -35,4 +35,16 @@ public interface ProductService {
      * BE-1005: 商品/SKU 图片绑定服务 — PUT /api/products/{id}/file-bindings
      */
     void bindFiles(Long productId, ProductFileBindingDTO dto);
+
+    /**
+     * BE-1013: 商品素材查询 — GET /api/products/{id}/file-bindings
+     * 返回商品主图、图集和按 SKU 分组的 SKU 图片
+     */
+    ProductFileBindingsVO getFileBindings(Long productId);
+
+    /**
+     * BE-1014: 单个 SKU 更新 — PUT /api/products/skus
+     * 用于 SKU 明细精细维护：单独编辑售价、成本价、条码、状态
+     */
+    void updateSku(SkuUpdateDTO dto);
 }

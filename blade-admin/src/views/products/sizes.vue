@@ -149,20 +149,35 @@ function handleEdit(row: any) {
 
 async function handleDelete(row: any) {
   try {
-    await ElMessageBox.confirm(`确定要删除尺码「${row.sizeCode}」吗？`, '删除确认', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      `确定要删除尺码「${row.sizeCode}」吗？若尺码已被商品引用则无法删除，建议改为禁用。`,
+      '删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
     const res = await deleteSize(row.id)
     if (res.code === 200) {
       ElMessage.success('删除成功')
       loadData()
     } else {
-      ElMessage.error(res.message || '删除失败')
+      ElMessageBox.alert(
+        res.message || '删除失败，可能存在商品引用',
+        '无法删除',
+        { confirmButtonText: '知道了', type: 'warning' }
+      )
     }
-  } catch {
-    // 用户取消
+  } catch (error: any) {
+    // only silently ignore cancel/close
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessageBox.alert(
+        error?.message || error?.response?.data?.message || '删除失败，可能存在商品引用',
+        '无法删除',
+        { confirmButtonText: '知道了', type: 'warning' }
+      )
+    }
   }
 }
 

@@ -78,7 +78,8 @@ class ProductFileBindingServiceTest {
         service = new ProductServiceImpl(
                 productMapper, null, null, null,
                 skuMapper, null, null,
-                null, fileService, bindMapper, storageMapper);
+                null, fileService, bindMapper, storageMapper,
+                null, null);
     }
 
     @AfterEach

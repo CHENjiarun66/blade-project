@@ -402,7 +402,7 @@ onMounted(() => {
 }
 
 /* 分页样式 */
-::deep(.el-pagination.is-background .el-pager li.is-active) {
+.clients-page :deep(.el-pagination.is-background .el-pager li.is-active) {
   background-color: #408aee !important;
 }
 </style>

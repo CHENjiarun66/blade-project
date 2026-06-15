@@ -223,7 +223,38 @@ export function deleteCategory(id: number) {
   return client.delete(`/product-categories/${id}`) as any
 }
 
-// ========== 文件绑定 API ==========
+// ========== 商品素材 v2 API ==========
+
+/** 单个文件绑定项 */
+export interface FileBindingItem {
+  fileId: number
+  previewUrl: string
+  sort: number
+  isPrimary: number
+}
+
+/** SKU 图片分组 */
+export interface SkuImageGroup {
+  skuId: number
+  skuCode: string
+  colorName: string
+  sizeName: string
+  files: FileBindingItem[]
+}
+
+/** 商品素材查询响应 */
+export interface ProductFileBindingsVO {
+  main: FileBindingItem | null
+  gallery: FileBindingItem[]
+  skuImages: SkuImageGroup[]
+}
+
+/** 查询商品素材绑定 */
+export function getProductFileBindings(productId: number) {
+  return client.get(`/products/${productId}/file-bindings`) as Promise<{ code: number; data: ProductFileBindingsVO; message: string }>
+}
+
+// ========== 文件绑定保存 API ==========
 
 /** SKU 图片绑定 DTO */
 export interface SkuImageBindingDTO {
@@ -241,4 +272,28 @@ export interface ProductFileBindingDTO {
 /** 设置商品文件绑定（替换语义） */
 export function setProductFileBindings(productId: number, dto: ProductFileBindingDTO) {
   return client.put(`/products/${productId}/file-bindings`, dto) as Promise<{ code: number; data: void; message: string }>
+}
+
+// ========== SKU 精细维护 v2 API ==========
+
+/** 单个 SKU 更新 DTO */
+export interface SkuUpdateDTO {
+  id: number
+  price?: number
+  costPrice?: number
+  barCode?: string
+  status?: number
+}
+
+/** 更新单个 SKU（price/costPrice/barCode/status） */
+export function updateSku(dto: SkuUpdateDTO) {
+  return client.put('/products/skus', dto) as Promise<{ code: number; data: void; message: string }>
+}
+
+/** 批量更新 SKU（并行调用单个更新接口） */
+export async function batchUpdateSkus(skus: SkuUpdateDTO[]) {
+  if (!skus.length) return { code: 200, data: undefined, message: 'ok' }
+  const results = await Promise.all(skus.map(dto => updateSku(dto)))
+  const failed = results.find(r => r.code !== 200)
+  return failed || { code: 200, data: undefined, message: 'ok' }
 }
