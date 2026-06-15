@@ -283,6 +283,17 @@
 | BE-1022 | Catalog 筛选项接口 | ✅ 完成 | GET /api/catalog/filters；分类、颜色、尺码、全部/现货/有图筛选 |
 | BE-1023 | Catalog 只读权限 | ✅ 完成 | V37 新增 menu:catalog、data:catalog:view，默认授权 ROLE_OWNER/ROLE_ADMIN/ROLE_SALES；第一版不做公开分享链接 |
 
+### Phase 6.8: 后端测试基线修复（P1）
+
+> 分支：`fix/backend-test-baseline`。目标是清理当前 `master/develop` 都存在的后端全量测试红灯，使后续集成测试可以可靠判断真实回归；不得为通过测试而放宽生产认证、权限或订单状态业务规则。
+
+| 任务 ID | 任务 | 状态 | 备注 |
+|---------|------|------|------|
+| BE-1030 | 后端全量测试失败归因与基线记录 | ⏳ TODO | 当前 `mvn test` 失败 40 个；已确认 `master` 基线同样失败，非商品管理 v2 新增回归。需保留失败清单和修复前后对比。 |
+| BE-1031 | Catalog/Product Controller 测试认证基线修复 | ⏳ TODO | `CatalogControllerTest`、旧 `ProductControllerTest` 登录请求缺少 `tenantCode`，导致 token 为 null 后续 403；应按现有多租户登录规则更新测试夹具或测试辅助方法。 |
+| BE-1032 | OrderControllerTest 状态码与订单状态口径修复 | ⏳ TODO | 当前断言仍按旧 `500` 和旧取消状态值；需对齐现有 `GlobalExceptionHandler` 业务错误 400、订单取消状态值和订单状态机规则，必要时补充独立说明。 |
+| BE-1033 | 后端全量测试收口 | ⏳ TODO | 验收命令：`cd blade-backend && mvn test` 必须通过；同时保留商品管理 v2 定向测试、文件权限测试和前端 build 作为集成回归补充。 |
+
 ---
 
 ## PC 管理端开发任务（blade-admin）

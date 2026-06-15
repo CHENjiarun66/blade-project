@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-06-15 变更记录
+
+### [规划] - 后端测试基线修复任务
+
+**变更内容**：
+- 新增独立修复分支：`fix/backend-test-baseline`。
+- 在 `docs/03-TASKS.md` 新增 Phase 6.8「后端测试基线修复」。
+- 新增任务：
+  - `BE-1030` 后端全量测试失败归因与基线记录
+  - `BE-1031` Catalog/Product Controller 测试认证基线修复
+  - `BE-1032` OrderControllerTest 状态码与订单状态口径修复
+  - `BE-1033` 后端全量测试收口
+
+**变更原因**：
+- 商品管理 v2 合入 `develop` 后，前端构建和商品/文件相关定向测试通过，但 `blade-backend mvn test` 仍有 40 个失败。
+- 复核 `master` 基线后确认同样存在这 40 个失败，属于历史测试口径未同步，不是本次商品管理 v2 新增回归。
+- 需要单独修复测试基线，避免后续每次集成时无法判断真实回归。
+
+**当前失败范围**：
+- `CatalogControllerTest`：15 个失败，登录请求缺少 `tenantCode`，返回“租户编码不能为空”，token 为 null。
+- `ProductControllerTest`：14 个失败，同样因旧登录测试夹具缺少 `tenantCode`，后续接口使用 `Bearer null` 返回 403。
+- `OrderControllerTest`：11 个失败，主要是测试断言仍按旧业务错误码 `500`、旧取消状态值和旧状态流转口径。
+
+**验收标准**：
+- `cd blade-backend && mvn test` 通过。
+- 不为通过测试而放宽生产认证、权限或订单状态业务规则。
+- 修复后保留全量测试结果和关键定向测试结果。
+
+**影响范围**：
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+- 后续预计修改 `blade-backend/src/test/java/com/blade/catalog/CatalogControllerTest.java`
+- 后续预计修改 `blade-backend/src/test/java/com/blade/product/ProductControllerTest.java`
+- 后续预计修改 `blade-backend/src/test/java/com/blade/order/OrderControllerTest.java`
+
+**执行人**：AI
+
+---
+
 ## 2026-06-14 变更记录
 
 ### [规划] - 商品管理 v2：SKU 精细维护与商品素材管理
