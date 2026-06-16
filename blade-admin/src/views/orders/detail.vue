@@ -464,12 +464,16 @@
             <h3 class="text-lg font-bold text-gray-900">订单图片</h3>
           </div>
           <div class="flex flex-wrap gap-3">
-            <img
+            <button
               v-for="(img, idx) in orderImageSources"
               :key="idx"
-              :src="img"
-              class="w-20 h-20 rounded-lg object-cover border border-gray-200"
-            />
+              type="button"
+              class="order-detail-image-thumb"
+              aria-label="查看订单图片"
+              @click="openOrderImageViewer(idx)"
+            >
+              <img :src="img" alt="" />
+            </button>
           </div>
         </div>
       </div>
@@ -605,13 +609,20 @@
         <el-button type="primary" :loading="planLoading" @click="submitDeliveryPlan">保存</el-button>
       </template>
     </el-dialog>
+
+    <ElImageViewer
+      v-if="imageViewerVisible"
+      :url-list="orderImageSources"
+      :initial-index="imageViewerIndex"
+      @close="closeImageViewer"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { getOrderById, confirmPayment, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO } from '@/api/order'
 import { getAllWarehouses, type WarehouseVO } from '@/api/inventory'
@@ -626,6 +637,8 @@ const showPayDialog = ref(false)
 const showCancelDialog = ref(false)
 const payAmount = ref(0)
 const cancelReason = ref('')
+const imageViewerVisible = ref(false)
+const imageViewerIndex = ref(0)
 
 // 出库单相关
 const deliveries = ref<OrderDeliveryVO[]>([])
@@ -655,6 +668,17 @@ const canAddPayment = computed(() => {
   return ![5, 6, 7, 8].includes(order.value.status)
 })
 const orderImageSources = computed(() => parseImageSources(order.value?.images))
+
+function openOrderImageViewer(index = 0) {
+  if (orderImageSources.value.length === 0) return
+  imageViewerIndex.value = index
+  imageViewerVisible.value = true
+}
+
+function closeImageViewer() {
+  imageViewerVisible.value = false
+  imageViewerIndex.value = 0
+}
 
 onMounted(async () => {
   await loadOrder()
@@ -1043,5 +1067,30 @@ function formatDateTime(dateStr: string) {
 <style scoped>
 .order-detail-page {
   padding: 0;
+}
+
+.order-detail-image-thumb {
+  width: 80px;
+  height: 80px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f9fafb;
+  cursor: zoom-in;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.order-detail-image-thumb:hover {
+  transform: scale(1.04);
+  border-color: #408aee;
+  box-shadow: 0 10px 24px rgb(64 138 238 / 16%);
+}
+
+.order-detail-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 </style>

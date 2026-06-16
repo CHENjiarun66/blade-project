@@ -222,7 +222,25 @@
 
           <el-table-column label="图片" min-width="70" align="center">
             <template #default="{ row }">
-              <span v-if="row.images" class="material-symbols-outlined text-[#408aee] cursor-pointer">image</span>
+              <el-popover
+                v-if="firstOrderImage(row)"
+                trigger="hover"
+                placement="left"
+                :width="260"
+                popper-class="order-image-popover"
+              >
+                <template #reference>
+                  <button
+                    type="button"
+                    class="order-image-thumb"
+                    aria-label="查看订单图片"
+                    @click.stop="openOrderImageViewer(row)"
+                  >
+                    <img :src="firstOrderImage(row)" alt="" />
+                  </button>
+                </template>
+                <img :src="firstOrderImage(row)" alt="" class="order-image-hover-preview" />
+              </el-popover>
               <span v-else class="material-symbols-outlined text-gray-300">image</span>
             </template>
           </el-table-column>
@@ -258,6 +276,14 @@
         />
       </div>
     </div>
+
+  <ElImageViewer
+    v-if="imageViewerVisible"
+    :url-list="imageViewerUrls"
+    :initial-index="imageViewerIndex"
+    @close="closeImageViewer"
+  />
+
   <!-- 编辑订单弹窗 -->
   <el-dialog
     v-model="showEditDialog"
@@ -376,7 +402,7 @@ import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrderPage, updateOrder, exportOrders, type OrderVO } from '@/api/order'
 import { parseImageSources, parseImageValues, uploadFile } from '@/api/file'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElImageViewer, ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
 const router = useRouter()
 
@@ -463,6 +489,9 @@ const editFormRef = ref<FormInstance>()
 const editingOrder = ref<OrderVO | null>(null)
 const editImageValues = ref<string[]>([])
 const editImageSources = computed(() => parseImageSources(JSON.stringify(editImageValues.value)))
+const imageViewerVisible = ref(false)
+const imageViewerUrls = ref<string[]>([])
+const imageViewerIndex = ref(0)
 const editForm = reactive({
   customerName: '',
   orderDate: '',
@@ -542,6 +571,28 @@ function removeEditImage(index: number) {
 
 function syncEditImages() {
   editForm.images = editImageValues.value.length > 0 ? JSON.stringify(editImageValues.value) : ''
+}
+
+function orderImageSources(row: OrderVO) {
+  return parseImageSources(row.images)
+}
+
+function firstOrderImage(row: OrderVO) {
+  return orderImageSources(row)[0] || ''
+}
+
+function openOrderImageViewer(row: OrderVO) {
+  const sources = orderImageSources(row)
+  if (sources.length === 0) return
+  imageViewerUrls.value = sources
+  imageViewerIndex.value = 0
+  imageViewerVisible.value = true
+}
+
+function closeImageViewer() {
+  imageViewerVisible.value = false
+  imageViewerUrls.value = []
+  imageViewerIndex.value = 0
 }
 
 // 行点击
@@ -682,6 +733,39 @@ onMounted(() => {
 
 .order-table :deep(.el-table__row:hover > td) {
   background-color: rgb(249 250 251 / 30%) !important;
+}
+
+.order-image-thumb {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f9fafb;
+  cursor: zoom-in;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.order-image-thumb:hover {
+  transform: scale(1.08);
+  border-color: #408aee;
+  box-shadow: 0 8px 20px rgb(64 138 238 / 18%);
+}
+
+.order-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.order-image-hover-preview {
+  width: 240px;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 10px;
+  display: block;
 }
 
 /* 分页样式 */
