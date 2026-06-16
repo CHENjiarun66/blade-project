@@ -129,11 +129,21 @@
                     :key="product.id"
                     :label="`${product.productCode} / ${product.name}`"
                     :value="product.id"
+                    @mouseenter="hoveredProduct = product"
+                    @mousemove="hoveredProduct = product"
+                    @mouseleave="hoveredProduct = null"
                   >
                     <div class="flex items-center justify-between gap-4">
-                      <span class="font-bold text-gray-900">{{ product.productCode }}</span>
-                      <span class="text-gray-500">{{ product.name }}</span>
-                      <span class="text-xs text-gray-400">SKU {{ product.skus?.length || 0 }}</span>
+                      <div
+                        class="flex flex-1 items-center justify-between gap-4"
+                        @mouseenter="hoveredProduct = product"
+                        @mousemove="hoveredProduct = product"
+                        @mouseleave="hoveredProduct = null"
+                      >
+                        <span class="font-bold text-gray-900">{{ product.productCode }}</span>
+                        <span class="text-gray-500">{{ product.name }}</span>
+                        <span class="text-xs text-gray-400">SKU {{ product.skus?.length || 0 }}</span>
+                      </div>
                     </div>
                   </el-option>
                 </el-select>
@@ -148,6 +158,16 @@
                   <el-input v-model="batchDefaultCostPriceText" inputmode="decimal" class="!w-full" @input="onBatchPriceInput('cost')" />
                 </label>
               </template>
+              <div class="batch-product-preview">
+                <template v-if="currentProductPreview">
+                  <img :src="currentProductPreview" alt="" />
+                  <span>{{ hoveredProduct ? '商品预览' : '当前商品' }}</span>
+                </template>
+                <template v-else>
+                  <span class="material-symbols-outlined">image</span>
+                  <span>悬停商品查看图片</span>
+                </template>
+              </div>
             </div>
 
             <!-- SKU 颜色 × 尺码矩阵 -->
@@ -162,6 +182,7 @@
                         :key="size.id"
                         class="sku-matrix-th sku-matrix-col-hdr"
                       >{{ size.name }}</th>
+                      <th class="sku-matrix-th sku-matrix-image-hdr">图片</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -184,6 +205,24 @@
                         <template v-else>
                           <span class="text-gray-300 text-xs">—</span>
                         </template>
+                      </td>
+                      <td class="sku-matrix-td sku-matrix-image-cell">
+                        <el-popover
+                          v-if="skuImageForColor(color.id)"
+                          trigger="hover"
+                          placement="right"
+                          :width="260"
+                        >
+                          <template #reference>
+                            <button type="button" class="sku-image-button">
+                              <img :src="skuImageForColor(color.id)" alt="" />
+                            </button>
+                          </template>
+                          <img :src="skuImageForColor(color.id)" alt="" class="sku-image-preview-large" />
+                        </el-popover>
+                        <span v-else class="sku-image-empty">
+                          <span class="material-symbols-outlined">image</span>
+                        </span>
                       </td>
                     </tr>
                   </tbody>
@@ -382,8 +421,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createOrder } from '@/api/order'
 import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO } from '@/api/customer'
-import { filePreviewUrl, uploadFile } from '@/api/file'
-import { getProductPage, type ProductVO, type ProductSku } from '@/api/product'
+import { filePreviewUrl, parseImageSources, uploadFile } from '@/api/file'
+import { getProductFileBindings, getProductPage, type ProductVO, type ProductSku, type ProductFileBindingsVO } from '@/api/product'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
 
 interface QuickLine {
@@ -453,6 +492,8 @@ const selectedProductId = ref<number | undefined>(undefined)
 const productSearchLoading = ref(false)
 const productSearchOptions = ref<ProductVO[]>([])
 const selectedProduct = ref<ProductVO | null>(null)
+const hoveredProduct = ref<ProductVO | null>(null)
+const selectedProductBindings = ref<ProductFileBindingsVO | null>(null)
 const skuQuantityMap = reactive<Record<number, string>>({})
 const batchDefaultPriceText = ref('')
 const batchDefaultCostPriceText = ref('')
@@ -481,8 +522,38 @@ const matrixSizes = computed(() => {
   return Array.from(seen.values()).sort((a, b) => a.id - b.id)
 })
 
+const selectedProductMainImage = computed(() => {
+  if (selectedProductBindings.value?.main?.fileId) {
+    return filePreviewUrl(selectedProductBindings.value.main.fileId)
+  }
+  return productMainImage(selectedProduct.value)
+})
+
+const currentProductPreview = computed(() =>
+  productMainImage(hoveredProduct.value) || selectedProductMainImage.value
+)
+
 function findSku(colorId: number, sizeId: number): ProductSku | undefined {
   return activeSkus.value.find(sku => sku.colorId === colorId && sku.sizeId === sizeId)
+}
+
+function productMainImage(product?: ProductVO | null) {
+  return parseImageSources(product?.imageUrl)[0] || ''
+}
+
+function skuImage(skuId: number) {
+  const group = selectedProductBindings.value?.skuImages?.find(item => item.skuId === skuId)
+  const fileId = group?.files?.[0]?.fileId
+  return fileId ? filePreviewUrl(fileId) : ''
+}
+
+function skuImageForColor(colorId: number) {
+  const rowSkus = activeSkus.value.filter(sku => sku.colorId === colorId)
+  for (const sku of rowSkus) {
+    const image = skuImage(sku.id)
+    if (image) return image
+  }
+  return selectedProductMainImage.value
 }
 
 const orderTypeOptions = [
@@ -852,6 +923,8 @@ function resetForNext(previousSourceDocNo = '') {
   needDelivery.value = false
   selectedProductId.value = undefined
   selectedProduct.value = null
+  hoveredProduct.value = null
+  selectedProductBindings.value = null
   batchDefaultPriceText.value = ''
   batchDefaultCostPriceText.value = ''
   clearSkuQuantities()
@@ -888,6 +961,7 @@ function positiveNumber(value: unknown) {
 async function searchProducts(keyword: string) {
   if (!keyword || keyword.trim().length < 1) {
     productSearchOptions.value = []
+    hoveredProduct.value = null
     return
   }
   productSearchLoading.value = true
@@ -902,18 +976,34 @@ async function searchProducts(keyword: string) {
   }
 }
 
-function onProductSelect(productId: number | undefined) {
+async function onProductSelect(productId: number | undefined) {
   if (!productId) {
     selectedProduct.value = null
+    hoveredProduct.value = null
+    selectedProductBindings.value = null
     clearSkuQuantities()
     return
   }
   const product = productSearchOptions.value.find(p => p.id === productId)
   selectedProduct.value = product || null
+  hoveredProduct.value = null
+  selectedProductBindings.value = null
   const firstActiveSku = (product?.skus || []).find(sku => sku.status === 1)
   batchDefaultPriceText.value = formatPlainAmount(positiveNumber(product?.wholesalePrice) || positiveNumber(firstActiveSku?.price))
   batchDefaultCostPriceText.value = formatPlainAmount(positiveNumber(product?.costPrice) || positiveNumber(firstActiveSku?.costPrice))
   clearSkuQuantities()
+  if (product) {
+    await loadProductBindings(product.id)
+  }
+}
+
+async function loadProductBindings(productId: number) {
+  try {
+    const res = await getProductFileBindings(productId)
+    selectedProductBindings.value = res.data || null
+  } catch {
+    selectedProductBindings.value = null
+  }
 }
 
 function clearSkuQuantities() {
@@ -1131,6 +1221,35 @@ onMounted(async () => {
   color: #6b7280;
 }
 
+.batch-product-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 210px;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.batch-product-preview img {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.batch-product-preview .material-symbols-outlined {
+  font-size: 28px;
+  color: #94a3b8;
+}
+
 /* ---- SKU 颜色×尺码矩阵 ---- */
 .sku-matrix-wrap {
   max-width: 100%;
@@ -1163,6 +1282,11 @@ onMounted(async () => {
   min-width: 80px;
 }
 
+.sku-matrix-image-hdr {
+  text-align: center;
+  min-width: 82px;
+}
+
 .sku-matrix-td {
   padding: 6px 4px;
   border-bottom: 1px solid #f3f4f6;
@@ -1190,5 +1314,61 @@ onMounted(async () => {
 
 .sku-qty-cell :deep(.el-input__inner) {
   text-align: center;
+}
+
+.sku-matrix-image-cell {
+  text-align: center;
+  width: 82px;
+}
+
+.sku-image-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: zoom-in;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sku-image-button:hover {
+  border-color: #408aee;
+  box-shadow: 0 8px 20px rgb(64 138 238 / 18%);
+}
+
+.sku-image-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sku-image-preview-large {
+  display: block;
+  width: 240px;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.sku-image-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+.sku-image-empty .material-symbols-outlined {
+  font-size: 22px;
 }
 </style>
