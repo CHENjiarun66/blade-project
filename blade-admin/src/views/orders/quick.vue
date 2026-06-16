@@ -109,7 +109,7 @@
               <span class="material-symbols-outlined text-[#408aee] text-lg">inventory_2</span>
               按商品批量添加
             </h3>
-            <div class="flex flex-wrap items-end gap-5">
+            <div class="batch-product-entry-row flex flex-wrap items-end gap-5">
               <div style="min-width: 340px">
                 <span class="text-xs font-bold text-gray-500 mb-2 block">搜索款号 / 商品名</span>
                 <el-select
@@ -160,16 +160,22 @@
               </template>
               <div
                 class="batch-product-preview"
-                :class="{ 'is-hover-large': hoveredProduct && currentProductPreview }"
               >
-                <template v-if="currentProductPreview">
-                  <img :src="currentProductPreview" alt="" />
-                  <span>{{ hoveredProduct ? `${hoveredProduct.productCode} / ${hoveredProduct.name}` : '当前商品' }}</span>
+                <template v-if="selectedProductMainImage">
+                  <img :src="selectedProductMainImage" alt="" />
+                  <span>当前商品</span>
                 </template>
                 <template v-else>
                   <span class="material-symbols-outlined">image</span>
                   <span>悬停商品查看图片</span>
                 </template>
+              </div>
+              <div
+                v-if="hoveredProduct && currentProductPreview"
+                class="batch-product-hover-preview"
+              >
+                <img :src="currentProductPreview" alt="" />
+                <span>{{ hoveredProduct.productCode }} / {{ hoveredProduct.name }}</span>
               </div>
             </div>
 
@@ -1224,6 +1230,10 @@ onMounted(async () => {
   color: #6b7280;
 }
 
+.batch-product-entry-row {
+  position: relative;
+}
+
 .batch-product-preview {
   display: flex;
   align-items: center;
@@ -1248,28 +1258,49 @@ onMounted(async () => {
   background: #fff;
 }
 
-.batch-product-preview.is-hover-large {
-  align-self: stretch;
+.batch-product-hover-preview {
+  position: absolute;
+  top: 68px;
+  left: 380px;
+  z-index: 2600;
+  display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  width: 340px;
-  min-height: 420px;
+  gap: 10px;
+  width: 380px;
   padding: 12px;
-  border-color: #dbeafe;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 16px 36px rgb(15 23 42 / 14%);
-  z-index: 20;
+  box-shadow: 0 18px 42px rgb(15 23 42 / 18%);
+  pointer-events: none;
 }
 
-.batch-product-preview.is-hover-large img {
+.batch-product-hover-preview::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 44px;
+  width: 16px;
+  height: 16px;
+  border-top: 1px solid #dbeafe;
+  border-left: 1px solid #dbeafe;
+  background: #fff;
+  transform: rotate(45deg);
+}
+
+.batch-product-hover-preview img {
+  position: relative;
+  z-index: 1;
   width: 100%;
-  height: 360px;
+  height: 420px;
   border-radius: 10px;
   object-fit: contain;
+  background: #f8fafc;
 }
 
-.batch-product-preview.is-hover-large span {
+.batch-product-hover-preview span {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   overflow: hidden;
