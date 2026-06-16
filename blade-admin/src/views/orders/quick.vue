@@ -158,10 +158,13 @@
                   <el-input v-model="batchDefaultCostPriceText" inputmode="decimal" class="!w-full" @input="onBatchPriceInput('cost')" />
                 </label>
               </template>
-              <div class="batch-product-preview">
+              <div
+                class="batch-product-preview"
+                :class="{ 'is-hover-large': hoveredProduct && currentProductPreview }"
+              >
                 <template v-if="currentProductPreview">
                   <img :src="currentProductPreview" alt="" />
-                  <span>{{ hoveredProduct ? '商品预览' : '当前商品' }}</span>
+                  <span>{{ hoveredProduct ? `${hoveredProduct.productCode} / ${hoveredProduct.name}` : '当前商品' }}</span>
                 </template>
                 <template v-else>
                   <span class="material-symbols-outlined">image</span>
@@ -1243,6 +1246,38 @@ onMounted(async () => {
   object-fit: cover;
   border: 1px solid #e2e8f0;
   background: #fff;
+}
+
+.batch-product-preview.is-hover-large {
+  align-self: stretch;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 340px;
+  min-height: 420px;
+  padding: 12px;
+  border-color: #dbeafe;
+  background: #fff;
+  box-shadow: 0 16px 36px rgb(15 23 42 / 14%);
+  z-index: 20;
+}
+
+.batch-product-preview.is-hover-large img {
+  width: 100%;
+  height: 360px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.batch-product-preview.is-hover-large span {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .batch-product-preview .material-symbols-outlined {
