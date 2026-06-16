@@ -501,7 +501,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createOrder } from '@/api/order'
 import { searchCustomerByPhone, type CustomerVO } from '@/api/customer'
-import { uploadFile } from '@/api/file'
+import { filePreviewUrl, uploadFile } from '@/api/file'
 import { getProductPage } from '@/api/product'
 import { getAllWarehouses, getInventoryByWarehouse, getInventoryPage } from '@/api/inventory'
 
@@ -900,8 +900,9 @@ async function handleImageUpload(e: Event) {
       const files = Array.from(target.files)
       for (const file of files) {
         const res = await uploadFile(file, 'order')
-        imageFileIds.value.push(String(res.data.id))
-        imageList.value.push(res.data.url)
+        const fileId = res.data.id
+        imageFileIds.value.push(String(fileId))
+        imageList.value.push(filePreviewUrl(fileId))
       }
       form.images = JSON.stringify(imageFileIds.value)
     } catch (error: any) {
