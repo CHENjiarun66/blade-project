@@ -382,7 +382,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createOrder } from '@/api/order'
 import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO } from '@/api/customer'
-import { uploadFile } from '@/api/file'
+import { filePreviewUrl, uploadFile } from '@/api/file'
 import { getProductPage, type ProductVO, type ProductSku } from '@/api/product'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
 
@@ -817,8 +817,9 @@ async function handleImageUpload(event: Event) {
   try {
     for (const file of Array.from(target.files)) {
       const res = await uploadFile(file, 'order')
-      imageFileIds.value.push(String(res.data.id))
-      imageSources.value.push(res.data.url)
+      const fileId = res.data.id
+      imageFileIds.value.push(String(fileId))
+      imageSources.value.push(filePreviewUrl(fileId))
     }
   } catch (error: any) {
     ElMessage.error(error.message || '图片上传失败')

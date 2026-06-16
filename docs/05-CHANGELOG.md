@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-06-16 变更记录
+
+### [修复] - 订单录入图片上传后不回显
+
+**变更内容**：
+- 修复 PC 快速录单页订单图片上传成功后缩略图破图、不正常回显的问题。
+- 同步修复旧新建订单页的同类图片回显逻辑。
+- 上传成功后前端不再直接使用上传响应里的 `url`，统一使用 `filePreviewUrl(fileId)` 生成带 `previewToken` 的预览地址。
+- 订单提交仍保存 fileId 数组，数据结构不变。
+
+**变更原因**：
+- 当前文件预览权限已收口到 `/api/files/{id}/preview?previewToken=...`；浏览器原生 `<img>` 直接访问普通 `url` 不会携带认证信息，导致上传成功但缩略图无法加载。
+
+**影响范围**：
+- `blade-admin/src/views/orders/quick.vue`
+- `blade-admin/src/views/orders/new.vue`
+
+**验证结果**：
+- `cd blade-admin && npm run build` 通过。
+
+**执行人**：AI
+
+---
+
 ## 2026-06-15 变更记录
 
 ### [规划] - 后端测试基线修复任务
