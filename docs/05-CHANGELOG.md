@@ -92,6 +92,31 @@
 
 ## 2026-06-16 变更记录
 
+### [运维] - NAS 发布连接增加 WireGuard 备用地址
+
+**变更内容**：
+- NAS 生产运维手册新增连接规则：默认优先连接局域网地址 `192.168.1.10`，本地环境无法访问 `192.168.1.10:22` 时，使用 WireGuard 地址 `10.13.13.1` 连接 NAS。
+- `deploy/nas/deploy_app_from_local.sh`、`deploy/nas/backup_db.sh`、`deploy/nas/check_platform.sh`、`deploy/nas/deploy_from_local.sh` 增加自动 SSH fallback：主地址不可达时自动尝试 `10.13.13.1`。
+- 如需强制指定地址，可通过 `NAS_HOST=<host> NAS_HOST_FIXED=1` 禁用自动 fallback。
+
+**变更原因**：
+- 当前本地网络环境可能无法直接访问 NAS 局域网 SSH 端口，但 WireGuard 通道可用；需要把该规则固化到规范和脚本，避免后续发布时重复人工提醒。
+
+**影响范围**：
+- `docs/13-NAS_PRODUCTION_OPS.md`
+- `deploy/nas/deploy_app_from_local.sh`
+- `deploy/nas/backup_db.sh`
+- `deploy/nas/check_platform.sh`
+- `deploy/nas/deploy_from_local.sh`
+
+**验证结果**：
+- `bash -n deploy/nas/deploy_app_from_local.sh deploy/nas/backup_db.sh deploy/nas/check_platform.sh deploy/nas/deploy_from_local.sh` 通过。
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 admin008@10.13.13.1 true` 通过。
+
+**执行人**：AI
+
+---
+
 ### [规划] - 图片派生图架构脚手架边界
 
 **变更内容**：

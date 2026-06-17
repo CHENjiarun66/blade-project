@@ -2,6 +2,7 @@
 set -euo pipefail
 
 NAS_HOST="${NAS_HOST:-192.168.1.10}"
+NAS_HOST_WG="${NAS_HOST_WG:-10.13.13.1}"
 NAS_USER="${NAS_USER:-admin008}"
 NAS_DIR="${NAS_DIR:-/volume2/blade}"
 NODE22="${NODE22:-/Users/chenjiarun/.local/node-v22/current/bin}"
@@ -26,6 +27,29 @@ EOF
 fi
 
 cd "$(dirname "$0")/../.."
+
+resolve_nas_host() {
+  if [ -n "${NAS_HOST_FIXED:-}" ]; then
+    return
+  fi
+
+  if ssh -o BatchMode=yes -o ConnectTimeout=5 "$NAS_USER@$NAS_HOST" "true" >/dev/null 2>&1; then
+    return
+  fi
+
+  echo "Primary NAS host $NAS_HOST is not reachable over SSH. Trying WireGuard host $NAS_HOST_WG..."
+  if ssh -o BatchMode=yes -o ConnectTimeout=5 "$NAS_USER@$NAS_HOST_WG" "true" >/dev/null 2>&1; then
+    NAS_HOST="$NAS_HOST_WG"
+    echo "Using NAS host: $NAS_HOST"
+    return
+  fi
+
+  echo "ERROR: NAS is unreachable over SSH via both primary host and WireGuard host."
+  echo "Tried: $NAS_HOST and $NAS_HOST_WG"
+  exit 1
+}
+
+resolve_nas_host
 
 echo "Build backend..."
 (cd blade-backend && mvn clean package -DskipTests)
