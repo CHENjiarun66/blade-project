@@ -8,6 +8,28 @@
 
 ## 2026-06-17 变更记录
 
+### [文档] - 补充带数据库变更的推送与发布规范
+
+**变更内容**：
+- 在 `docs/reference/GIT_BRANCH_WORKFLOW.md` 新增带数据库变更的 push 规则：必须通过 Flyway migration 提交、版本号不可复用、已执行 migration 禁止修改、发布前验证和备份。
+- 在 `docs/13-NAS_PRODUCTION_OPS.md` 补充日常发布中的 Flyway 自动迁移流程，明确应用可回滚但数据库 migration 默认不自动回滚。
+- 强化 NAS 发布门禁：包含 Flyway migration 的版本必须列出数据库影响范围并在本地或测试库验证通过。
+
+**变更原因**：
+- 后续使用 GitHub Actions 构建镜像、NAS pull 镜像发布时，数据库结构变更仍需随版本可追踪发布，避免手工改表导致环境漂移。
+
+**影响范围**：
+- `docs/reference/GIT_BRANCH_WORKFLOW.md`
+- `docs/13-NAS_PRODUCTION_OPS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 文档规则更新，无代码构建。
+
+**执行人**：AI
+
+---
+
 ### [Bug修复] - 已付款订单允许维护订单图片
 
 **变更内容**：

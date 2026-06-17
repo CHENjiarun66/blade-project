@@ -243,6 +243,7 @@ FIRST_DEPLOY_CONFIRM=YES deploy/nas/deploy_from_local.sh
 4. NAS 当前数据库已备份，备份文件非空。
 5. 发布命令只更新 `backend` 和 `web`，不更新 MySQL/Redis。
 6. 明确当前是否有未提交代码；有未提交代码时必须向用户说明风险。
+7. 若本次版本包含 Flyway migration，必须确认 migration 文件已提交到 Git，已在本地或测试库验证通过，并在发布说明中列出数据库影响范围。
 
 发布后必须验证：
 
@@ -510,10 +511,37 @@ curl -I http://127.0.0.1:8899/catalog
 数据库迁移是高风险操作，必须遵守：
 
 - 迁移前备份 NAS 当前库。
+- 日常版本中的结构变更必须通过 Flyway migration 随后端代码发布，路径为 `blade-backend/src/main/resources/db/migration/`。
+- 已发布或已执行过的 Flyway migration 禁止修改；后续变更只能新增更高版本号 migration。
+- 迁移 SQL 应尽量向前兼容，避免应用回滚后因数据库结构不兼容导致旧版本无法启动。
 - 不直接修改本机生产库。
 - 如需租户 code 转换，在导出的 SQL 或 NAS 目标库中处理。
 - 导入期间停止 `backend` 和 `web`，避免应用写入。
 - 导入后验证关键表数量、租户 code、登录/API。
+
+### 7.1.1 日常发布中的 Flyway 自动迁移
+
+当新版本包含新增字段、表、索引或初始化权限数据时，推荐流程是：
+
+```text
+push master
+  ↓
+GitHub Actions 或本地构建 backend/web 镜像
+  ↓
+NAS 发布脚本先备份生产库
+  ↓
+NAS 更新 backend/web 镜像并只重启应用容器
+  ↓
+backend 启动时 Flyway 自动执行尚未执行过的 migration
+  ↓
+验证页面、登录、关键 API 和数据库版本
+```
+
+注意：
+
+- 应用镜像可以快速回滚，但已经执行的数据库 migration 默认不自动回滚。
+- 因此 migration 必须按“向前兼容”设计；发布失败时优先回滚应用镜像，不默认做数据库回滚。
+- 数据库回滚只在明确需要恢复数据时执行，且必须获得用户确认。
 
 ### 7.2 备份 NAS 当前库
 
