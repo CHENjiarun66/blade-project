@@ -290,6 +290,26 @@
                   </p>
                 </template>
               </el-table-column>
+              <el-table-column label="图片" width="86" align="center">
+                <template #default="{ row }">
+                  <el-popover
+                    v-if="row.imageUrl"
+                    trigger="hover"
+                    placement="right"
+                    :width="260"
+                  >
+                    <template #reference>
+                      <button type="button" class="sku-image-button quick-line-image-button">
+                        <img :src="row.imageUrl" alt="" />
+                      </button>
+                    </template>
+                    <img :src="row.imageUrl" alt="" class="sku-image-preview-large" />
+                  </el-popover>
+                  <span v-else class="sku-image-empty quick-line-image-empty">
+                    <span class="material-symbols-outlined">image</span>
+                  </span>
+                </template>
+              </el-table-column>
               <el-table-column label="数量" width="110">
                 <template #default="{ row }">
                   <el-input
@@ -441,6 +461,7 @@ interface QuickLine {
   productCode?: string
   colorName?: string
   sizeName?: string
+  imageUrl?: string
   quantityText?: string
   quantity?: number
   price: number
@@ -451,11 +472,13 @@ interface QuickLine {
 
 interface SkuOption {
   skuId: number
+  productId: number
   skuCode: string
   productCode: string
   productName: string
   colorName: string
   sizeName: string
+  imageUrl: string
   price: number
   costPrice: number
 }
@@ -503,6 +526,7 @@ const productSearchOptions = ref<ProductVO[]>([])
 const selectedProduct = ref<ProductVO | null>(null)
 const hoveredProduct = ref<ProductVO | null>(null)
 const selectedProductBindings = ref<ProductFileBindingsVO | null>(null)
+const productBindingsCache = new Map<number, ProductFileBindingsVO | null>()
 const skuQuantityMap = reactive<Record<number, string>>({})
 const batchDefaultPriceText = ref('')
 const batchDefaultCostPriceText = ref('')
@@ -532,9 +556,8 @@ const matrixSizes = computed(() => {
 })
 
 const selectedProductMainImage = computed(() => {
-  if (selectedProductBindings.value?.main?.fileId) {
-    return filePreviewUrl(selectedProductBindings.value.main.fileId)
-  }
+  const boundImage = bindingMainImage(selectedProductBindings.value)
+  if (boundImage) return boundImage
   return productMainImage(selectedProduct.value)
 })
 
@@ -550,10 +573,19 @@ function productMainImage(product?: ProductVO | null) {
   return parseImageSources(product?.imageUrl)[0] || ''
 }
 
-function skuImage(skuId: number) {
-  const group = selectedProductBindings.value?.skuImages?.find(item => item.skuId === skuId)
+function bindingMainImage(bindings?: ProductFileBindingsVO | null) {
+  const fileId = bindings?.main?.fileId
+  return fileId ? filePreviewUrl(fileId) : ''
+}
+
+function bindingSkuImage(bindings: ProductFileBindingsVO | null | undefined, skuId: number) {
+  const group = bindings?.skuImages?.find(item => item.skuId === skuId)
   const fileId = group?.files?.[0]?.fileId
   return fileId ? filePreviewUrl(fileId) : ''
+}
+
+function skuImage(skuId: number) {
+  return bindingSkuImage(selectedProductBindings.value, skuId)
 }
 
 function skuImageForColor(colorId: number) {
@@ -563,6 +595,27 @@ function skuImageForColor(colorId: number) {
     if (image) return image
   }
   return selectedProductMainImage.value
+}
+
+async function getCachedProductBindings(productId: number) {
+  if (productBindingsCache.has(productId)) {
+    return productBindingsCache.get(productId) || null
+  }
+
+  try {
+    const res = await getProductFileBindings(productId)
+    const bindings = res.data || null
+    productBindingsCache.set(productId, bindings)
+    return bindings
+  } catch {
+    productBindingsCache.set(productId, null)
+    return null
+  }
+}
+
+async function resolveSkuOptionImage(sku: SkuOption) {
+  const bindings = await getCachedProductBindings(sku.productId)
+  return bindingSkuImage(bindings, sku.skuId) || bindingMainImage(bindings) || sku.imageUrl || ''
 }
 
 const orderTypeOptions = [
@@ -722,7 +775,7 @@ function filterSku(query: string) {
     .slice(0, 80)
 }
 
-function onSkuChange(row: QuickLine) {
+async function onSkuChange(row: QuickLine) {
   const sku = skuOptions.value.find(item => item.skuId === row.skuId)
   if (!sku) return
   row.skuCode = sku.skuCode
@@ -730,7 +783,13 @@ function onSkuChange(row: QuickLine) {
   row.productName = sku.productName
   row.colorName = sku.colorName
   row.sizeName = sku.sizeName
+  row.imageUrl = sku.imageUrl
   setLineAmountText(row, sku.price || 0, sku.costPrice || 0)
+  const currentSkuId = sku.skuId
+  const imageUrl = await resolveSkuOptionImage(sku)
+  if (row.skuId === currentSkuId) {
+    row.imageUrl = imageUrl
+  }
   if (!row.costPrice) {
     ElMessage.warning(`${sku.productCode} 未维护进货价，成本价暂为 0`)
   }
@@ -740,11 +799,13 @@ function ensureSkuOption(product: ProductVO, sku: ProductSku) {
   if (skuOptions.value.some(item => item.skuId === sku.id)) return
   const option = {
     skuId: sku.id,
+    productId: product.id,
     skuCode: sku.skuCode,
     productCode: product.productCode,
     productName: product.name,
     colorName: sku.colorName || '',
     sizeName: sku.sizeName || '',
+    imageUrl: skuImage(sku.id) || selectedProductMainImage.value || productMainImage(product),
     price: positiveNumber(sku.price) || positiveNumber(product.wholesalePrice) || 0,
     costPrice: positiveNumber(sku.costPrice) || positiveNumber(product.costPrice) || 0,
   }
@@ -949,11 +1010,13 @@ async function loadProducts() {
       .filter((sku: any) => sku.status === 1)
       .map((sku: any) => ({
         skuId: sku.id,
+        productId: product.id,
         skuCode: sku.skuCode,
         productCode: product.productCode,
         productName: product.name,
         colorName: sku.colorName || '',
         sizeName: sku.sizeName || '',
+        imageUrl: productMainImage(product),
         price: positiveNumber(sku.price) || positiveNumber(product.wholesalePrice) || 0,
         costPrice: positiveNumber(sku.costPrice) || positiveNumber(product.costPrice) || 0,
       })))
@@ -1010,8 +1073,10 @@ async function loadProductBindings(productId: number) {
   try {
     const res = await getProductFileBindings(productId)
     selectedProductBindings.value = res.data || null
+    productBindingsCache.set(productId, selectedProductBindings.value)
   } catch {
     selectedProductBindings.value = null
+    productBindingsCache.set(productId, null)
   }
 }
 
@@ -1054,6 +1119,7 @@ function addBatchToOrder() {
 
   for (const { sku, quantity } of pendingSkus) {
     ensureSkuOption(selectedProduct.value, sku)
+    const imageUrl = skuImage(sku.id) || selectedProductMainImage.value
 
     const existing = form.items.find(item => item.skuId === sku.id)
     if (existing) {
@@ -1061,6 +1127,7 @@ function addBatchToOrder() {
       const nextQuantity = currentQuantity + quantity
       existing.quantity = nextQuantity
       existing.quantityText = String(nextQuantity)
+      if (!existing.imageUrl) existing.imageUrl = imageUrl
       merged++
       continue
     }
@@ -1072,6 +1139,7 @@ function addBatchToOrder() {
       productName: selectedProduct.value.name,
       colorName: sku.colorName,
       sizeName: sku.sizeName,
+      imageUrl,
       quantity,
       quantityText: String(quantity),
       price: parsePlainAmount(batchDefaultPriceText.value),

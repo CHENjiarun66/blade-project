@@ -6,7 +6,114 @@
 
 ---
 
+## 2026-06-17 变更记录
+
+### [Bug修复] - 已付款订单允许维护订单图片
+
+**变更内容**：
+- 修复订单列表编辑弹窗保存已付款订单时报“已收款或配货订单不允许直接修改金额和明细”的问题。
+- 前端编辑弹窗按订单状态分级：创建状态可编辑运费等金额字段；已付款/待配货状态锁定运费和金额结构，但允许维护客户基础信息、配送、备注和订单图片；已发货后仅允许维护备注和订单图片。
+- 后端 `OrderServiceImpl.update()` 调整金额变更判断：只有运费值实际变化或提交明细替换时才视为金额结构修改；前端带回未变化的运费值不再误触发拦截。
+- 修复订单号生成器在 Redis 计数器重置但数据库已有当天订单时可能生成重复订单号的问题；生成前按租户和日期前缀对齐数据库最大订单序号。
+- PRD 补充订单编辑权限规则，明确订单图片属于凭证资料，已付款后仍可追加、移除和重新绑定。
+
+**变更原因**：
+- 已付款订单应锁定数量、单价、成本、运费等金额结构，避免账目被误改；但纸质单据图片、备注等资料不影响金额，应允许后续补充维护。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/order/service/impl/OrderServiceImpl.java`
+- `blade-backend/src/main/java/com/blade/order/mapper/OrderMapper.java`
+- `blade-admin/src/views/orders/index.vue`
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+
+**验证结果**：
+- `cd blade-admin && npm run build` 通过。
+- `cd blade-backend && mvn -DskipTests compile` 通过。
+- `cd blade-backend && mvn -Dtest=OrderControllerTest#testCreateOrderWithMultipleItems test` 通过。
+- `cd blade-backend && mvn test` 通过：244 个测试，0 失败，0 错误。
+
+**执行人**：AI
+
+---
+
+### [需求调整] - 抹零/短款结清收款状态口径
+
+**变更内容**：
+- 明确 `payment_status=2` 的业务文案从“已付全款”调整为“已结清”，兼容全款支付和少量短款确认不再追收的场景。
+- 规划 `sale_order` 新增 `write_off_amount`、`write_off_reason`，用于记录抹零/短款结清金额和原因。
+- 收款状态按应收净额判断：`receivable_net_amount = max(total_amount - refund_amount - write_off_amount, 0)`；`paid_amount >= receivable_net_amount` 即已结清。
+- 订单尾款按 `max(total_amount - refund_amount - write_off_amount - paid_amount, 0)` 计算。
+- 销售额和毛利统计需要扣减 `write_off_amount`，避免少收金额继续计入经营收入和利润。
+- 后续追加收款弹窗需要支持“标记结清”，自动将当前尾款写入抹零/短款金额。
+
+**变更原因**：
+- 批发收款中常见客户少付 1-10 元但业务确认不再追收的情况，不能长期显示为“部分收款/定金”，否则欠款筛选和经营判断会失真。
+
+**影响范围**：
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/06-ORDER_INVENTORY_DESIGN.md`
+- `docs/architecture/DATABASE.md`
+- `docs/architecture/order-inventory-soft-coupling-flow.drawio`
+
+**验证结果**：
+- 文档规划变更，未开始代码开发。
+
+**执行人**：AI
+
+---
+
+### [架构调整] - 订单库存软解耦生产口径
+
+**变更内容**：
+- 确认订单系统与库存系统第一版采用“软连接”：订单创建、快速录单、确认收款、追加收款均不得因库存不足、未建库存记录或仓库未配置失败。
+- 收款动作只更新 `paid_amount`、`payment_status`、`pay_time` 和订单待配货状态，不再作为库存硬预留节点。
+- 库存只在配货/发货阶段作为提示、复核和实际扣减依据；发货时按实际发货 SKU、仓库、数量扣减库存。
+- 明确 `status` 表达发货/履约进度，`payment_status` 表达收款状态；追加收款不自动改变发货状态，配货/发货不自动改变收款金额。
+- `inventory_global_reserve` 和 `global_reserved_qty` 暂不删除，作为历史兼容和后续软预留扩展点保留。
+- 新增 drawio 流程图：`docs/architecture/order-inventory-soft-coupling-flow.drawio`。
+
+**变更原因**：
+- 生产录单场景需要优先保证纸质订单录入和收款不中断；库存模块尚未完全成熟，硬预留会导致正常收款和录单流程被库存数据质量阻断。
+
+**影响范围**：
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/06-ORDER_INVENTORY_DESIGN.md`
+- `docs/architecture/order-inventory-soft-coupling-flow.drawio`
+
+**验证结果**：
+- 文档规划变更，未开始代码开发。
+
+**执行人**：AI
+
+---
+
 ## 2026-06-16 变更记录
+
+### [规划] - 图片派生图架构脚手架边界
+
+**变更内容**：
+- 在文件中心派生图设计中补充架构脚手架要求：预留统一派生图服务、图片生成器、存储 Provider、派生图类型常量/枚举、状态字段和历史补生成入口。
+- 明确第一版仍只做本地存储下的 `thumb/card` 派生图和统一访问接口，不提前接真实 CDN、七牛云、NAS、多格式自适应或复杂队列。
+- 明确脚手架目标是让后续接入异步生成、失败重试、NAS/七牛云/CDN、视频封面或 WebP/AVIF 时，不需要改业务表和商品/订单/Catalog 的图片调用链。
+- 同步更新 `BE-1012` 任务描述，要求开发时先把边界接口搭好，避免缩略图逻辑散落到 Controller 或业务页面。
+
+**变更原因**：
+- 当前系统规模还不大，先补架构扩展点成本较低；如果后续图片访问量变大、存储迁移到 NAS/对象存储/CDN，再补抽象会牵动更多业务模块。
+
+**影响范围**：
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/12-FILE_CENTER_ASSET_DESIGN.md`
+
+**验证结果**：
+- 文档规划变更，未开始代码开发。
+
+**执行人**：AI
+
+---
 
 ### [修复] - 订单录入图片上传后不回显
 
@@ -59,6 +166,7 @@
 - 商品搜索下拉列表中鼠标悬停到商品选项时，页面上方浮出该商品主图大图，便于看清款式并确认款号；大图不参与页面布局，不挤压录单表单和 SKU 矩阵。
 - SKU 颜色 x 尺码矩阵新增图片列，优先展示该颜色行对应 SKU 图片；没有 SKU 图片时回退商品主图。
 - 鼠标悬停 SKU 图片时显示放大预览。
+- 快速录单底部 SKU 明细列表新增图片列，批量添加和单行选择 SKU 后都会带出 SKU 图片或商品主图，鼠标悬停可浮层放大查看。
 
 **变更原因**：
 - 生产录单时同款不同花色/图片容易混淆，需要在选择商品和批量录入 SKU 数量时直接看到图片，减少误选。

@@ -355,6 +355,10 @@ public class OrderServiceImpl implements OrderService {
         return value != null ? value : ZERO;
     }
 
+    private boolean amountChanged(BigDecimal currentValue, BigDecimal newValue) {
+        return newValue != null && safeAmount(currentValue).compareTo(safeAmount(newValue)) != 0;
+    }
+
     private String normalizeOrderType(String orderType) {
         if (ORDER_TYPE_PREORDER.equals(orderType)) {
             return ORDER_TYPE_PREORDER;
@@ -387,7 +391,8 @@ public class OrderServiceImpl implements OrderService {
             fileService.bindFilesFromJson("order", order.getId(), order.getImages());
             return;
         }
-        boolean hasFinancialChange = dto.getFreightAmount() != null || dto.getFreightCost() != null
+        boolean hasFinancialChange = amountChanged(order.getFreightAmount(), dto.getFreightAmount())
+                || amountChanged(order.getFreightCost(), dto.getFreightCost())
                 || (dto.getItems() != null && !dto.getItems().isEmpty());
         if (order.getStatus() != STATUS_CREATED && hasFinancialChange) {
             throw new RuntimeException("已收款或配货订单不允许直接修改金额和明细，请先取消订单或调整配货计划");
@@ -950,14 +955,31 @@ public class OrderServiceImpl implements OrderService {
     private String generateOrderNo() {
         String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         Long tenantId = TenantContext.getTenantId();
+        String prefix = "ORD" + date;
         String key = "order:no:" + tenantId + ":" + date;
         RAtomicLong counter = redissonClient.getAtomicLong(key);
+        long dbMaxSeq = resolveMaxOrderSeq(tenantId, prefix);
+        if (counter.get() < dbMaxSeq) {
+            counter.set(dbMaxSeq);
+        }
         // 当天首次使用时设置过期时间为2天（跨天清零）
         if (counter.get() == 0) {
             counter.expire(2, TimeUnit.DAYS);
         }
         long seq = counter.incrementAndGet();
-        return "ORD" + date + String.format("%04d", seq);
+        return prefix + String.format("%04d", seq);
+    }
+
+    private long resolveMaxOrderSeq(Long tenantId, String prefix) {
+        String maxOrderNo = orderMapper.selectMaxOrderNoByPrefix(tenantId, prefix);
+        if (maxOrderNo == null || maxOrderNo.length() <= prefix.length()) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(maxOrderNo.substring(prefix.length()));
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
     }
 
     private String getStatusName(Integer status) {

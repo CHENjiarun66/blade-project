@@ -465,7 +465,9 @@
 | original_amount | decimal(12,2) | | 原始订单金额 |
 | refund_amount | decimal(12,2) | DEFAULT 0 | 已退款金额 |
 | paid_amount | decimal(12,2) | DEFAULT 0 | 已支付金额 |
-| payment_status | tinyint | NOT NULL, DEFAULT 0 | 支付状态: 0未付款 1已付定金 2已付全款 |
+| write_off_amount | decimal(12,2) | DEFAULT 0, 待迁移 | 抹零/短款结清金额 |
+| write_off_reason | varchar(255) | 待迁移 | 抹零/短款结清原因 |
+| payment_status | tinyint | NOT NULL, DEFAULT 0 | 收款状态: 0未付款 1部分收款 2已结清 |
 | deposit_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 定金金额 |
 | freight_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 客户运费收入 |
 | freight_cost | decimal(12,2) | NOT NULL, DEFAULT 0 | 实际运费成本 |

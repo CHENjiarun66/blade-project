@@ -119,11 +119,22 @@
 | BE-124 | 数据库迁移-表结构修改 | ⏳ 进行中 | sale_order, sale_order_item 仍需与当前配货/调整流程完全对齐 |
 | BE-125 | 库存服务-跨仓总量预留 | ✅ 完成 | globalReserve/globalRelease/getGlobalAvailableQty 方法 |
 | BE-126 | 库存服务-按计划出库 | ⏳ 部分完成 | `outByPlan` 已实现，待结合任务验收和文档状态统一收口 |
-| BE-127 | 订单服务-创建订单重构 | ✅ 完成 | warehouseId 可选，创建时校验跨仓总量 |
-| BE-128 | 订单服务-付款确认重构 | ✅ 完成 | 调用跨仓总量预留 |
+| BE-127 | 订单服务-创建订单重构 | ✅ 完成 | warehouseId 可选；创建订单不扣库存、不预占、不因库存不足失败 |
+| BE-128 | 订单服务-付款确认重构 | ✅ 完成 | 历史实现为调用跨仓总量预留；2026-06-17 生产口径已调整为收款不锁库存，待 BE-138/BE-139 收尾 |
 | BE-129 | 订单服务-配货计划 | ✅ 完成 | OrderDeliveryPlanService + Controller，配货计划 CRUD + 确认/取消调整 |
 | BE-130 | 订单服务-调整记录 | ✅ 完成 | AdjustmentLogDTO + recordAdjustment + getAdjustmentLogs |
 | BE-131 | 订单状态-配货中状态 | ✅ 完成 | status=2(ADJUSTMENT_PENDING)，status=3(READY_TO_SHIP)，完整流转 |
+
+### Phase 3.2A: 订单库存软解耦生产口径（P0）- 待开发
+
+| 任务 ID | 任务 | 状态 | 备注 |
+|---------|------|------|------|
+| BE-138 | 确认收款移除硬库存预留 | ⏳ TODO | confirmPayment / addPayment 只更新 paidAmount、paymentStatus、payTime 和待配货状态；不得调用 globalReserve，不得因库存不足失败 |
+| BE-139 | 发货出库按实际配货明细扣库存 | ⏳ TODO | outByPlan 改为只在发货阶段校验并扣减实际发货 SKU/仓库/数量；第一版不依赖 global_reserved_qty；库存不足返回明确业务提示 |
+| BE-140 | 抹零/短款结清收款口径 | ⏳ TODO | sale_order 增加 write_off_amount/write_off_reason；paymentStatus=2 表示已结清；尾款按 total-refund-writeOff-paid 计算；销售额/毛利统计扣减 writeOff |
+| BA-212 | 订单详情配货页软提示改造 | ⏳ TODO | 配货阶段展示库存提示、替换/减配说明；库存不足不阻断方案保存，发货确认前再校验 |
+| BA-213 | 追加收款标记结清交互 | ⏳ TODO | 追加收款弹窗支持“标记结清”，自动把当前尾款写入抹零/短款金额；列表/详情将 paymentStatus=2 展示为“已结清” |
+| DOC-ORDER-INV-001 | 订单库存软解耦文档与流程图 | ✅ 完成 | 更新 PRD、订单库存设计、任务清单、变更记录；新增 drawio 流程图，明确发货状态和收款状态独立变化 |
 
 ### Phase 3.3: 订单状态机修复与功能完善（P0）
 
@@ -132,9 +143,10 @@
 | BE-132 | 订单状态机 4 项修复 | ✅ 完成 | confirmPayment 同步 paymentStatus；create 初始化 adjustmentStatus=NONE；confirmAdjustment 减配释放多余预留；cancelOrder 白名单校验+按状态条件释放库存 |
 | BE-133 | 库存 InventoryVO 补充 globalReservedQty | ✅ 完成 | pageList/convertToVO 的 availableQty 计算已扣减 globalReservedQty |
 | BE-134 | 库存 Mapper XML 修复 | ✅ 完成 | global_reserved_qty 加入 SELECT 和 resultMap，预警过滤条件扣减该字段 |
-| BE-135 | 订单编辑接口 | ✅ 完成 | PUT /api/orders/{id}，支持修改客户信息/送货方式/备注/图片，status>=4 禁止修改 |
+| BE-135 | 订单编辑接口 | ✅ 完成 | PUT /api/orders/{id}；创建状态可改金额结构；已收款后锁商品明细/数量/金额/运费但允许维护基础信息、备注、图片；已发货后仅允许备注/图片 |
 | BE-136 | 追加收款接口 | ✅ 完成 | POST /api/orders/{id}/add-payment，仅 status=0 且 paymentStatus≠2 可调用，累加 paidAmount 并自动更新 paymentStatus |
 | BE-137 | GlobalExceptionHandler 补充 RuntimeException 处理 | ✅ 完成 | 业务 RuntimeException 返回 400 + 可读错误信息，不再返回 500 |
+| BE-141 | 订单号生成器防重复 | ✅ 完成 | Redis 计数器生成订单号前对齐数据库当天最大订单序号，避免 Redis 重置或测试库已有历史订单导致唯一索引冲突 |
 
 ### Phase 4: 客户模块（P1）
 
@@ -268,7 +280,7 @@
 | BE-1009B | 文件预览业务权限映射 | ✅ 完成 | 子任务，已合并到 BE-1009 |
 | BE-1010 | 基础视频文件支持 | ✅ 完成 | 上传支持 video/mp4、video/webm、video/quicktime；上传上限默认 200MB 且支持环境变量覆盖；自动分类 fileType（IMAGE/VIDEO/OTHER）和 fileExt；FileUploadVO 新增 fileType/fileExt；不做转码/封面/Range/分片 |
 | BE-1011 | 文件中心回归测试 | ✅ 完成 | 覆盖上传、列表、绑定、未绑定清理、删除保护；补充批量删除有效绑定文件拒绝测试；`File*Test` 98/98 通过 |
-| BE-1012 | 图片派生图/缩略图底座 | ⏳ TODO | 新增 file_derivative；上传图片后生成 thumb/card；新增 GET /api/files/{id}/variant?type=thumb/card；权限继承原图预览权限；历史图片批量补生成后续实现 |
+| BE-1012 | 图片派生图/缩略图底座 | ⏳ TODO | 新增 file_derivative；建立派生图服务、生成器、存储 Provider 脚手架；上传图片后生成 thumb/card；新增 GET /api/files/{id}/variant?type=thumb/card；权限继承原图预览权限；历史图片批量补生成后续实现；预留异步/重试/NAS/七牛云/CDN 扩展点但第一版不实现 |
 | BE-1013 | 商品素材查询 API | ✅ 完成 | GET /api/products/{id}/file-bindings，返回 main/gallery/skuImages 分组，previewUrl 统一为 /api/files/{fileId}/preview |
 | BE-1014 | 商品/SKU 删除引用保护验收 + SKU精细更新 | ✅ 完成 | 新增 PUT /api/products/skus 单个SKU更新；syncProductSkus 保留已有 SKU price/costPrice/barCode/status；delete/deleteColor/deleteSize 添加引用保护，有引用时提示建议禁用；39 个后端测试全部通过 |
 
