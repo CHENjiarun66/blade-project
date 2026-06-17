@@ -20,7 +20,7 @@
 | Docker | 已安装 |
 | docker-compose | `/usr/local/bin/docker-compose`，旧版 compose v1 |
 | 生产端口 | `8899` |
-| 访问入口 | `http://192.168.1.10:8899/catalog` |
+| 访问入口 | `https://192.168.1.10:8899/catalog` |
 
 不要在文档或日志中打印 NAS 密码、`.env.prod`、JWT secret、数据库密码。
 
@@ -29,7 +29,7 @@
 - 发布脚本默认先连接局域网地址 `192.168.1.10`。
 - 如果本地环境无法访问 `192.168.1.10:22`，发布脚本会自动切换到 WireGuard 地址 `10.13.13.1` 继续连接 NAS。
 - 如需强制使用某个地址，可传入 `NAS_HOST=<host> NAS_HOST_FIXED=1`。
-- 生产入口文档仍以局域网地址 `http://192.168.1.10:8899/catalog` 记录；通过 WireGuard 验证时可访问 `http://10.13.13.1:8899/catalog`。
+- 生产入口文档仍以局域网地址 `https://192.168.1.10:8899/catalog` 记录；通过 WireGuard 验证时可访问 `https://10.13.13.1:8899/catalog`。
 
 ### 1.2 生产部署目录
 
@@ -248,7 +248,7 @@ FIRST_DEPLOY_CONFIRM=YES deploy/nas/deploy_from_local.sh
 发布后必须验证：
 
 1. `blade-mysql`、`blade-redis`、`blade-backend`、`blade-web` 均为 Up。
-2. `curl -I http://127.0.0.1:8899/catalog` 返回 200/3xx。
+2. `curl -k -I https://127.0.0.1:8899/catalog` 返回 200/3xx。
 3. 登录后关键 API 返回 200。
 4. 涉及文件中心时，至少验证图片/视频上传、预览、列表。
 5. 若验证失败，优先做应用镜像回滚，不做数据库回滚。
@@ -491,7 +491,7 @@ cd /volume2/blade
 ssh admin008@192.168.1.10
 cd /volume2/blade
 /usr/local/bin/docker-compose --env-file .env.prod -f docker-compose.prod.yml ps
-curl -I http://127.0.0.1:8899/catalog
+curl -k -I https://127.0.0.1:8899/catalog
 ```
 
 登录验证：

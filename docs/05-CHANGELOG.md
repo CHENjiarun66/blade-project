@@ -8,6 +8,27 @@
 
 ## 2026-06-17 变更记录
 
+### [运维] - 修正 NAS 生产发布 HTTPS 验证口径
+
+**变更内容**：
+- 将 `deploy/nas/deploy_app_from_local.sh` 发布后 `/catalog` 验证从 `http://127.0.0.1:8899/catalog` 修正为 `https://127.0.0.1:8899/catalog` 并使用 `curl -k` 兼容 NAS 自签证书。
+- 同步更新 `docs/13-NAS_PRODUCTION_OPS.md` 和 `deploy/nas/README.md` 中的生产访问入口与验证命令。
+
+**变更原因**：
+- 生产 `blade-web` 的 compose 端口映射为 `8899 -> 443`，使用 HTTP 验证会返回 `400 Bad Request`，导致发布脚本误判失败。
+
+**影响范围**：
+- `deploy/nas/deploy_app_from_local.sh`
+- `docs/13-NAS_PRODUCTION_OPS.md`
+- `deploy/nas/README.md`
+
+**验证结果**：
+- NAS 上 `curl -k -fsSI https://127.0.0.1:8899/catalog` 返回 `200 OK`。
+
+**执行人**：AI
+
+---
+
 ### [文档] - 补充带数据库变更的推送与发布规范
 
 **变更内容**：

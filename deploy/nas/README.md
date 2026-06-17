@@ -11,7 +11,7 @@
 外部访问端口：
 
 ```bash
-http://NAS-IP:8899/catalog
+https://NAS-IP:8899/catalog
 ```
 
 ## 目录结构
@@ -112,7 +112,7 @@ cd /volume2/blade
 
 ```bash
 /usr/local/bin/docker ps
-curl http://127.0.0.1:8899/catalog
+curl -k https://127.0.0.1:8899/catalog
 ```
 
 部署前平台检查：

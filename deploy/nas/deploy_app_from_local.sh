@@ -124,7 +124,7 @@ ssh "$NAS_USER@$NAS_HOST" "cd '$NAS_DIR' && /usr/local/bin/docker-compose --env-
 echo "Verify NAS containers and frontend..."
 ssh "$NAS_USER@$NAS_HOST" "set -e; cd '$NAS_DIR'; \
   /usr/local/bin/docker-compose --env-file .env.prod -f docker-compose.prod.yml ps; \
-  curl -fsSI http://127.0.0.1:8899/catalog >/dev/null"
+  curl -k -fsSI https://127.0.0.1:8899/catalog >/dev/null"
 
 echo "Done. Release: $RELEASE_ID"
-echo "Open: http://$NAS_HOST:8899/catalog"
+echo "Open: https://$NAS_HOST:8899/catalog"
