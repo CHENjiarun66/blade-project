@@ -2,6 +2,19 @@
 
 > 讨论时间：2026-03-23
 > 参与角色：销售人员、仓库人员、开发
+> 生产口径更新：2026-06-17
+
+## 0. 当前生产口径：软解耦优先
+
+经过生产录单流程验证，订单系统和库存系统第一版采用“软连接”：
+
+- 订单创建、快速录单、确认收款、追加收款、抹零/短款结清均不得因库存不足、未建库存记录或仓库未配置失败。
+- 收款不锁库存，只让订单进入待配货/优先配货队列。
+- 库存只在配货/发货阶段作为提示、复核和实际扣减依据。
+- 发货时按实际发货 SKU、仓库、数量扣减库存；如果发生替换 SKU、减配、补发或退款，必须记录在配货方案或调整说明中。
+- `inventory_global_reserve` 和 `global_reserved_qty` 作为历史兼容结构暂不删除，但第一版生产订单流程不再依赖硬预留。
+
+对应流程图文件：[`architecture/order-inventory-soft-coupling-flow.drawio`](./architecture/order-inventory-soft-coupling-flow.drawio)。
 
 ---
 
@@ -19,10 +32,10 @@
 
 | 环节 | 当前设计 | 实际需求 |
 |------|----------|----------|
-| 销售开单 | 必须选仓库 | 不选，只看有没有货 |
-| 付款确认 | 按仓库预留 | 预留总量，不绑定仓库 |
-| 配货 | 无 | 可能换款、补货 |
-| 出库 | 按仓库出 | 可能和原订单有差异 |
+| 销售开单 | 必须选仓库 | 不选仓库，不因库存不足阻断 |
+| 收款确认 | 按仓库或跨仓硬预留 | 只更新收款状态，不锁库存 |
+| 配货 | 无或强库存校验 | 查看库存并记录实际配货方案 |
+| 出库 | 按原订单出 | 按实际发货明细扣减库存，可能和原订单有差异 |
 
 ---
 
@@ -85,27 +98,29 @@
 │                         订单生命周期                               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  【1. 销售开单】                                                │
+│  【1. 销售开单 / 快速录单】                                      │
 │  ├─ 输入：客户信息 + 商品明细（无仓库）                           │
-│  ├─ 校验：各SKU跨仓总量是否充足                                 │
+│  ├─ 校验：SKU状态、金额、客户等业务字段；不校验库存                │
 │  └─ 输出：订单创建成功，status=CREATED                           │
 │                                                                  │
-│  【2. 付款确认】                                                │
-│  ├─ 触发条件：财务确认收款                                       │
-│  ├─ 操作：总量预留（跨仓预留，不绑定仓库）                       │
-│  └─ 输出：status=PAID, pay_time 更新                            │
+│  【2. 收款确认 / 追加收款】                                      │
+│  ├─ 触发条件：财务确认定金或全款                                 │
+│  ├─ 操作：更新 paid_amount / payment_status / pay_time           │
+│  ├─ 不做：库存检查、库存锁定、跨仓预留                            │
+│  └─ 输出：status=PAID，进入待配货/优先配货队列                    │
 │                                                                  │
 │  【3. 配货分配】                                                │
-│  ├─ 操作：仓库人员查看待配货订单                                 │
+│  ├─ 操作：仓库人员查看待配货订单和当前库存                        │
 │  ├─ 配货状态：ADJUSTMENT_PENDING（待调整）                      │
 │  ├─ 调整方式：                                                  │
 │  │   • 换款：用其他SKU补欠件                                   │
 │  │   • 减数量：按实际库存发货                                   │
 │  │   • 备注说明：调整原因                                       │
-│  └─ 输出：配货完成，status=READY_TO_SHIP                        │
+│  └─ 输出：配货确认，status=READY_TO_SHIP                         │
 │                                                                  │
 │  【4. 发货出库】                                                │
 │  ├─ 操作：仓库人员按配货结果执行出库                             │
+│  ├─ 库存：按实际SKU/仓库/数量扣减 quantity                       │
 │  └─ 输出：status=DELIVERED, delivered_at 更新                  │
 │                                                                  │
 │  【5. 订单完成】                                                │
@@ -125,7 +140,7 @@
 │       ↓                                                          │
 │  【配货中-待确认】                                               │
 │       ↓                                                          │
-│  库存足够？ ──否──→ 库存不足提醒                                 │
+│  库存足够？ ──否──→ 库存不足提醒（不阻断）                        │
 │       ↓是                                                         │
 │  配货完成                                                         │
 │       ↓                                                          │
@@ -195,6 +210,8 @@ CREATE TABLE order_adjustment_log (
 
 #### 4.1.3 库存总量预留表（inventory_global_reserve）
 
+> 生产口径：该表作为历史兼容和后续软预留能力预留，第一版订单收款流程不再写入硬预留记录。
+
 ```sql
 CREATE TABLE inventory_global_reserve (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
@@ -255,6 +272,8 @@ ALTER TABLE inventory ADD COLUMN global_reserved_qty INT DEFAULT 0 COMMENT '全�
 
 ### 4.3 订单状态枚举
 
+> 订单处理状态用于表达发货/履约进度；`payment_status` 用于表达收款状态。两者独立变化：追加收款和抹零/短款结清只改变收款状态，不自动改变发货状态；配货、发货、完成只改变履约状态，不自动改变收款金额。
+
 ```java
 // 订单状态
 public class OrderStatus {
@@ -284,6 +303,30 @@ public class AdjustmentType {
     public static final String REFUND = "REFUND";          // 退款
 }
 ```
+
+### 4.4 发货状态与收款状态关系
+
+| 业务动作 | 发货/履约状态 `status` | 收款状态 `payment_status` | 库存影响 |
+|----------|------------------------|----------------------------|----------|
+| 创建订单/快速录单 | 0 创建 | 按初始实收金额和抹零金额计算：0未付款 / 1部分收款 / 2已结清 | 无，不检查库存 |
+| 确认收款 | 0 → 1 已付款/待配货 | 根据累计实收重新计算 | 无，不锁库存 |
+| 追加收款 | 不变 | 根据累计实收重新计算 | 无，不锁库存 |
+| 抹零/短款结清 | 不变 | 写入 `write_off_amount` 后重新计算，通常变为 2已结清 | 无，不锁库存 |
+| 创建配货方案 | 1 → 2 配货中待确认 | 不变 | 只提示库存，不扣减 |
+| 确认配货方案 | 2 → 3 待发货 | 不变 | 只保存实际发货方案 |
+| 确认发货 | 3 → 4 已发货 | 不变 | 按实际发货明细扣减库存 |
+| 完成订单 | 4 → 5 已完成 | 不变 | 无 |
+| 未发货取消 | 0/1/2/3 → 6 已取消 | 不变；如已收款需走退款记录 | 无 |
+| 退货入库 | 4/5 → 7 → 8 | 不变；退款单独记录 | 按退货明细增加库存 |
+
+**收款状态计算规则**：
+- 应收净额：`receivable_net_amount = max(total_amount - refund_amount - write_off_amount, 0)`。
+- 尾款：`balance_amount = max(receivable_net_amount - paid_amount, 0)`。
+- `paid_amount = 0`：`payment_status = 0` 未付款。
+- `0 < paid_amount < receivable_net_amount`：`payment_status = 1` 部分收款。
+- `paid_amount >= receivable_net_amount`：`payment_status = 2` 已结清。
+- 例：订单应收 312，客户实付 310，业务确认 2 元不再追收时，记录 `write_off_amount=2`，应收净额为 310，订单显示已结清。
+- 收款状态仅用于展示、筛选、统计和欠款判断，不代表库存已锁定。
 
 ---
 
@@ -912,21 +955,28 @@ ALTER TABLE product_sku ADD CONSTRAINT uk_sku_product_color_size
 
 ## 八、实施步骤
 
-### Phase 1：数据模型变更
+### Phase 0：生产口径修正（当前优先）
+1. 修改 `OrderServiceImpl.confirmPayment()`：确认收款不再调用跨仓硬预留。
+2. 修改追加收款和抹零/短款结清：只重算 `paid_amount` / `write_off_amount` / `payment_status`，不改变履约状态，不调用库存。
+3. 修改 `outByPlan()`：只在确认发货时按实际发货明细校验和扣减库存。
+4. 前端订单详情/配货页：库存不足只提示，配货方案允许保存；确认发货前再做真实出库校验。
+5. 保留 `inventory_global_reserve` / `global_reserved_qty`，不做破坏性迁移。
+
+### Phase 1：数据模型变更（历史已落地）
 1. 执行数据库迁移脚本
 2. 创建新表：order_delivery_plan, order_adjustment_log, inventory_global_reserve
 3. 修改现有表：sale_order, sale_order_item, inventory（含乐观锁版本号）
 
-### Phase 2：库存服务重构
+### Phase 2：库存服务重构（历史能力保留，第一版订单流程暂停硬预留）
 1. 实现 InventoryService.globalReserve()
 2. 实现 InventoryService.globalRelease()
 3. 实现 InventoryService.outByPlan()
 4. 修改库存查询接口，支持跨仓总量查询
 5. 添加Redis分布式锁集成
 
-### Phase 3：订单服务重构
+### Phase 3：订单服务重构（按生产口径收尾）
 1. 修改 OrderServiceImpl.create() - warehouseId改为可选，添加并发控制
-2. 修改 OrderServiceImpl.confirmPayment() - 调用跨仓预留
+2. 修改 OrderServiceImpl.confirmPayment() - 只更新收款状态和待配货状态，不调用跨仓预留
 3. 新增配货计划相关方法
 4. 新增调整记录相关方法
 
@@ -938,13 +988,13 @@ ALTER TABLE product_sku ADD CONSTRAINT uk_sku_product_color_size
 ### Phase 5：前端适配
 1. 订单列表页 - 新增配货中状态筛选
 2. 订单详情页 - 新增配货调整区块
-3. 商品选择对话框 - 显示跨仓总量
+3. 配货区块 - 显示库存软提示和替换/减配说明；录单商品选择不显示、不校验库存
 
 ### Phase 6：测试验证
 1. 订单创建测试（不选仓库）
-2. 付款确认测试（跨仓预留）
+2. 确认收款测试（库存不足也可确认收款，不写入硬预留）
 3. 配货调整测试（换款/减数量）
-4. 发货出库测试（按配货计划）
+4. 发货出库测试（按实际配货明细扣减库存）
 5. 全流程联调测试
 6. 并发测试 - 模拟多用户同时下单
 

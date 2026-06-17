@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     CachedImage: typeof import('./src/components/CachedImage.vue')['default']
     CountryCodeSelect: typeof import('./src/components/CountryCodeSelect.vue')['default']
+    ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAutocomplete: typeof import('element-plus/es')['ElAutocomplete']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']

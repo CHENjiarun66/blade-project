@@ -1,0 +1,120 @@
+<mxfile host="app.diagrams.net" modified="2026-06-17T00:00:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="order-inventory-soft-coupling" name="订单库存软解耦流程">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="订单系统与库存系统软解耦流程&#xa;核心原则：录单和收款不锁库存，库存只在配货/发货阶段提示和扣减" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=26;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+          <mxGeometry x="300" y="30" width="1180" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lane-sales" value="订单录入" style="swimlane;html=1;rounded=1;startSize=36;fillColor=#EFF6FF;strokeColor=#93C5FD;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="140" width="300" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane-payment" value="收款" style="swimlane;html=1;rounded=1;startSize=36;fillColor=#F0FDF4;strokeColor=#86EFAC;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="410" y="140" width="300" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane-fulfill" value="配货" style="swimlane;html=1;rounded=1;startSize=36;fillColor=#FFFBEB;strokeColor=#FCD34D;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="750" y="140" width="390" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane-ship" value="发货与完成" style="swimlane;html=1;rounded=1;startSize=36;fillColor=#FEF2F2;strokeColor=#FCA5A5;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1180" y="140" width="360" height="300" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="n-create" value="创建订单 / 快速录单&#xa;status=0 创建&#xa;payment_status 按初始实收计算&#xa;不选仓库，不查库存，不扣库存" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B82F6;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="100" y="210" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="n-edit-before-ship" value="未发货前可改&#xa;客户、日期、纸质单号、运费、明细、成本价&#xa;重新计算应收/成本/毛利/尾款" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#60A5FA;fontSize=13;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="340" width="240" height="75" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="n-pay" value="确认收款 / 初始实收&#xa;status: 0 → 1 已付款/待配货&#xa;payment_status: 0/1/2&#xa;不调用 globalReserve，不锁库存" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#22C55E;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="440" y="210" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="n-add-payment" value="追加收款 / 标记结清&#xa;status 不变&#xa;payment_status 按累计实收和抹零重算&#xa;可从部分收款变为已结清" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#4ADE80;fontSize=13;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="440" y="340" width="240" height="75" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="n-plan" value="创建配货方案&#xa;status: 1 → 2 配货中待确认&#xa;查看当前库存，仅提示不足&#xa;可记录替换 SKU / 减配 / 备注" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F59E0B;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="780" y="205" width="150" height="125" as="geometry"/>
+        </mxCell>
+        <mxCell id="n-confirm-plan" value="确认配货方案&#xa;status: 2 → 3 待发货&#xa;保存实际发货 SKU、仓库、数量" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F59E0B;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="960" y="205" width="150" height="125" as="geometry"/>
+        </mxCell>
+        <mxCell id="n-stock-warning" value="库存不足处理&#xa;只提示，不阻断配货方案保存&#xa;线下确认后可换款、减配、补发、退款" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#FBBF24;fontSize=13;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="790" y="350" width="310" height="65" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="n-ship" value="确认发货&#xa;status: 3 → 4 已发货&#xa;按实际发货明细扣减库存 quantity&#xa;记录库存日志" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#EF4444;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1210" y="210" width="140" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="n-complete" value="完成订单&#xa;status: 4 → 5 已完成&#xa;收款状态不自动变化" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#EF4444;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="210" width="140" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="n-after-ship" value="发货后限制&#xa;不能改商品明细和金额结构&#xa;只允许追加收款、备注、退货/退款流程" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#F87171;fontSize=13;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1210" y="350" width="300" height="65" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e-create-pay" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;endArrow=block;endFill=1;" edge="1" parent="1" source="n-create" target="n-pay">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-pay-plan" value="已收款订单进入优先配货" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="n-pay" target="n-plan">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-plan-confirm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;endArrow=block;endFill=1;" edge="1" parent="1" source="n-plan" target="n-confirm-plan">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-confirm-ship" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;endArrow=block;endFill=1;" edge="1" parent="1" source="n-confirm-plan" target="n-ship">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-ship-complete" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;endArrow=block;endFill=1;" edge="1" parent="1" source="n-ship" target="n-complete">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-plan-warning" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D97706;endArrow=block;endFill=1;dashed=1;" edge="1" parent="1" source="n-plan" target="n-stock-warning">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lane-states" value="两个独立状态维度" style="swimlane;html=1;rounded=1;startSize=38;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="490" width="1470" height="290" as="geometry"/>
+        </mxCell>
+        <mxCell id="s-pay0" value="收款状态&#xa;0 未付款&#xa;paid_amount = 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#22C55E;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="120" y="570" width="190" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="s-pay1" value="收款状态&#xa;1 部分收款&#xa;0 &lt; paid_amount &lt; 应收净额" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#22C55E;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="340" y="570" width="220" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="s-pay2" value="收款状态&#xa;2 已结清&#xa;paid_amount ≥ 应收净额&#xa;应收净额 = 总额 - 退款 - 抹零" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#22C55E;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="590" y="570" width="210" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="s-status" value="发货/履约状态 status&#xa;0 创建 → 1 已付款/待配货 → 2 配货中待确认 → 3 待发货 → 4 已发货 → 5 已完成&#xa;异常：0/1/2/3 → 6 已取消；4/5 → 7 退货中 → 8 已退货" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B82F6;fontSize=14;spacing=12;align=left;" vertex="1" parent="1">
+          <mxGeometry x="840" y="550" width="640" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="s-rule" value="联动规则&#xa;1. 收款状态变化不自动跳过配货、发货、完成。&#xa;2. 配货和发货不自动改变收款金额。&#xa;3. 抹零/短款结清写入 write_off_amount，减少销售额和毛利，不算欠款。&#xa;4. 库存不足只在配货阶段提示；确认发货才真实扣库存。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#94A3B8;fontSize=14;spacing=12;align=left;" vertex="1" parent="1">
+          <mxGeometry x="120" y="680" width="1360" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-pay0-pay1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;endArrow=block;endFill=1;" edge="1" parent="1" source="s-pay0" target="s-pay1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e-pay1-pay2" value="继续收尾款 / 抹零结清" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="s-pay1" target="s-pay2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lane-exception" value="异常流程" style="swimlane;html=1;rounded=1;startSize=38;fillColor=#FFF7ED;strokeColor=#FDBA74;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="830" width="1470" height="230" as="geometry"/>
+        </mxCell>
+        <mxCell id="x-cancel" value="未发货取消&#xa;status: 0/1/2/3 → 6 已取消&#xa;库存无变化&#xa;如已收款：走退款记录" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F97316;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="150" y="910" width="300" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="x-refund" value="退款&#xa;更新 refund_amount&#xa;影响应收净额、欠款、统计销售净额&#xa;不自动改变发货状态" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F97316;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="520" y="910" width="300" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="x-return" value="退货入库&#xa;status: 4/5 → 7 → 8&#xa;按实际退货 SKU/仓库/数量增加库存&#xa;退款单独处理" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F97316;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="890" y="910" width="300" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="x-reserve" value="历史兼容&#xa;inventory_global_reserve / global_reserved_qty 暂不删除&#xa;第一版生产订单流程不依赖硬预留" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F97316;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="910" width="220" height="100" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -298,6 +298,17 @@
       <span>状态：<el-tag size="small">{{ editingOrder?.statusName }}</el-tag></span>
       <span>金额：<b class="text-gray-900">{{ formatMoney(editingOrder?.totalAmount ?? 0) }}</b></span>
     </div>
+    <el-alert
+      v-if="!canEditFinancialFields"
+      class="mb-4"
+      type="info"
+      :closable="false"
+      show-icon
+    >
+      <template #title>
+        已收款订单会锁定金额结构；可继续维护客户基础信息、备注和订单图片。已发货订单仅允许维护备注和图片。
+      </template>
+    </el-alert>
     <el-form
       ref="editFormRef"
       :model="editForm"
@@ -306,43 +317,43 @@
       class="pt-2"
     >
       <el-form-item label="客户名称" prop="customerName">
-        <el-input v-model="editForm.customerName" placeholder="请输入客户名称" />
+        <el-input v-model="editForm.customerName" :disabled="!canEditBasicFields" placeholder="请输入客户名称" />
       </el-form-item>
       <el-form-item label="客户电话" prop="customerPhone">
-        <el-input v-model="editForm.customerPhone" placeholder="请输入客户电话" />
+        <el-input v-model="editForm.customerPhone" :disabled="!canEditBasicFields" placeholder="请输入客户电话" />
       </el-form-item>
       <el-form-item label="客户地址">
-        <el-input v-model="editForm.customerAddress" placeholder="请输入客户地址" />
+        <el-input v-model="editForm.customerAddress" :disabled="!canEditBasicFields" placeholder="请输入客户地址" />
       </el-form-item>
       <el-form-item label="纸质单号">
-        <el-input v-model="editForm.sourceDocNo" placeholder="纸质单据号" />
+        <el-input v-model="editForm.sourceDocNo" :disabled="!canEditBasicFields" placeholder="纸质单据号" />
       </el-form-item>
       <el-form-item label="来源档口">
-        <el-input v-model="editForm.sourceShop" placeholder="来源档口/店铺" />
+        <el-input v-model="editForm.sourceShop" :disabled="!canEditBasicFields" placeholder="来源档口/店铺" />
       </el-form-item>
       <el-form-item label="订单日期">
-        <el-date-picker v-model="editForm.orderDate" value-format="YYYY-MM-DD" type="date" class="!w-full" />
+        <el-date-picker v-model="editForm.orderDate" :disabled="!canEditBasicFields" value-format="YYYY-MM-DD" type="date" class="!w-full" />
       </el-form-item>
       <el-form-item label="订单类型">
-        <el-radio-group v-model="editForm.orderType">
+        <el-radio-group v-model="editForm.orderType" :disabled="!canEditBasicFields">
           <el-radio value="SPOT">现货订单</el-radio>
           <el-radio value="PREORDER">订货订单</el-radio>
         </el-radio-group>
       </el-form-item>
       <el-form-item label="运费收入">
-        <el-input-number v-model="editForm.freightAmount" :min="0" :precision="2" :controls="false" class="!w-full" />
+        <el-input-number v-model="editForm.freightAmount" :disabled="!canEditFinancialFields" :min="0" :precision="2" :controls="false" class="!w-full" />
       </el-form-item>
       <el-form-item label="运费成本">
-        <el-input-number v-model="editForm.freightCost" :min="0" :precision="2" :controls="false" class="!w-full" />
+        <el-input-number v-model="editForm.freightCost" :disabled="!canEditFinancialFields" :min="0" :precision="2" :controls="false" class="!w-full" />
       </el-form-item>
       <el-form-item label="送货方式">
-        <el-radio-group v-model="editForm.needDelivery">
+        <el-radio-group v-model="editForm.needDelivery" :disabled="!canEditBasicFields">
           <el-radio :value="0">自取</el-radio>
           <el-radio :value="1">需要送货</el-radio>
         </el-radio-group>
       </el-form-item>
       <el-form-item v-if="editForm.needDelivery === 1" label="送货地址">
-        <el-input v-model="editForm.deliveryAddress" placeholder="请输入送货地址" />
+        <el-input v-model="editForm.deliveryAddress" :disabled="!canEditBasicFields" placeholder="请输入送货地址" />
       </el-form-item>
       <el-form-item label="备注">
         <el-input
@@ -400,7 +411,7 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getOrderPage, updateOrder, exportOrders, type OrderVO } from '@/api/order'
+import { getOrderPage, updateOrder, exportOrders, type OrderUpdateDTO, type OrderVO } from '@/api/order'
 import { parseImageSources, parseImageValues, uploadFile } from '@/api/file'
 import { ElImageViewer, ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
@@ -489,6 +500,8 @@ const editFormRef = ref<FormInstance>()
 const editingOrder = ref<OrderVO | null>(null)
 const editImageValues = ref<string[]>([])
 const editImageSources = computed(() => parseImageSources(JSON.stringify(editImageValues.value)))
+const canEditBasicFields = computed(() => (editingOrder.value?.status ?? 0) < 4)
+const canEditFinancialFields = computed(() => (editingOrder.value?.status ?? 0) === 0)
 const imageViewerVisible = ref(false)
 const imageViewerUrls = ref<string[]>([])
 const imageViewerIndex = ref(0)
@@ -535,7 +548,28 @@ async function handleEditSave() {
   await editFormRef.value.validate()
   editSaving.value = true
   try {
-    await updateOrder(editingOrder.value.id, { ...editForm })
+    const payload: OrderUpdateDTO = {
+      remark: editForm.remark,
+      images: editForm.images,
+    }
+    if (canEditBasicFields.value) {
+      Object.assign(payload, {
+        customerName: editForm.customerName,
+        orderDate: editForm.orderDate,
+        sourceDocNo: editForm.sourceDocNo,
+        sourceShop: editForm.sourceShop,
+        orderType: editForm.orderType,
+        customerPhone: editForm.customerPhone,
+        customerAddress: editForm.customerAddress,
+        needDelivery: editForm.needDelivery,
+        deliveryAddress: editForm.deliveryAddress,
+      })
+    }
+    if (canEditFinancialFields.value) {
+      payload.freightAmount = editForm.freightAmount
+      payload.freightCost = editForm.freightCost
+    }
+    await updateOrder(editingOrder.value.id, payload)
     ElMessage.success('订单信息已更新')
     showEditDialog.value = false
     loadData()
