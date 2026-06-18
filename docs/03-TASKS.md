@@ -280,7 +280,7 @@
 | BE-1009B | 文件预览业务权限映射 | ✅ 完成 | 子任务，已合并到 BE-1009 |
 | BE-1010 | 基础视频文件支持 | ✅ 完成 | 上传支持 video/mp4、video/webm、video/quicktime；上传上限默认 200MB 且支持环境变量覆盖；自动分类 fileType（IMAGE/VIDEO/OTHER）和 fileExt；FileUploadVO 新增 fileType/fileExt；不做转码/封面/Range/分片 |
 | BE-1011 | 文件中心回归测试 | ✅ 完成 | 覆盖上传、列表、绑定、未绑定清理、删除保护；补充批量删除有效绑定文件拒绝测试；`File*Test` 98/98 通过 |
-| BE-1012 | 图片派生图/缩略图底座 | ✅ 完成 | SOW：docs/superpowers/plans/2026-06-18-file-derivatives-v1-sow.md；V38 新增 file_derivative；已建立派生图服务、生成器、存储 Provider 脚手架；上传后生成 thumb/card，失败不回滚原图；新增 GET /api/files/{id}/variant?type=thumb/card 并复用原图权限/previewToken，缺失时回退原图；新增当前租户幂等批量补生成接口；历史图片仍需按环境手动执行补生成 |
+| BE-1012 | 图片派生图/缩略图底座 | ✅ 完成 | SOW：docs/superpowers/plans/2026-06-18-file-derivatives-v1-sow.md；V38 新增 file_derivative；已建立派生图服务、生成器、存储 Provider 脚手架；上传后生成 thumb/card，失败不回滚原图；新增 GET /api/files/{id}/variant?type=thumb/card 并复用原图权限/previewToken，缺失时回退原图；新增当前租户幂等批量补生成接口；2026-06-18 已在本机测试环境为 tenant 1 的 89 张历史图补齐 178 个派生文件（0 FAILED、0 缺失），生产环境仍须按运维规范单独执行 |
 | BE-1013 | 商品素材查询 API | ✅ 完成 | GET /api/products/{id}/file-bindings，返回 main/gallery/skuImages 分组，previewUrl 统一为 /api/files/{fileId}/preview |
 | BE-1014 | 商品/SKU 删除引用保护验收 + SKU精细更新 | ✅ 完成 | 新增 PUT /api/products/skus 单个SKU更新；syncProductSkus 保留已有 SKU price/costPrice/barCode/status；delete/deleteColor/deleteSize 添加引用保护，有引用时提示建议禁用；39 个后端测试全部通过 |
 
