@@ -12,6 +12,7 @@
 | 项目 | 值 |
 |------|----|
 | NAS 地址 | `192.168.1.10` |
+| WireGuard 备用地址 | `10.13.13.1` |
 | SSH 用户 | `admin008` |
 | 登录方式 | 已配置 SSH key，通常不需要密码 |
 | 系统 | Synology / 群晖 |
@@ -19,9 +20,16 @@
 | Docker | 已安装 |
 | docker-compose | `/usr/local/bin/docker-compose`，旧版 compose v1 |
 | 生产端口 | `8899` |
-| 访问入口 | `http://192.168.1.10:8899/catalog` |
+| 访问入口 | `https://192.168.1.10:8899/catalog` |
 
 不要在文档或日志中打印 NAS 密码、`.env.prod`、JWT secret、数据库密码。
+
+连接规则：
+
+- 发布脚本默认先连接局域网地址 `192.168.1.10`。
+- 如果本地环境无法访问 `192.168.1.10:22`，发布脚本会自动切换到 WireGuard 地址 `10.13.13.1` 继续连接 NAS。
+- 如需强制使用某个地址，可传入 `NAS_HOST=<host> NAS_HOST_FIXED=1`。
+- 生产入口文档仍以局域网地址 `https://192.168.1.10:8899/catalog` 记录；通过 WireGuard 验证时可访问 `https://10.13.13.1:8899/catalog`。
 
 ### 1.2 生产部署目录
 
@@ -235,11 +243,12 @@ FIRST_DEPLOY_CONFIRM=YES deploy/nas/deploy_from_local.sh
 4. NAS 当前数据库已备份，备份文件非空。
 5. 发布命令只更新 `backend` 和 `web`，不更新 MySQL/Redis。
 6. 明确当前是否有未提交代码；有未提交代码时必须向用户说明风险。
+7. 若本次版本包含 Flyway migration，必须确认 migration 文件已提交到 Git，已在本地或测试库验证通过，并在发布说明中列出数据库影响范围。
 
 发布后必须验证：
 
 1. `blade-mysql`、`blade-redis`、`blade-backend`、`blade-web` 均为 Up。
-2. `curl -I http://127.0.0.1:8899/catalog` 返回 200/3xx。
+2. `curl -k -I https://127.0.0.1:8899/catalog` 返回 200/3xx。
 3. 登录后关键 API 返回 200。
 4. 涉及文件中心时，至少验证图片/视频上传、预览、列表。
 5. 若验证失败，优先做应用镜像回滚，不做数据库回滚。
@@ -482,7 +491,7 @@ cd /volume2/blade
 ssh admin008@192.168.1.10
 cd /volume2/blade
 /usr/local/bin/docker-compose --env-file .env.prod -f docker-compose.prod.yml ps
-curl -I http://127.0.0.1:8899/catalog
+curl -k -I https://127.0.0.1:8899/catalog
 ```
 
 登录验证：
@@ -502,10 +511,37 @@ curl -I http://127.0.0.1:8899/catalog
 数据库迁移是高风险操作，必须遵守：
 
 - 迁移前备份 NAS 当前库。
+- 日常版本中的结构变更必须通过 Flyway migration 随后端代码发布，路径为 `blade-backend/src/main/resources/db/migration/`。
+- 已发布或已执行过的 Flyway migration 禁止修改；后续变更只能新增更高版本号 migration。
+- 迁移 SQL 应尽量向前兼容，避免应用回滚后因数据库结构不兼容导致旧版本无法启动。
 - 不直接修改本机生产库。
 - 如需租户 code 转换，在导出的 SQL 或 NAS 目标库中处理。
 - 导入期间停止 `backend` 和 `web`，避免应用写入。
 - 导入后验证关键表数量、租户 code、登录/API。
+
+### 7.1.1 日常发布中的 Flyway 自动迁移
+
+当新版本包含新增字段、表、索引或初始化权限数据时，推荐流程是：
+
+```text
+push master
+  ↓
+GitHub Actions 或本地构建 backend/web 镜像
+  ↓
+NAS 发布脚本先备份生产库
+  ↓
+NAS 更新 backend/web 镜像并只重启应用容器
+  ↓
+backend 启动时 Flyway 自动执行尚未执行过的 migration
+  ↓
+验证页面、登录、关键 API 和数据库版本
+```
+
+注意：
+
+- 应用镜像可以快速回滚，但已经执行的数据库 migration 默认不自动回滚。
+- 因此 migration 必须按“向前兼容”设计；发布失败时优先回滚应用镜像，不默认做数据库回滚。
+- 数据库回滚只在明确需要恢复数据时执行，且必须获得用户确认。
 
 ### 7.2 备份 NAS 当前库
 
@@ -631,6 +667,84 @@ rsync -av --progress <local-uploads-dir>/ \
 ```
 
 如果本机不支持 rsync 或 NAS 权限限制，可用 `scp -O -r`。
+
+### 8.1 图片派生图生产补生成
+
+生产环境已有图片可以生成 `thumb` 和 `card`，但必须同时满足：
+
+1. `file_storage` 中存在 `file_type='IMAGE' AND status=1` 的有效记录。
+2. `storage_path` 位于容器目录 `/data/uploads` 下，且 `blade-backend` 容器内可读。
+3. 后端版本包含 V38 `file_derivative` 和历史补生成接口。
+4. 当前租户管理员具有 `btn:file:viewAll` 或 `btn:file:cleanup` 权限。
+
+派生生成只读取原图，并在 `/data/uploads/derivatives/` 新增 JPEG 文件；不会覆盖或删除原图。发布或补生成前仍必须完成数据库备份，并确认 uploads 已有可恢复备份或群晖快照。
+
+#### 发布前只读预检
+
+在 NAS 上先检查数据库记录、路径口径、容器挂载和磁盘空间：
+
+```bash
+ssh admin008@192.168.1.10 '
+cd /volume2/blade
+/usr/local/bin/docker-compose --env-file .env.prod -f docker-compose.prod.yml ps
+docker exec blade-backend sh -lc "test -d /data/uploads && test -w /data/uploads && df -h /data/uploads"
+docker exec blade-mysql sh -lc '\''mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" -N -e "
+SELECT CONCAT(\"active_images=\", COUNT(*))
+FROM file_storage WHERE file_type=\"IMAGE\" AND status=1;
+SELECT CONCAT(\"invalid_storage_paths=\", COUNT(*))
+FROM file_storage
+WHERE file_type=\"IMAGE\" AND status=1
+  AND storage_path NOT LIKE \"/data/uploads/%\";
+"'\''
+'
+```
+
+如果 `invalid_storage_paths` 不为 0，禁止执行补生成。先核对这些记录是否为历史迁移遗留的本机绝对路径；路径修复属于生产数据库写操作，必须另行备份、评审和获得用户确认。
+
+检查每个生产原图在后端容器内是否真实可读：
+
+```bash
+ssh admin008@192.168.1.10 '
+docker exec blade-mysql sh -lc '\''mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" -N -e "
+SELECT storage_path FROM file_storage
+WHERE file_type=\"IMAGE\" AND status=1
+ORDER BY tenant_id,id;
+"'\'' > /tmp/blade-image-paths.txt
+total=0; missing=0
+while IFS= read -r path; do
+  total=$((total+1))
+  docker exec blade-backend test -r "$path" || { echo "MISSING $path"; missing=$((missing+1)); }
+done < /tmp/blade-image-paths.txt
+echo "total=$total missing=$missing"
+test "$missing" -eq 0
+'
+```
+
+#### 发布和补生成门禁
+
+1. 只从已验收 release 合入 `master` 后发布，NAS 不部署 feature/develop。
+2. 发布前运行 `deploy/nas/backup_db.sh`，并确认备份文件非空。
+3. 确认 `/volume2/blade/uploads` 已有群晖快照或独立备份，记录文件数和 `du -sh` 结果。
+4. 只更新 `backend` 和 `web`；禁止重建 MySQL/Redis，禁止覆盖 uploads。
+5. 后端启动后确认 Flyway 到 V38，再验证登录、原图 `/preview` 和派生图 `/variant`。
+6. 首批只处理 5 张；`failed=0` 且数据库/物理文件正常后，按 20 或 50 张逐批扩大。
+7. 任一批出现 FAILED、磁盘空间异常、原图 403/404 或页面破图，立即停止后续批次并保留现场。
+
+补生成接口：
+
+```text
+POST /api/files/derivatives/backfill?limit=5
+POST /api/files/derivatives/backfill?limit=20
+```
+
+接口只处理当前登录租户，不会自动跨租户。每个租户都必须单独登录、单独执行和验收。最终必须确认：有效图片每张各有一个 `READY thumb` 和一个 `READY card`，`FAILED=0`，派生文件存在且非空；再次调用接口应返回 `processed=0`。
+
+#### 回滚边界
+
+- 应用异常：优先回滚 `backend/web` 镜像，V38 为新增表，不要求立即回滚数据库。
+- 派生生成异常：停止批次；原图不受影响，页面会回退原图。
+- 不得为了回滚派生图而删除 `/volume2/blade/uploads` 或恢复整个 uploads 目录。
+- 删除派生记录或派生物理文件属于单独清理操作，第一版不自动执行，必须另行评审。
 
 ---
 

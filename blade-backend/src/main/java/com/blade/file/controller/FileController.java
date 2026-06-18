@@ -8,6 +8,7 @@ import com.blade.file.dto.FileUploadVO;
 import com.blade.file.dto.FileVO;
 import com.blade.file.entity.FileBusinessBind;
 import com.blade.file.entity.FileStorage;
+import com.blade.file.service.FileDerivativeService;
 import com.blade.file.service.FileService;
 import com.blade.system.user.entity.User;
 import jakarta.validation.Valid;
@@ -34,6 +35,7 @@ import java.util.Objects;
 public class FileController {
 
     private final FileService fileService;
+    private final FileDerivativeService derivativeService;
 
     /**
      * BE-1009B: 业务类型到权限码的映射
@@ -46,8 +48,9 @@ public class FileController {
             "ocr_document", "menu:file"
     );
 
-    public FileController(FileService fileService) {
+    public FileController(FileService fileService, FileDerivativeService derivativeService) {
         this.fileService = fileService;
+        this.derivativeService = derivativeService;
     }
 
     @PostMapping("/upload")
@@ -81,6 +84,53 @@ public class FileController {
                 .body(resource);
     }
 
+    /**
+     * BE-1012: 获取图片派生图（thumb / card）。
+     * 权限与 {@link #preview} 完全一致。
+     * 派生图不存在或非 READY 时自动回落原图。
+     */
+    @GetMapping("/{id}/variant")
+    public ResponseEntity<Resource> variant(@PathVariable Long id, @RequestParam String type) {
+        if (!"thumb".equals(type) && !"card".equals(type)) {
+            throw new IllegalArgumentException("不支持的派生类型: " + type + " (仅支持 thumb / card)");
+        }
+
+        FileStorage file = fileService.getActiveFile(id);
+
+        // Same visibility/permission logic as preview()
+        if (!"PUBLIC".equals(file.getVisibility())) {
+            if (!isAuthenticated()) {
+                throw new AccessDeniedException("文件未公开，需要登录后访问");
+            }
+            checkBusinessPermission(file);
+        }
+
+        // Try derivative first
+        Resource resource = derivativeService.loadVariantResource(id, type);
+        CacheControl cache;
+        MediaType mediaType;
+
+        if (resource != null) {
+            // READY derivative — aggressive caching (immutable given unique file+type)
+            cache = CacheControl.maxAge(Duration.ofDays(7));
+            mediaType = MediaType.IMAGE_JPEG;
+        } else {
+            // Fallback to original
+            resource = fileService.loadResource(id);
+            cache = CacheControl.maxAge(Duration.ofHours(1));
+            if (file.getContentType() != null) {
+                mediaType = MediaType.parseMediaType(file.getContentType());
+            } else {
+                mediaType = MediaType.APPLICATION_OCTET_STREAM;
+            }
+        }
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .cacheControl(cache)
+                .body(resource);
+    }
+
     @DeleteMapping("/{id}")
     public R<Void> delete(@PathVariable Long id) {
         fileService.delete(id);
@@ -103,6 +153,23 @@ public class FileController {
     @GetMapping("/{id}")
     public R<FileVO> detail(@PathVariable Long id) {
         return R.ok(fileService.getDetail(id));
+    }
+
+    // ==================== BE-1012: 历史派生图补生成 ====================
+
+    @PostMapping("/derivatives/backfill")
+    public R<FileDerivativeService.BackfillResult> backfill(
+            @RequestParam(defaultValue = "100") int limit) {
+        if (!isAuthenticated()) {
+            throw new AccessDeniedException("需要登录后操作");
+        }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+        if (!hasAuthority(authorities, "btn:file:viewAll")
+                && !hasAuthority(authorities, "btn:file:cleanup")) {
+            throw new AccessDeniedException("无文件管理权限");
+        }
+        return R.ok(derivativeService.backfill(limit));
     }
 
     private boolean isAuthenticated() {

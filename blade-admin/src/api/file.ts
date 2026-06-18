@@ -126,6 +126,47 @@ export function filePreviewUrl(id: number | string) {
   return `/api/files/${id}/preview${query}`
 }
 
+export type FileVariantType = 'thumb' | 'card'
+
+/**
+ * Build a derivative (thumb/card) URL.
+ * The backend falls back to the original preview when a derivative is not READY,
+ * so no client-side fallback is needed.
+ */
+export function fileVariantUrl(id: number | string, type: FileVariantType) {
+  const token = localStorage.getItem('token')
+  const query = token
+    ? `?type=${type}&previewToken=${encodeURIComponent(token)}`
+    : `?type=${type}`
+  return `/api/files/${id}/variant${query}`
+}
+
+/**
+ * Like {@link parseImageSources} but converts numeric fileIds to variant URLs
+ * instead of original preview URLs. Non-numeric values (legacy URLs) are returned as-is.
+ */
+export function parseImageVariantSources(images: string | undefined, type: FileVariantType): string[] {
+  if (!images) return []
+  try {
+    const values = JSON.parse(images)
+    const sources = Array.isArray(values) ? values : [values]
+    return sources
+      .map((value: unknown) => {
+        const s = String(value || '')
+        if (!s || s.startsWith('blob:')) return ''
+        return /^\d+$/.test(s) ? fileVariantUrl(s, type) : s
+      })
+      .filter(Boolean)
+  } catch {
+    return images
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value && !value.startsWith('blob:'))
+      .map((value) => /^\d+$/.test(value) ? fileVariantUrl(value, type) : value)
+      .filter(Boolean)
+  }
+}
+
 // ========== 文件中心 API ==========
 
 /** 分页查询文件列表 */
