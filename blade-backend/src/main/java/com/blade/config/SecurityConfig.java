@@ -52,6 +52,7 @@ public class SecurityConfig {
                     "/api/user/info",
                     "/api/auth/codes",
                     "/api/files/*/preview",
+                    "/api/files/*/variant",
                     "/oauth2/**",
                     "/api-docs/**",
                     "/swagger-ui/**",
@@ -132,7 +133,10 @@ public class SecurityConfig {
 
         private boolean isFilePreviewRequest(HttpServletRequest request) {
             String uri = request.getRequestURI();
-            return uri != null && uri.matches("^/api/files/\\d+/preview$");
+            return uri != null && (
+                uri.matches("^/api/files/\\d+/preview$") ||
+                uri.matches("^/api/files/\\d+/variant$")
+            );
         }
     }
 }

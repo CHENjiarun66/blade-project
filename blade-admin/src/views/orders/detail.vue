@@ -612,7 +612,7 @@
 
     <ElImageViewer
       v-if="imageViewerVisible"
-      :url-list="orderImageSources"
+      :url-list="orderImageOriginalSources"
       :initial-index="imageViewerIndex"
       @close="closeImageViewer"
     />
@@ -626,7 +626,7 @@ import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { getOrderById, confirmPayment, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO } from '@/api/order'
 import { getAllWarehouses, type WarehouseVO } from '@/api/inventory'
-import { parseImageSources } from '@/api/file'
+import { parseImageSources, parseImageVariantSources } from '@/api/file'
 
 const router = useRouter()
 const route = useRoute()
@@ -667,7 +667,8 @@ const canAddPayment = computed(() => {
   if (!order.value || order.value.paymentStatus === 2) return false
   return ![5, 6, 7, 8].includes(order.value.status)
 })
-const orderImageSources = computed(() => parseImageSources(order.value?.images))
+const orderImageSources = computed(() => parseImageVariantSources(order.value?.images, 'thumb'))
+const orderImageOriginalSources = computed(() => parseImageSources(order.value?.images))
 
 function openOrderImageViewer(index = 0) {
   if (orderImageSources.value.length === 0) return

@@ -565,7 +565,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProductPage, getProductById, createProduct, updateProduct, deleteProduct, getAllColors, getAllSizes, getAllCategories, getProductFileBindings, setProductFileBindings, batchUpdateSkus, type ProductVO, type ProductColor, type ProductSize, type ProductSku, type ProductCreateDTO, type ProductCategory, type FileBindingItem, type SkuImageBindingDTO, type SkuUpdateDTO } from '@/api/product'
-import { parseImageSources, uploadFile, filePreviewUrl } from '@/api/file'
+import { parseImageVariantSources, uploadFile, fileVariantUrl } from '@/api/file'
 
 const searchQuery = ref('')
 const categoryFilter = ref<number | undefined>(undefined)
@@ -675,7 +675,7 @@ function formatNumber(value?: number) {
 function normalizeBindingPreview(item: FileBindingItem): FileBindingItem {
   return {
     ...item,
-    previewUrl: filePreviewUrl(item.fileId)
+    previewUrl: fileVariantUrl(item.fileId, 'thumb')
   }
 }
 
@@ -865,7 +865,7 @@ async function handleSubmit() {
 }
 
 function getProductImage(imageUrl?: string) {
-  return parseImageSources(imageUrl)[0] || ''
+  return parseImageVariantSources(imageUrl, 'card')[0] || ''
 }
 
 onMounted(() => {
@@ -994,7 +994,7 @@ async function loadFileBindings() {
     const res = await getProductFileBindings(editingId.value)
     if (res.code === 200) {
       const data = res.data
-      mainImagePreview.value = data.main ? filePreviewUrl(data.main.fileId) : ''
+      mainImagePreview.value = data.main ? fileVariantUrl(data.main.fileId, 'card') : ''
       mainFileIdInput.value = data.main?.fileId ? String(data.main.fileId) : ''
       galleryImages.value = (data.gallery || []).map(normalizeBindingPreview)
       // Fill SKU image files from backend response
@@ -1020,7 +1020,7 @@ async function handleMainImageUpload(e: Event) {
     const fileId = res.data.id as number
     // 直接设置为主图
     mainFileIdInput.value = String(fileId)
-    mainImagePreview.value = filePreviewUrl(fileId)
+    mainImagePreview.value = fileVariantUrl(fileId, 'card')
     ElMessage.success('主图上传成功，请点击「保存素材绑定」生效')
   } catch (error: any) {
     ElMessage.error(error?.message || '图片上传失败')
@@ -1035,7 +1035,7 @@ async function applyMainFileId() {
     ElMessage.warning('请输入有效的 fileId')
     return
   }
-  mainImagePreview.value = filePreviewUrl(id)
+  mainImagePreview.value = fileVariantUrl(id, 'card')
   ElMessage.success('主图已设置，请点击「保存素材绑定」生效')
 }
 
@@ -1054,7 +1054,7 @@ async function handleGalleryUpload(e: Event) {
       const fileId = res.data.id as number
       galleryImages.value.push({
         fileId,
-        previewUrl: filePreviewUrl(fileId),
+        previewUrl: fileVariantUrl(fileId, 'thumb'),
         sort: galleryImages.value.length,
         isPrimary: 0
       })
@@ -1080,7 +1080,7 @@ async function addGalleryFileId() {
   }
   galleryImages.value.push({
     fileId: id,
-    previewUrl: filePreviewUrl(id),
+    previewUrl: fileVariantUrl(id, 'thumb'),
     sort: galleryImages.value.length,
     isPrimary: 0
   })
@@ -1135,7 +1135,7 @@ async function handleSkuImageUpload(skuId: number, e: Event) {
     }
     skuImageFiles.value[skuId].push({
       fileId,
-      previewUrl: filePreviewUrl(fileId),
+      previewUrl: fileVariantUrl(fileId, 'thumb'),
       sort: skuImageFiles.value[skuId].length,
       isPrimary: 0
     })
@@ -1164,7 +1164,7 @@ async function addSkuImageByFileId(skuId: number) {
   }
   skuImageFiles.value[skuId].push({
     fileId: id,
-    previewUrl: filePreviewUrl(id),
+    previewUrl: fileVariantUrl(id, 'thumb'),
     sort: skuImageFiles.value[skuId].length,
     isPrimary: 0
   })

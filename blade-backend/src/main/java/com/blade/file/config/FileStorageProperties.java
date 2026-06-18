@@ -22,6 +22,9 @@ public class FileStorageProperties {
     @NestedConfigurationProperty
     private Cleanup cleanup = new Cleanup();
 
+    @NestedConfigurationProperty
+    private Derivative derivative = new Derivative();
+
     public String getStorageType() { return storageType; }
     public void setStorageType(String storageType) { this.storageType = storageType; }
     public String getLocalBasePath() { return localBasePath; }
@@ -34,6 +37,8 @@ public class FileStorageProperties {
     public void setAllowedTypes(List<String> allowedTypes) { this.allowedTypes = allowedTypes; }
     public Cleanup getCleanup() { return cleanup; }
     public void setCleanup(Cleanup cleanup) { this.cleanup = cleanup; }
+    public Derivative getDerivative() { return derivative; }
+    public void setDerivative(Derivative derivative) { this.derivative = derivative; }
 
     /**
      * File cleanup configuration (BE-1007/BE-1008).
@@ -60,5 +65,24 @@ public class FileStorageProperties {
         public void setCron(String cron) { this.cron = cron; }
         public Long getTenantId() { return tenantId; }
         public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+    }
+
+    /**
+     * Image derivative configuration (BE-1012).
+     */
+    public static class Derivative {
+        /** Whether derivative generation is enabled (default: true) */
+        private boolean enabled = true;
+        /** Thumbnail long edge in pixels (default: 320) */
+        private int thumbLongEdge = 320;
+        /** Card image long edge in pixels (default: 800) */
+        private int cardLongEdge = 800;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public int getThumbLongEdge() { return thumbLongEdge; }
+        public void setThumbLongEdge(int thumbLongEdge) { this.thumbLongEdge = thumbLongEdge; }
+        public int getCardLongEdge() { return cardLongEdge; }
+        public void setCardLongEdge(int cardLongEdge) { this.cardLongEdge = cardLongEdge; }
     }
 }

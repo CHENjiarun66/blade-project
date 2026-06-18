@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-06-18 变更记录
+
+### [发布准备] - 图片派生图生产发布边界与预检清单
+
+**变更内容**：
+- 修正商品管理 v2、看板和 Agent Gateway 在入口文档中的状态漂移。
+- NAS 运维手册新增生产历史图片派生图章节，明确原图记录、`/data/uploads` 路径、容器可读性和磁盘空间预检。
+- 新增生产 rollout 清单，锁定数据库/uploads 备份、V38 发布、按租户小批补生成、停止条件和回滚边界。
+
+**安全边界**：
+- 生产已有图片可以补生成，但路径不符合 `/data/uploads/%` 或容器不可读时禁止执行。
+- 本轮只完成测试、文档、分支集成和发布准备，不连接或修改 NAS 生产环境。
+
+**执行人**：Codex
+
+### [测试环境运维] - 历史图片派生图分批补生成完成
+
+**执行范围**：
+- 仅本机测试库 `blade_project`、tenant 1；未连接 `blade_project_prod`，未操作 NAS。
+- 执行前生成并校验测试库备份。
+- 按 5、20、20、20、20、20、4 张分批处理，逐批确认失败数为 0 后继续。
+
+**验证结果**：
+- 89 张有效历史图片全部完成，共生成 178 个派生文件：89 个 `thumb`、89 个 `card`。
+- 数据库状态：178 `READY`、0 `FAILED`、0 重复、0 缺失配对。
+- 物理文件：178 个均存在且非空；`thumb` 长边不超过 320px，`card` 长边不超过 800px。
+- 接口实测：`/api/files/{id}/variant` 返回 JPEG 和 7 天浏览器缓存头。
+- 幂等复跑：processed=0、failed=0。
+
+**生产边界**：
+- 本次结果不代表生产环境已执行；生产补生成仍须按 NAS 运维规范先备份，再分租户、小批处理和验收。
+
+**执行人**：Codex
+
+### [完成] - 图片派生图第一版与业务接入
+
+**变更内容**：
+- V38 新增 `file_derivative`，建立 `FileDerivativeService`、`ImageDerivativeGenerator` 和存储 Provider 派生文件边界；业务表继续只保存原始 `fileId`。
+- 图片上传提交成功后生成 `thumb`（长边 320px）和 `card`（长边 800px）；支持 JPEG、PNG、WebP 输入、EXIF 方向、透明背景白底和超大像素保护。派生失败只记录 FAILED，不回滚原图。
+- 新增 `GET /api/files/{id}/variant?type=thumb|card`，复用 `/preview` 的租户、业务权限、创建人权限和 `previewToken`；派生缺失或读取失败时服务端回退原图。
+- 新增当前租户历史图片幂等补生成接口，单批默认 100、最大 500；单文件失败不终止整批，不自动跨租户运行。
+- PC 商品、订单、文件中心已按场景切换 `thumb/card`，大图预览、打开原文件和下载继续使用原图。
+- Catalog 商品卡片和详情主轮播使用 `card`，详情胶片条使用 `thumb`，全屏使用原图；IndexedDB 缓存键按 `file:{id}:original|thumb|card` 隔离，并兼容旧 `file:{id}` 原图缓存。
+- 新增 Catalog Playwright 回归，验证网格、详情缩略图和全屏分别请求 `card`、`thumb` 和原图。
+
+**架构边界**：
+- 第一版使用本地存储和上传后同步生成，但状态表、服务接口和 Provider 已为后续异步队列、失败重试、NAS/七牛云/CDN 留出替换边界。
+- 本轮不实现视频封面/转码、自动跨租户补生成、派生图物理清理、多格式输出或外部存储 Provider。
+- 历史文件不会因代码发布自动全部生成派生图；测试/生产环境需由管理员分租户、分批执行补生成并检查 FAILED 记录。
+
+**验证结果**：
+- `cd blade-backend && mvn test`：298 tests，0 failures，0 errors，0 skipped。
+- `cd blade-admin && npm run build`（Node 22.22.0）：通过。
+- `npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium`：5/5 通过。
+- `git diff --check`：通过。
+
+**执行人**：Claude Code（受限实现）+ Codex（方案、审查、修正与独立验收）
+
+---
+
 ## 2026-06-17 变更记录
 
 ### [运维] - 修正 NAS 生产发布 HTTPS 验证口径

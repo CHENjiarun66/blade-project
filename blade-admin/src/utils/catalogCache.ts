@@ -80,18 +80,52 @@ export function extractPreviewFileId(src: string | null | undefined): string | n
   return match ? match[1] : null
 }
 
+export function extractVariantFileId(src: string | null | undefined): string | null {
+  if (!src) return null
+  const match = src.match(/\/api\/files\/(\d+)\/variant(?:\?|$)/)
+  return match ? match[1] : null
+}
+
+export function detectVariantType(src: string): 'thumb' | 'card' | 'original' {
+  if (/\/variant\b/.test(src)) {
+    const m = src.match(/[?&]type=(thumb|card)(?:&|$)/)
+    if (m) return m[1] as 'thumb' | 'card'
+  }
+  return 'original'
+}
+
 export function imageCacheKey(src: string) {
-  const fileId = extractPreviewFileId(src)
-  return fileId ? `file:${fileId}` : src
+  const previewId = extractPreviewFileId(src)
+  if (previewId) return `file:${previewId}:original`
+  const variantId = extractVariantFileId(src)
+  if (variantId) {
+    const variantType = detectVariantType(src)
+    return `file:${variantId}:${variantType}`
+  }
+  return src
 }
 
 export async function getCachedImageUrl(src: string): Promise<string> {
   const key = imageCacheKey(src)
-  if (!extractPreviewFileId(src)) return src
+  const isFileUrl = extractPreviewFileId(src) || extractVariantFileId(src)
+  if (!isFileUrl) return src
 
   const cached = await readCachedImage(key)
   if (cached) {
     return objectUrlFor(key, cached.blob)
+  }
+
+  // Compat: try the old file:{id} key for original images (pre-variant era cache)
+  if (key.endsWith(':original')) {
+    const previewId = extractPreviewFileId(src)
+    if (previewId) {
+      const oldKey = `file:${previewId}`
+      const oldCached = await readCachedImage(oldKey)
+      if (oldCached) {
+        await writeCachedImage(key, oldCached.blob) // promote to new key
+        return objectUrlFor(key, oldCached.blob)
+      }
+    }
   }
 
   const response = await fetch(src)

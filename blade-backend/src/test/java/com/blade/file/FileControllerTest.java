@@ -8,6 +8,7 @@ import com.blade.file.dto.FileUploadVO;
 import com.blade.file.dto.FileVO;
 import com.blade.file.entity.FileBusinessBind;
 import com.blade.file.entity.FileStorage;
+import com.blade.file.service.FileDerivativeService;
 import com.blade.file.service.FileService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,12 +37,14 @@ class FileControllerTest {
 
     private MockMvc mockMvc;
     private CapturingFileService fileService;
+    private StubDerivativeService derivativeService;
 
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
         fileService = new CapturingFileService();
-        mockMvc = MockMvcBuilders.standaloneSetup(new FileController(fileService))
+        derivativeService = new StubDerivativeService();
+        mockMvc = MockMvcBuilders.standaloneSetup(new FileController(fileService, derivativeService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -409,6 +412,167 @@ class FileControllerTest {
         assertThat(fileService.capturedPreviewId).isEqualTo(308L);
     }
 
+    // === BE-1012: variant endpoint ===
+
+    @Test
+    void variant_thumb_returnResourceWhenReady() throws Exception {
+        fileService.nextActiveFile = fileStorage(401L, "PUBLIC", "image/png");
+        derivativeService.nextResource = new ByteArrayResource(new byte[]{1, 2, 3});
+
+        mockMvc.perform(get("/api/files/401/variant").param("type", "thumb"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/jpeg"));
+
+        assertThat(derivativeService.capturedFileId).isEqualTo(401L);
+        assertThat(derivativeService.capturedVariantType).isEqualTo("thumb");
+    }
+
+    @Test
+    void variant_card_returnResourceWhenReady() throws Exception {
+        fileService.nextActiveFile = fileStorage(402L, "PUBLIC", "image/png");
+        derivativeService.nextResource = new ByteArrayResource(new byte[]{4, 5, 6});
+
+        mockMvc.perform(get("/api/files/402/variant").param("type", "card"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/jpeg"));
+    }
+
+    @Test
+    void variant_invalidType_returns400() throws Exception {
+        fileService.nextActiveFile = fileStorage(403L, "PUBLIC", "image/png");
+
+        mockMvc.perform(get("/api/files/403/variant").param("type", "original"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void variant_public_succeedsWithoutAuthentication() throws Exception {
+        fileService.nextActiveFile = fileStorage(404L, "PUBLIC", "image/png");
+        derivativeService.nextResource = new ByteArrayResource(new byte[]{7, 8, 9});
+
+        mockMvc.perform(get("/api/files/404/variant").param("type", "thumb"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/jpeg"));
+    }
+
+    @Test
+    void variant_private_deniedWithoutAuthentication() throws Exception {
+        fileService.nextActiveFile = fileStorage(405L, "PRIVATE", "image/png");
+
+        mockMvc.perform(get("/api/files/405/variant").param("type", "thumb"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    void variant_withViewAll_succeeds() throws Exception {
+        org.springframework.security.core.userdetails.User user =
+                new org.springframework.security.core.userdetails.User("admin", "n/a", List.of());
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null,
+                        List.of(new SimpleGrantedAuthority("btn:file:viewAll"))));
+
+        fileService.nextActiveFile = fileStorage(406L, "PRIVATE", "image/jpeg");
+        derivativeService.nextResource = new ByteArrayResource(new byte[]{10, 11, 12});
+
+        mockMvc.perform(get("/api/files/406/variant").param("type", "card"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/jpeg"));
+    }
+
+    @Test
+    void variant_withOrderViewPermission_succeeds() throws Exception {
+        org.springframework.security.core.userdetails.User user =
+                new org.springframework.security.core.userdetails.User("admin", "n/a", List.of());
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null,
+                        List.of(new SimpleGrantedAuthority("btn:order:view"))));
+
+        fileService.nextActiveFile = fileStorage(407L, "PRIVATE", "image/png");
+        fileService.nextBindings = List.of(binding(407L, "order"));
+        derivativeService.nextResource = new ByteArrayResource(new byte[]{13, 14, 15});
+
+        mockMvc.perform(get("/api/files/407/variant").param("type", "thumb"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void variant_fallsBackToOriginal_whenDerivativeNotReady() throws Exception {
+        // derivative returns null → falls back to original
+        derivativeService.nextResource = null;
+        fileService.nextActiveFile = fileStorage(408L, "PUBLIC", "image/png");
+        fileService.nextResource = new ByteArrayResource(new byte[]{16, 17, 18});
+
+        mockMvc.perform(get("/api/files/408/variant").param("type", "thumb"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/png"));
+    }
+
+    // === BE-1012: backfill endpoint ===
+
+    @Test
+    void backfill_requiresAuthentication() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/files/derivatives/backfill")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    void backfill_requiresFileManagementPermission() throws Exception {
+        org.springframework.security.core.userdetails.User user =
+                new org.springframework.security.core.userdetails.User("admin", "n/a", List.of());
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null,
+                        List.of(new SimpleGrantedAuthority("menu:product"))));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/files/derivatives/backfill")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    void backfill_withCleanupPermission_succeeds() throws Exception {
+        org.springframework.security.core.userdetails.User user =
+                new org.springframework.security.core.userdetails.User("admin", "n/a", List.of());
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null,
+                        List.of(new SimpleGrantedAuthority("btn:file:cleanup"))));
+
+        derivativeService.nextBackfillResult = new FileDerivativeService.BackfillResult(5, 4, 1, 2);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/files/derivatives/backfill")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.processed").value(5))
+                .andExpect(jsonPath("$.data.succeeded").value(4))
+                .andExpect(jsonPath("$.data.failed").value(1))
+                .andExpect(jsonPath("$.data.skipped").value(2));
+    }
+
+    @Test
+    void backfill_withViewAllPermission_succeeds() throws Exception {
+        org.springframework.security.core.userdetails.User user =
+                new org.springframework.security.core.userdetails.User("admin", "n/a", List.of());
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null,
+                        List.of(new SimpleGrantedAuthority("btn:file:viewAll"))));
+
+        derivativeService.nextBackfillResult = new FileDerivativeService.BackfillResult(0, 0, 0, 0);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/files/derivatives/backfill")
+                        .param("limit", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
     // === 辅助方法 ===
 
     private FileStorage fileStorage(Long id, String visibility, String contentType) {
@@ -546,6 +710,33 @@ class FileControllerTest {
                 return List.of();
             }
             return nextBindings;
+        }
+    }
+
+    private static class StubDerivativeService implements FileDerivativeService {
+        private Resource nextResource;
+        private Long capturedFileId;
+        private String capturedVariantType;
+        private BackfillResult nextBackfillResult;
+
+        @Override
+        public void generate(FileStorage file) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Resource loadVariantResource(Long fileId, String variantType) {
+            this.capturedFileId = fileId;
+            this.capturedVariantType = variantType;
+            return nextResource;
+        }
+
+        @Override
+        public BackfillResult backfill(int limit) {
+            if (nextBackfillResult == null) {
+                throw new UnsupportedOperationException("nextBackfillResult not configured");
+            }
+            return nextBackfillResult;
         }
     }
 }

@@ -412,7 +412,7 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrderPage, updateOrder, exportOrders, type OrderUpdateDTO, type OrderVO } from '@/api/order'
-import { parseImageSources, parseImageValues, uploadFile } from '@/api/file'
+import { parseImageSources, parseImageValues, parseImageVariantSources, uploadFile } from '@/api/file'
 import { ElImageViewer, ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
 const router = useRouter()
@@ -499,7 +499,7 @@ const editImageUploading = ref(false)
 const editFormRef = ref<FormInstance>()
 const editingOrder = ref<OrderVO | null>(null)
 const editImageValues = ref<string[]>([])
-const editImageSources = computed(() => parseImageSources(JSON.stringify(editImageValues.value)))
+const editImageSources = computed(() => parseImageVariantSources(JSON.stringify(editImageValues.value), 'thumb'))
 const canEditBasicFields = computed(() => (editingOrder.value?.status ?? 0) < 4)
 const canEditFinancialFields = computed(() => (editingOrder.value?.status ?? 0) === 0)
 const imageViewerVisible = ref(false)
@@ -608,6 +608,10 @@ function syncEditImages() {
 }
 
 function orderImageSources(row: OrderVO) {
+  return parseImageVariantSources(row.images, 'thumb')
+}
+
+function orderImageOriginalSources(row: OrderVO) {
   return parseImageSources(row.images)
 }
 
@@ -616,7 +620,7 @@ function firstOrderImage(row: OrderVO) {
 }
 
 function openOrderImageViewer(row: OrderVO) {
-  const sources = orderImageSources(row)
+  const sources = orderImageOriginalSources(row)
   if (sources.length === 0) return
   imageViewerUrls.value = sources
   imageViewerIndex.value = 0

@@ -668,6 +668,84 @@ rsync -av --progress <local-uploads-dir>/ \
 
 如果本机不支持 rsync 或 NAS 权限限制，可用 `scp -O -r`。
 
+### 8.1 图片派生图生产补生成
+
+生产环境已有图片可以生成 `thumb` 和 `card`，但必须同时满足：
+
+1. `file_storage` 中存在 `file_type='IMAGE' AND status=1` 的有效记录。
+2. `storage_path` 位于容器目录 `/data/uploads` 下，且 `blade-backend` 容器内可读。
+3. 后端版本包含 V38 `file_derivative` 和历史补生成接口。
+4. 当前租户管理员具有 `btn:file:viewAll` 或 `btn:file:cleanup` 权限。
+
+派生生成只读取原图，并在 `/data/uploads/derivatives/` 新增 JPEG 文件；不会覆盖或删除原图。发布或补生成前仍必须完成数据库备份，并确认 uploads 已有可恢复备份或群晖快照。
+
+#### 发布前只读预检
+
+在 NAS 上先检查数据库记录、路径口径、容器挂载和磁盘空间：
+
+```bash
+ssh admin008@192.168.1.10 '
+cd /volume2/blade
+/usr/local/bin/docker-compose --env-file .env.prod -f docker-compose.prod.yml ps
+docker exec blade-backend sh -lc "test -d /data/uploads && test -w /data/uploads && df -h /data/uploads"
+docker exec blade-mysql sh -lc '\''mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" -N -e "
+SELECT CONCAT(\"active_images=\", COUNT(*))
+FROM file_storage WHERE file_type=\"IMAGE\" AND status=1;
+SELECT CONCAT(\"invalid_storage_paths=\", COUNT(*))
+FROM file_storage
+WHERE file_type=\"IMAGE\" AND status=1
+  AND storage_path NOT LIKE \"/data/uploads/%\";
+"'\''
+'
+```
+
+如果 `invalid_storage_paths` 不为 0，禁止执行补生成。先核对这些记录是否为历史迁移遗留的本机绝对路径；路径修复属于生产数据库写操作，必须另行备份、评审和获得用户确认。
+
+检查每个生产原图在后端容器内是否真实可读：
+
+```bash
+ssh admin008@192.168.1.10 '
+docker exec blade-mysql sh -lc '\''mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" -N -e "
+SELECT storage_path FROM file_storage
+WHERE file_type=\"IMAGE\" AND status=1
+ORDER BY tenant_id,id;
+"'\'' > /tmp/blade-image-paths.txt
+total=0; missing=0
+while IFS= read -r path; do
+  total=$((total+1))
+  docker exec blade-backend test -r "$path" || { echo "MISSING $path"; missing=$((missing+1)); }
+done < /tmp/blade-image-paths.txt
+echo "total=$total missing=$missing"
+test "$missing" -eq 0
+'
+```
+
+#### 发布和补生成门禁
+
+1. 只从已验收 release 合入 `master` 后发布，NAS 不部署 feature/develop。
+2. 发布前运行 `deploy/nas/backup_db.sh`，并确认备份文件非空。
+3. 确认 `/volume2/blade/uploads` 已有群晖快照或独立备份，记录文件数和 `du -sh` 结果。
+4. 只更新 `backend` 和 `web`；禁止重建 MySQL/Redis，禁止覆盖 uploads。
+5. 后端启动后确认 Flyway 到 V38，再验证登录、原图 `/preview` 和派生图 `/variant`。
+6. 首批只处理 5 张；`failed=0` 且数据库/物理文件正常后，按 20 或 50 张逐批扩大。
+7. 任一批出现 FAILED、磁盘空间异常、原图 403/404 或页面破图，立即停止后续批次并保留现场。
+
+补生成接口：
+
+```text
+POST /api/files/derivatives/backfill?limit=5
+POST /api/files/derivatives/backfill?limit=20
+```
+
+接口只处理当前登录租户，不会自动跨租户。每个租户都必须单独登录、单独执行和验收。最终必须确认：有效图片每张各有一个 `READY thumb` 和一个 `READY card`，`FAILED=0`，派生文件存在且非空；再次调用接口应返回 `processed=0`。
+
+#### 回滚边界
+
+- 应用异常：优先回滚 `backend/web` 镜像，V38 为新增表，不要求立即回滚数据库。
+- 派生生成异常：停止批次；原图不受影响，页面会回退原图。
+- 不得为了回滚派生图而删除 `/volume2/blade/uploads` 或恢复整个 uploads 目录。
+- 删除派生记录或派生物理文件属于单独清理操作，第一版不自动执行，必须另行评审。
+
 ---
 
 ## 9. 回滚流程

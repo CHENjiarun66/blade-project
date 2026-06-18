@@ -56,10 +56,10 @@
         <ImageIcon class="placeholder-icon" :size="34" />
         <p>暂无图片</p>
       </div>
-      <!-- Thumbnail strip -->
-      <div v-if="allImages.length > 1" class="carousel-thumbs">
+      <!-- Thumbnail strip (thumb variant, falls back to allImages) -->
+      <div v-if="stripImages.length > 1" class="carousel-thumbs">
         <button
-          v-for="(img, i) in allImages"
+          v-for="(img, i) in stripImages"
           :key="i"
           class="carousel-thumb"
           :class="{ active: i === carouselIndex }"
@@ -133,9 +133,11 @@ const props = withDefaults(defineProps<{
   product: CatalogProductVO
   allImages: string[]
   fullscreenImages?: string[]
+  thumbImages?: string[]
   showClose?: boolean
 }>(), {
   fullscreenImages: () => [],
+  thumbImages: () => [],
   showClose: true,
 })
 
@@ -152,6 +154,8 @@ const isDragging = ref(false)
 const suppressNextClick = ref(false)
 let suppressClickTimer: number | null = null
 
+const stripImages = computed(() => props.thumbImages.length > 0 ? props.thumbImages : props.allImages)
+
 const carouselTrackStyle = computed(() => ({
   transform: `translate3d(calc(${-carouselIndex.value * 100}% + ${swipeOffsetX.value}px), 0, 0)`,
   transition: isDragging.value ? 'none' : 'transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1)',
@@ -162,9 +166,11 @@ function openFullscreenFromCarousel() {
     suppressNextClick.value = false
     return
   }
-  const currentImage = props.allImages[carouselIndex.value]
-  const galleryIndex = props.fullscreenImages.findIndex((img) => img === currentImage)
-  emit('openFullscreen', props.product, galleryIndex >= 0 ? galleryIndex : 0)
+  // allImages includes product+SKU images; fullscreenImages has only product images.
+  // When clicking a SKU image (index >= fullscreenImages.length), open the product
+  // gallery at index 0 instead of passing an out-of-bounds index.
+  const idx = carouselIndex.value < props.fullscreenImages.length ? carouselIndex.value : 0
+  emit('openFullscreen', props.product, idx)
 }
 
 function handleCarouselPointerDown(event: PointerEvent) {

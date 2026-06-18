@@ -206,6 +206,75 @@ test('catalog detail carousel and fullscreen viewer support swipe navigation', a
   await expect(page.locator('.fullscreen-overlay .fs-image-wrap')).toHaveAttribute('data-active-index', '0')
 })
 
+test('catalog requests card, thumb, and original images for their intended layers', async ({ page }) => {
+  await grantCatalogAccess(page)
+  await mockFilters(page)
+  const imageRequests: string[] = []
+  const pixel = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  )
+  const catalogProduct = {
+    ...product(7201, 'VARIANT-7201'),
+    mainImageUrl: '/api/files/101/preview',
+    imageUrls: ['/api/files/102/preview'],
+    hasImage: true,
+    skus: [{
+      id: 1,
+      skuCode: 'VARIANT-7201-RED-M',
+      colorId: 1,
+      colorName: '红色',
+      sizeId: 1,
+      sizeCode: 'M',
+      imageUrls: ['/api/files/103/preview'],
+      hasStock: true,
+      stockStatus: '有现货',
+    }],
+  }
+
+  await page.route('**/api/catalog/products**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 200,
+        message: 'success',
+        data: {
+          current: 1,
+          size: 20,
+          total: 1,
+          pages: 1,
+          records: [catalogProduct],
+        },
+      }),
+    })
+  })
+  await page.route('**/api/catalog/products/7201', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 200, message: 'success', data: catalogProduct }),
+    })
+  })
+  await page.route('**/api/files/**', async (route) => {
+    const url = new URL(route.request().url())
+    imageRequests.push(`${url.pathname}?type=${url.searchParams.get('type') || 'original'}`)
+    await route.fulfill({ status: 200, contentType: 'image/png', body: pixel })
+  })
+
+  await page.goto('/catalog')
+  await expect.poll(() => imageRequests).toContain('/api/files/101/variant?type=card')
+
+  await page.getByText('VARIANT-7201').first().click()
+  await expect(page.locator('.detail-panel .carousel-main')).toBeVisible()
+  await expect.poll(() => imageRequests).toContain('/api/files/103/variant?type=card')
+  await expect.poll(() => imageRequests).toContain('/api/files/103/variant?type=thumb')
+
+  await page.locator('.detail-panel .carousel-main').click()
+  await expect(page.locator('.fullscreen-overlay')).toBeVisible()
+  await expect.poll(() => imageRequests).toContain('/api/files/101/preview?type=original')
+})
+
 test('catalog phone layout uses portrait-only browsing on iPhone 14 Pro size', async ({ page }) => {
   await page.setViewportSize({ width: 393, height: 852 })
   await grantCatalogAccess(page)

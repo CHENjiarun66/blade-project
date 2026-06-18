@@ -13,14 +13,19 @@ import com.blade.file.entity.FileBusinessBind;
 import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileBusinessBindMapper;
 import com.blade.file.mapper.FileStorageMapper;
+import com.blade.file.service.FileDerivativeService;
 import com.blade.file.service.FileService;
 import com.blade.file.storage.FileStorageService;
 import com.blade.file.storage.StoredFile;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
@@ -35,22 +40,27 @@ import java.util.stream.Collectors;
 @Service
 public class FileServiceImpl implements FileService {
 
+    private static final Logger log = LoggerFactory.getLogger(FileServiceImpl.class);
+
     private final FileStorageMapper fileStorageMapper;
     private final FileStorageService storageService;
     private final FileStorageProperties properties;
     private final ObjectMapper objectMapper;
     private final FileBusinessBindMapper fileBusinessBindMapper;
+    private final FileDerivativeService derivativeService;
 
     public FileServiceImpl(FileStorageMapper fileStorageMapper,
                            FileStorageService storageService,
                            FileStorageProperties properties,
                            ObjectMapper objectMapper,
-                           FileBusinessBindMapper fileBusinessBindMapper) {
+                           FileBusinessBindMapper fileBusinessBindMapper,
+                           FileDerivativeService derivativeService) {
         this.fileStorageMapper = fileStorageMapper;
         this.storageService = storageService;
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.fileBusinessBindMapper = fileBusinessBindMapper;
+        this.derivativeService = derivativeService;
     }
 
     @Override
@@ -92,6 +102,36 @@ public class FileServiceImpl implements FileService {
         }
 
         fileStorageMapper.insert(entity);
+
+        // BE-1012: Generate thumb/card derivatives for IMAGE files.
+        // If a transaction is active, register an after-commit callback so the
+        // original upload commits independently before derivatives are attempted.
+        // If no transaction is active (e.g. unit tests), call directly.
+        // A derivative failure never affects the upload.
+        if ("IMAGE".equals(entity.getFileType())) {
+            final FileStorage entityForDerivative = entity;
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(
+                        new TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                try {
+                                    derivativeService.generate(entityForDerivative);
+                                } catch (Exception e) {
+                                    log.error("Derivative generation failed after commit for fileId={}",
+                                            entityForDerivative.getId(), e);
+                                }
+                            }
+                        });
+            } else {
+                try {
+                    derivativeService.generate(entityForDerivative);
+                } catch (Exception e) {
+                    log.error("Derivative generation failed for fileId={}, upload continues",
+                            entityForDerivative.getId(), e);
+                }
+            }
+        }
 
         String accessUrl = properties.getPreviewUrlPrefix() + "/" + entity.getId() + "/preview";
         entity.setAccessUrl(accessUrl);

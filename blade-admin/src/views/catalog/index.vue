@@ -162,7 +162,7 @@
               >
                 <CachedImage
                   v-if="product.mainImageUrl"
-                  :src="product.mainImageUrl"
+                  :src="withVariantUrl(product.mainImageUrl, 'card')"
                   :alt="product.name"
                   loading="lazy"
                   image-class="card-img"
@@ -208,6 +208,7 @@
             :product="selectedProduct"
             :all-images="selectedProductDetailImages"
             :fullscreen-images="selectedProductGalleryImages"
+            :thumb-images="selectedProductDetailThumbImages"
             @open-fullscreen="openFullscreen"
             @close="selectedProduct = null"
           />
@@ -232,6 +233,7 @@
         :product="selectedProduct"
         :all-images="selectedProductDetailImages"
         :fullscreen-images="selectedProductGalleryImages"
+        :thumb-images="selectedProductDetailThumbImages"
         :show-close="false"
         @open-fullscreen="openFullscreen"
       />
@@ -358,7 +360,7 @@ import {
   type FilterOption,
   type ColorSizeEntry,
 } from '@/api/catalog'
-import { filePreviewUrl } from '@/api/file'
+import { filePreviewUrl, fileVariantUrl } from '@/api/file'
 import {
   readCatalogProductsCache,
   writeCatalogProductsCache,
@@ -549,25 +551,45 @@ function loadNextPage() {
   fetchProducts({ reset: false })
 }
 
-function productImages(product: CatalogProductVO) {
+function productImages(product: CatalogProductVO): string[] {
   const imgs: string[] = []
   if (product.mainImageUrl) imgs.push(withPreviewToken(product.mainImageUrl))
   if (product.imageUrls) imgs.push(...product.imageUrls.map(withPreviewToken))
   return [...new Set(imgs.filter(Boolean))]
 }
 
-function skuImages(product: CatalogProductVO) {
-  const imgs = (product.skus || []).flatMap((sku) => sku.imageUrls || []).map(withPreviewToken)
+function productCardImages(product: CatalogProductVO): string[] {
+  const imgs: string[] = []
+  if (product.mainImageUrl) imgs.push(withVariantUrl(product.mainImageUrl, 'card'))
+  if (product.imageUrls) imgs.push(...product.imageUrls.map((u) => withVariantUrl(u, 'card')))
   return [...new Set(imgs.filter(Boolean))]
 }
 
-function detailImages(product: CatalogProductVO) {
-  return [...new Set([...productImages(product), ...skuImages(product)].filter(Boolean))]
+function detailCardImages(product: CatalogProductVO): string[] {
+  return [...new Set([...productCardImages(product), ...skuCardImages(product)].filter(Boolean))]
+}
+
+function skuCardImages(product: CatalogProductVO): string[] {
+  const imgs = (product.skus || []).flatMap((sku) => sku.imageUrls || []).map((u) => withVariantUrl(u, 'card'))
+  return [...new Set(imgs.filter(Boolean))]
+}
+
+function detailThumbImages(product: CatalogProductVO): string[] {
+  const productThumbs: string[] = []
+  if (product.mainImageUrl) productThumbs.push(withVariantUrl(product.mainImageUrl, 'thumb'))
+  if (product.imageUrls) productThumbs.push(...product.imageUrls.map((u) => withVariantUrl(u, 'thumb')))
+  const skuThumbs = (product.skus || []).flatMap((sku) => sku.imageUrls || []).map((u) => withVariantUrl(u, 'thumb'))
+  return [...new Set([...productThumbs, ...skuThumbs].filter(Boolean))]
 }
 
 function withPreviewToken(url: string) {
   const match = url.match(/^\/api\/files\/(\d+)\/preview(?:\?.*)?$/)
   return match ? filePreviewUrl(match[1]) : url
+}
+
+function withVariantUrl(url: string, type: 'thumb' | 'card') {
+  const match = url.match(/^\/api\/files\/(\d+)\/preview(?:\?.*)?$/)
+  return match ? fileVariantUrl(match[1], type) : url
 }
 
 function normalizeCatalogProduct(product: CatalogProductVO): CatalogProductVO {
@@ -625,12 +647,17 @@ const drawerHeight = computed(() => {
 
 const selectedProductGalleryImages = computed(() => {
   if (!selectedProduct.value) return []
-  return productImages(selectedProduct.value)
+  return productImages(selectedProduct.value) // original URLs for fullscreen
 })
 
 const selectedProductDetailImages = computed(() => {
   if (!selectedProduct.value) return []
-  return detailImages(selectedProduct.value)
+  return detailCardImages(selectedProduct.value) // card variant for carousel
+})
+
+const selectedProductDetailThumbImages = computed(() => {
+  if (!selectedProduct.value) return []
+  return detailThumbImages(selectedProduct.value) // thumb variant for strip
 })
 
 async function selectProduct(product: CatalogProductVO) {

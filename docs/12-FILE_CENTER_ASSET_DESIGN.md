@@ -128,7 +128,7 @@
 
 ### 4.1.1 后续扩展：图片派生图 `file_derivative`
 
-> 状态：待开发。用于解决商品列表、订单图片墙、文件中心网格、Catalog 卡片等场景直接加载原图导致页面慢的问题。
+> 状态：第一版已完成并通过测试环境历史补生成验收。用于解决商品列表、订单图片墙、文件中心网格、Catalog 卡片等场景直接加载原图导致页面慢的问题。
 
 保留原图不动，上传图片后生成派生图。业务模块仍只保存原始 `fileId`，不得保存缩略图路径。
 
@@ -660,7 +660,7 @@ NOT EXISTS (
 4. 视频基础展示。
 5. 后续七牛云/NAS/CDN。
 
-### Phase F：图片派生图性能优化（待开发）
+### Phase F：图片派生图性能优化（第一版已完成）
 
 1. 新增 `file_derivative` 表和实体/Mapper。
 2. 建立派生图服务和存储 Provider 脚手架：生成、保存、查询、状态记录都走统一服务，不把本地路径和缩略图逻辑写入业务模块。
@@ -671,6 +671,26 @@ NOT EXISTS (
 7. 历史图片提供批量补生成任务或管理入口。
 8. 派生图缺失时兜底原图，避免页面不可用。
 9. 保留后续异步生成、失败重试、NAS/七牛云/CDN、多格式派生图接入点，但第一版不实现这些外部能力。
+
+第一版落地说明（2026-06-18）：
+
+1. 已通过 V38 建立 `file_derivative`，状态支持 `PENDING/READY/FAILED`，业务表继续只保存原始 `fileId`。
+2. 已建立 `FileDerivativeService`、`ImageDerivativeGenerator` 和 `FileStorageService` 派生文件读写边界；本地实现不向商品、订单或 Catalog 暴露物理路径。
+3. 图片原图提交成功后生成长边 320px 的 `thumb` 和长边 800px 的 `card`；支持 JPEG、PNG、WebP 输入、EXIF 方向和透明背景转白底。
+4. 派生生成失败不会回滚原图上传；失败状态可重试，接口读取不到 READY 派生图时服务端回退原图。
+5. `/api/files/{id}/variant` 与原图 `/preview` 复用租户、业务权限、创建人权限和 `previewToken` 规则。
+6. PC 商品、订单、文件中心及 Catalog 已按展示尺寸接入 `thumb/card`；订单大图、文件原图和 Catalog 全屏继续加载原图。
+7. Catalog IndexedDB 图片缓存已区分 `file:{fileId}:original|thumb|card`，旧 `file:{fileId}` 只兼容原图读取，不会被缩略图复用。
+8. 已提供当前租户、单批最大 500 条的幂等历史补生成接口。该接口不会自动跨租户运行；部署到测试或生产环境后，应由管理员分批执行并观察 FAILED 记录。
+9. 异步队列、定时重试、视频封面、NAS/七牛云/CDN Provider 和派生图物理清理仍属于后续任务。
+
+测试环境补生成记录（2026-06-18）：
+
+- 操作前已备份本机测试库 `blade_project`，仅处理 tenant 1，不连接 `blade_project_prod` 或 NAS。
+- 按 5、20、20、20、20、20、4 张分批补生成，共处理 89 张历史图片，生成 89 个 `thumb` 和 89 个 `card`。
+- 最终状态为 178 个 `READY`、0 个 `FAILED`、0 个重复记录、0 个缺失或空文件；再次执行返回 processed=0，幂等性通过。
+- `/variant` 实测返回 JPEG，`thumb` 长边不超过 320px、`card` 长边不超过 800px，并带 `Cache-Control: max-age=604800`。
+- 此记录只代表本机测试环境完成；生产环境仍须先备份，再按租户、小批执行并逐批检查失败记录和物理文件。
 
 ---
 

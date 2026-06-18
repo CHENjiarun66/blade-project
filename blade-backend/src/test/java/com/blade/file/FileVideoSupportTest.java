@@ -5,6 +5,7 @@ import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.service.impl.FileServiceImpl;
 import com.blade.file.storage.FileStorageService;
+import com.blade.file.storage.StoredFile;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,8 +43,8 @@ class FileVideoSupportTest {
         FileStorageMapper storageMapper = proxyMapper(FileStorageMapper.class);
         FileStorageService storageService = new FileStorageService() {
             @Override
-            public com.blade.file.storage.StoredFile store(org.springframework.web.multipart.MultipartFile file, String bizType) {
-                return new com.blade.file.storage.StoredFile(
+            public StoredFile store(org.springframework.web.multipart.MultipartFile file, String bizType) {
+                return new StoredFile(
                         "test-key-" + System.currentTimeMillis(),
                         "stored-" + file.getOriginalFilename(),
                         "/tmp/test-uploads/stored-" + file.getOriginalFilename(),
@@ -57,10 +58,29 @@ class FileVideoSupportTest {
             public void delete(String storagePath) {}
             @Override
             public String getStorageType() { return "local"; }
+            @Override
+            public StoredFile storeDerivative(String originalFileKey, String variantType,
+                                               java.io.InputStream inputStream) throws java.io.IOException {
+                return new StoredFile(
+                        "deriv/2026/06/18/stem_" + variantType + ".jpg",
+                        "stem_" + variantType + ".jpg",
+                        "/tmp/deriv/stem_" + variantType + ".jpg",
+                        "local");
+            }
         };
 
         service = new FileServiceImpl(storageMapper, storageService, properties,
-                new com.fasterxml.jackson.databind.ObjectMapper(), null);
+                new com.fasterxml.jackson.databind.ObjectMapper(), null,
+                new com.blade.file.service.FileDerivativeService() {
+                    @Override
+                    public void generate(FileStorage file) {}
+                    @Override
+                    public org.springframework.core.io.Resource loadVariantResource(Long fileId, String variantType) { return null; }
+                    @Override
+                    public com.blade.file.service.FileDerivativeService.BackfillResult backfill(int limit) {
+                        return new com.blade.file.service.FileDerivativeService.BackfillResult(0, 0, 0, 0);
+                    }
+                });
     }
 
     @Test
@@ -148,6 +168,63 @@ class FileVideoSupportTest {
 
         assertEquals("IMAGE", vo.getFileType());
         assertNull(vo.getFileExt());
+    }
+
+    @Test
+    void uploadImage_derivativeServiceThrows_stillReturnsUploadVO() {
+        // Build a local service with a throwing derivative (no transaction active,
+        // so the direct-call branch is exercised). The upload must succeed despite
+        // the derivative failure.
+        inserted.clear();
+        var throwService = new com.blade.file.service.FileDerivativeService() {
+            @Override
+            public void generate(FileStorage file) {
+                throw new RuntimeException("simulated derivative failure");
+            }
+            @Override
+            public org.springframework.core.io.Resource loadVariantResource(Long fileId, String variantType) {
+                return null;
+            }
+            @Override
+            public com.blade.file.service.FileDerivativeService.BackfillResult backfill(int limit) {
+                return new com.blade.file.service.FileDerivativeService.BackfillResult(0, 0, 0, 0);
+            }
+        };
+
+        FileStorageMapper mapper = proxyMapper(FileStorageMapper.class);
+        var storageService = new FileStorageService() {
+            @Override
+            public StoredFile store(org.springframework.web.multipart.MultipartFile file, String bizType) {
+                return new StoredFile("fk", "fn.jpg", "/tmp/x.jpg", "local");
+            }
+            @Override
+            public org.springframework.core.io.Resource load(String storagePath) {
+                throw new UnsupportedOperationException();
+            }
+            @Override
+            public void delete(String storagePath) {}
+            @Override
+            public String getStorageType() { return "local"; }
+            @Override
+            public StoredFile storeDerivative(String originalFileKey, String variantType,
+                                               java.io.InputStream inputStream) {
+                return new StoredFile("dfk", "dn.jpg", "/tmp/d.jpg", "local");
+            }
+        };
+        var svc = new FileServiceImpl(mapper, storageService, properties,
+                new com.fasterxml.jackson.databind.ObjectMapper(), null, throwService);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "photo.jpg", "image/jpeg", new byte[100]);
+        var vo = svc.upload(file, "product", null, 1L);
+
+        // Upload must succeed
+        assertNotNull(vo.getId());
+        assertEquals("IMAGE", vo.getFileType());
+        // FileStorage insert must have happened
+        assertFalse(inserted.isEmpty(), "FileStorage should be inserted despite derivative failure");
+        // updateById (for accessUrl) must have been called
+        assertEquals("IMAGE", inserted.get(0).getFileType());
     }
 
     // --- proxy helper ---
