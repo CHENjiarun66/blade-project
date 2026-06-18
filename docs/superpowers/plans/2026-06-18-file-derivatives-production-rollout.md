@@ -17,14 +17,16 @@
 
 - 功能提交：`05e1545 feat(files): add image derivative pipeline`
 - 测试环境记录：`074bbfa docs(files): record test backfill verification`
+- release 候选分支：`release/2026-06-18-file-derivatives`
+- release 合并提交：`3647e25 merge: prepare file derivatives release`
 - 数据库变更：`V38__file_derivative.sql`
 - 正式生产只能部署最终合入 `master` 的 release 提交，不直接部署上述 feature 提交。
 
 ## 3. 发布前门禁
 
-- [ ] `develop` 集成测试通过。
-- [ ] 从 `master` 创建只包含本功能的 release 候选。
-- [ ] release 后端测试、前端构建、Catalog E2E 通过。
+- [x] `develop` 集成测试通过（后端 298/298、前端构建、Catalog E2E 5/5）。
+- [x] 从 `master` 创建只包含本功能的 release 候选。
+- [x] release 后端测试、前端构建、Catalog E2E 通过（298/298、构建成功、5/5）。
 - [ ] NAS 平台检查通过，镜像确认为 `linux/amd64`。
 - [ ] 生产数据库备份已创建且非空。
 - [ ] `/volume2/blade/uploads` 已有可恢复快照或独立备份。
