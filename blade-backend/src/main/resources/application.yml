@@ -72,6 +72,10 @@ blade:
       - video/mp4
       - video/webm
       - video/quicktime
+    derivative:
+      enabled: true
+      thumb-long-edge: 320
+      card-long-edge: 800
     cleanup:
       enabled: false
       unbound-retention-days: 7

@@ -11,8 +11,8 @@
 |------|---|
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
-| 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传底座已完成；文件中心/数字资产中心后端 BE-1001~BE-1011 已完成到文件夹、列表、绑定、批量操作、删除保护、未绑定治理、安全清理调度、预览权限和回归测试；PC 文件中心 BA-1001~BA-1006 已完成；客户 iPad Catalog 现货选款页 BE-1020~BE-1023、BA-1020~BA-1024 已完成第一版（/catalog、横竖屏、筛选、SKU 矩阵、全屏大图）；移动端继续开发中 |
-| 下一步 | 商品管理 v2（SKU 精细维护、商品图集、SKU 图片、删除引用保护）、订单库存解耦收尾（BE-124、BE-126）、看板完善（仪表盘数据权限）、外部 Agent 只读 Gateway（BE-551~BE-565）、移动端页面继续推进、OCR 识别服务与拍照录单待开发；Catalog 后续可补客户身份、行为采集、选款清单、公开分享/只读专用账号 |
+| 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传和文件中心底座已完成；图片派生图第一版 BE-1012、BA-1007、BA-1028 已完成，PC 与 Catalog 已按 thumb/card/original 分层加载；客户 iPad Catalog 现货选款页第一版已完成；移动端继续开发中 |
+| 下一步 | 在测试环境按租户分批执行历史图片派生图补生成并观察失败记录；商品管理 v2（SKU 精细维护、商品图集、SKU 图片、删除引用保护）、订单库存解耦收尾（BE-124、BE-126）、看板完善（仪表盘数据权限）、外部 Agent 只读 Gateway（BE-551~BE-565）、移动端页面继续推进、OCR 识别服务与拍照录单待开发；Catalog 后续可补客户身份、行为采集、选款清单、公开分享/只读专用账号 |
 
 ---
 
@@ -88,6 +88,7 @@
 - **快速录单商品级批量录入已完成（BA-207）**：选择商品后展示正常状态 SKU 颜色 x 尺码矩阵，批量填写数量并一次性添加到订单明细；第一版不读取、不展示、不校验库存；重复 `skuId` 自动合并数量且不覆盖已改单价/成本价。SOW 见 [2026-06-11-quick-order-product-batch-entry-sow.md](./superpowers/plans/2026-06-11-quick-order-product-batch-entry-sow.md)。
 - **个人中心已完成**：个人中心页面（用户信息展示、修改密码）、头部下拉菜单（BA-704）
 - **统一文件存储第一版已完成**：新增 `file_storage` 表、统一上传/预览/软删除/绑定接口，本地存储落地；订单图片、PC/移动端入库凭证、商品主图均已改为上传后保存 fileId；浏览器原生 `<img>`/新窗口预览通过 `/api/files/{id}/preview?previewToken=...` 进入统一权限校验，后续可切七牛云/NAS。
+- **图片派生图第一版已完成**：V38 新增 `file_derivative`；上传图片后生成 `thumb`（长边 320px）和 `card`（长边 800px），生成失败不影响原图；`/api/files/{id}/variant` 继承原图权限并缺失回退原图。PC 商品/订单/文件中心与 Catalog 已分层接入，Catalog IndexedDB 缓存按 `original/thumb/card` 隔离。历史图片需通过当前租户批量接口分批补生成。
 - **文件中心/数字资产中心后端底座已完成 Phase 6.6**：新增 [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md)，明确文件中心不是单纯图片/视频相册，而是通用数字资产中心；BE-1001~BE-1011 已完成到资产表结构、分页/详情、文件夹、多业务绑定、批量操作、有效绑定删除保护、未绑定治理、第一版安全清理调度、商品/SKU 图片绑定、基础视频上传分类、私有预览权限和文件中心回归测试。清理调度默认关闭，按配置 tenant-id 处理单租户，仅软删除/标记元数据，不做真实物理删除。
 - **后端测试基线已修复**：独立分支 `fix/backend-test-baseline` 已完成 BE-1030~BE-1033；`cd blade-backend && mvn test` 通过（Tests run 244, Failures 0, Errors 0, Skipped 0），修复范围包含测试认证夹具、订单状态机断言和商品/文件实体显式列映射。
 - **NAS 生产环境已初步部署完成**：生产目录 `/volume2/blade`，前端入口 `http://192.168.1.10:8899/catalog`；容器为 `blade-mysql`、`blade-redis`、`blade-backend`、`blade-web`；NAS 数据库已从本机生产库 `blade_project_prod` 迁移并将主租户 code 调整为 `dwy_jiajiadress`。后续发布/备份/回滚按 [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) 执行。
@@ -99,7 +100,7 @@
 - 仪表盘数据权限尚未实现。
 - 外部 Agent 对接需求已锁定为只读 Agent Gateway 第一版，优先做款式趋势、客户跟进/风险、颜色尺码结构、库存建议和周期分析；订单异常、利润解释、WhatsApp 反馈和经营记忆进入后续路线，WhatsApp 先做接入方案验证；后端任务尚未开始。
 - 文件中心/数字资产中心后端 BE-1001~BE-1011 已完成；PC `/files` 页面 BA-1001~BA-1006 已完成（路由菜单、虚拟入口文件夹树、网格列表视图筛选分页、上传移动删除、商品SKU绑定弹窗、未绑定清理管理），V36 已补齐 `menu:file` 与文件中心按钮权限；Catalog 聚合接口和 `/catalog` 展示页第一版已完成，V37 已补齐 `menu:catalog` 与 `data:catalog:view` 权限。
-- 图片派生图/缩略图性能优化已纳入待开发：`BE-1012`、`BA-1007`、`BA-1028`。目标是图片上传后生成 `thumb`/`card` 派生图，商品列表、订单图片墙、文件中心网格、Catalog 卡片优先加载派生图，点开大图/下载仍加载原图；本轮只完成文档规划，尚未开始开发。
+- 图片派生图/缩略图性能优化 `BE-1012`、`BA-1007`、`BA-1028` 已完成第一版；尚未执行的是各环境历史图片的实际批量补生成，以及后续异步队列、自动重试、视频封面和 NAS/七牛云/CDN Provider。
 - 商品管理 v2 已纳入待开发：`BE-1013` 商品素材查询 API、`BE-1014` 删除引用保护验收、`BA-407~BA-410` 商品编辑页 v2/SKU 明细/商品素材/删除禁用交互；ROM/SOW 见 [2026-06-14-product-management-v2-rom-sow.md](./superpowers/plans/2026-06-14-product-management-v2-rom-sow.md)。
 - 文件预览权限补强已完成：PRIVATE 文件仍由后端校验登录、租户、业务权限；前端所有 fileId 预览必须走 `filePreviewUrl(fileId)`，不要手写 `/api/files/{id}/preview`，否则浏览器 `<img>` 不会带认证信息。
 - 移动端页面开发仍在继续。
@@ -173,7 +174,7 @@
 - 筛选栏：keyword 搜索、fileType 下拉、businessType 下拉、网格/列表切换。
 - 分页（prev/pager/next）、loading 状态、空状态提示、图片预览弹窗（大图 + 元数据）。
 - 上传：隐藏多文件 input，逐个调用 uploadFile(file, 'temp')，loading 态，上传后自动刷新。
-- 预览：图片缩略图和“打开原文件”统一使用 `filePreviewUrl(fileId)`，由 `previewToken` 补齐浏览器原生资源请求的认证信息。
+- 预览：网格缩略展示使用 `fileVariantUrl(fileId, 'card')`，列表小图使用 `fileVariantUrl(fileId, 'thumb')`；预览弹窗和“打开原文件”继续使用 `filePreviewUrl(fileId)`，两类 URL 都由 `previewToken` 补齐浏览器原生资源请求的认证信息。
 - 批量操作：选中后显示工具栏（移动/绑定/删除/取消选择），移动弹窗 radio-group 选文件夹或未归档。
 - 删除保护：删除前并行查询 getFileBindings，展示绑定风险详情弹窗，仅未绑定文件可被 batch-delete 删除。
 - 商品绑定弹窗：FileBindDialog.vue，remote 搜索商品→选角色 main/gallery/sku_image→sku_image 时显示 SKU 多选→PUT /api/products/{id}/file-bindings。
