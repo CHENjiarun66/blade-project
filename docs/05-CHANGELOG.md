@@ -60,6 +60,7 @@
 - `mvn -DskipTests test-compile`：通过。
 - 定向软解耦与发货测试：52 tests，0 failures，0 errors。
 - `git diff --check`：通过。
+- 收口浏览器验证时发现 `order_delivery.warehouse_name` 等出库单展示冗余列缺失；新增 `V40__order_delivery_display_columns.sql` 补齐 `order_delivery.warehouse_name` 以及 `order_delivery_item` 的 SKU/商品/颜色/尺码展示字段。
 
 **执行人**：Claude Code（受限实现）+ Codex（方案、两轮审查修正与独立验收）
 
@@ -99,7 +100,7 @@
 **验证结果**：
 - 后端聚焦回归：90 tests，0 failures，0 errors。
 - PC 管理端 `npm run build`：通过，0 个 TypeScript 错误。
-- MySQL 8 临时库 `blade_migration_check_v39` 从 V1 到 V39 累计 Flyway 执行成功；`sale_order.write_off_amount`、`sale_order.write_off_reason` 已验证存在。
+- MySQL 8 临时库 `blade_migration_check_v40` 从 V1 到 V40 累计 Flyway 执行成功；`sale_order.write_off_amount`、`sale_order.write_off_reason`、`order_delivery.warehouse_name` 已验证存在。
 - 后端 `mvn test`：Tests run 383, Failures 0, Errors 0, Skipped 0。
 - 浏览器关键路径：通过 Playwright 真实登录 PC 前端，完成订单创建、定金、追加收款、抹零结清、配货计划、确认调整、确认发货和订单详情页渲染。
 - `git diff --check`：通过。
