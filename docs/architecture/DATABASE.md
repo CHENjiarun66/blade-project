@@ -3,7 +3,7 @@
 > 本文档汇总 BladeProject 当前数据库表结构，按模块分组。
 > **完整结构以 `blade-backend/src/main/resources/db/migration/*.sql` 的累计结果为准。**
 > 新增或变更字段时，必须同步更新本文档；专题设计文档只记录增量设计，不重复维护整表最终版。
-> 最后更新：2026-04-10
+> 最后更新：2026-06-21
 
 ---
 
@@ -447,7 +447,7 @@
 
 ### 4.1 sale_order 订单表
 
-**来源迁移**：`V2__product_order.sql`、`V5__order_refactor.sql`、`V7__order_table_rename.sql`、`V8__order_images.sql`、`V8__order_payment_delivery_fields.sql`、`V10__order_salesman.sql`、`V19__order_add_salesman_name.sql`、`V21__order_delivery_plan.sql`、`V29__order_quick_entry_finance.sql`、`V30__order_source_shop.sql`
+**来源迁移**：`V2__product_order.sql`、`V5__order_refactor.sql`、`V7__order_table_rename.sql`、`V8__order_images.sql`、`V8__order_payment_delivery_fields.sql`、`V10__order_salesman.sql`、`V19__order_add_salesman_name.sql`、`V21__order_delivery_plan.sql`、`V29__order_quick_entry_finance.sql`、`V30__order_source_shop.sql`、`V39__order_write_off.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -465,8 +465,8 @@
 | original_amount | decimal(12,2) | | 原始订单金额 |
 | refund_amount | decimal(12,2) | DEFAULT 0 | 已退款金额 |
 | paid_amount | decimal(12,2) | DEFAULT 0 | 已支付金额 |
-| write_off_amount | decimal(12,2) | DEFAULT 0, 待迁移 | 抹零/短款结清金额 |
-| write_off_reason | varchar(255) | 待迁移 | 抹零/短款结清原因 |
+| write_off_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 抹零/短款结清金额 |
+| write_off_reason | varchar(255) | | 抹零/短款结清原因 |
 | payment_status | tinyint | NOT NULL, DEFAULT 0 | 收款状态: 0未付款 1部分收款 2已结清 |
 | deposit_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 定金金额 |
 | freight_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 客户运费收入 |

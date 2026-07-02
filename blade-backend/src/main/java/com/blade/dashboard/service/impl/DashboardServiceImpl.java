@@ -307,7 +307,9 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private BigDecimal netSalesAmount(Order order) {
-        BigDecimal netAmount = safeAmount(order.getTotalAmount()).subtract(safeAmount(order.getRefundAmount()));
+        BigDecimal netAmount = safeAmount(order.getTotalAmount())
+                .subtract(safeAmount(order.getRefundAmount()))
+                .subtract(safeAmount(order.getWriteOffAmount()));
         return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
     }
 
@@ -318,7 +320,9 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private BigDecimal netGrossProfitAmount(Order order) {
-        BigDecimal netAmount = safeAmount(order.getGrossProfit()).subtract(safeAmount(order.getRefundAmount()));
+        BigDecimal netAmount = safeAmount(order.getGrossProfit())
+                .subtract(safeAmount(order.getRefundAmount()))
+                .subtract(safeAmount(order.getWriteOffAmount()));
         return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
     }
 

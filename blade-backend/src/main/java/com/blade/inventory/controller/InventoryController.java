@@ -98,11 +98,9 @@ public class InventoryController {
     }
 
     @PostMapping("/out-by-plan")
-    @Operation(summary = "按配货计划出库")
+    @Operation(summary = "按配货计划出库（已关闭：请通过订单确认发货操作出库）")
     public R<Void> outByPlan(@RequestBody OutByPlanDTO dto) {
-        Long operatorId = getCurrentUserId();
-        inventoryService.outByPlan(dto.getPlanId(), dto.getQuantity(), operatorId);
-        return R.ok();
+        throw new RuntimeException("请通过订单确认发货操作出库");
     }
 
     private Long getCurrentUserId() {

@@ -6,6 +6,112 @@
 
 ---
 
+## 2026-06-21 变更记录
+
+### [规划] - 订单库存软解耦生产版 ROM/SOW
+
+**变更内容**：
+- 新增 `docs/superpowers/plans/2026-06-21-order-inventory-soft-coupling-v1-rom-sow.md`，锁定收款去预留、发货时实际扣库存、两条发货路径统一、抹零结清、配货软提示和测试收口范围。
+- 新增 `BE-142`，处理 `deliverOrder` 与 `confirmDelivery` 两条发货路径状态和库存规则不一致的问题。
+- 新增 `TEST-ORDER-INV-001`，覆盖事务回滚、重复发货、双入口、跨租户和财务公式测试。
+- 明确本轮排除部分发货、分批发货和缺货退款，不在实现过程中扩大范围。
+- SOW-0 只读审计后补充两项门禁：取消状态通用入口不得再释放旧库存预留；两条发货入口必须具备订单级并发保护，不能只依赖库存行乐观锁。
+
+**变更原因**：
+- 当前确认收款、减配和按计划出库仍依赖全局预留，同时存在两条发货路径和旧状态值；需要按高风险分阶段 SOW 由 Claude Code 实现、Codex 独立审查。
+
+**影响范围**：
+- `docs/superpowers/plans/2026-06-21-order-inventory-soft-coupling-v1-rom-sow.md`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 当前仅完成工作单和任务登记，尚未开始业务代码修改。
+
+**执行人**：Codex
+
+### [完成] - BE-138 收款与配货调整移除库存预留副作用
+
+**变更内容**：
+- `confirmPayment()` 不再创建全局库存预留，零库存不阻断收款流程。
+- `confirmPayment()` 与追加收款统一使用租户范围订单行锁，避免两个收款入口并发覆盖实收金额。
+- `cancelOrder()`、`updateStatus(..., CANCELLED)` 和 `confirmAdjustment()` 不再释放订单预留。
+- 清理订单服务中已无调用方的旧预留/释放私有方法，并移除配货计划服务对 `InventoryService` 的无效依赖。
+- 新增无 Spring、MySQL、Redis 依赖的订单软解耦单元测试。
+
+**验证结果**：
+- `mvn -DskipTests compile`：通过。
+- `mvn -DskipTests test-compile`：通过。
+- 临时使用 Mockito subclass mock maker 执行定向测试：14 tests，0 failures，0 errors。
+- `OrderControllerTest` 基线因本机 `localhost:3306` 未启动而无法加载 Spring Context，留待最终测试环境收口。
+
+**执行人**：Claude Code（受限实现）+ Codex（审查、修正与独立验收）
+
+### [完成] - BE-126/BE-139/BE-142 发货路径与实际库存扣减统一
+
+**变更内容**：
+- `deliverOrder()` 使用租户范围内的订单行 `FOR UPDATE` 作为唯一整单发货事务入口，已发货/已完成请求幂等返回。
+- 旧出库单确认接口改为委托统一订单发货入口，不再使用旧状态值或独立库存规则。
+- `outByPlan()` 仅按 `quantity - reserved_qty` 校验可用量，并通过租户范围内的原子 SQL 只扣减 `quantity`、递增 `version`；不检查或修改 `global_reserved_qty`。
+- 关闭直接调用单条 `out-by-plan` 绕过订单状态机的能力，第一版不形成部分发货。
+
+**验证结果**：
+- `mvn -DskipTests compile`：通过。
+- `mvn -DskipTests test-compile`：通过。
+- 定向软解耦与发货测试：52 tests，0 failures，0 errors。
+- `git diff --check`：通过。
+
+**执行人**：Claude Code（受限实现）+ Codex（方案、两轮审查修正与独立验收）
+
+### [完成] - BE-124/BE-140 抹零短款结清与统一财务口径
+
+**变更内容**：
+- 新增 Flyway `V39__order_write_off.sql`，为 `sale_order` 增加 `write_off_amount` 和 `write_off_reason`。
+- 追加收款接口支持同一请求内继续收款并将剩余尾款标记为核销；普通追加收款接口保持源码兼容。
+- 追加收款和标记结清统一使用租户范围订单行 `FOR UPDATE`，避免并发覆盖。
+- 尾款、欠款筛选、订单 VO、Excel 导出、仪表盘和数据分析统一使用 `total - refund - writeOff` 口径，并将状态文案统一为“未付款/部分收款/已结清”。
+
+**验证结果**：
+- Codex 修正 Claude Code 未实际断言 SQL/统计公式的测试缺口后，订单、库存、核销、Controller、Dashboard、Analytics 共 90 项聚焦测试通过。
+- `mvn -DskipTests test-compile` 与 `git diff --check` 通过；V39 数据库实测留在最终环境收口执行。
+
+**执行人**：Claude Code（受限实现）+ Codex（财务公式审查、修正与独立测试）
+
+### [完成] - BA-212/BA-213 配货软提示与前端标记结清
+
+**变更内容**：
+- 订单详情配货弹窗新增按仓库/SKU 的库存软提示，区分查询中、充足、不足、无记录和查询失败；仓库查询按弹窗会话缓存并去重。
+- 配货提示可用量与确认发货统一按 `quantity - reserved_qty` 计算，不读取历史 `global_reserved_qty`，避免旧预留影响当前软提示。
+- 库存提示不参与保存校验，库存不足、无记录或查询失败均可保存配货方案，最终强校验仍在确认发货。
+- 追加收款弹窗新增“标记结清”和结清原因，尾款以服务端 `balanceAmount` 为准，并增加重复提交和全额收款误核销保护。
+- 追加收款弹窗默认金额改为 0，避免零金额核销场景被默认写入 0.01 元误收；普通收款仍在提交时强制要求金额大于 0。
+- 订单列表和详情统一展示“未付款/部分收款/已结清”，并展示核销金额与原因。
+
+**验证结果**：
+- `cd blade-admin && npm run build`：通过，0 个 TypeScript 错误。
+- `git diff --check`：通过。
+- 浏览器联调需等待本地 Docker/MySQL/Redis 服务授权后在 SOW-6 完成。
+
+**执行人**：Claude Code（受限实现）+ Codex（交互、竞态与构建审查）
+
+### [完成] - TEST-ORDER-INV-001 测试收口
+
+**验证结果**：
+- 后端聚焦回归：90 tests，0 failures，0 errors。
+- PC 管理端 `npm run build`：通过，0 个 TypeScript 错误。
+- MySQL 8 临时库 `blade_migration_check_v39` 从 V1 到 V39 累计 Flyway 执行成功；`sale_order.write_off_amount`、`sale_order.write_off_reason` 已验证存在。
+- 后端 `mvn test`：Tests run 383, Failures 0, Errors 0, Skipped 0。
+- 浏览器关键路径：通过 Playwright 真实登录 PC 前端，完成订单创建、定金、追加收款、抹零结清、配货计划、确认调整、确认发货和订单详情页渲染。
+- `git diff --check`：通过。
+
+**业务边界**：
+- 本版创建订单、收款、配货方案保存不因库存阻断；确认发货仍按实际配货计划强校验并扣减库存，缺库存记录或库存不足会阻止发货。
+- 部分发货、分批发货和缺货退款仍按 SOW 排除，不在本轮扩大。
+
+**执行人**：Codex
+
+---
+
 ## 2026-06-18 变更记录
 
 ### [发布准备] - 图片派生图生产发布边界与预检清单

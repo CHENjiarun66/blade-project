@@ -42,7 +42,7 @@ class ProductControllerTest {
     void setUp() throws Exception {
         // 登录获取 token
         LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setTenantCode("test_tenant");
+        loginRequest.setTenantCode("super_admin");
         loginRequest.setUsername("admin");
         loginRequest.setPassword("admin123");
 

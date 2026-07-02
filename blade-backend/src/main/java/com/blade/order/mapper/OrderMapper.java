@@ -16,4 +16,12 @@ public interface OrderMapper extends BaseMapper<Order> {
               AND order_no LIKE CONCAT(#{prefix}, '%')
             """)
     String selectMaxOrderNoByPrefix(@Param("tenantId") Long tenantId, @Param("prefix") String prefix);
+
+    /**
+     * Row-lock an order by id within the current tenant.
+     * Used by the canonical shipment transaction to serialise concurrent
+     * deliverOrder / confirmDelivery calls until commit.
+     */
+    @Select("SELECT * FROM sale_order WHERE id = #{id} AND tenant_id = #{tenantId} AND deleted = 0 FOR UPDATE")
+    Order selectByIdForUpdate(@Param("id") Long id, @Param("tenantId") Long tenantId);
 }

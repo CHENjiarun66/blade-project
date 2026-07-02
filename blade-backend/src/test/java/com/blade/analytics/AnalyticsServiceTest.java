@@ -72,6 +72,23 @@ class AnalyticsServiceTest {
     }
 
     @Test
+    void getSummary_subtractsWriteOffFromSalesAndGrossProfit() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "admin", "n/a", List.of(new SimpleGrantedAuthority("data:analytics:profit"))));
+        Order order = order(1L, "100.00", "10.00", "50.00", "50.00");
+        order.setWriteOffAmount(new BigDecimal("15.00"));
+        orderHandler.thenSelectList(List.of(order));
+        itemHandler.thenSelectList(List.of(item(1L, "624-1#", "A", "黑", "L", 2,
+                "100.00", "50.00", "50.00")));
+
+        AnalyticsSummaryDTO summary = service.getSummary(weekQuery());
+
+        assertEquals(new BigDecimal("75.00"), summary.getSalesAmount());
+        assertEquals(new BigDecimal("25.00"), summary.getGrossProfit());
+        assertEquals(true, summary.getProfitVisible());
+    }
+
+    @Test
     void getProductRanking_includesProfitWithPermission() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 "admin", "n/a", List.of(new SimpleGrantedAuthority("data:analytics:profit"))));

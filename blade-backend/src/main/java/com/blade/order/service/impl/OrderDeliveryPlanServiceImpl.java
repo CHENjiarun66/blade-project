@@ -16,7 +16,6 @@ import com.blade.order.mapper.OrderAdjustmentLogMapper;
 import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
-import com.blade.inventory.service.InventoryService;
 import com.blade.order.service.OrderDeliveryPlanService;
 import com.blade.product.entity.ProductColor;
 import com.blade.product.entity.ProductSku;
@@ -56,7 +55,6 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
     private final ProductSizeMapper sizeMapper;
     private final WarehouseMapper warehouseMapper;
     private final UserMapper userMapper;
-    private final InventoryService inventoryService;
 
     @Autowired
     public OrderDeliveryPlanServiceImpl(OrderMapper orderMapper,
@@ -68,8 +66,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
                                         ProductColorMapper colorMapper,
                                         ProductSizeMapper sizeMapper,
                                         WarehouseMapper warehouseMapper,
-                                        UserMapper userMapper,
-                                        InventoryService inventoryService) {
+                                        UserMapper userMapper) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.deliveryPlanMapper = deliveryPlanMapper;
@@ -80,7 +77,6 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         this.sizeMapper = sizeMapper;
         this.warehouseMapper = warehouseMapper;
         this.userMapper = userMapper;
-        this.inventoryService = inventoryService;
     }
 
     @Override
@@ -356,16 +352,6 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
                         orderItemMapper.update(null, itemUpdateWrapper);
                     }
                 }
-            }
-        }
-
-        // 释放减配产生的多余库存预留
-        User currentUser = getCurrentUser();
-        Long operatorId = currentUser != null ? currentUser.getId() : 1L;
-        for (OrderDeliveryPlan plan : plans) {
-            int diff = plan.getPlannedQty() - plan.getAllocatedQty();
-            if (diff > 0) {
-                inventoryService.globalReleasePartial(plan.getSkuId(), diff, orderId, operatorId);
             }
         }
 
