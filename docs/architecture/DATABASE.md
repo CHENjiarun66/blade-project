@@ -535,7 +535,7 @@
 
 ### 4.3 order_delivery 出库单表
 
-**来源迁移**：`V17__order_delivery_tables.sql`
+**来源迁移**：`V17__order_delivery_tables.sql`、`V40__order_delivery_display_columns.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -543,6 +543,7 @@
 | delivery_no | varchar(30) | UNIQUE, NOT NULL | 出库单号 |
 | order_id | bigint | NOT NULL | 订单ID |
 | warehouse_id | bigint | NOT NULL | 仓库ID |
+| warehouse_name | varchar(50) | | 仓库名称（冗余） |
 | status | tinyint | NOT NULL, DEFAULT 0 | 状态: 0待出库 1部分出库 2已出库 3已取消 |
 | total_quantity | int | NOT NULL, DEFAULT 0 | 出库总数量 |
 | deliverer | varchar(50) | | 发货人 |
@@ -559,7 +560,7 @@
 
 ### 4.4 order_delivery_item 出库明细表
 
-**来源迁移**：`V17__order_delivery_tables.sql`
+**来源迁移**：`V17__order_delivery_tables.sql`、`V40__order_delivery_display_columns.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -567,6 +568,10 @@
 | delivery_id | bigint | NOT NULL | 出库单ID |
 | order_item_id | bigint | NOT NULL | 订单明细ID |
 | sku_id | bigint | NOT NULL | SKU ID |
+| sku_code | varchar(50) | | SKU编码（冗余） |
+| product_name | varchar(100) | | 商品名称（冗余） |
+| color_name | varchar(50) | | 颜色名称（冗余） |
+| size_name | varchar(50) | | 尺码名称（冗余） |
 | quantity | int | NOT NULL | 出库数量 |
 | create_time | datetime | DEFAULT | 创建时间 |
 

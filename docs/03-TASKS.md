@@ -116,7 +116,7 @@
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
 | BE-123 | 数据库迁移-新表创建 | ✅ 完成 | V20 创建 inventory_global_reserve 表，inventory 表加 global_reserved_qty 字段 |
-| BE-124 | 数据库迁移-表结构修改 | ✅ 完成 | V20-V29 已完成配货/调整/快速录单字段；V39 新增 write_off_amount/write_off_reason，当前生产口径所需字段已对齐 |
+| BE-124 | 数据库迁移-表结构修改 | ✅ 完成 | V20-V29 已完成配货/调整/快速录单字段；V39 新增 write_off_amount/write_off_reason；V40 补齐出库单展示冗余列，当前生产口径所需字段已对齐 |
 | BE-125 | 库存服务-跨仓总量预留 | ✅ 完成 | globalReserve/globalRelease/getGlobalAvailableQty 方法 |
 | BE-126 | 库存服务-按计划出库 | ✅ 完成 | `outByPlan` 按租户计划原子扣减实际库存，只更新 quantity/version，不再依赖 global_reserved_qty；直接单计划出库接口已关闭 |
 | BE-127 | 订单服务-创建订单重构 | ✅ 完成 | warehouseId 可选；创建订单不扣库存、不预占、不因库存不足失败 |
@@ -138,7 +138,7 @@
 | BE-142 | 统一订单确认发货路径 | ✅ 完成 | deliverOrder 为唯一事务入口；confirmDelivery 委托统一入口；订单行 FOR UPDATE 串行化双入口，已发货/已完成幂等返回 |
 | BA-212 | 订单详情配货页软提示改造 | ✅ 完成 | 按仓库缓存并展示 SKU 可用量/不足/无记录/失败软提示；任何提示状态均不阻断配货方案保存 |
 | BA-213 | 追加收款标记结清交互 | ✅ 完成 | 追加收款支持零金额核销、结清原因和防重复提交；列表/详情统一为未付款/部分收款/已结清并使用后端尾款 |
-| TEST-ORDER-INV-001 | 订单库存软解耦测试收口 | ✅ 完成 | MySQL 8 临时库 V1-V39 累计 Flyway 通过；后端全量 `mvn test` 383 项通过；PC `npm run build` 通过；浏览器关键路径覆盖 UI 登录、订单创建、定金、追加收款、抹零结清、配货计划、确认调整、发货和详情页渲染 |
+| TEST-ORDER-INV-001 | 订单库存软解耦测试收口 | ✅ 完成 | MySQL 8 临时库 V1-V40 累计 Flyway 通过；后端全量 `mvn test` 383 项通过；PC `npm run build` 通过；浏览器关键路径覆盖 UI 登录、订单创建、定金、追加收款、抹零结清、配货计划、确认调整、发货和详情页渲染 |
 | DOC-ORDER-INV-001 | 订单库存软解耦文档与流程图 | ✅ 完成 | 更新 PRD、订单库存设计、任务清单、变更记录；新增 drawio 流程图，明确发货状态和收款状态独立变化 |
 
 ### Phase 3.3: 订单状态机修复与功能完善（P0）

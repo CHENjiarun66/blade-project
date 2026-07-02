@@ -245,6 +245,7 @@ ALTER TABLE sale_order ADD COLUMN adjustment_status VARCHAR(20) DEFAULT 'NONE' C
 - 上述字段已由 `V21__order_delivery_plan.sql` 落地。
 - `V29__order_quick_entry_finance.sql` 已补齐快速录单日期、类型、运费、成本和毛利字段。
 - `V39__order_write_off.sql` 新增 `write_off_amount`、`write_off_reason`；`BE-124` 所需生产字段已收口。
+- `V40__order_delivery_display_columns.sql` 补齐历史出库单表展示冗余列，避免出库单详情查询实体字段时报 unknown column。
 
 #### 4.2.2 订单明细表（sale_order_item）
 
