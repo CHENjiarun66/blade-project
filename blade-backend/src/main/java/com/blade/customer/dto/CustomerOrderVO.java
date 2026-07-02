@@ -20,7 +20,7 @@ public class CustomerOrderVO {
     @Schema(description = "订单状态名称")
     private String statusName;
 
-    @Schema(description = "支付状态：0未付款 1已付定金 2已付全款")
+    @Schema(description = "支付状态：0未付款 1部分收款 2已结清")
     private Integer paymentStatus;
 
     @Schema(description = "总金额")

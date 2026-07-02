@@ -95,6 +95,14 @@ public class OrderExportDTO {
     @ColumnWidth(12)
     private BigDecimal paidAmount;
 
+    @ExcelProperty("抹零金额")
+    @ColumnWidth(12)
+    private BigDecimal writeOffAmount;
+
+    @ExcelProperty("抹零原因")
+    @ColumnWidth(20)
+    private String writeOffReason;
+
     @ExcelProperty("尾款")
     @ColumnWidth(12)
     private BigDecimal balanceAmount;

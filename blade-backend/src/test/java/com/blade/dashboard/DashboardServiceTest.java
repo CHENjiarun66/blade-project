@@ -79,6 +79,9 @@ class DashboardServiceTest {
         Order refundedOrder = order(2L, "200.00", "50.00", "200.00", "90.00", 2, 5);
         Order previousOrder = order(3L, "80.00", "0", "80.00", "30.00", 2, 5);
         Order weekOrder = order(4L, "300.00", "100.00", "100.00", "120.00", 1, 6);
+        depositOrder.setWriteOffAmount(new BigDecimal("10.00"));
+        refundedOrder.setWriteOffAmount(new BigDecimal("20.00"));
+        weekOrder.setWriteOffAmount(new BigDecimal("10.00"));
 
         orderHandler.thenSelectList(List.of(depositOrder, refundedOrder), List.of(previousOrder), List.of(weekOrder), List.of(previousOrder));
         orderItemHandler.thenSelectList(List.of(item(3), item(2)), List.of(item(1)));
@@ -89,14 +92,14 @@ class DashboardServiceTest {
         DashboardStatsDTO stats = dashboardService.getStats(defaultWeekQuery());
 
         assertEquals(2L, stats.getPeriodOrders());
-        assertEquals(new BigDecimal("250.00"), stats.getPeriodSales());
-        assertEquals(new BigDecimal("80.00"), stats.getPeriodGrossProfit());
+        assertEquals(new BigDecimal("220.00"), stats.getPeriodSales());
+        assertEquals(new BigDecimal("50.00"), stats.getPeriodGrossProfit());
         assertEquals(5L, stats.getPeriodSalesQuantity());
         assertEquals(400L, stats.getPeriodSalesQuantityTrend());
         assertEquals(1L, stats.getWeekOrders());
-        assertEquals(new BigDecimal("200.00"), stats.getWeekSales());
-        assertEquals(new BigDecimal("20.00"), stats.getWeekGrossProfit());
-        assertEquals(new BigDecimal("125.00"), stats.getAvgOrderValue());
+        assertEquals(new BigDecimal("190.00"), stats.getWeekSales());
+        assertEquals(new BigDecimal("10.00"), stats.getWeekGrossProfit());
+        assertEquals(new BigDecimal("110.00"), stats.getAvgOrderValue());
     }
 
     @Test

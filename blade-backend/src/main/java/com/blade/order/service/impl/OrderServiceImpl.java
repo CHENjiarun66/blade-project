@@ -6,10 +6,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
 import com.blade.file.service.FileService;
-import com.blade.inventory.dto.InventoryReserveDTO;
 import com.blade.inventory.entity.Warehouse;
 import com.blade.inventory.mapper.WarehouseMapper;
 import com.blade.inventory.service.InventoryService;
+import com.blade.order.dto.AddPaymentDTO;
 import com.blade.order.dto.OrderCreateDTO;
 import com.blade.order.dto.OrderExportDTO;
 import com.blade.order.dto.OrderPageDTO;
@@ -101,11 +101,13 @@ public class OrderServiceImpl implements OrderService {
 
     // 支付状态常量
     private static final int PAYMENT_UNPAID = 0;      // 未付款
-    private static final int PAYMENT_DEPOSIT = 1;      // 已付定金
-    private static final int PAYMENT_FULL = 2;         // 已付全款
+    private static final int PAYMENT_DEPOSIT = 1;     // 部分收款
+    private static final int PAYMENT_FULL = 2;        // 已结清
     private static final String ORDER_TYPE_SPOT = "SPOT";
     private static final String ORDER_TYPE_PREORDER = "PREORDER";
     private static final BigDecimal ZERO = BigDecimal.ZERO;
+    private static final String NET_RECEIVABLE_SQL =
+            "GREATEST(COALESCE(total_amount, 0) - COALESCE(refund_amount, 0) - COALESCE(write_off_amount, 0), 0)";
 
     @Override
     public PageResult<OrderVO> pageList(OrderPageDTO dto) {
@@ -129,9 +131,9 @@ public class OrderServiceImpl implements OrderService {
             wrapper.eq(Order::getOrderType, dto.getOrderType());
         }
         if (Boolean.TRUE.equals(dto.getHasBalance())) {
-            wrapper.apply("paid_amount < total_amount");
+            wrapper.apply("COALESCE(paid_amount, 0) < " + NET_RECEIVABLE_SQL);
         } else if (Boolean.FALSE.equals(dto.getHasBalance())) {
-            wrapper.apply("paid_amount >= total_amount");
+            wrapper.apply("COALESCE(paid_amount, 0) >= " + NET_RECEIVABLE_SQL);
         }
 
         wrapper.orderByDesc(Order::getCreateTime);
@@ -325,11 +327,12 @@ public class OrderServiceImpl implements OrderService {
         if (paid.compareTo(ZERO) < 0) {
             throw new RuntimeException("实收金额不能小于0");
         }
-        if (paid.compareTo(order.getTotalAmount()) > 0) {
-            throw new RuntimeException("实收金额不能超过订单应收总额");
+        BigDecimal netRec = netReceivable(order);
+        if (paid.compareTo(netRec) > 0) {
+            throw new RuntimeException("实收金额不能超过订单应收净额");
         }
         order.setPaidAmount(paid);
-        if (paid.compareTo(order.getTotalAmount()) >= 0 && order.getTotalAmount().compareTo(ZERO) > 0) {
+        if (paid.compareTo(netRec) >= 0 && netRec.compareTo(ZERO) > 0) {
             order.setPaymentStatus(PAYMENT_FULL);
             order.setDepositAmount(ZERO);
         } else if (paid.compareTo(ZERO) > 0) {
@@ -371,6 +374,27 @@ public class OrderServiceImpl implements OrderService {
             return "订货订单";
         }
         return "现货订单";
+    }
+
+    /**
+     * 应收净额 = max(totalAmount - refundAmount - writeOffAmount, 0)
+     */
+    private BigDecimal netReceivable(Order order) {
+        BigDecimal total = safeAmount(order.getTotalAmount());
+        BigDecimal refund = safeAmount(order.getRefundAmount());
+        BigDecimal writeOff = safeAmount(order.getWriteOffAmount());
+        BigDecimal net = total.subtract(refund).subtract(writeOff);
+        return net.compareTo(ZERO) > 0 ? net : ZERO;
+    }
+
+    /**
+     * 尾款 = max(netReceivable - paidAmount, 0)
+     */
+    private BigDecimal balance(Order order) {
+        BigDecimal netRec = netReceivable(order);
+        BigDecimal paid = safeAmount(order.getPaidAmount());
+        BigDecimal bal = netRec.subtract(paid);
+        return bal.compareTo(ZERO) > 0 ? bal : ZERO;
     }
 
     private record OrderTotals(BigDecimal totalAmount, BigDecimal totalCostAmount, BigDecimal grossProfit) {}
@@ -453,8 +477,7 @@ public class OrderServiceImpl implements OrderService {
                 order.setCompleteTime(now);
                 break;
             case STATUS_CANCELLED:
-                // 取消订单：释放预留库存
-                releaseInventory(order);
+                // 取消订单：不涉及库存操作
                 break;
         }
 
@@ -462,11 +485,15 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 订单付款确认：锁定库存
+     * 订单付款确认：只更新订单状态和支付信息，不涉及库存。
      */
     @Transactional
     public void confirmPayment(Long orderId, BigDecimal paidAmount) {
-        Order order = orderMapper.selectById(orderId);
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw new RuntimeException("无法获取当前租户");
+        }
+        Order order = orderMapper.selectByIdForUpdate(orderId, tenantId);
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
@@ -474,29 +501,43 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("订单状态不是待处理，无法确认付款");
         }
 
-        // 锁定库存（跨仓总量预留）
-        reserveInventoryGlobal(order);
-
+        applyPaymentSnapshot(order, paidAmount);
         order.setStatus(STATUS_PAID);
-        order.setPaidAmount(paidAmount);
-        // 根据实收金额同步支付状态
-        if (paidAmount.compareTo(order.getTotalAmount()) >= 0) {
-            order.setPaymentStatus(PAYMENT_FULL);
-        } else if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
-            order.setPaymentStatus(PAYMENT_DEPOSIT);
-        }
         order.setPayTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
     }
 
     /**
-     * 追加收款：在已付款基础上记录额外收款，不改变订单状态
+     * 追加收款（委托到 DTO 重载）。
+     */
+    @Override
+    @Deprecated
+    @Transactional
+    public void addPayment(Long orderId, BigDecimal additionalAmount) {
+        AddPaymentDTO dto = new AddPaymentDTO();
+        dto.setAdditionalAmount(additionalAmount);
+        addPayment(orderId, dto);
+    }
+
+    /**
+     * 追加收款 / 标记结清。
+     * <p>
+     * 使用 tenant-scoped FOR UPDATE 行锁防止并发覆盖。
+     * markAsSettled=true 时：先追加 additionalAmount（可为 0），
+     * 再将当前尾款写入 write_off_amount，reason 必填。
+     * 重复标记结清（尾款已为 0）会拒绝。
      */
     @Override
     @Transactional
-    public void addPayment(Long orderId, BigDecimal additionalAmount) {
-        Order order = orderMapper.selectById(orderId);
+    public void addPayment(Long orderId, AddPaymentDTO dto) {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw new RuntimeException("无法获取当前租户");
+        }
+
+        // Row-lock the order within the current tenant
+        Order order = orderMapper.selectByIdForUpdate(orderId, tenantId);
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
@@ -504,15 +545,56 @@ public class OrderServiceImpl implements OrderService {
                 || order.getStatus() == STATUS_RETURNING || order.getStatus() == STATUS_RETURNED) {
             throw new RuntimeException("该订单当前状态不支持追加收款");
         }
-        if (order.getPaymentStatus() == PAYMENT_FULL) {
-            throw new RuntimeException("订单已付全款，无需追加");
+
+        BigDecimal additionalAmount = safeAmount(dto.getAdditionalAmount());
+        boolean markAsSettled = Boolean.TRUE.equals(dto.getMarkAsSettled());
+
+        // Validation: normal payment must be > 0 unless markAsSettled
+        if (!markAsSettled && additionalAmount.compareTo(ZERO) <= 0) {
+            throw new RuntimeException("追加金额必须大于0");
         }
-        BigDecimal currentPaid = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
-        BigDecimal newPaidAmount = currentPaid.add(additionalAmount);
-        if (newPaidAmount.compareTo(order.getTotalAmount()) > 0) {
-            throw new RuntimeException("追加后金额不能超过订单总额");
+
+        // Validation: markAsSettled requires reason
+        if (markAsSettled && (dto.getWriteOffReason() == null || dto.getWriteOffReason().isBlank())) {
+            throw new RuntimeException("标记结清必须填写原因");
         }
-        applyPaymentSnapshot(order, newPaidAmount);
+
+        // Validation: order must not already be settled (payment_status=2)
+        if (order.getPaymentStatus() != null && order.getPaymentStatus() == PAYMENT_FULL) {
+            throw new RuntimeException("订单已结清，无需追加");
+        }
+
+        BigDecimal netRec = netReceivable(order);
+        BigDecimal currentPaid = safeAmount(order.getPaidAmount());
+        BigDecimal currentBalance = netRec.subtract(currentPaid);
+        if (currentBalance.compareTo(ZERO) <= 0) {
+            throw new RuntimeException("订单已结清，无需追加");
+        }
+
+        // Validation: payment must not exceed net receivable
+        if (additionalAmount.compareTo(currentBalance) > 0) {
+            throw new RuntimeException("追加后金额不能超过应收净额，当前尾款：" + currentBalance);
+        }
+
+        // Apply the additional payment
+        BigDecimal newPaid = currentPaid.add(additionalAmount);
+        order.setPaidAmount(newPaid);
+
+        if (markAsSettled) {
+            // Write remaining balance into write_off_amount
+            BigDecimal remaining = netRec.subtract(newPaid);
+            if (remaining.compareTo(ZERO) <= 0) {
+                throw new RuntimeException("当前已无尾款，无需标记结清");
+            }
+            // Preserve existing write-off and add new remainder
+            BigDecimal existingWriteOff = safeAmount(order.getWriteOffAmount());
+            order.setWriteOffAmount(existingWriteOff.add(remaining));
+            order.setWriteOffReason(dto.getWriteOffReason().trim());
+        }
+
+        // Preserve the existing payment snapshot behavior while applying the unified formula.
+        applyPaymentSnapshot(order, newPaid);
+
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
     }
@@ -541,9 +623,9 @@ public class OrderServiceImpl implements OrderService {
             wrapper.eq(Order::getOrderType, dto.getOrderType());
         }
         if (Boolean.TRUE.equals(dto.getHasBalance())) {
-            wrapper.apply("paid_amount < total_amount");
+            wrapper.apply("COALESCE(paid_amount, 0) < " + NET_RECEIVABLE_SQL);
         } else if (Boolean.FALSE.equals(dto.getHasBalance())) {
-            wrapper.apply("paid_amount >= total_amount");
+            wrapper.apply("COALESCE(paid_amount, 0) >= " + NET_RECEIVABLE_SQL);
         }
 
         wrapper.orderByDesc(Order::getCreateTime);
@@ -609,7 +691,9 @@ public class OrderServiceImpl implements OrderService {
         exportDto.setCustomerPhone(order.getCustomerPhone());
         exportDto.setTotalAmount(order.getTotalAmount());
         exportDto.setPaidAmount(order.getPaidAmount());
-        exportDto.setBalanceAmount(safeAmount(order.getTotalAmount()).subtract(safeAmount(order.getPaidAmount())));
+        exportDto.setWriteOffAmount(order.getWriteOffAmount());
+        exportDto.setWriteOffReason(order.getWriteOffReason());
+        exportDto.setBalanceAmount(balance(order));
         exportDto.setFreightAmount(order.getFreightAmount());
         exportDto.setFreightCost(order.getFreightCost());
         exportDto.setTotalCostAmount(order.getTotalCostAmount());
@@ -620,22 +704,78 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 订单发货：预留转正式出库
-     * 状态流转：READY_TO_SHIP → DELIVERED
+     * Canonical order shipment transaction — the single path that deducts
+     * inventory and advances order status to DELIVERED.
+     * <p>
+     * Row-locks the order with {@code SELECT ... FOR UPDATE} scoped to the
+     * current tenant so concurrent {@code deliverOrder} / {@code confirmDelivery}
+     * calls serialise until commit.
+     * <p>
+     * Idempotent: already DELIVERED or COMPLETED returns success without
+     * touching inventory.  Only READY_TO_SHIP may proceed.
      */
+    @Override
     @Transactional
     public void deliverOrder(Long orderId) {
-        Order order = orderMapper.selectById(orderId);
+        Long tenantId = TenantContext.getTenantId();
+
+        // Row-lock the order within the current tenant
+        Order order = orderMapper.selectByIdForUpdate(orderId, tenantId);
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+
+        // Idempotency: already delivered or completed
+        if (order.getStatus() == STATUS_DELIVERED || order.getStatus() == STATUS_COMPLETED) {
+            return; // no-op success
+        }
+
+        // Only READY_TO_SHIP may proceed
         if (order.getStatus() != STATUS_READY_TO_SHIP) {
             throw new RuntimeException("订单状态不是待发货，无法发货");
         }
 
-        // 使用配货计划出库
-        outInventory(orderId);
+        // Query delivery plans with explicit tenant filter
+        LambdaQueryWrapper<OrderDeliveryPlan> planWrapper = new LambdaQueryWrapper<>();
+        planWrapper.eq(OrderDeliveryPlan::getOrderId, orderId);
+        planWrapper.eq(OrderDeliveryPlan::getTenantId, tenantId);
+        List<OrderDeliveryPlan> plans = deliveryPlanMapper.selectList(planWrapper);
 
+        if (plans.isEmpty()) {
+            throw new RuntimeException("订单没有配货计划，无法发货");
+        }
+
+        // Plans must be in ALLOCATED or OUT state (this version ships whole order)
+        for (OrderDeliveryPlan plan : plans) {
+            if (!OrderDeliveryPlan.Status.ALLOCATED.equals(plan.getStatus())
+                    && !OrderDeliveryPlan.Status.OUT.equals(plan.getStatus())) {
+                throw new RuntimeException("配货计划状态异常，无法发货");
+            }
+        }
+
+        // Deduct inventory for each non-OUT plan; any failure rolls back the
+        // entire transaction (prior inventory/plan/log updates + order state)
+        for (OrderDeliveryPlan plan : plans) {
+            if (OrderDeliveryPlan.Status.OUT.equals(plan.getStatus())) {
+                continue; // already shipped
+            }
+            // null-safe: allocatedQty/outQty must both be present
+            Integer allocatedQty = plan.getAllocatedQty();
+            Integer outQty = plan.getOutQty();
+            if (allocatedQty == null || outQty == null) {
+                throw new RuntimeException(String.format(
+                        "配货计划数据异常: 配货数量或已出库数量为空, planId=%d", plan.getId()));
+            }
+            int toOutQty = allocatedQty - outQty;
+            if (toOutQty <= 0) {
+                throw new RuntimeException(String.format(
+                        "配货计划无待出库数量, planId=%d, allocatedQty=%d, outQty=%d",
+                        plan.getId(), allocatedQty, outQty));
+            }
+            inventoryService.outByPlan(plan.getId(), toOutQty, getCurrentUserId());
+        }
+
+        // Advance order to DELIVERED
         order.setStatus(STATUS_DELIVERED);
         order.setIsDelivered(1);
         order.setDeliveredAt(LocalDateTime.now());
@@ -665,7 +805,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 订单取消：释放预留库存
+     * 订单取消：不涉及库存释放。
      * 可取消状态：CREATED, PAID, ADJUSTMENT_PENDING
      */
     @Transactional
@@ -681,180 +821,10 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("该订单当前状态不支持取消");
         }
 
-        // 仅付款后才有库存预留，创建状态取消无需释放
-        if (order.getStatus() >= STATUS_PAID) {
-            releaseInventoryGlobal(order);
-        }
-
         order.setStatus(STATUS_CANCELLED);
         order.setRemark(order.getRemark() + " [取消原因：" + reason + "]");
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
-    }
-
-    /**
-     * 跨仓总量预留（付款确认时调用）
-     * 不分仓库，直接按SKU总量预留
-     */
-    private void reserveInventoryGlobal(Order order) {
-        LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(OrderItem::getOrderId, order.getId());
-        List<OrderItem> items = orderItemMapper.selectList(wrapper);
-
-        // 按SKU分组，汇总数量
-        java.util.Map<Long, Integer> itemsBySku = items.stream()
-                .collect(java.util.stream.Collectors.groupingBy(
-                        OrderItem::getSkuId,
-                        java.util.stream.Collectors.summingInt(OrderItem::getQuantity)));
-
-        List<InventoryReserveDTO.ReserveItemDTO> reserveItems = itemsBySku.entrySet().stream()
-                .map(entry -> {
-                    InventoryReserveDTO.ReserveItemDTO dto = new InventoryReserveDTO.ReserveItemDTO();
-                    dto.setSkuId(entry.getKey());
-                    dto.setQuantity(entry.getValue());
-                    return dto;
-                })
-                .collect(Collectors.toList());
-
-        InventoryReserveDTO reserveDTO = new InventoryReserveDTO();
-        reserveDTO.setOrderId(order.getId());
-        reserveDTO.setWarehouseId(order.getWarehouseId()); // 用订单的仓库ID（实际不走仓库）
-        reserveDTO.setItems(reserveItems);
-
-        inventoryService.globalReserve(reserveDTO, 1L); // operatorId 默认1
-    }
-
-    /**
-     * 跨仓总量释放（取消订单时调用）
-     */
-    private void releaseInventoryGlobal(Order order) {
-        LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(OrderItem::getOrderId, order.getId());
-        List<OrderItem> items = orderItemMapper.selectList(wrapper);
-
-        // 按SKU分组，汇总数量
-        java.util.Map<Long, Integer> itemsBySku = items.stream()
-                .collect(java.util.stream.Collectors.groupingBy(
-                        OrderItem::getSkuId,
-                        java.util.stream.Collectors.summingInt(OrderItem::getQuantity)));
-
-        List<InventoryReserveDTO.ReserveItemDTO> releaseItems = itemsBySku.entrySet().stream()
-                .map(entry -> {
-                    InventoryReserveDTO.ReserveItemDTO dto = new InventoryReserveDTO.ReserveItemDTO();
-                    dto.setSkuId(entry.getKey());
-                    dto.setQuantity(entry.getValue());
-                    return dto;
-                })
-                .collect(Collectors.toList());
-
-        InventoryReserveDTO releaseDTO = new InventoryReserveDTO();
-        releaseDTO.setOrderId(order.getId());
-        releaseDTO.setWarehouseId(order.getWarehouseId());
-        releaseDTO.setItems(releaseItems);
-
-        inventoryService.globalRelease(releaseDTO, 1L);
-    }
-
-    /**
-     * 预留库存（付款确认时调用）
-     * 按仓库分组，每个仓库单独调用库存服务
-     * @deprecated 使用 {@link #reserveInventoryGlobal(Order)} 跨仓总量预留
-     */
-    private void reserveInventory(Order order) {
-        LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(OrderItem::getOrderId, order.getId());
-        List<OrderItem> items = orderItemMapper.selectList(wrapper);
-
-        // 按仓库ID分组
-        java.util.Map<Long, List<OrderItem>> itemsByWarehouse = items.stream()
-                .collect(java.util.stream.Collectors.groupingBy(item ->
-                        item.getWarehouseId() != null ? item.getWarehouseId() : order.getWarehouseId()));
-
-        // 每个仓库单独处理
-        for (java.util.Map.Entry<Long, List<OrderItem>> entry : itemsByWarehouse.entrySet()) {
-            Long warehouseId = entry.getKey();
-            List<OrderItem> warehouseItems = entry.getValue();
-
-            List<InventoryReserveDTO.ReserveItemDTO> reserveItems = warehouseItems.stream()
-                    .map(item -> {
-                        InventoryReserveDTO.ReserveItemDTO dto = new InventoryReserveDTO.ReserveItemDTO();
-                        dto.setSkuId(item.getSkuId());
-                        dto.setQuantity(item.getQuantity());
-                        return dto;
-                    })
-                    .collect(Collectors.toList());
-
-            InventoryReserveDTO reserveDTO = new InventoryReserveDTO();
-            reserveDTO.setOrderId(order.getId());
-            reserveDTO.setWarehouseId(warehouseId);
-            reserveDTO.setItems(reserveItems);
-
-            inventoryService.reserve(reserveDTO, 1L); // operatorId 默认1
-        }
-    }
-
-    /**
-     * 释放预留库存（取消订单时调用）
-     * 按仓库分组，每个仓库单独调用库存服务
-     */
-    private void releaseInventory(Order order) {
-        LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(OrderItem::getOrderId, order.getId());
-        List<OrderItem> items = orderItemMapper.selectList(wrapper);
-
-        // 按仓库ID分组
-        java.util.Map<Long, List<OrderItem>> itemsByWarehouse = items.stream()
-                .collect(java.util.stream.Collectors.groupingBy(item ->
-                        item.getWarehouseId() != null ? item.getWarehouseId() : order.getWarehouseId()));
-
-        // 每个仓库单独处理
-        for (java.util.Map.Entry<Long, List<OrderItem>> entry : itemsByWarehouse.entrySet()) {
-            Long warehouseId = entry.getKey();
-            List<OrderItem> warehouseItems = entry.getValue();
-
-            List<InventoryReserveDTO.ReserveItemDTO> releaseItems = warehouseItems.stream()
-                    .map(item -> {
-                        InventoryReserveDTO.ReserveItemDTO dto = new InventoryReserveDTO.ReserveItemDTO();
-                        dto.setSkuId(item.getSkuId());
-                        dto.setQuantity(item.getQuantity());
-                        return dto;
-                    })
-                    .collect(Collectors.toList());
-
-            InventoryReserveDTO releaseDTO = new InventoryReserveDTO();
-            releaseDTO.setOrderId(order.getId());
-            releaseDTO.setWarehouseId(warehouseId);
-            releaseDTO.setItems(releaseItems);
-
-            inventoryService.release(releaseDTO, 1L);
-        }
-    }
-
-    /**
-     * 正式出库（发货时调用）
-     * 使用配货计划按序出库
-     */
-    private void outInventory(Long orderId) {
-        // 获取配货计划
-        LambdaQueryWrapper<OrderDeliveryPlan> planWrapper = new LambdaQueryWrapper<>();
-        planWrapper.eq(OrderDeliveryPlan::getOrderId, orderId);
-        List<OrderDeliveryPlan> plans = deliveryPlanMapper.selectList(planWrapper);
-
-        if (plans.isEmpty()) {
-            throw new RuntimeException("订单没有配货计划，无法发货");
-        }
-
-        // 按配货计划逐一出库
-        for (OrderDeliveryPlan plan : plans) {
-            if (plan.getStatus() == OrderDeliveryPlan.Status.OUT) {
-                continue; // 已出库，跳过
-            }
-            // 校验：已分配数量 - 已出库数量 = 本次应出库数量
-            int toOutQty = plan.getAllocatedQty() - plan.getOutQty();
-            if (toOutQty > 0) {
-                inventoryService.outByPlan(plan.getId(), toOutQty, getCurrentUserId());
-            }
-        }
     }
 
     @Override
@@ -876,7 +846,9 @@ public class OrderServiceImpl implements OrderService {
         vo.setStatusName(getStatusName(order.getStatus()));
         vo.setPaymentStatusName(getPaymentStatusName(order.getPaymentStatus()));
         vo.setOrderTypeName(getOrderTypeName(order.getOrderType()));
-        vo.setBalanceAmount(safeAmount(order.getTotalAmount()).subtract(safeAmount(order.getPaidAmount())));
+        vo.setWriteOffAmount(order.getWriteOffAmount());
+        vo.setWriteOffReason(order.getWriteOffReason());
+        vo.setBalanceAmount(balance(order));
 
         // 设置销售人员名称（优先使用存储的冗余字段，避免跨租户查询）
         if (order.getSalesmanName() != null && !order.getSalesmanName().isEmpty()) {
@@ -1002,8 +974,8 @@ public class OrderServiceImpl implements OrderService {
         if (paymentStatus == null) return "";
         switch (paymentStatus) {
             case 0: return "未付款";
-            case 1: return "已付定金";
-            case 2: return "已付全款";
+            case 1: return "部分收款";
+            case 2: return "已结清";
             default: return "未知";
         }
     }

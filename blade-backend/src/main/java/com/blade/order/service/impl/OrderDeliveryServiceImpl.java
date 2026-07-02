@@ -23,9 +23,7 @@ import com.blade.product.mapper.ProductSizeMapper;
 import com.blade.product.mapper.ProductSkuMapper;
 import com.blade.inventory.entity.Warehouse;
 import com.blade.inventory.mapper.WarehouseMapper;
-import com.blade.inventory.service.InventoryService;
-import com.blade.inventory.dto.InventoryOutDTO;
-import com.blade.inventory.dto.InventoryOutItemDTO;
+import com.blade.order.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +46,7 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
     private final ProductColorMapper productColorMapper;
     private final ProductSizeMapper productSizeMapper;
     private final ProductMapper productMapper;
-    private final InventoryService inventoryService;
+    private final OrderService orderService;
 
     @Autowired
     public OrderDeliveryServiceImpl(OrderDeliveryMapper deliveryMapper,
@@ -60,7 +58,7 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
                                    ProductColorMapper productColorMapper,
                                    ProductSizeMapper productSizeMapper,
                                    ProductMapper productMapper,
-                                   InventoryService inventoryService) {
+                                   OrderService orderService) {
         this.deliveryMapper = deliveryMapper;
         this.deliveryItemMapper = deliveryItemMapper;
         this.orderMapper = orderMapper;
@@ -70,7 +68,7 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         this.productColorMapper = productColorMapper;
         this.productSizeMapper = productSizeMapper;
         this.productMapper = productMapper;
-        this.inventoryService = inventoryService;
+        this.orderService = orderService;
     }
 
     @Override
@@ -171,60 +169,34 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
     @Override
     @Transactional
     public void confirmDelivery(Long deliveryId) {
-        OrderDelivery delivery = deliveryMapper.selectById(deliveryId);
+        Long tenantId = TenantContext.getTenantId();
+
+        // Load tenant-owned delivery
+        LambdaQueryWrapper<OrderDelivery> qw = new LambdaQueryWrapper<>();
+        qw.eq(OrderDelivery::getId, deliveryId);
+        qw.eq(OrderDelivery::getTenantId, tenantId);
+        OrderDelivery delivery = deliveryMapper.selectOne(qw);
         if (delivery == null) {
             throw new RuntimeException("出库单不存在");
         }
 
+        // Status 2: idempotent success (already shipped)
         if (delivery.getStatus() == 2) {
-            throw new RuntimeException("该出库单已发货");
+            return; // no-op
         }
 
+        // Status 3: rejected
         if (delivery.getStatus() == 3) {
             throw new RuntimeException("该出库单已取消");
         }
 
-        // 调用库存服务扣减库存（按仓库维度）
-        List<InventoryOutItemDTO> outItems = new ArrayList<>();
-        for (OrderDeliveryItem item : deliveryItemMapper.selectList(
-                new LambdaQueryWrapper<OrderDeliveryItem>().eq(OrderDeliveryItem::getDeliveryId, deliveryId))) {
-            InventoryOutItemDTO outItem = new InventoryOutItemDTO();
-            outItem.setSkuId(item.getSkuId());
-            outItem.setQuantity(item.getQuantity());
-            outItems.add(outItem);
-        }
+        // Delegate to the canonical shipment transaction (same REQUIRED txn)
+        orderService.deliverOrder(delivery.getOrderId());
 
-        InventoryOutDTO outDTO = new InventoryOutDTO();
-        outDTO.setOrderId(delivery.getOrderId());
-        outDTO.setWarehouseId(delivery.getWarehouseId());
-        outDTO.setSource("ORDER");
-        outDTO.setItems(outItems);
-        inventoryService.out(outDTO, 1L);
-
-        // 更新出库单状态
-        delivery.setStatus(2); // 已出库
+        // Mark legacy delivery status 2 only after canonical shipment succeeds
+        delivery.setStatus(2);
         delivery.setDeliverTime(LocalDateTime.now());
         deliveryMapper.updateById(delivery);
-
-        // 检查是否所有出库单都已发货，更新订单状态
-        checkOrderDeliveryStatus(delivery.getOrderId());
-    }
-
-    private void checkOrderDeliveryStatus(Long orderId) {
-        LambdaQueryWrapper<OrderDelivery> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(OrderDelivery::getOrderId, orderId);
-        wrapper.ne(OrderDelivery::getStatus, 2); // 未完成的出库单
-        long pendingCount = deliveryMapper.selectCount(wrapper);
-
-        if (pendingCount == 0) {
-            // 所有出库单都已发货，更新订单状态为已发货
-            Order order = orderMapper.selectById(orderId);
-            if (order != null && order.getStatus() == 1) { // 只有已确认的订单才能更新为已发货
-                order.setStatus(2); // 已发货
-                order.setDeliverTime(LocalDateTime.now());
-                orderMapper.updateById(order);
-            }
-        }
     }
 
     private String generateDeliveryNo() {

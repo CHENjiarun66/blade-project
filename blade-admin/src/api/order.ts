@@ -52,6 +52,8 @@ export interface OrderVO {
   paymentStatus: number
   paymentStatusName: string
   paymentStatusText?: string
+  writeOffAmount?: number
+  writeOffReason?: string
   adjustmentStatus: string  // NONE / PENDING / APPROVED / COMPLETED
   needDelivery: number
   deliveryAddress: string
@@ -179,8 +181,13 @@ export function deleteOrder(id: number) {
 }
 
 // 追加收款
-export function addPayment(orderId: number, additionalAmount: number) {
-  return client.post(`/orders/${orderId}/add-payment`, { additionalAmount }) as any
+export interface AddPaymentDTO {
+  additionalAmount: number
+  markAsSettled?: boolean
+  writeOffReason?: string
+}
+export function addPayment(orderId: number, data: AddPaymentDTO) {
+  return client.post(`/orders/${orderId}/add-payment`, data) as any
 }
 
 // ============ 出库单相关 ============

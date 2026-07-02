@@ -66,8 +66,8 @@
         <el-select v-model="paymentStatusFilter" placeholder="全部" class="order-select">
           <el-option label="全部" :value="null" />
           <el-option label="未付款" :value="0" />
-          <el-option label="已付定金" :value="1" />
-          <el-option label="已付全款" :value="2" />
+          <el-option label="部分收款" :value="1" />
+          <el-option label="已结清" :value="2" />
         </el-select>
       </div>
 
@@ -168,8 +168,8 @@
 
           <el-table-column label="尾款" min-width="100" align="right">
             <template #default="{ row }">
-              <span :class="Number(row.balanceAmount ?? row.totalAmount - row.paidAmount) > 0 ? 'text-red-600 font-bold text-sm' : 'text-emerald-600 font-bold text-sm'">
-                {{ formatMoney(row.balanceAmount ?? row.totalAmount - row.paidAmount) }}
+              <span :class="Number(row.balanceAmount ?? 0) > 0 ? 'text-red-600 font-bold text-sm' : 'text-emerald-600 font-bold text-sm'">
+                {{ formatMoney(row.balanceAmount ?? 0) }}
               </span>
             </template>
           </el-table-column>
@@ -692,8 +692,8 @@ function getOrderStatusDotClass(status: number): string {
 function getPaymentStatusName(status: number): string {
   const nameMap: Record<number, string> = {
     0: '未付款',
-    1: '已付定金',
-    2: '已付全款'
+    1: '部分收款',
+    2: '已结清'
   }
   return nameMap[status] || '未知'
 }

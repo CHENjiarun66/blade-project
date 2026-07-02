@@ -25,13 +25,13 @@ public class OrderPageDTO {
     @Schema(description = "订单状态: 0创建/1已付款/2配货中/3待发货/4已发货/5已完成/6已取消/7退货中/8已退货")
     private Integer status;
 
-    @Schema(description = "支付状态: 0未付款/1已付定金/2已付全款")
+    @Schema(description = "支付状态: 0未付款/1部分收款/2已结清")
     private Integer paymentStatus;
 
     @Schema(description = "订单类型：SPOT现货/PREORDER订货")
     private String orderType;
 
-    @Schema(description = "是否欠款：true=paid_amount < total_amount")
+    @Schema(description = "是否欠款：true=paid_amount < max(total_amount - refund_amount - write_off_amount, 0)")
     private Boolean hasBalance;
 
     public Long getCurrent() { return current; }
