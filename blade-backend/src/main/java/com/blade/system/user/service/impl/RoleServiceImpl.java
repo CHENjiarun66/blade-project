@@ -142,6 +142,10 @@ public class RoleServiceImpl implements RoleService {
         if (role == null) {
             throw new RuntimeException("角色不存在");
         }
+        Long activeUsers = roleMapper.countActiveUsersByRoleId(id);
+        if (activeUsers != null && activeUsers > 0) {
+            throw new RuntimeException("该角色已分配给 " + activeUsers + " 个用户，请先移除用户与角色的关联后再删除");
+        }
         role.setDeleted(1);
         roleMapper.updateById(role);
     }

@@ -48,6 +48,10 @@ public class UserServiceImpl implements UserService {
         if (dto.getNickname() != null && !dto.getNickname().isEmpty()) {
             wrapper.like(User::getNickname, dto.getNickname());
         }
+        if (dto.getKeyword() != null && !dto.getKeyword().isEmpty()) {
+            wrapper.and(w -> w.like(User::getUsername, dto.getKeyword())
+                    .or().like(User::getNickname, dto.getKeyword()));
+        }
         if (dto.getPhone() != null && !dto.getPhone().isEmpty()) {
             wrapper.eq(User::getPhone, dto.getPhone());
         }

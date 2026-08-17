@@ -28,6 +28,9 @@ public class UserPageDTO {
     @Schema(description = "状态: 1启用 0禁用")
     private Integer status;
 
+    @Schema(description = "关键字（同时匹配用户名/昵称）")
+    private String keyword;
+
     public Long getCurrent() { return current; }
     public void setCurrent(Long current) { this.current = current; }
     public Long getSize() { return size; }
@@ -40,4 +43,6 @@ public class UserPageDTO {
     public void setPhone(String phone) { this.phone = phone; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+    public String getKeyword() { return keyword; }
+    public void setKeyword(String keyword) { this.keyword = keyword; }
 }

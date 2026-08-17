@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-08-18 变更记录
+
+### [验收] - BA-701~BA-703 权限页面最终验收与修复
+
+**变更内容**：
+- 对系统管理页用户管理/角色管理/权限配置三个 Tab 做最终验收，前后端接口逐项核对（用户 6 个接口、角色 7 个接口、权限 8 个接口全部对齐）。
+- 修复用户搜索不生效：前端 `getUserPage` 传 `keyword`，后端 `UserPageDTO` 原本只有 `username/nickname/phone/status`，keyword 被忽略；新增 `keyword` 字段，`pageList` 中 keyword 同时匹配用户名/昵称（`UserPageDTO.java`、`UserServiceImpl.java`）。
+- 修复 ROLE_OWNER 缺 API 权限：V15 只给 ROLE_ADMIN 分配了 type=4 的 API 权限，ROLE_OWNER 拥有全部菜单/按钮权限但调用用户/角色/权限管理接口会 403；新增 V41 迁移 `V41__owner_api_permissions.sql` 为 ROLE_OWNER 补齐全部 type=4 API 权限（与 ROLE_ADMIN 对齐，11 项）。
+- 角色删除加引用保护：`RoleServiceImpl.delete` 删除前统计 `sys_user_role` 有效关联数，有用户引用时拒绝删除（`RoleMapper.countActiveUsersByRoleId`）。
+- 权限删除加子权限保护：`PermissionServiceImpl.delete` 删除前检查子权限，存在子权限时拒绝，避免权限树出现悬空子节点。
+- 前端修复分配权限勾选残留：el-tree 的 `default-checked-keys` 只在首次渲染生效，二次打开同一对话框时勾选残留上一角色状态；`pendingRoleId` 死代码从未赋值。改为 `openRoleDialog('permission')` 时正确设置 `pendingRoleId`，打开对话框后 `nextTick` + `setCheckedKeys` 重新应用当前角色勾选（`blade-admin/src/views/system/index.vue`）。
+- 前端修复分配权限半选父节点丢失：后端 `assignPermissions` 是先删后插的覆盖式保存，原 `submitRolePermissions` 只用 `getCheckedKeys()`（不含半选父节点），导致部分勾选时父权限被覆盖删除；改为合并 `getCheckedKeys()` + `getHalfCheckedKeys()` 提交。
+- 新增 Playwright 冒烟测试 `blade-admin/e2e-system-acceptance.spec.ts`：覆盖登录、进入系统管理、用户搜索、角色列表、分配权限对话框勾选加载/二次打开、权限树渲染与删除保护提示。
+
+**变更原因**：
+- 任务清单中 BA-701~703 长期处于"部分完成"状态，本次按 SESSION_CONTEXT 下一步计划执行最终验收并收口；验收过程中发现上述真实缺陷一并修复。
+
+**影响范围**：
+- 后端：`UserPageDTO.java`、`UserServiceImpl.java`、`RoleMapper.java`、`RoleServiceImpl.java`、`PermissionServiceImpl.java`、新增迁移 `V41__owner_api_permissions.sql`
+- 前端：`blade-admin/src/views/system/index.vue`、新增 `blade-admin/e2e-system-acceptance.spec.ts`
+- 数据库：新增 V41（为 ROLE_OWNER 补齐 API 权限关联，仅权限数据，无表结构变更）
+
+**验证结果**：
+- `cd blade-backend && mvn test`：Tests run 383, Failures 0, Errors 0, Skipped 0（BUILD SUCCESS）。
+- `cd blade-admin && npm run build`：构建成功，无 TypeScript 错误。
+- Flyway：V41 已在本地 `blade_project` 库成功执行（`flyway_schema_history` version=41 success=1）；`ROLE_OWNER` API 权限数 = 11（与 ROLE_ADMIN 一致）。
+- curl 验证：删除有子权限的权限返回 `400 该权限下存在 14 个子权限，请先删除或移动子权限`；删除被用户引用的角色返回 `400 该角色已分配给 1 个用户`；用户 `keyword=admin` 搜索返回 total=1，`keyword=不存在` 返回 total=0；合并提交 `permissionIds=[2,11,12]` 重查返回 `[2, 11, 12]` 完整保留。
+- Playwright `e2e-system-acceptance.spec.ts`：1 passed（角色列表 7 行、分配权限弹窗勾选 29 节点、权限树 29 节点、删除保护提示正常）。
+- 测试角色 ROLE_ACCEPT_TEST（id=7）验收后已删除。
+
+**执行人**：DeepSeek（DSH）
+
+---
+
 ## 2026-08-17 变更记录
 
 ### [发布] - 订单列表筛选确认按钮上线 NAS 生产
