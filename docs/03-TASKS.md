@@ -445,6 +445,10 @@
 | BA-1026 | Catalog 图片滑动切换 | ✅ 完成 | 详情轮播和全屏大图支持左右滑动切图；增加跟手滑动与 220ms 相册式过渡；保留按钮/缩略图；仅拦截单指双击页面放大，保留两指缩放；横竖屏切换后恢复正常视口 |
 | BA-1027 | Catalog 手机竖屏版 | ✅ 完成 | iPhone 14 Pro 竖屏断点；保持 iPad quiet luxury 风格；两列商品卡片、底部详情抽屉、全屏大图；手机版横屏显示切回竖屏提示，不提供横屏浏览布局 |
 | BA-1028 | Catalog 派生图加载优化 | ✅ 完成 | Catalog 商品卡片和详情主轮播使用 card，详情胶片条使用 thumb，全屏大图使用原图；IndexedDB 缓存键按 original/thumb/card 隔离并兼容旧 file:{id} 原图缓存；Playwright 回归覆盖三层请求 |
+| BA-1029 | Catalog 双指缩放卡顿修复 | ✅ 完成 | 移除 `visualViewport.resize` 上的滚动重置，避免 pinch zoom 期间高频触发 `window.scrollTo(0,0)` 导致画面跳跃；横竖屏变化仍通过 `orientationchange` 做一次视口恢复；新增 Playwright 回归 |
+| BA-1030 | Catalog 图片集合边界修复 | ✅ 完成 | 首页卡片只展示商品主图；点击商品图片/详情大图优先展示商品图集 `imageUrls`，无图集时才回退主图；商品图集过滤与主图重复的图片；SKU 图片不混入商品大图集合，保留给后续 SKU 图集详情使用 |
+| BA-1031 | Catalog iPad 搜索框触控修复 | ✅ 完成 | 搜索框触摸时同步 focus 原生输入框；搜索输入区域覆盖页面级 `user-select:none`，恢复 `user-select:text` 与 `touch-action:manipulation`，避免 iPad 点击搜索框不弹键盘 |
+| BA-1032 | Catalog iPad 竖屏全屏大图裁剪修复 | ✅ 完成 | 全屏 viewer 外层只负责裁剪，slide 内部负责图片边距；避免 iPad 竖屏下相邻图片从左右 padding 区域露出；新增 Playwright 回归验证 active slide 两侧 slide 均在视口外 |
 
 ---
 

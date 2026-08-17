@@ -8,31 +8,32 @@
 
 ## 2026-08-17 变更记录
 
-### [新增] - 项目状态看板（自动生成 STATUS.md + HTML）
+### [验证] - Catalog iPad 展示页修复收口复验
 
 **变更内容**：
-- 新增 [scripts/gen-status.mjs](../scripts/gen-status.mjs)：自动解析 `docs/03-TASKS.md` 任务表格（ID/任务名/状态/备注），按模块（后端/PC 管理端/移动端）统计完成度，生成两个产物：
-  - `docs/STATUS.md`（提交入库）：紧凑状态摘要——模块进度条、正在做、还没做、部分完成、最近完成
-  - `outputs/status.html`（本地生成）：可视化看板——模块进度条卡片、进行中/待办/部分/已完成分区、关键词搜索、状态筛选，浏览器双击打开
-- 运行方式：`node scripts/gen-status.mjs`（Node 22；当前机器 node 不在默认 PATH 时用 `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH"`）
-- 解析覆盖验证：三个任务模块表格行 245 项全部解析（0 丢失），模块进度：后端 89%（132 完成）、PC 管理端 93%（66 完成）、移动端 56%（14 完成）
-- [AGENTS.md](../AGENTS.md) 与 [CLAUDE.md](../CLAUDE.md) 新增「规则 8：交接必须刷新状态看板」，快速开始必读顺序加入 STATUS.md（第 2 位）；[AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) 收工仪式新增第 0 步（刷新看板）
-- [01-README.md](./01-README.md) 与 [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) 索引新增状态总览入口
+- 对 `feature/catalog-pinch-zoom-smooth` 分支上的 Catalog 修复进行收口复验，覆盖双指缩放、商品/图集/SKU 图片边界、iPad 搜索框触控聚焦和竖屏全屏大图裁剪。
+- 刷新自动状态看板 `docs/STATUS.md` 与 `outputs/status.html`。
 
 **变更原因**：
-- 项目任务多、并行进行中多，TASKS.md 长表格无法一眼看清"做了什么/正在做什么/没做什么"；需要零手工维护的自动状态总览，人看 HTML 可视化、AI 看 STATUS.md 紧凑摘要。
+- 项目间隔较久后重新接手，需要把最近未提交的 Catalog 修复形成可追溯的验证节点，避免后续集成时无法判断当前分支是否稳定。
 
 **影响范围**：
-- `scripts/gen-status.mjs`（新增）
-- `docs/STATUS.md`（新增，自动生成）
-- `outputs/status.html`（新增，本地生成，不入库）
-- `AGENTS.md`、`CLAUDE.md`、`docs/01-README.md`、`docs/SESSION_CONTEXT.md`、`docs/reference/AGENT_COLLABORATION.md`、`docs/05-CHANGELOG.md`
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+- `docs/STATUS.md`
+- `outputs/status.html`
 
 **验证结果**：
-- `node scripts/gen-status.mjs` 运行成功，生成 245 项任务统计（212 完成 / 29 待办 / 4 部分），与 TASKS.md 三个任务模块表格行数 245 完全一致（0 丢失）。
-- `outputs/status.html` 生成完整（113KB，含搜索/筛选脚本）。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list`：通过，9/9。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build`：通过；仍有既有大 chunk 警告。
+- Playwright mock 渲染验证 `http://localhost:5777/catalog`：iPad 竖屏 820x1180 下页面标题正确、商品卡片 8 个、详情抽屉可见、全屏大图可见、无 console error/warn、无框架错误覆盖层；稳定截图确认竖屏全屏大图未露出相邻图片。
+- 本轮未完成真实后端联调：本机 `3306` 存在 MySQL 响应但 `root/root123` 登录失败，Docker `blade-mysql` 因端口占用无法启动；需后续单独核对本机 MySQL 凭证或释放端口后再做真实数据联调。
 
-**执行人**：DeepSeek（dsh）
+**执行人**：Codex
+
+---
 
 ### [新增] - 双 Agent（Codex + DeepSeek）联合开发协作规范
 
@@ -54,6 +55,118 @@
 - 文档类变更，无代码运行验证；已交叉核对 AGENTS.md / CLAUDE.md / 各索引文档内容一致，链接路径有效。
 
 **执行人**：DeepSeek（dsh）
+
+---
+
+## 2026-07-06 变更记录
+
+### [修复] - Catalog iPad 竖屏全屏大图露出相邻图片
+
+**变更内容**：
+- 调整 Catalog 全屏图片 viewer 的裁剪结构：`.fs-image-wrap` 不再承担图片左右/上下边距，只保留 100% 宽高和 `overflow: hidden` 裁剪职责。
+- 将全屏图片边距移动到 `.fs-image-slide`，每个 slide 独立负责图片居中和安全边距。
+- 手机断点同步改为 slide 内部 padding，避免恢复旧的 padding-box 裁剪问题。
+- 新增 Playwright 回归：iPad 竖屏 820 × 1180 下打开第 2 张全屏图，上一张 slide 右边界必须在 0，下一张 slide 左边界必须在视口宽度外。
+
+**变更原因**：
+- 旧结构把 `padding: 70px 100px 124px` 放在裁剪容器 `.fs-image-wrap` 上；CSS overflow 会按 padding box 裁剪，导致 iPad 竖屏下相邻 slide 可从左右 padding 区域露出。
+- 横屏下图片更宽、视觉上不明显；竖屏下中间图较窄，左右相邻图露出更明显。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list --grep "clips adjacent"` 通过，1/1。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，9/9。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仍有既有大 chunk 警告。
+
+**执行人**：Codex
+
+---
+
+### [修复] - Catalog iPad 搜索框键盘唤起
+
+**变更内容**：
+- Catalog 搜索框外层增加 `touchstart` 处理，在 iPad 触摸搜索框时同步调用 Element Plus 输入框 `focus()`。
+- 搜索框、输入框 wrapper 和原生 input 覆盖页面级 `user-select: none`，恢复 `user-select: text` / `-webkit-user-select: text`。
+- 搜索输入区域设置 `touch-action: manipulation`，降低 iOS Safari 对触控输入区域的手势歧义。
+- 新增 Playwright 回归：iPad 视口下触发搜索框 `touchstart` 后，原生 `.el-input__inner` 必须获得焦点，并且 `user-select` 为 `text`。
+
+**变更原因**：
+- Catalog 根节点为了展示页防误触设置了 `user-select: none`；在 iPad Safari/PWA 中，搜索框外层触摸再由组件间接聚焦时容易无法唤起软键盘。
+- 搜索框属于明确的文本输入区域，应从展示页的防选择策略中排除，并在触摸手势内同步聚焦。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list --grep "search input focuses"` 通过，1/1。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，8/8。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仍有既有大 chunk 警告。
+
+**执行人**：Codex
+
+---
+
+### [修复] - Catalog 商品图集与 SKU 图集边界
+
+**变更内容**：
+- Catalog 首页商品卡片继续只展示 `mainImageUrl` 商品主图。
+- 点击首页图片、点击详情轮播进入全屏时，优先展示商品图集 `imageUrls`，不再把 `mainImageUrl` 混入大图集合。
+- 当商品图集为空时，商品大图才回退展示主图，避免无图集商品无法查看图片。
+- 商品图集会过滤与主图重复的图片，避免同一张图片在大图模式重复出现。
+- SKU 图片不再混入商品详情轮播和商品大图集合，边界保留给后续 SKU 图集详情使用。
+- 更新 Catalog Playwright 用例，覆盖商品图集不包含重复主图、SKU 图不进入商品大图集合、card/thumb/original 三层请求仍正确。
+
+**变更原因**：
+- 用户反馈当前大图展示为“主图 + 图集”，如果主图也在图集内会重复；同时 SKU 图片应属于 SKU 详情图集，不应混入商品级大图。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list --grep "intended layers|duplicated main"` 通过，2/2。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，7/7。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仍有既有大 chunk 警告。
+
+**执行人**：Codex
+
+---
+
+### [修复] - Catalog 双指缩放跳跃卡顿
+
+**变更内容**：
+- 移除 Catalog 页面 `visualViewport.resize` 到滚动重置函数的绑定。
+- 保留 `orientationchange` 后的一次性滚动恢复，用于横竖屏切换后的视口归位。
+- `resetViewportScale()` 重命名为 `resetViewportAfterOrientationChange()`，明确该函数只服务横竖屏切换，不服务双指缩放。
+- 新增 Playwright 回归：模拟 `visualViewport.resize` 时不允许触发 `window.scrollTo`。
+
+**变更原因**：
+- 移动端双指放大/缩小时，浏览器会连续触发 `visualViewport.resize`。
+- 旧实现每次 `visualViewport.resize` 都调用 `window.scrollTo(0, 0)`，与用户 pinch zoom 手势抢控制权，导致画面跳跃和卡顿。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 新增回归在修复前失败：模拟 `visualViewport.resize` 后 `window.scrollTo` 被调用 1 次。
+- 修复后新增回归通过。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，6/6。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仍有既有大 chunk 警告。
+
+**执行人**：Codex
 
 ---
 
