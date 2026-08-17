@@ -8,6 +8,40 @@
 
 ## 2026-08-17 变更记录
 
+### [发布] - 订单列表筛选确认按钮上线 NAS 生产
+
+**变更内容**：
+- 将 `release/2026-08-17-order-filter-confirm` 合并到 `master`，并推送 GitHub。
+- 使用 NAS 日常发布脚本执行正式上线：`deploy/nas/deploy_app_from_local.sh --execute`。
+- 发布脚本自动从局域网 `192.168.1.10` 切换到 WireGuard `10.13.13.1`，Release id 为 `20260817_165852`。
+- 发布脚本创建生产库备份后，只重启 `blade-backend` 与 `blade-web`，未重启 MySQL/Redis，未覆盖 `/volume2/blade/mysql`、`/volume2/blade/uploads`、`.env.prod`。
+- 本次无 Flyway migration，无数据库结构变更。
+
+**变更原因**：
+- 订单列表筛选区已补齐“确认筛选”按钮、日期范围筛选和关键字匹配口径，用户本地验收反馈“没啥问题”，需要按规范发布到 NAS 生产环境。
+
+**影响范围**：
+- `master` 分支
+- NAS 生产容器：`blade-backend`、`blade-web`
+- 备份文件：`/volume2/blade/db-backups/pre_app_deploy_20260817_165852.sql`
+
+**验证结果**：
+- `cd blade-admin && npm run build`：develop/release 验证通过；发布脚本正式构建通过。
+- `cd blade-backend && mvn -q -DskipTests compile`：develop/release 验证通过。
+- `deploy/nas/deploy_app_from_local.sh`：dry-run 通过，确认只更新应用镜像和 backend/web。
+- `git push origin develop`：成功，`develop` 推送到 `9ab7f1c`。
+- `git push origin release/2026-08-17-order-filter-confirm`：成功。
+- `git push origin master`：成功，`master` 推送到 `c79e5d8`。
+- `deploy/nas/deploy_app_from_local.sh --execute`：成功；使用 `10.13.13.1` 连接 NAS；Docker 镜像架构均为 `linux/amd64`；生产库备份 `pre_app_deploy_20260817_165852.sql` 大小 448K。
+- NAS 容器验收：`blade-mysql`、`blade-redis`、`blade-backend`、`blade-web` 均为 Up；`blade-web` 暴露 `0.0.0.0:8899->443/tcp`。
+- `curl -k -I https://10.13.13.1:8899/orders`：返回 `HTTP/1.1 200 OK`。
+- `curl -k -I https://10.13.13.1:8899/catalog`：返回 `HTTP/1.1 200 OK`。
+- NAS 后端日志：生产库 `blade_project_prod` 当前 Flyway 版本 V40；`Started BladeApplication`。
+
+**执行人**：Codex
+
+---
+
 ### [功能优化] - 订单列表筛选确认按钮
 
 **变更内容**：
