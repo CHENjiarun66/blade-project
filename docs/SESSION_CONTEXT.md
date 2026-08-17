@@ -12,7 +12,7 @@
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
 | 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传和文件中心底座已完成；图片派生图第一版 BE-1012、BA-1007、BA-1028 已完成，PC 与 Catalog 已按 thumb/card/original 分层加载；客户 iPad Catalog 现货选款页第一版已完成；移动端继续开发中 |
-| 下一步 | Catalog iPad 展示页最近一轮修复已完成专项收口：双指缩放、商品/图集/SKU 图片边界、iPad 搜索框触控聚焦、竖屏全屏大图裁剪均已通过专项 E2E 与 mock 渲染验证；下一步建议先提交并推送 `feature/catalog-pinch-zoom-smooth`，再进入 `develop` 集成。订单库存软解耦生产口径已完成本地收口，后续 release 仍需按发布规范做生产备份和 NAS 发布预检。部分发货、分批发货和缺货退款继续排除。 |
+| 下一步 | Catalog iPad 展示页最近一轮修复已完成专项收口，并已补齐当前分支后端 Controller 测试认证基线：`CatalogControllerTest`、`ProductControllerTest`、`OrderControllerTest` 均使用实际种子租户 `test_tenant`。Docker MySQL 开发库已迁移到 V40；后端全量 383/383、Catalog E2E 9/9、PC build 与真实 `/catalog` 冒烟均通过。下一步建议将 `feature/catalog-pinch-zoom-smooth` 合入 `develop` 做集成，再准备 release/NAS 发布预检。部分发货、分批发货和缺货退款继续排除。 |
 
 ---
 
@@ -42,7 +42,7 @@
 | NAS 运维手册 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
 | Git 分支/发布规范 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
 
-> 2026-08-17 接手复验备注：本机 `3306` 当前已有 MySQL 响应但 `root/root123` 登录失败，Docker `blade-mysql` 因端口占用无法启动；Catalog 专项 E2E 与 mock 渲染验证不依赖真实后端，已通过。后续真实数据联调前需先核对本机 MySQL 凭证或释放 `3306` 后启动 Docker MySQL。
+> 2026-08-17 接手复验备注：本机 MySQL 已停止，Docker `blade-mysql` 已成功占用 `3306`；`blade_project` 开发库启动后由 Flyway 从 V38 迁移到 V40。`test_tenant/admin/admin123` 可登录，真实 Catalog API 返回 `code=200,total=1119`；真实前端 `/catalog` iPad 竖屏冒烟通过。
 
 ---
 

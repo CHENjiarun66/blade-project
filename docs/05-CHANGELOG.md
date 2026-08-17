@@ -8,6 +8,37 @@
 
 ## 2026-08-17 变更记录
 
+### [修复] - 后端 Controller 测试认证租户基线对齐
+
+**变更内容**：
+- 将 `CatalogControllerTest`、`ProductControllerTest`、`OrderControllerTest` 的登录租户从不存在于当前开发库的 `super_admin` 改为实际种子租户 `test_tenant`。
+- 启动 Docker MySQL `blade-mysql` 后，后端启动时 Flyway 已将开发库 `blade_project` 从 V38 自动迁移到 V40。
+- 启动本地后端 `http://localhost:8080` 与前端 `http://localhost:5777`，完成测试与真实服务冒烟。
+
+**变更原因**：
+- 当前 `feature/catalog-pinch-zoom-smooth` 分支缺少之前测试认证基线修复，导致后端全量测试在登录阶段找不到 `super_admin` 租户，token 为空后引发 Catalog/Product/Order Controller 相关用例 403。
+- 当前开发库真实存在并授权完整的测试租户为 `test_tenant`，应以该租户作为 Controller 集成测试登录基线。
+
+**影响范围**：
+- `blade-backend/src/test/java/com/blade/catalog/CatalogControllerTest.java`
+- `blade-backend/src/test/java/com/blade/product/ProductControllerTest.java`
+- `blade-backend/src/test/java/com/blade/order/OrderControllerTest.java`
+- `docs/05-CHANGELOG.md`
+- `docs/SESSION_CONTEXT.md`
+
+**验证结果**：
+- `docker start blade-mysql`：成功；`blade_project` 和 `blade_project_prod` 均可通过 `root/root123` 访问。
+- `cd blade-backend && BLADE_DB_URL='jdbc:mysql://localhost:3306/blade_project?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true' BLADE_DB_USERNAME=root BLADE_DB_PASSWORD=root123 mvn spring-boot:run`：启动成功；Flyway validated 42 migrations，开发库从 V38 迁移到 V40。
+- `cd blade-backend && BLADE_DB_URL='jdbc:mysql://localhost:3306/blade_project?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true' BLADE_DB_USERNAME=root BLADE_DB_PASSWORD=root123 mvn -Dtest=CatalogControllerTest,ProductControllerTest,OrderControllerTest test`：通过，55/55。
+- `cd blade-backend && BLADE_DB_URL='jdbc:mysql://localhost:3306/blade_project?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true' BLADE_DB_USERNAME=root BLADE_DB_PASSWORD=root123 mvn test`：通过，383/383。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list`：通过，9/9。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build`：通过；仍有既有大 chunk 警告。
+- 真实服务冒烟：`POST /api/auth/login` 使用 `test_tenant/admin/admin123` 成功返回 token；`GET /api/catalog/products?current=1&size=6` 返回 `code=200,total=1119,records=6`；真实前端 `/catalog` iPad 竖屏 820x1180 渲染 20 张卡片，无 console error/warn、无请求失败。
+
+**执行人**：Codex
+
+---
+
 ### [验证] - Catalog iPad 展示页修复收口复验
 
 **变更内容**：

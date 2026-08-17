@@ -56,7 +56,7 @@ class OrderControllerTest {
     void setUp() throws Exception {
         // 登录获取 token
         LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setTenantCode("super_admin");
+        loginRequest.setTenantCode("test_tenant");
         loginRequest.setUsername("admin");
         loginRequest.setPassword("admin123");
 

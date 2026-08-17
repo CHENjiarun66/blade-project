@@ -40,7 +40,7 @@ class CatalogControllerTest {
     @BeforeEach
     void setUp() throws Exception {
         LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setTenantCode("super_admin");
+        loginRequest.setTenantCode("test_tenant");
         loginRequest.setUsername("admin");
         loginRequest.setPassword("admin123");
 
