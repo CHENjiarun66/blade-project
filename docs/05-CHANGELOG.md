@@ -8,6 +8,38 @@
 
 ## 2026-08-17 变更记录
 
+### [发布预检] - 创建 Catalog iPad release 候选分支
+
+**变更内容**：
+- 从已验收的 `develop` 创建 `release/2026-08-17-catalog-ipad`。
+- 执行 NAS 日常发布脚本 dry-run，确认默认不会上传或修改 NAS，正式执行命令为 `deploy/nas/deploy_app_from_local.sh --execute`。
+- 执行 NAS 平台只读检查：局域网 SSH `192.168.1.10` 不可达，自动切换 WireGuard `10.13.13.1`；NAS 为 `linux/amd64`，docker-compose v1 可用，`blade-mysql`、`blade-redis`、`blade-backend`、`blade-web` 均为 Up。
+- 明确 release 相对 `master` 的数据库 migration 影响范围：`V38__file_derivative.sql`、`V39__order_write_off.sql`、`V40__order_delivery_display_columns.sql`。
+
+**变更原因**：
+- Catalog/iPad 展示页已完成 develop 集成和 iPad 真机验收，需要进入 release/NAS 发布预检阶段。
+- 当前 release 不是单独 Catalog 小补丁；相对 `master` 还包含文件派生图、订单库存软解耦等已集成变更，正式发布必须按整体 release 候选处理。
+
+**影响范围**：
+- `release/2026-08-17-catalog-ipad`
+- `docs/05-CHANGELOG.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/STATUS.md`
+- `outputs/status.html`
+
+**验证结果**：
+- `git switch -c release/2026-08-17-catalog-ipad`：成功。
+- release 分支本地集成验证：后端全量 383/383、Catalog E2E 9/9、PC build 通过、真实 `/catalog` 冒烟通过。
+- `deploy/nas/deploy_app_from_local.sh`：dry-run 通过，未修改 NAS。
+- `deploy/nas/check_platform.sh`：通过；使用 WireGuard `10.13.13.1` 连接 NAS；系统 `x86_64`，Docker server `linux/amd64`，docker-compose `1.28.5`，生产目录 `/volume2/blade`、`mysql`、`uploads` 存在，4 个生产容器均为 Up。
+
+**待用户确认**：
+- 是否允许执行正式生产发布：`deploy/nas/deploy_app_from_local.sh --execute`。正式发布会先创建 NAS 生产库备份并校验非空，然后只重启 `backend` 和 `web`，不会重启 MySQL/Redis，也不会覆盖 `/volume2/blade/mysql`、`/volume2/blade/uploads`、`.env.prod`。
+
+**执行人**：Codex
+
+---
+
 ### [验收] - Catalog iPad 真机人工验收通过
 
 **变更内容**：
