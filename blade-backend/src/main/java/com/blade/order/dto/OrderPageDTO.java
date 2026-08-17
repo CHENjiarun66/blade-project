@@ -3,6 +3,9 @@ package com.blade.order.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDate;
 
 @Schema(description = "订单分页查询DTO")
 public class OrderPageDTO {
@@ -34,6 +37,14 @@ public class OrderPageDTO {
     @Schema(description = "是否欠款：true=paid_amount < max(total_amount - refund_amount - write_off_amount, 0)")
     private Boolean hasBalance;
 
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    @Schema(description = "订单日期开始，按 order_date 查询，旧数据为空时回退 create_time 日期")
+    private LocalDate startDate;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    @Schema(description = "订单日期结束，按 order_date 查询，旧数据为空时回退 create_time 日期")
+    private LocalDate endDate;
+
     public Long getCurrent() { return current; }
     public void setCurrent(Long current) { this.current = current; }
     public Long getSize() { return size; }
@@ -50,4 +61,8 @@ public class OrderPageDTO {
     public void setOrderType(String orderType) { this.orderType = orderType; }
     public Boolean getHasBalance() { return hasBalance; }
     public void setHasBalance(Boolean hasBalance) { this.hasBalance = hasBalance; }
+    public LocalDate getStartDate() { return startDate; }
+    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+    public LocalDate getEndDate() { return endDate; }
+    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
 }

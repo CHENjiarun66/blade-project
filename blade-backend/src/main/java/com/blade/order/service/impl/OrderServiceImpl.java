@@ -114,27 +114,7 @@ public class OrderServiceImpl implements OrderService {
         Page<Order> page = new Page<>(dto.getCurrent(), dto.getSize());
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getTenantId, TenantContext.getTenantId());
-
-        if (dto.getOrderNo() != null && !dto.getOrderNo().isEmpty()) {
-            wrapper.eq(Order::getOrderNo, dto.getOrderNo());
-        }
-        if (dto.getCustomerName() != null && !dto.getCustomerName().isEmpty()) {
-            wrapper.like(Order::getCustomerName, dto.getCustomerName());
-        }
-        if (dto.getStatus() != null) {
-            wrapper.eq(Order::getStatus, dto.getStatus());
-        }
-        if (dto.getPaymentStatus() != null) {
-            wrapper.eq(Order::getPaymentStatus, dto.getPaymentStatus());
-        }
-        if (dto.getOrderType() != null && !dto.getOrderType().isEmpty()) {
-            wrapper.eq(Order::getOrderType, dto.getOrderType());
-        }
-        if (Boolean.TRUE.equals(dto.getHasBalance())) {
-            wrapper.apply("COALESCE(paid_amount, 0) < " + NET_RECEIVABLE_SQL);
-        } else if (Boolean.FALSE.equals(dto.getHasBalance())) {
-            wrapper.apply("COALESCE(paid_amount, 0) >= " + NET_RECEIVABLE_SQL);
-        }
+        applyOrderPageFilters(wrapper, dto);
 
         wrapper.orderByDesc(Order::getCreateTime);
 
@@ -149,6 +129,52 @@ public class OrderServiceImpl implements OrderService {
         pageResult.setCurrent(result.getCurrent());
         pageResult.setPages(result.getPages());
         return pageResult;
+    }
+
+    private void applyOrderPageFilters(LambdaQueryWrapper<Order> wrapper, OrderPageDTO dto) {
+        String orderNo = trimToNull(dto.getOrderNo());
+        String customerName = trimToNull(dto.getCustomerName());
+
+        if (orderNo != null && orderNo.equals(customerName)) {
+            wrapper.and(query -> query.like(Order::getOrderNo, orderNo)
+                    .or()
+                    .like(Order::getCustomerName, customerName));
+        } else {
+            if (orderNo != null) {
+                wrapper.eq(Order::getOrderNo, orderNo);
+            }
+            if (customerName != null) {
+                wrapper.like(Order::getCustomerName, customerName);
+            }
+        }
+        if (dto.getStatus() != null) {
+            wrapper.eq(Order::getStatus, dto.getStatus());
+        }
+        if (dto.getPaymentStatus() != null) {
+            wrapper.eq(Order::getPaymentStatus, dto.getPaymentStatus());
+        }
+        if (trimToNull(dto.getOrderType()) != null) {
+            wrapper.eq(Order::getOrderType, dto.getOrderType().trim());
+        }
+        if (Boolean.TRUE.equals(dto.getHasBalance())) {
+            wrapper.apply("COALESCE(paid_amount, 0) < " + NET_RECEIVABLE_SQL);
+        } else if (Boolean.FALSE.equals(dto.getHasBalance())) {
+            wrapper.apply("COALESCE(paid_amount, 0) >= " + NET_RECEIVABLE_SQL);
+        }
+        if (dto.getStartDate() != null) {
+            wrapper.apply("COALESCE(order_date, DATE(create_time)) >= {0}", dto.getStartDate());
+        }
+        if (dto.getEndDate() != null) {
+            wrapper.apply("COALESCE(order_date, DATE(create_time)) <= {0}", dto.getEndDate());
+        }
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @Override
@@ -606,27 +632,7 @@ public class OrderServiceImpl implements OrderService {
         // 查询所有符合筛选条件的订单（不分页）
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getTenantId, tenantId);
-
-        if (dto.getOrderNo() != null && !dto.getOrderNo().isEmpty()) {
-            wrapper.eq(Order::getOrderNo, dto.getOrderNo());
-        }
-        if (dto.getCustomerName() != null && !dto.getCustomerName().isEmpty()) {
-            wrapper.like(Order::getCustomerName, dto.getCustomerName());
-        }
-        if (dto.getStatus() != null) {
-            wrapper.eq(Order::getStatus, dto.getStatus());
-        }
-        if (dto.getPaymentStatus() != null) {
-            wrapper.eq(Order::getPaymentStatus, dto.getPaymentStatus());
-        }
-        if (dto.getOrderType() != null && !dto.getOrderType().isEmpty()) {
-            wrapper.eq(Order::getOrderType, dto.getOrderType());
-        }
-        if (Boolean.TRUE.equals(dto.getHasBalance())) {
-            wrapper.apply("COALESCE(paid_amount, 0) < " + NET_RECEIVABLE_SQL);
-        } else if (Boolean.FALSE.equals(dto.getHasBalance())) {
-            wrapper.apply("COALESCE(paid_amount, 0) >= " + NET_RECEIVABLE_SQL);
-        }
+        applyOrderPageFilters(wrapper, dto);
 
         wrapper.orderByDesc(Order::getCreateTime);
 
