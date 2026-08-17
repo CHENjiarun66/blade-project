@@ -83,6 +83,9 @@ function parseTasks(content) {
     const m = line.match(/^\| ((?:BE|BA|FE|TEST|DOC|AGENT)-[0-9A-Z]+(?:-[0-9A-Z]+)*) \| (.+?) \| (.+?) \|(.*)$/)
     if (!m) continue
     const { status, executor } = parseStatus(m[3].trim())
+    // Phase headings may contain a summary such as “（已完成）”. It is
+    // descriptive metadata, not the status of every task in that phase.
+    const normalizedPhase = phase.replace(/（(?:已完成|部分完成|进行中)）/g, '').trim()
     tasks.push({
       id: m[1],
       name: m[2].trim(),
@@ -90,7 +93,7 @@ function parseTasks(content) {
       executor,
       remark: m[4] ? m[4].trim() : '',
       module: MODULE_SHORT[module] || module,
-      phase,
+      phase: normalizedPhase,
     })
   }
   return tasks

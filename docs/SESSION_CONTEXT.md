@@ -12,7 +12,7 @@
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
 | 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传和文件中心底座已完成；图片派生图第一版 BE-1012、BA-1007、BA-1028 已完成，PC 与 Catalog 已按 thumb/card/original 分层加载；客户 iPad Catalog 现货选款页第一版已完成并已上线 NAS 生产；移动端继续开发中 |
-| 下一步 | 订单列表筛选确认按钮已按流程发布到 NAS 生产：`release/2026-08-17-order-filter-confirm` 已合入并推送 `master`，NAS 正式发布 Release id `20260817_165852` 已完成；发布前生产库备份 `/volume2/blade/db-backups/pre_app_deploy_20260817_165852.sql` 已生成；只重启 `blade-backend`/`blade-web`，MySQL/Redis/uploads 未触碰；本次无 Flyway migration，生产库仍为 V40；`https://10.13.13.1:8899/orders` 和 `/catalog` 均返回 200。建议用户在生产入口 `https://192.168.1.10:8899/orders` 或 WireGuard 入口 `https://10.13.13.1:8899/orders` 做最终人工复验。部分发货、分批发货和缺货退款继续排除。 |
+| 下一步 | 订单列表筛选确认按钮已按流程发布到 NAS 生产：`release/2026-08-17-order-filter-confirm` 已合入并推送 `master`，NAS 正式发布 Release id `20260817_165852` 已完成；发布前生产库备份 `/volume2/blade/db-backups/pre_app_deploy_20260817_165852.sql` 已生成；只重启 `blade-backend`/`blade-web`，MySQL/Redis/uploads 未触碰；本次无 Flyway migration，生产库仍为 V40；`https://10.13.13.1:8899/orders` 和 `/catalog` 均返回 200。建议用户先完成人工复验；开发侧下一步为 BA-701~BA-703 权限页面最终验收、仪表盘数据权限、移动端真实数据接入和 Agent Gateway 未完成能力。部分发货、分批发货和缺货退款继续排除。 |
 
 ---
 
@@ -93,7 +93,7 @@
 - **统一文件存储第一版已完成**：新增 `file_storage` 表、统一上传/预览/软删除/绑定接口，本地存储落地；订单图片、PC/移动端入库凭证、商品主图均已改为上传后保存 fileId；浏览器原生 `<img>`/新窗口预览通过 `/api/files/{id}/preview?previewToken=...` 进入统一权限校验，后续可切七牛云/NAS。
 - **图片派生图第一版已完成**：V38 新增 `file_derivative`；上传图片后生成 `thumb`（长边 320px）和 `card`（长边 800px），生成失败不影响原图；`/api/files/{id}/variant` 继承原图权限并缺失回退原图。PC 商品/订单/文件中心与 Catalog 已分层接入，Catalog IndexedDB 缓存按 `original/thumb/card` 隔离。历史图片需通过当前租户批量接口分批补生成。
 - **文件中心/数字资产中心后端底座已完成 Phase 6.6**：新增 [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md)，明确文件中心不是单纯图片/视频相册，而是通用数字资产中心；BE-1001~BE-1011 已完成到资产表结构、分页/详情、文件夹、多业务绑定、批量操作、有效绑定删除保护、未绑定治理、第一版安全清理调度、商品/SKU 图片绑定、基础视频上传分类、私有预览权限和文件中心回归测试。清理调度默认关闭，按配置 tenant-id 处理单租户，仅软删除/标记元数据，不做真实物理删除。
-- **后端测试基线已修复**：独立分支 `fix/backend-test-baseline` 已完成 BE-1030~BE-1033；`cd blade-backend && mvn test` 通过（Tests run 244, Failures 0, Errors 0, Skipped 0），修复范围包含测试认证夹具、订单状态机断言和商品/文件实体显式列映射。
+- **后端测试基线已修复**：独立分支 `fix/backend-test-baseline` 已完成 BE-1030~BE-1033；最近复验 `cd blade-backend && mvn test` 通过（Tests run 383, Failures 0, Errors 0, Skipped 0），修复范围包含测试认证夹具、订单状态机断言和商品/文件实体显式列映射。
 - **NAS 生产环境已初步部署完成**：生产目录 `/volume2/blade`，前端入口 `http://192.168.1.10:8899/catalog`；容器为 `blade-mysql`、`blade-redis`、`blade-backend`、`blade-web`；NAS 数据库已从本机生产库 `blade_project_prod` 迁移并将主租户 code 调整为 `dwy_jiajiadress`。后续发布/备份/回滚按 [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) 执行。
 
 ### 仍在进行或未完成的事项

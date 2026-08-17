@@ -11,7 +11,7 @@
 2. **主动更新**：完成任务后立即更新状态
 3. **交接同步**：任务状态变更必须同步到本文档
 4. **阻塞上报**：遇到阻塞立即在本文档注明，并通知用户
-5. **认领防撞车**：开始执行前先把任务状态改为 `⏳ 进行中（执行人：Codex / DeepSeek）`，完成后再改 `✅ 完成`；一个任务同一时刻只允许一个 Agent 认领（详见 [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md)）
+5. **认领防撞车**：开始执行前先把任务状态改为 `⏳ 进行中（执行人：Codex / DeepSeek / 其他 Agent）`，并注明主要修改目录/文件；完成后再改 `✅ 完成`；一个任务和一个核心文件同一时刻只允许一个主 Agent 认领/修改（详见 [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md)）
 
 ---
 
@@ -310,7 +310,7 @@
 | BE-1030 | 后端全量测试失败归因与基线记录 | ✅ 完成 | 初始 `mvn test` 失败 40 个；已确认 `master` 基线同样失败，非商品管理 v2 新增回归。失败主因：登录测试缺 `tenantCode`、订单测试状态机口径过旧、实体字段缺少显式列映射。 |
 | BE-1031 | Catalog/Product Controller 测试认证基线修复 | ✅ 完成 | `CatalogControllerTest`、旧 `ProductControllerTest` 已按现有多租户登录规则补齐 `tenantCode=test_tenant` 和正确测试密码；Product 测试改用唯一商品编码，避免重复执行污染。 |
 | BE-1032 | OrderControllerTest 状态码与订单状态口径修复 | ✅ 完成 | 断言已对齐 `GlobalExceptionHandler` 业务错误 400、当前订单状态值 0-8，以及发货前需创建配货计划并确认调整的状态机流程。 |
-| BE-1033 | 后端全量测试收口 | ✅ 完成 | `cd blade-backend && mvn test` 通过：Tests run 244, Failures 0, Errors 0, Skipped 0；定向回归 `ProductControllerTest,CatalogControllerTest,FileControllerTest,FileBindingControllerTest,ProductFileBindingServiceTest,ProductFileBindingControllerTest` 通过 73/73。 |
+| BE-1033 | 后端全量测试收口 | ✅ 完成 | `cd blade-backend && mvn test` 通过：Tests run 383, Failures 0, Errors 0, Skipped 0；定向回归 `ProductControllerTest,CatalogControllerTest,FileControllerTest,FileBindingControllerTest,ProductFileBindingServiceTest,ProductFileBindingControllerTest` 历史验证通过 73/73。 |
 
 ---
 
@@ -907,7 +907,7 @@
 6. ✅ **移动端骨架（FE-001~FE-007）已完成**，页面开发进行中
 7. ✅ **blade-admin PC 管理端**：订单/库存/商品管理页面全部完成
 8. 微信服务（BE-009）暂缓，等业务系统稳定后再接入
-9. **下一步**：客户管理页面 BA-501~BA-502、看板统计 BA-601~BA-603
+9. **下一步**：完成 BA-701~BA-703 权限页面最终验收与文档收口；补齐仪表盘数据权限；继续移动端真实数据接入和 Agent Gateway 未完成能力；OCR 仍按 P2 排期。
 
 ---
 

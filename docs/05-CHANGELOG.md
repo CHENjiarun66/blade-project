@@ -8,6 +8,22 @@
 
 ## 2026-08-17 变更记录
 
+### [文档审计] - 同步项目实际进度与状态文档
+
+**变更内容**：
+- 对照当前代码、任务清单、会话快照、状态看板和最近 Git 提交，修正后端全量测试数量：当前实际为 383 项，不再使用旧的 244 项记录。
+- 更新任务清单和会话快照的下一步，明确权限页面最终验收、仪表盘数据权限、移动端真实数据接入和 Agent Gateway 未完成能力。
+- 保留移动端看板未完成状态；代码审计确认 `blade-mobile/src/views/dashboard/Dashboard.vue` 仍使用模拟数据并标有 API TODO。
+- 修正状态看板生成器，避免把 Phase 标题中的“已完成”误显示为 TODO 任务已完成。
+
+**验证结果**：
+- `cd blade-backend && mvn test`：Tests run 383, Failures 0, Errors 0, Skipped 0；BUILD SUCCESS。
+- `cd blade-admin && npm run build`：通过，0 个 TypeScript 错误。
+- `cd blade-mobile && npm run build`：通过；存在 Vite chunk size warning，不影响构建成功。
+- `node scripts/gen-status.mjs`：通过，状态统计保持 246 项（213 完成 / 0 进行中 / 29 待办 / 4 部分）。
+
+**执行人**：Codex
+
 ### [规范优化] - 多 Agent 工具协作与同步方案
 
 **变更内容**：
