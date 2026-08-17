@@ -9,10 +9,11 @@
 
 **新 AI 必读顺序**：
 
-1. 📋 [docs/01-README.md](./docs/01-README.md) — 项目结构和工作流程
-2. 📝 [docs/02-PRD.md](./docs/02-PRD.md) — 产品需求文档（开发依据）
-3. ✅ [docs/03-TASKS.md](./docs/03-TASKS.md) — 开发任务清单（领取任务）
-4. 🤝 [docs/reference/AGENT_COLLABORATION.md](./docs/reference/AGENT_COLLABORATION.md) — 双 Agent（Codex + DeepSeek）联合开发同步协议
+1. 📊 [docs/STATUS.md](./docs/STATUS.md) — 项目状态总览（自动生成，一眼看清做了什么/在做什么/没做什么）
+2. 📋 [docs/01-README.md](./docs/01-README.md) — 项目结构和工作流程
+3. 📝 [docs/02-PRD.md](./docs/02-PRD.md) — 产品需求文档（开发依据）
+4. ✅ [docs/03-TASKS.md](./docs/03-TASKS.md) — 开发任务清单（领取任务）
+5. 🤝 [docs/reference/AGENT_COLLABORATION.md](./docs/reference/AGENT_COLLABORATION.md) — 双 Agent（Codex + DeepSeek）联合开发同步协议
 
 ---
 
@@ -68,6 +69,14 @@ Codex 与 DeepSeek（DSH）在同一工作区联合开发时，必须遵守 [doc
 - **提交标注**：commit message 末尾必须带 `[codex]` / `[dsh]` 后缀。
 - **交接同步**：收工必须更新 SESSION_CONTEXT.md、03-TASKS.md、05-CHANGELOG.md 并 commit + push。
 - **验证结果必填**：变更记录必须包含实际执行的验证命令与结果，不能只写"已测试"。
+
+### 规则 8：交接必须刷新状态看板
+
+每次任务交接 / 收工时运行 `node scripts/gen-status.mjs` 刷新项目状态看板：
+
+- 数据源：`docs/03-TASKS.md`（脚本只读，不修改业务数据）
+- 产物：`docs/STATUS.md`（提交入库）、`outputs/status.html`（本地可视化看板，浏览器打开）
+- 刷新后必须把 `docs/STATUS.md` 的变更一并 commit + push
 
 ---
 

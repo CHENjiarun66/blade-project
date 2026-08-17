@@ -8,6 +8,32 @@
 
 ## 2026-08-17 变更记录
 
+### [新增] - 项目状态看板（自动生成 STATUS.md + HTML）
+
+**变更内容**：
+- 新增 [scripts/gen-status.mjs](../scripts/gen-status.mjs)：自动解析 `docs/03-TASKS.md` 任务表格（ID/任务名/状态/备注），按模块（后端/PC 管理端/移动端）统计完成度，生成两个产物：
+  - `docs/STATUS.md`（提交入库）：紧凑状态摘要——模块进度条、正在做、还没做、部分完成、最近完成
+  - `outputs/status.html`（本地生成）：可视化看板——模块进度条卡片、进行中/待办/部分/已完成分区、关键词搜索、状态筛选，浏览器双击打开
+- 运行方式：`node scripts/gen-status.mjs`（Node 22；当前机器 node 不在默认 PATH 时用 `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH"`）
+- 解析覆盖验证：三个任务模块表格行 245 项全部解析（0 丢失），模块进度：后端 89%（132 完成）、PC 管理端 93%（66 完成）、移动端 56%（14 完成）
+- [AGENTS.md](../AGENTS.md) 与 [CLAUDE.md](../CLAUDE.md) 新增「规则 8：交接必须刷新状态看板」，快速开始必读顺序加入 STATUS.md（第 2 位）；[AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) 收工仪式新增第 0 步（刷新看板）
+- [01-README.md](./01-README.md) 与 [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) 索引新增状态总览入口
+
+**变更原因**：
+- 项目任务多、并行进行中多，TASKS.md 长表格无法一眼看清"做了什么/正在做什么/没做什么"；需要零手工维护的自动状态总览，人看 HTML 可视化、AI 看 STATUS.md 紧凑摘要。
+
+**影响范围**：
+- `scripts/gen-status.mjs`（新增）
+- `docs/STATUS.md`（新增，自动生成）
+- `outputs/status.html`（新增，本地生成，不入库）
+- `AGENTS.md`、`CLAUDE.md`、`docs/01-README.md`、`docs/SESSION_CONTEXT.md`、`docs/reference/AGENT_COLLABORATION.md`、`docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `node scripts/gen-status.mjs` 运行成功，生成 245 项任务统计（212 完成 / 29 待办 / 4 部分），与 TASKS.md 三个任务模块表格行数 245 完全一致（0 丢失）。
+- `outputs/status.html` 生成完整（113KB，含搜索/筛选脚本）。
+
+**执行人**：DeepSeek（dsh）
+
 ### [新增] - 双 Agent（Codex + DeepSeek）联合开发协作规范
 
 **变更内容**：

@@ -194,6 +194,7 @@
 | 了解项目入口与阅读顺序 | [01-README.md](./01-README.md) |
 | 了解业务与技术规则 | [02-PRD.md](./02-PRD.md) |
 | 查看任务状态 | [03-TASKS.md](./03-TASKS.md) |
+| 一眼看清项目进度（自动生成） | [STATUS.md](./STATUS.md)，可视化看板 `outputs/status.html` |
 | 查看最近变更 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
 | 看项目目录结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
 | 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
@@ -214,8 +215,9 @@
 如果你是新接手的 AI，推荐阅读顺序：
 
 1. [SESSION_CONTEXT.md](./SESSION_CONTEXT.md)
-2. [01-README.md](./01-README.md)
-3. [02-PRD.md](./02-PRD.md)
-4. [03-TASKS.md](./03-TASKS.md)
-5. 开发/合并/上线前补读 [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md)
-6. 订单/库存相关开发再补读 [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md)
+2. [STATUS.md](./STATUS.md)（自动生成，一眼看清进度）
+3. [01-README.md](./01-README.md)
+4. [02-PRD.md](./02-PRD.md)
+5. [03-TASKS.md](./03-TASKS.md)
+6. 开发/合并/上线前补读 [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md)
+7. 订单/库存相关开发再补读 [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md)

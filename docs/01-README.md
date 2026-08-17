@@ -39,6 +39,7 @@ BladeProject/
 | 场景 | 文档 |
 |------|------|
 | 快速接手当前状态 | [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) |
+| 一眼看清项目进度（自动生成） | [STATUS.md](./STATUS.md) |
 | 确认业务规则和技术栈 | [02-PRD.md](./02-PRD.md) |
 | 查看任务状态 | [03-TASKS.md](./03-TASKS.md) |
 | 查看变更历史 | [05-CHANGELOG.md](./05-CHANGELOG.md) |

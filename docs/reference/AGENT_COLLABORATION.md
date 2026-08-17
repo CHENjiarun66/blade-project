@@ -75,6 +75,7 @@ git status --short --branch           # 2. 确认工作区状态（干净或有�
 
 **收工（任务完成或会话结束，必做）**：
 
+0. 运行 `node scripts/gen-status.mjs` 刷新状态看板（更新 `docs/STATUS.md`，见 AGENTS.md 规则 8）
 1. 更新 `docs/03-TASKS.md`：任务状态 + 执行记录
 2. 更新 `docs/05-CHANGELOG.md`：变更内容 + 原因 + 影响范围 + **验证结果** + 执行人
 3. 更新 `docs/SESSION_CONTEXT.md`：当前摘要、下一步、未完成事项
