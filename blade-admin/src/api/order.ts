@@ -79,6 +79,8 @@ export interface OrderPageDTO {
   paymentStatus?: number
   orderType?: string
   hasBalance?: boolean
+  startDate?: string
+  endDate?: string
 }
 
 export interface OrderPageResponse {

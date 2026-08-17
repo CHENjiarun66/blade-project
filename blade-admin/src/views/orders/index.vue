@@ -36,6 +36,7 @@
           placeholder="搜索订单号、客户名称"
           class="order-search-input"
           clearable
+          @keyup.enter="handleSearch"
         >
           <template #prefix>
             <span class="material-symbols-outlined text-gray-400 text-sm">search</span>
@@ -103,8 +104,12 @@
         />
       </div>
 
-      <!-- 重置按钮 -->
-      <div class="ml-auto flex items-end">
+      <!-- 查询 / 重置按钮 -->
+      <div class="ml-auto flex items-end gap-3">
+        <el-button type="primary" class="!bg-[#408aee] !border-none !px-5 !py-2.5 !rounded-xl !font-bold !h-auto hover:!bg-[#2d7be0]" @click="handleSearch">
+          <span class="material-symbols-outlined text-sm mr-1">search</span>
+          确认筛选
+        </el-button>
         <el-button class="!bg-gray-100 !text-gray-700 !border-none !px-5 !py-2.5 !rounded-xl !font-bold !h-auto hover:!bg-gray-200" @click="handleReset">
           <span class="material-symbols-outlined text-sm mr-1">filter_list</span>
           重置筛选
@@ -433,25 +438,43 @@ const total = ref(0)
 // 表格数据
 const tableData = ref<OrderVO[]>([])
 
+function formatDateParam(date?: Date) {
+  if (!date) return undefined
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function buildOrderQueryParams() {
+  return {
+    current: currentPage.value,
+    size: pageSize.value,
+    orderNo: searchQuery.value || undefined,
+    customerName: searchQuery.value || undefined,
+    status: statusFilter.value !== null ? statusFilter.value : undefined,
+    paymentStatus: paymentStatusFilter.value !== null ? paymentStatusFilter.value : undefined,
+    orderType: orderTypeFilter.value || undefined,
+    hasBalance: balanceFilter.value !== null ? balanceFilter.value : undefined,
+    startDate: formatDateParam(dateRange.value?.[0]),
+    endDate: formatDateParam(dateRange.value?.[1]),
+  }
+}
+
 // 加载数据
 async function loadData() {
   try {
-    const params = {
-      current: currentPage.value,
-      size: pageSize.value,
-      orderNo: searchQuery.value || undefined,
-      customerName: searchQuery.value || undefined,
-      status: statusFilter.value !== null ? statusFilter.value : undefined,
-      paymentStatus: paymentStatusFilter.value !== null ? paymentStatusFilter.value : undefined,
-      orderType: orderTypeFilter.value || undefined,
-      hasBalance: balanceFilter.value !== null ? balanceFilter.value : undefined,
-    }
-    const res = await getOrderPage(params)
+    const res = await getOrderPage(buildOrderQueryParams())
     tableData.value = res.data.records
     total.value = res.data.total
   } catch (error: any) {
     ElMessage.error(error.message || '加载订单列表失败')
   }
+}
+
+function handleSearch() {
+  currentPage.value = 1
+  loadData()
 }
 
 // 重置筛选
@@ -469,14 +492,7 @@ function handleReset() {
 // 导出订单
 async function handleExport() {
   try {
-    const params = {
-      orderNo: searchQuery.value || undefined,
-      customerName: searchQuery.value || undefined,
-      status: statusFilter.value !== null ? statusFilter.value : undefined,
-      paymentStatus: paymentStatusFilter.value !== null ? paymentStatusFilter.value : undefined,
-      orderType: orderTypeFilter.value || undefined,
-      hasBalance: balanceFilter.value !== null ? balanceFilter.value : undefined,
-    }
+    const params = buildOrderQueryParams()
     const blob = await exportOrders(params as any)
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')

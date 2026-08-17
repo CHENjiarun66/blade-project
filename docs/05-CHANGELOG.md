@@ -8,6 +8,36 @@
 
 ## 2026-08-17 变更记录
 
+### [功能优化] - 订单列表筛选确认按钮
+
+**变更内容**：
+- 订单列表筛选区新增“确认筛选”按钮，用户选择订单状态、支付状态、订单类型、欠款状态和日期范围后可显式提交查询。
+- 关键字搜索支持回车提交，并与按钮复用同一套查询逻辑。
+- 前端订单列表和 Excel 导出复用同一套筛选参数，补齐 `startDate/endDate` 日期范围参数。
+- 后端 `OrderPageDTO` 增加日期范围查询；订单列表和导出统一按 `order_date` 过滤，旧数据 `order_date` 为空时回退 `create_time` 日期。
+- 修正订单列表同一关键字搜索订单号/客户名时的匹配口径：当前 PC 搜索框传入同一个值时，后端按“订单号或客户名”匹配。
+
+**变更原因**：
+- 订单列表选择筛选条件后缺少确认按钮，用户不知道如何提交筛选。
+- 原日期范围控件前端已有展示，但后端未接收日期参数，属于无效筛选项。
+
+**影响范围**：
+- `blade-admin/src/views/orders/index.vue`
+- `blade-admin/src/api/order.ts`
+- `blade-backend/src/main/java/com/blade/order/dto/OrderPageDTO.java`
+- `blade-backend/src/main/java/com/blade/order/service/impl/OrderServiceImpl.java`
+- 无数据库结构变更。
+
+**验证结果**：
+- `cd blade-admin && npm run build`：通过。
+- `cd blade-backend && mvn -q -DskipTests compile`：通过。
+- `./mvnw -q -pl blade-backend -DskipTests compile`：未执行成功，原因是仓库根目录不存在 `./mvnw`。
+- `mvn -q -pl blade-backend -DskipTests compile`：未执行成功，原因是根目录不是 Maven reactor 聚合项目；已改为进入 `blade-backend` 目录编译。
+
+**执行人**：Codex
+
+---
+
 ### [发布] - Catalog iPad release 上线 NAS 生产
 
 **变更内容**：
