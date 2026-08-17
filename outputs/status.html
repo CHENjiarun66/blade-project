@@ -1,0 +1,1862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BladeProject 项目状态看板</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --line:#e5e7eb; --text:#1f2328; --muted:#6b7280;
+          --done:#16a34a; --doing:#f59e0b; --todo:#ef4444; --partial:#3b82f6; --other:#8b5cf6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px 20px 60px; }
+  header h1 { font-size:22px; margin:0 0 4px; }
+  header .meta { color:var(--muted); font-size:12px; }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; margin:16px 0; align-items:center; }
+  .controls input[type=search] { flex:1; min-width:220px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; }
+  .controls button { padding:7px 14px; border:1px solid var(--line); background:#fff; border-radius:8px; cursor:pointer; font-size:13px; }
+  .controls button.active { background:#1f2328; color:#fff; border-color:#1f2328; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; margin-bottom:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .card-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:10px; }
+  .card-title { font-weight:600; font-size:15px; }
+  .card-nums { font-size:12px; color:var(--muted); white-space:nowrap; }
+  .bar { height:10px; background:#eceef1; border-radius:5px; overflow:hidden; }
+  .bar-fill { height:100%; background:linear-gradient(90deg,#22c55e,#16a34a); border-radius:5px; }
+  .bar-label { font-size:12px; color:var(--muted); margin-top:6px; }
+  .section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+  .section h2 { font-size:16px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .section .count { background:#eceef1; border-radius:999px; font-size:12px; padding:1px 10px; color:var(--muted); }
+  .section.doing { border-left:4px solid var(--doing); }
+  .section.todo { border-left:4px solid var(--todo); }
+  .section.partial { border-left:4px solid var(--partial); }
+  .section.done { border-left:4px solid var(--done); }
+  .task-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .task-table th, .task-table td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .task-table th { color:var(--muted); font-weight:500; font-size:12px; background:#fafbfc; }
+  .td-id { white-space:nowrap; font-weight:600; color:#374151; }
+  .td-meta { white-space:nowrap; color:var(--muted); font-size:12px; }
+  .td-remark { color:var(--muted); font-size:12px; max-width:320px; }
+  .pill { display:inline-block; border-radius:999px; padding:1px 10px; font-size:12px; white-space:nowrap; }
+  .pill-done { background:#dcfce7; color:#15803d; }
+  .pill-doing { background:#fef3c7; color:#b45309; }
+  .pill-todo { background:#fee2e2; color:#b91c1c; }
+  .pill-partial { background:#dbeafe; color:#1d4ed8; }
+  .pill-other { background:#ede9fe; color:#6d28d9; }
+  .tag { display:inline-block; margin-left:8px; background:#fef3c7; color:#b45309; border-radius:6px; padding:0 8px; font-size:12px; }
+  .empty { color:var(--muted); font-size:13px; }
+  details.done-box summary { cursor:pointer; font-size:14px; font-weight:600; margin-bottom:8px; }
+  footer { color:var(--muted); font-size:12px; margin-top:24px; text-align:center; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📊 BladeProject 项目状态看板</h1>
+    <div class="meta">生成时间：2026/8/17 14:13:45　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+  </header>
+
+  <div class="controls">
+    <input type="search" id="search" placeholder="搜索任务 ID / 名称 / 备注…">
+    <button data-filter="all" class="active">全部</button>
+    <button data-filter="doing">🔴 进行中</button>
+    <button data-filter="todo">🟡 待办</button>
+    <button data-filter="partial">🔵 部分完成</button>
+    <button data-filter="done">✅ 已完成</button>
+  </div>
+
+  <div class="grid">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">后端</span>
+          <span class="card-nums">132 完成 · 0 进行中 · 16 待办 · 1 部分</span>
+        </div>
+        <div class="bar"><div class="bar-fill" style="width:89%"></div></div>
+        <div class="bar-label">89% 完成（共 149 项）</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">PC 管理端</span>
+          <span class="card-nums">66 完成 · 0 进行中 · 2 待办 · 3 部分</span>
+        </div>
+        <div class="bar"><div class="bar-fill" style="width:93%"></div></div>
+        <div class="bar-label">93% 完成（共 71 项）</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">移动端</span>
+          <span class="card-nums">14 完成 · 0 进行中 · 11 待办 · 0 部分</span>
+        </div>
+        <div class="bar"><div class="bar-fill" style="width:56%"></div></div>
+        <div class="bar-label">56% 完成（共 25 项）</div>
+      </div></div>
+
+  
+    <section class="section doing">
+      <h2>🔴 正在做 <span class="count">0</span></h2>
+      <p class="empty">（无）</p>
+    </section>
+  
+    <section class="section todo">
+      <h2>🟡 还没做 <span class="count">29</span></h2>
+      <table class="task-table">
+      <tr data-status="todo">
+        <td class="td-id">BE-009</td>
+        <td class="td-name">社交登录适配</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
+        <td class="td-remark">微信/钉钉（暂缓） |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-556</td>
+        <td class="td-name">Agent 客户跟进清单</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">GET /api/agent/tasks/follow-up，基于订单日期、复购和跟进规则给出提醒依据 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-557</td>
+        <td class="td-name">Agent 客户风险与分层事实</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">GET /api/agent/customers/risk，支持核心/增长/低活跃/流失风险判断 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-558</td>
+        <td class="td-name">Agent 库存建议事实</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">GET /api/agent/inventory/recommendations，积压、缺货影响、补货优先级和跨仓事实 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-559</td>
+        <td class="td-name">Agent 周期经营报告数据包</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">GET /api/agent/reports/periodic，支持月度/季度/年度分析建议 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-560</td>
+        <td class="td-name">Agent Gateway 统一搜索</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">GET /api/agent/search，支持客户/订单/商品/SKU 最小结果 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-561</td>
+        <td class="td-name">Agent 定时提醒接入验证</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">验证客户跟进清单可被定时 Agent 调用，提醒渠道另行锁定 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-562</td>
+        <td class="td-name">Agent API 限流与回归验证</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">多租户隔离、无毛利 scope、真实 Agent 工具调用验证 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-563</td>
+        <td class="td-name">统一业务事件日志设计</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">为后续 /api/agent/changes、订单异常分析和窄范围 Agent 写动作打基础 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-564</td>
+        <td class="td-name">WhatsApp 数据接入方案验证</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">验证合规接入方式、客户映射、消息保留/权限/脱敏策略 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-565</td>
+        <td class="td-name">Agent 后续能力路线评审</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">订单运营异常、利润解释、WhatsApp 反馈分析、经营记忆分阶段排序 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-601</td>
+        <td class="td-name">OCR 图片上传接入</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-remark">复用统一文件接口上传原始单据图片 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-602</td>
+        <td class="td-name">OCR 识别服务</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-remark">对接微信扫一扫/腾讯云 OCR |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-603</td>
+        <td class="td-name">字段提取与表单填充</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-remark">数量/单价/总金额/客户名/日期自动提取 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-604</td>
+        <td class="td-name">AI 解析服务（方案B）</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-remark">表格结构识别 + 款号模糊匹配 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-605</td>
+        <td class="td-name">置信度标注与候选推荐</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-remark">高/中/低置信度 + 款号候选列表 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-801</td>
+        <td class="td-name">拍照录单页（方案A）</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
+        <td class="td-remark">上传图片 + 半自动表单（款号手动选） |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-802</td>
+        <td class="td-name">拍照录单页（方案B）</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
+        <td class="td-remark">AI 识别 + 置信度标注 + 候选推荐 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-005</td>
+        <td class="td-name">@blade/core 封装</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">API + Auth + Store |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-104</td>
+        <td class="td-name">订单状态筛选</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
+        <td class="td-remark">底部 Tab 筛选优化 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-105</td>
+        <td class="td-name">订单搜索</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
+        <td class="td-remark">订单号/客户名搜索 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-204</td>
+        <td class="td-name">扫码功能</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 3: 库存系统</td>
+        <td class="td-remark">扫码枪/相机集成 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-205</td>
+        <td class="td-name">库存调整页</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 3: 库存系统</td>
+        <td class="td-remark">直接调整表单 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-302</td>
+        <td class="td-name">商品编辑页</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 4: 商品管理</td>
+        <td class="td-remark">颜色/尺码选择 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-303</td>
+        <td class="td-name">SKU 矩阵配置</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 4: 商品管理</td>
+        <td class="td-remark">颜色×尺码 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-402</td>
+        <td class="td-name">订单趋势图</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 5: 看板系统</td>
+        <td class="td-remark">折线图 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-403</td>
+        <td class="td-name">热销商品 Top 5</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 5: 看板系统</td>
+        <td class="td-remark">柱状图 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-701</td>
+        <td class="td-name">拍照录单页（方案A）</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 7: OCR 拍照录单（P2）</td>
+        <td class="td-remark">上传图片 + 半自动表单 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-702</td>
+        <td class="td-name">拍照录单页（方案B）</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">移动端 › Phase 7: OCR 拍照录单（P2）</td>
+        <td class="td-remark">AI 识别 + 置信度标注 |</td>
+      </tr></table>
+    </section>
+  
+    <section class="section partial">
+      <h2>🔵 部分完成 <span class="count">4</span></h2>
+      <table class="task-table">
+      <tr data-status="partial">
+        <td class="td-id">BE-552</td>
+        <td class="td-name">Agent 凭证与 scope 模型</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V33 落 Agent Key 哈希、租户绑定和 scope 映射；管理入口与毛利 scope 待补 |</td>
+      </tr>
+      <tr data-status="partial">
+        <td class="td-id">BA-701</td>
+        <td class="td-name">用户管理页面</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">系统管理页已包含用户列表、新建/编辑、重置密码、分配角色；待补最终验收与文档收口 |</td>
+      </tr>
+      <tr data-status="partial">
+        <td class="td-id">BA-702</td>
+        <td class="td-name">角色管理页面</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">系统管理页已包含角色列表、新建/编辑与权限分配；待补最终验收与文档收口 |</td>
+      </tr>
+      <tr data-status="partial">
+        <td class="td-id">BA-703</td>
+        <td class="td-name">权限配置页面</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">系统管理页已包含权限树配置；按钮/字段权限仍需结合实际验收继续完善 |</td>
+      </tr></table>
+    </section>
+  
+    <section class="section done">
+      <h2>✅ 已完成（共 212 项） <span class="count">212</span></h2>
+      <table class="task-table">
+      <tr data-status="done">
+        <td class="td-id">BE-001</td>
+        <td class="td-name">Spring Boot 3 项目初始化</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
+        <td class="td-remark">pom.xml + 依赖 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-002</td>
+        <td class="td-name">application.yml 配置</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
+        <td class="td-remark">数据库 + Redis |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-003</td>
+        <td class="td-name">Security 配置 + JWT</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
+        <td class="td-remark">Spring Security OAuth2 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-004</td>
+        <td class="td-name">MyBatis-Plus + 多租户配置</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
+        <td class="td-remark">TenantLineInnerInterceptor |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-005</td>
+        <td class="td-name">统一响应 R.java</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
+        <td class="td-remark">Controller 基础 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-006</td>
+        <td class="td-name">认证接口（登录/登出/刷新）</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
+        <td class="td-remark">/api/auth/*；refresh token 支持 remember=30天 / 默认7天，并携带 tenantId 以便续签时恢复租户上下文 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-007</td>
+        <td class="td-name">用户 CRUD 接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
+        <td class="td-remark">/api/system/users |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-008</td>
+        <td class="td-name">Flyway 数据库迁移脚本</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
+        <td class="td-remark">V1__init_schema |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-201</td>
+        <td class="td-name">商品表和 CRUD</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 1: 商品模块（P0）</td>
+        <td class="td-remark">product 表 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-202</td>
+        <td class="td-name">颜色管理 CRUD</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 1: 商品模块（P0）</td>
+        <td class="td-remark">product_color 表 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-203</td>
+        <td class="td-name">尺码管理 CRUD</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 1: 商品模块（P0）</td>
+        <td class="td-remark">product_size 表 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-204</td>
+        <td class="td-name">SKU 表和自动编码</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 1: 商品模块（P0）</td>
+        <td class="td-remark">product_sku 表，SKU=商品+颜色+尺码 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-205</td>
+        <td class="td-name">商品-颜色关联</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 1: 商品模块（P0）</td>
+        <td class="td-remark">product_color_rel |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-206</td>
+        <td class="td-name">商品-尺码关联</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 1: 商品模块（P0）</td>
+        <td class="td-remark">product_size_rel |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-301</td>
+        <td class="td-name">仓库管理 CRUD</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 2: 库存模块（P0）</td>
+        <td class="td-remark">warehouse 表 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-302</td>
+        <td class="td-name">库存表管理</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 2: 库存模块（P0）</td>
+        <td class="td-remark">inventory 表 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-303</td>
+        <td class="td-name">库存变动记录表</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 2: 库存模块（P0）</td>
+        <td class="td-remark">inventory_log 表 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-304</td>
+        <td class="td-name">入库接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 2: 库存模块（P0）</td>
+        <td class="td-remark">POST /api/inventory/in（支持图片、供应商） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-305</td>
+        <td class="td-name">出库接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 2: 库存模块（P0）</td>
+        <td class="td-remark">POST /api/inventory/out（reason字段） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-306</td>
+        <td class="td-name">直接调整接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 2: 库存模块（P0）</td>
+        <td class="td-remark">POST /api/inventory/adjust |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-307</td>
+        <td class="td-name">库存查询接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 2: 库存模块（P0）</td>
+        <td class="td-remark">GET /api/inventory |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-308</td>
+        <td class="td-name">库存预警接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 2: 库存模块（P0）</td>
+        <td class="td-remark">GET /api/inventory/alerts |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-309</td>
+        <td class="td-name">预留锁定/释放接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 2: 库存模块（P0）</td>
+        <td class="td-remark">POST /api/inventory/reserve, /release |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-101</td>
+        <td class="td-name">订单表重构</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">sale_order 表（原 product_order），状态值统一：0创建/1已付款/2已发货/3已完成/4已取消 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-102</td>
+        <td class="td-name">订单明细表重构</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">sale_order_item 表（原 order_item），新增冗余字段填充 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-103</td>
+        <td class="td-name">订单列表接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">分页 + 筛选 + OrderVO 含 OrderItemVO 列表 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-104</td>
+        <td class="td-name">订单详情接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">含 SKU 明细、冗余颜色尺码 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-105</td>
+        <td class="td-name">创建订单接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">不扣库存，生成订单号，填充冗余字段 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-106</td>
+        <td class="td-name">更新订单状态接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">含库存联动逻辑 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-107</td>
+        <td class="td-name">订单付款确认接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">预占库存（调用 inventoryService.reserve） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-108</td>
+        <td class="td-name">订单取消接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">释放预占（调用 inventoryService.release） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-109</td>
+        <td class="td-name">订单删除接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">仅待处理可删（软删除） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-110</td>
+        <td class="td-name">订单发货接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">预占转出库（调用 inventoryService.out） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-111</td>
+        <td class="td-name">订单表重命名</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">product_order → sale_order, order_item → sale_order_item |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-112</td>
+        <td class="td-name">冗余字段完善</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">创建订单时填充 product_name, color_name, size_name, sku_code |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-113</td>
+        <td class="td-name">支付状态字段</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">V8__order_payment_delivery_fields.sql 迁移脚本已创建，Order/OrderCreateDTO/OrderVO 已添加字段 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-114</td>
+        <td class="td-name">支付状态校验逻辑</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">创建订单时校验定金金额，全款时自动设置已支付金额 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-115</td>
+        <td class="td-name">配送状态管理</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">OrderCreateDTO 支持 needDelivery/deliveryAddress，订单创建时初始化配送状态 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-116</td>
+        <td class="td-name">客户模块-电话搜索客户</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3: 订单模块（P0）</td>
+        <td class="td-remark">GET /api/customers/search?phone，按电话搜索客户，支持国家代码 normalize |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-117</td>
+        <td class="td-name">添加 Redisson 依赖</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.1: 库存并发控制修复（P0）</td>
+        <td class="td-remark">pom.xml 添加 redisson-spring-boot-starter |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-118</td>
+        <td class="td-name">创建 RedissonConfig</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.1: 库存并发控制修复（P0）</td>
+        <td class="td-remark">RedissonClient Bean 配置 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-119</td>
+        <td class="td-name">数据库迁移-添加 version 字段</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.1: 库存并发控制修复（P0）</td>
+        <td class="td-remark">V11__inventory_add_version.sql |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-120</td>
+        <td class="td-name">Inventory Entity 添加 version</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.1: 库存并发控制修复（P0）</td>
+        <td class="td-remark">@Version 注解 + get/set 方法 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-121</td>
+        <td class="td-name">启用乐观锁插件</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.1: 库存并发控制修复（P0）</td>
+        <td class="td-remark">OptimisticLockerInnerInterceptor |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-122</td>
+        <td class="td-name">库存服务并发控制重构</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.1: 库存并发控制修复（P0）</td>
+        <td class="td-remark">in/out/adjust/reserve/release 全部加锁 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-123</td>
+        <td class="td-name">数据库迁移-新表创建</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2: 订单库存解耦重构（P0）- 部分完成</td>
+        <td class="td-remark">V20 创建 inventory_global_reserve 表，inventory 表加 global_reserved_qty 字段 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-124</td>
+        <td class="td-name">数据库迁移-表结构修改</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2: 订单库存解耦重构（P0）- 部分完成</td>
+        <td class="td-remark">V20-V29 已完成配货/调整/快速录单字段；V39 新增 write_off_amount/write_off_reason；V40 补齐出库单展示冗余列，当前生产口径所需字段已对齐 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-125</td>
+        <td class="td-name">库存服务-跨仓总量预留</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2: 订单库存解耦重构（P0）- 部分完成</td>
+        <td class="td-remark">globalReserve/globalRelease/getGlobalAvailableQty 方法 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-126</td>
+        <td class="td-name">库存服务-按计划出库</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2: 订单库存解耦重构（P0）- 部分完成</td>
+        <td class="td-remark">`outByPlan` 按租户计划原子扣减实际库存，只更新 quantity/version，不再依赖 global_reserved_qty；直接单计划出库接口已关闭 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-127</td>
+        <td class="td-name">订单服务-创建订单重构</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2: 订单库存解耦重构（P0）- 部分完成</td>
+        <td class="td-remark">warehouseId 可选；创建订单不扣库存、不预占、不因库存不足失败 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-128</td>
+        <td class="td-name">订单服务-付款确认重构</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2: 订单库存解耦重构（P0）- 部分完成</td>
+        <td class="td-remark">历史实现为调用跨仓总量预留；2026-06-17 生产口径已调整为收款不锁库存，待 BE-138/BE-139 收尾 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-129</td>
+        <td class="td-name">订单服务-配货计划</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2: 订单库存解耦重构（P0）- 部分完成</td>
+        <td class="td-remark">OrderDeliveryPlanService + Controller，配货计划 CRUD + 确认/取消调整 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-130</td>
+        <td class="td-name">订单服务-调整记录</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2: 订单库存解耦重构（P0）- 部分完成</td>
+        <td class="td-remark">AdjustmentLogDTO + recordAdjustment + getAdjustmentLogs |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-131</td>
+        <td class="td-name">订单状态-配货中状态</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2: 订单库存解耦重构（P0）- 部分完成</td>
+        <td class="td-remark">status=2(ADJUSTMENT_PENDING)，status=3(READY_TO_SHIP)，完整流转 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-138</td>
+        <td class="td-name">确认收款移除硬库存预留</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口</td>
+        <td class="td-remark">confirmPayment / addPayment 只更新支付数据；cancelOrder、取消状态更新、减配不再预留或释放库存；全量后端测试已在 MySQL 8 临时库通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-139</td>
+        <td class="td-name">发货出库按实际配货明细扣库存</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口</td>
+        <td class="td-remark">发货阶段按实际计划 SKU/仓库/数量扣减，库存不足返回 SKU、仓库、可用量和需求量；整单事务失败回滚 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-140</td>
+        <td class="td-name">抹零/短款结清收款口径</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口</td>
+        <td class="td-remark">V39 增加 write_off_amount/write_off_reason；追加收款与标记结清使用租户订单行锁；尾款、筛选、导出、仪表盘和分析统一扣减 refund/writeOff |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-142</td>
+        <td class="td-name">统一订单确认发货路径</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口</td>
+        <td class="td-remark">deliverOrder 为唯一事务入口；confirmDelivery 委托统一入口；订单行 FOR UPDATE 串行化双入口，已发货/已完成幂等返回 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-212</td>
+        <td class="td-name">订单详情配货页软提示改造</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口</td>
+        <td class="td-remark">按仓库缓存并展示 SKU 可用量/不足/无记录/失败软提示；任何提示状态均不阻断配货方案保存 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-213</td>
+        <td class="td-name">追加收款标记结清交互</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口</td>
+        <td class="td-remark">追加收款支持零金额核销、结清原因和防重复提交；列表/详情统一为未付款/部分收款/已结清并使用后端尾款 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">TEST-ORDER-INV-001</td>
+        <td class="td-name">订单库存软解耦测试收口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口</td>
+        <td class="td-remark">MySQL 8 临时库 V1-V40 累计 Flyway 通过；后端全量 `mvn test` 383 项通过；PC `npm run build` 通过；浏览器关键路径覆盖 UI 登录、订单创建、定金、追加收款、抹零结清、配货计划、确认调整、发货和详情页渲染 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">DOC-ORDER-INV-001</td>
+        <td class="td-name">订单库存软解耦文档与流程图</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口</td>
+        <td class="td-remark">更新 PRD、订单库存设计、任务清单、变更记录；新增 drawio 流程图，明确发货状态和收款状态独立变化 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-132</td>
+        <td class="td-name">订单状态机 4 项修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.3: 订单状态机修复与功能完善（P0）</td>
+        <td class="td-remark">confirmPayment 同步 paymentStatus；create 初始化 adjustmentStatus=NONE；confirmAdjustment 减配释放多余预留；cancelOrder 白名单校验+按状态条件释放库存 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-133</td>
+        <td class="td-name">库存 InventoryVO 补充 globalReservedQty</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.3: 订单状态机修复与功能完善（P0）</td>
+        <td class="td-remark">pageList/convertToVO 的 availableQty 计算已扣减 globalReservedQty |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-134</td>
+        <td class="td-name">库存 Mapper XML 修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.3: 订单状态机修复与功能完善（P0）</td>
+        <td class="td-remark">global_reserved_qty 加入 SELECT 和 resultMap，预警过滤条件扣减该字段 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-135</td>
+        <td class="td-name">订单编辑接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.3: 订单状态机修复与功能完善（P0）</td>
+        <td class="td-remark">PUT /api/orders/{id}；创建状态可改金额结构；已收款后锁商品明细/数量/金额/运费但允许维护基础信息、备注、图片；已发货后仅允许备注/图片 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-136</td>
+        <td class="td-name">追加收款接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.3: 订单状态机修复与功能完善（P0）</td>
+        <td class="td-remark">POST /api/orders/{id}/add-payment，仅 status=0 且 paymentStatus≠2 可调用，累加 paidAmount 并自动更新 paymentStatus |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-137</td>
+        <td class="td-name">GlobalExceptionHandler 补充 RuntimeException 处理</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.3: 订单状态机修复与功能完善（P0）</td>
+        <td class="td-remark">业务 RuntimeException 返回 400 + 可读错误信息，不再返回 500 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-141</td>
+        <td class="td-name">订单号生成器防重复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.3: 订单状态机修复与功能完善（P0）</td>
+        <td class="td-remark">Redis 计数器生成订单号前对齐数据库当天最大订单序号，避免 Redis 重置或测试库已有历史订单导致唯一索引冲突 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-401</td>
+        <td class="td-name">客户表和 CRUD</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4: 客户模块（P1）</td>
+        <td class="td-remark">crm_customer + crm_customer_phone 表（一个客户可有多个电话） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-402</td>
+        <td class="td-name">客户电话搜索接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4: 客户模块（P1）</td>
+        <td class="td-remark">GET /api/customers/search?phone，按电话搜索，自动 normalize |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-403</td>
+        <td class="td-name">客户创建接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4: 客户模块（P1）</td>
+        <td class="td-remark">POST /api/customers，支持创建客户时同时创建主电话 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-404</td>
+        <td class="td-name">客户列表接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4: 客户模块（P1）</td>
+        <td class="td-remark">分页 + 筛选 + 订单数量查询 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-405</td>
+        <td class="td-name">客户详情接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4: 客户模块（P1）</td>
+        <td class="td-remark">含订单数量统计 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-406</td>
+        <td class="td-name">客户国家区号字段</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.5: 客户模块国际化升级（2026-04-24）</td>
+        <td class="td-remark">数据库 V24 迁移，crm_customer 新增 country_code/country_name |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-407</td>
+        <td class="td-name">国家选择器组件</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.5: 客户模块国际化升级（2026-04-24）</td>
+        <td class="td-remark">CountryCodeSelect.vue，WhatsApp 风格，约 140 国家 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-408</td>
+        <td class="td-name">客户详情页 3 Tab</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.5: 客户模块国际化升级（2026-04-24）</td>
+        <td class="td-remark">基本信息/订单记录/商品偏好 Tab |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-409</td>
+        <td class="td-name">客户商品偏好分析接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.5: 客户模块国际化升级（2026-04-24）</td>
+        <td class="td-remark">GET /api/customers/{id}/preference，颜色/尺码/品类偏好统计 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-410</td>
+        <td class="td-name">客户基础统计接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.5: 客户模块国际化升级（2026-04-24）</td>
+        <td class="td-remark">GET /api/customers/{id}/stats，订单数/消费总额/时间范围 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-411</td>
+        <td class="td-name">E2E 测试验证</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.5: 客户模块国际化升级（2026-04-24）</td>
+        <td class="td-remark">12/12 测试用例全部通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-412</td>
+        <td class="td-name">电话重复检查</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">V25迁移建唯一索引；create/update时校验租户内电话唯一性，冲突抛 RuntimeException |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-413</td>
+        <td class="td-name">删除客户订单保护</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">deleteCustomer() 前检查 status NOT IN (4,5)，有进行中订单则抛异常阻止删除 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-414</td>
+        <td class="td-name">N+1 查询优化</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">getCustomerOrders() 改为单条 IN 查询获取所有 OrderItem，内存分组赋值 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-415</td>
+        <td class="td-name">订单记录分页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">后端支持 page/size 参数（默认1/20，最大100），返回 PageResult 含 total/pages；前端需结合实际页面接入 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-416</td>
+        <td class="td-name">常用国家置顶</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">localStorage 存储最近使用国家（最多5个），选中国家时写入，列表顶部显示「常用」区块 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-417</td>
+        <td class="td-name">国家选择器键盘导航</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">↑↓ 键导航，Enter 选中，Esc 关闭，打字搜索时自动聚焦 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-418</td>
+        <td class="td-name">客户标签功能</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">V26迁移创建crm_customer_tag和crm_customer_tag_rel表；后端完整CRUD + 客户标签分配/移除接口；前端待接入 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-419</td>
+        <td class="td-name">沉默客户预警</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">GET /api/dashboard/silent-customers?days=90 返回沉默客户列表（含最后订单日期和天数）；前端待接入 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-420</td>
+        <td class="td-name">偏好时间范围筛选</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">preference接口支持startDate/endDate参数（默认365天前~今天）；已通过curl测试验证 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-421</td>
+        <td class="td-name">客户数据权限</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">CustomerPageDTO 新增 mine 参数；pageList() 支持 mine=true 过滤只看自己创建的客户；createBy 字段已在客户创建时填充 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-422</td>
+        <td class="td-name">操作审计日志</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">V28迁移创建 crm_customer_operation_log 表；CustomerServiceImpl 在 create/update/delete 时记录操作日志（操作人/时间/变更详情） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-423</td>
+        <td class="td-name">偏好数据缓存</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">getPreference() 增加 Redis 缓存，key=customer:preference:{id}:{startDate}:{endDate}，TTL=1小时；已通过 redis-cli KEYS 验证缓存写入 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-501</td>
+        <td class="td-name">看板统计接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
+        <td class="td-remark">GET /api/dashboard/stats，订单统计按 order_date + 已产生收款 + 应收净额 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-502</td>
+        <td class="td-name">订单趋势接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
+        <td class="td-remark">GET /api/dashboard/trend，按筛选周期统计已产生收款订单 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-503</td>
+        <td class="td-name">热销商品接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
+        <td class="td-remark">GET /api/dashboard/top-products，仅统计已产生收款订单 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-504</td>
+        <td class="td-name">数据分析接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
+        <td class="td-remark">GET /api/analytics/summary、trend、product-ranking、product-detail |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-505</td>
+        <td class="td-name">数据分析权限</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
+        <td class="td-remark">menu:analytics + data:analytics:profit，销售员默认无毛利权限 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-551</td>
+        <td class="td-name">Agent 接入安全边界复核</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">`/api/customers/**` 移除公开放行，Agent 入口独立走 `/api/agent/**` 鉴权与租户上下文 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-553</td>
+        <td class="td-name">Agent 认证过滤器与调用审计</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">`X-Agent-Key` 过滤器写入 TenantContext，V34 记录调用日志并更新 Agent Key 最近使用信息 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-554</td>
+        <td class="td-name">Agent 款式趋势分析数据包</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">GET /api/agent/analytics/style-trends 返回多周期销量事实、趋势标签和建议依据；库存建议由 BE-558 承接 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-555</td>
+        <td class="td-name">Agent 颜色尺码结构数据包</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">GET /api/agent/analytics/sku-mix 返回同款 SKU/颜色/尺码销售结构和热卖/低销量信号；缺货/积压由 BE-558 承接 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-901</td>
+        <td class="td-name">统一文件表与迁移脚本</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.5: 统一文件存储（P1）</td>
+        <td class="td-remark">V32__file_storage.sql 新增 file_storage 表，业务表保存 fileId |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-902</td>
+        <td class="td-name">本地文件上传/预览/删除接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.5: 统一文件存储（P1）</td>
+        <td class="td-remark">POST /api/files/upload；GET /api/files/{id}/preview；DELETE /api/files/{id} |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-903</td>
+        <td class="td-name">文件业务绑定接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.5: 统一文件存储（P1）</td>
+        <td class="td-remark">PUT /api/files/bind；订单/入库服务内部自动绑定 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-904</td>
+        <td class="td-name">订单图片 fileId 保存改造</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.5: 统一文件存储（P1）</td>
+        <td class="td-remark">sale_order.images 保存 fileId JSON 数组，并兼容历史 URL/blob 数据展示 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-905</td>
+        <td class="td-name">入库凭证 fileId 保存改造</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.5: 统一文件存储（P1）</td>
+        <td class="td-remark">inventory_log.images 保存 fileId JSON 数组 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-906</td>
+        <td class="td-name">商品主图 fileId 保存改造</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.5: 统一文件存储（P1）</td>
+        <td class="td-remark">product.image_url 保存单个 fileId，并兼容历史 URL |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-907</td>
+        <td class="td-name">上传接口回归测试</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.5: 统一文件存储（P1）</td>
+        <td class="td-remark">FileControllerTest 覆盖 multipart 上传返回 fileId/previewUrl |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1001</td>
+        <td class="td-name">数字资产表结构扩展</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">扩展 file_storage（14 个新字段），新增 file_folder、file_business_bind、file_operation_log、file_cleanup_log 四张表；对应实体和 Mapper；22 项反射测试全部通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1002</td>
+        <td class="td-name">文件中心分页/详情 API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">GET /api/files (分页+筛选)、GET /api/files/{id} (文件详情)；支持 keyword/folderId/fileType/businessType/bound/purpose/createBy/startDate/endDate/status 筛选；bound 基于 file_business_bind.deleted=0 判断 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1003</td>
+        <td class="td-name">文件夹管理 API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">树形获取、创建、更新、删除（含子文件夹/文件保护，moveFilesToUnfiled 参数） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1004</td>
+        <td class="td-name">多业务绑定 API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">GET /api/files/{id}/bindings、POST /api/files/bindings、DELETE /api/files/bindings/{id}；绑定前验证文件存在，解绑校验租户；写入操作日志 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1005</td>
+        <td class="td-name">商品/SKU 图片绑定服务</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">PUT /api/products/{id}/file-bindings；支持 main 主图、gallery 图集、sku_image SKU 图片的替换语义绑定；product.image_url 兼容 fileId 同步到 file_business_bind；非数字历史 URL 忽略 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1006</td>
+        <td class="td-name">文件批量操作 API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">POST /api/files/batch-delete（软删除）、POST /api/files/batch-move（移动到文件夹/未归档）；批量删除拒绝有效绑定文件；批量移动前验证文件夹存在；写入操作日志 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1007</td>
+        <td class="td-name">未绑定文件治理</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">查询/软删除未绑定未归档超期文件（基于 file_business_bind.deleted=0 判断）；写入 file_cleanup_log |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1008</td>
+        <td class="td-name">文件清理定时任务</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">第一版按配置 tenant-id + cron 执行两步清理（软删除未绑定+标记已清理）；默认 disabled；仅元数据不物理删除，全租户遍历/物理删除留到后续 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1009</td>
+        <td class="td-name">文件权限与私有预览收口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">BE-1009A 完成 PUBLIC/PRIVATE 预览登录边界；BE-1009B 完成业务权限映射（order→btn:order:view、product/sku→menu:product、inventory_log→btn:inventory:viewLog、ocr_document→menu:file），viewAll 绕过、viewOwn 要求可靠 userId；补充浏览器原生 `&lt;img&gt;`/新窗口预览的 `previewToken` 支持；FileControllerTest 20/20 通过，JwtAuthenticationFilterTest+FileControllerTest 22/22 通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1009A</td>
+        <td class="td-name">文件预览 PUBLIC/PRIVATE 基础收口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">子任务，已合并到 BE-1009 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1009B</td>
+        <td class="td-name">文件预览业务权限映射</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">子任务，已合并到 BE-1009 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1010</td>
+        <td class="td-name">基础视频文件支持</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">上传支持 video/mp4、video/webm、video/quicktime；上传上限默认 200MB 且支持环境变量覆盖；自动分类 fileType（IMAGE/VIDEO/OTHER）和 fileExt；FileUploadVO 新增 fileType/fileExt；不做转码/封面/Range/分片 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1011</td>
+        <td class="td-name">文件中心回归测试</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">覆盖上传、列表、绑定、未绑定清理、删除保护；补充批量删除有效绑定文件拒绝测试；`File*Test` 98/98 通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1012</td>
+        <td class="td-name">图片派生图/缩略图底座</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">SOW：docs/superpowers/plans/2026-06-18-file-derivatives-v1-sow.md；V38 新增 file_derivative；已建立派生图服务、生成器、存储 Provider 脚手架；上传后生成 thumb/card，失败不回滚原图；新增 GET /api/files/{id}/variant?type=thumb/card 并复用原图权限/previewToken，缺失时回退原图；新增当前租户幂等批量补生成接口；2026-06-18 已在本机测试环境为 tenant 1 的 89 张历史图补齐 178 个派生文件（0 FAILED、0 缺失），生产环境仍须按运维规范单独执行 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1013</td>
+        <td class="td-name">商品素材查询 API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">GET /api/products/{id}/file-bindings，返回 main/gallery/skuImages 分组，previewUrl 统一为 /api/files/{fileId}/preview |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1014</td>
+        <td class="td-name">商品/SKU 删除引用保护验收 + SKU精细更新</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">新增 PUT /api/products/skus 单个SKU更新；syncProductSkus 保留已有 SKU price/costPrice/barCode/status；delete/deleteColor/deleteSize 添加引用保护，有引用时提示建议禁用；39 个后端测试全部通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1020</td>
+        <td class="td-name">Catalog 商品/SKU 展示接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.7: 客户 iPad 现货展示页后端（P1）</td>
+        <td class="td-remark">GET /api/catalog/products、GET /api/catalog/products/{id}；只返回展示字段和图片预览 URL，不返回价格/成本/供应商/真实库存数量 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1021</td>
+        <td class="td-name">Catalog 库存状态聚合</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.7: 客户 iPad 现货展示页后端（P1）</td>
+        <td class="td-remark">按 quantity - reservedQty - globalReservedQty 判断有现货/暂无现货；stockMode=in_stock 在分页前过滤，避免 total 与卡片数量不一致 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1022</td>
+        <td class="td-name">Catalog 筛选项接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.7: 客户 iPad 现货展示页后端（P1）</td>
+        <td class="td-remark">GET /api/catalog/filters；分类、颜色、尺码、全部/现货/有图筛选 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1023</td>
+        <td class="td-name">Catalog 只读权限</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.7: 客户 iPad 现货展示页后端（P1）</td>
+        <td class="td-remark">V37 新增 menu:catalog、data:catalog:view，默认授权 ROLE_OWNER/ROLE_ADMIN/ROLE_SALES；第一版不做公开分享链接 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1030</td>
+        <td class="td-name">后端全量测试失败归因与基线记录</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.8: 后端测试基线修复（P1）</td>
+        <td class="td-remark">初始 `mvn test` 失败 40 个；已确认 `master` 基线同样失败，非商品管理 v2 新增回归。失败主因：登录测试缺 `tenantCode`、订单测试状态机口径过旧、实体字段缺少显式列映射。 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1031</td>
+        <td class="td-name">Catalog/Product Controller 测试认证基线修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.8: 后端测试基线修复（P1）</td>
+        <td class="td-remark">`CatalogControllerTest`、旧 `ProductControllerTest` 已按现有多租户登录规则补齐 `tenantCode=test_tenant` 和正确测试密码；Product 测试改用唯一商品编码，避免重复执行污染。 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1032</td>
+        <td class="td-name">OrderControllerTest 状态码与订单状态口径修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.8: 后端测试基线修复（P1）</td>
+        <td class="td-remark">断言已对齐 `GlobalExceptionHandler` 业务错误 400、当前订单状态值 0-8，以及发货前需创建配货计划并确认调整的状态机流程。 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1033</td>
+        <td class="td-name">后端全量测试收口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.8: 后端测试基线修复（P1）</td>
+        <td class="td-remark">`cd blade-backend &amp;&amp; mvn test` 通过：Tests run 244, Failures 0, Errors 0, Skipped 0；定向回归 `ProductControllerTest,CatalogControllerTest,FileControllerTest,FileBindingControllerTest,ProductFileBindingServiceTest,ProductFileBindingControllerTest` 通过 73/73。 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-001</td>
+        <td class="td-name">Vue3 项目初始化</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">从零搭建 Vue3 + Element Plus + TailwindCSS，已完成登录页、布局、仪表盘 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-002</td>
+        <td class="td-name">项目结构搭建</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">views/ router/ stores/ api/ 已搭建 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-003</td>
+        <td class="td-name">布局组件</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">侧边栏菜单 + 顶部导航 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-004</td>
+        <td class="td-name">登录页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">多租户登录 + 验证码 + 错误处理 + 保持登录 30 天；登录过期回登录页时保留当前页面 redirect |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-201</td>
+        <td class="td-name">订单列表页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">表格 + 高级筛选 + 分页 + 支付状态筛选 + 编辑按钮 + 订单上下文摘要 + 图片 fileId 字段 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-202</td>
+        <td class="td-name">订单详情页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">查看 + 状态操作 + 支付状态/定金/送货状态 + 追加收款按钮（status=0且paymentStatus≠2）+ 追加收款弹窗 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-203</td>
+        <td class="td-name">新建订单页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">支付状态单选框 + 定金输入 + 送货设置 + 客户搜索（电话匹配）+ 批量添加商品（颜色尺码矩阵）+ 单价可调整 + 可选库存筛选 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-204</td>
+        <td class="td-name">订单导出</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">GET /api/orders/export，支持筛选条件，EasyExcel生成，浏览器下载 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-205</td>
+        <td class="td-name">订单显示开单人员</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">订单列表增加开单人员列，展示 salesmanName |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-206</td>
+        <td class="td-name">PC 快速录单增强</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">单张纸单连续录入、来源档口/店铺独立于仓库、订货/现货标记、运费收入/成本、成本与毛利快照、订单图片统一上传、结算与汇总左右并列、列表/详情/导出展示 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-207</td>
+        <td class="td-name">PC 快速录单商品级批量 SKU 录入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">选择商品后展示正常状态 SKU 矩阵，批量填写颜色/尺码数量并一次性添加到订单；不读取、不展示、不校验库存；重复 skuId 自动合并数量且不覆盖已改单价/成本价；Claude Code 实现，Codex 复核并修正重复合并提示与正常状态过滤 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-301</td>
+        <td class="td-name">库存列表页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 3: 库存管理</td>
+        <td class="td-remark">表格 + 筛选 + 预警标识 + 分页 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-302</td>
+        <td class="td-name">入库操作</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 3: 库存管理</td>
+        <td class="td-remark">表单 + SKU选择 + 多商品入库 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-303</td>
+        <td class="td-name">出库操作</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 3: 库存管理</td>
+        <td class="td-remark">表单 + reason字段 + 多商品出库 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-304</td>
+        <td class="td-name">库存调整</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 3: 库存管理</td>
+        <td class="td-remark">盘盈盘亏表单 + 调整原因 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-305</td>
+        <td class="td-name">库存记录</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 3: 库存管理</td>
+        <td class="td-remark">变动日志查询弹窗 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-401</td>
+        <td class="td-name">商品列表页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">表格 + 分类/状态筛选 + 分页 + 新建/编辑商品弹窗 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-402</td>
+        <td class="td-name">商品编辑页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">颜色/尺码选择 + SKU 生成预览 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-403</td>
+        <td class="td-name">SKU 矩阵配置</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">颜色×尺码 矩阵输入数量 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-404</td>
+        <td class="td-name">颜色列表页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">颜色管理 + 新建/编辑弹窗 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-405</td>
+        <td class="td-name">尺码列表页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">尺码管理 + 新建/编辑弹窗 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-406</td>
+        <td class="td-name">商品分类页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">分类管理 + 新建/编辑弹窗 + 后端 API |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-407</td>
+        <td class="td-name">商品编辑页 v2 信息架构</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">商品编辑弹窗升级为1100px宽4Tab分区：基础信息、颜色尺码、SKU明细、商品素材；Tab内容独立滚动；新建时仅显示基础信息和颜色尺码 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-408</td>
+        <td class="td-name">SKU 明细精细维护</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">SKU明细Tab展示SKU表格，支持inline编辑售价/成本价/条码/状态（el-switch）；脏跟踪+批量保存调用PUT /api/products/skus |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-409</td>
+        <td class="td-name">商品素材管理内聚到商品页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">素材Tab展示主图/图集/SKU图片管理；每个SKU行可上传/fileId添加/点击移除图片；saveFileBindings发送全部SKU的skuImageBindings；复用filePreviewUrl()预览；素材独立保存 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-410</td>
+        <td class="td-name">商品删除/禁用交互优化</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">商品/颜色/尺码/分类删除前提示引用风险和建议禁用；删除失败时弹窗展示后端引用保护消息 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-501</td>
+        <td class="td-name">客户列表页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 5: 客户管理</td>
+        <td class="td-remark">表格 + 筛选 + 分页 + 新建/编辑/删除弹窗 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-502</td>
+        <td class="td-name">客户编辑页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 5: 客户管理</td>
+        <td class="td-remark">新增/编辑客户表单 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-601</td>
+        <td class="td-name">仪表盘</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 6: 看板统计</td>
+        <td class="td-remark">数字卡片 + 趋势图 + ECharts，第一行随日期范围动态展示订单/销售额/毛利/销量 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-602</td>
+        <td class="td-name">订单统计</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 6: 看板统计</td>
+        <td class="td-remark">趋势图集成到仪表盘 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-603</td>
+        <td class="td-name">库存统计</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 6: 看板统计</td>
+        <td class="td-remark">已完成库存周转率、库存总量和库存积压预警；平均在库天数已移除 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-604</td>
+        <td class="td-name">数据分析页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 6: 看板统计</td>
+        <td class="td-remark">独立 /analytics 页面，销售+商品分析，毛利字段按权限展示 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-701</td>
+        <td class="td-name">数据库迁移-权限表</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">V12__permission_system.sql：sys_permission, sys_role_permission 表 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-702</td>
+        <td class="td-name">修改 sys_user_role 表</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">V13__sys_user_role_fix.sql：增加 tenant_id/deleted/create_time |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-703</td>
+        <td class="td-name">修改 sys_role_menu 表</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">V14__permission_data.sql：预置角色和权限数据 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-704</td>
+        <td class="td-name">Permission 实体和 Mapper</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">SysPermission + PermissionMapper（含自定义SQL） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-705</td>
+        <td class="td-name">RolePermission 实体和 Mapper</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">SysRolePermission + RolePermissionMapper |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-706</td>
+        <td class="td-name">角色管理接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">RoleController + RoleService + RoleVO/DTO |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-707</td>
+        <td class="td-name">权限管理接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">PermissionController + PermissionService + PermissionVO/DTO |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-708</td>
+        <td class="td-name">权限判断逻辑</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">hasPermission() + getUserPermissionCodes() + getVisibleMenus() |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-709</td>
+        <td class="td-name">预置角色和权限数据</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">6个预置角色 + 完整权限数据（菜单/按钮/字段） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-704</td>
+        <td class="td-name">个人中心页面</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">修改密码、个人信息；头部下拉菜单新增个人中心入口 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-901</td>
+        <td class="td-name">PC 订单图片上传接入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 9: 统一文件存储接入（P1）</td>
+        <td class="td-remark">新建/快速录单/编辑/详情页接入统一文件接口，快速录单与编辑弹窗支持图片墙上传/预览/移除，订单保存 fileId |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-902</td>
+        <td class="td-name">PC 商品主图上传接入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 9: 统一文件存储接入（P1）</td>
+        <td class="td-remark">商品新建/编辑/列表接入统一文件接口，商品保存 fileId |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-903</td>
+        <td class="td-name">PC 入库凭证上传接入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 9: 统一文件存储接入（P1）</td>
+        <td class="td-remark">入库弹窗接入统一文件接口，入库日志保存 fileId |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-904</td>
+        <td class="td-name">PC 图片上传 E2E 回归</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 9: 统一文件存储接入（P1）</td>
+        <td class="td-remark">Playwright 覆盖商品主图、编辑订单、快速录单图片上传，断言统一文件接口返回 fileId、预览图可加载且无系统错误 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1001</td>
+        <td class="td-name">文件中心路由与菜单</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 10: PC 文件中心（P1）</td>
+        <td class="td-remark">新增 /files 一级入口、menu:file 权限、pageTitle 和 firstPage 映射；V36 补齐文件中心菜单/按钮权限并分配 ROLE_OWNER/ROLE_ADMIN |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1002</td>
+        <td class="td-name">文件夹树与虚拟入口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 10: PC 文件中心（P1）</td>
+        <td class="td-remark">全部文件、未绑定、商品素材、SKU 图片、订单图片、入库凭证、视频、回收站 + 真实文件夹树 API 集成 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1003</td>
+        <td class="td-name">文件网格/列表视图</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 10: PC 文件中心（P1）</td>
+        <td class="td-remark">图片卡片+视频占位网格、el-table 列表、keyword/fileType/businessType 筛选、分页、图片/视频预览弹窗、loading/empty 状态 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1004</td>
+        <td class="td-name">上传/预览/移动/删除</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 10: PC 文件中心（P1）</td>
+        <td class="td-remark">上传按钮支持多文件到 temp；前端按 200MB 做上传前校验；网格/列表视图可多选；批量工具栏移动/绑定/删除；移动弹窗选文件夹或未归档；删除前查询绑定关系展示风险信息；仅 POST /api/files/batch-delete |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1005</td>
+        <td class="td-name">商品/SKU 绑定弹窗</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 10: PC 文件中心（P1）</td>
+        <td class="td-remark">FileBindDialog：远程搜索商品，选角色 main/gallery/sku_image，SKU 图片角色显示 SKU 多选，PUT /api/products/{id}/file-bindings |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1006</td>
+        <td class="td-name">未绑定文件清理管理</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 10: PC 文件中心（P1）</td>
+        <td class="td-remark">FileCleanupPanel：清理说明/保留天数/候选统计/刷新/软删除确认/回收站快捷入口；使用 GET unbound-candidates + POST soft-delete-unbound |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1007</td>
+        <td class="td-name">PC 图片缩略图接入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 10: PC 文件中心（P1）</td>
+        <td class="td-remark">新增 fileVariantUrl/parseImageVariantSources；商品列表和主图使用 card，商品图集/SKU/订单图片墙使用 thumb，文件中心网格使用 card、列表使用 thumb；订单大图、文件预览、打开原文件仍使用原图 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1020</td>
+        <td class="td-name">Catalog 展示页路由</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">新增独立全屏 `/catalog` 路由，登录后需 `data:catalog:view`；不挂后台侧边栏 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1021</td>
+        <td class="td-name">商品相册网格</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">quiet luxury 视觉；横屏网格 + 右侧详情、竖屏 2 列网格；商品网格只展示商品主图，无图时显示占位 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1022</td>
+        <td class="td-name">商品详情与 SKU 矩阵</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">横屏右侧详情、竖屏底部抽屉；详情顶部轮播展示商品图 + 所有 SKU 图片全集；SKU 颜色/尺码矩阵展示有现货/暂无现货 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1023</td>
+        <td class="td-name">全部/现货/有图筛选</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">使用 Catalog API 的 keyword/category/color/size/stockMode/hasImage；前端不自行拼库存 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1024</td>
+        <td class="td-name">iPad PWA 体验优化</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">大触控区域、懒加载、横竖屏适配、全屏大图模式；全屏大图只浏览商品图片集，不混入 SKU 图片；不展示成本、毛利、真实库存 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1025</td>
+        <td class="td-name">Catalog 无限滚动与本地缓存</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">商品网格取消分页器，滚动触底自动请求下一页；筛选维度缓存商品列表；图片按 fileId 写入 IndexedDB，命中后使用本地 Blob URL |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1026</td>
+        <td class="td-name">Catalog 图片滑动切换</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">详情轮播和全屏大图支持左右滑动切图；增加跟手滑动与 220ms 相册式过渡；保留按钮/缩略图；仅拦截单指双击页面放大，保留两指缩放；横竖屏切换后恢复正常视口 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1027</td>
+        <td class="td-name">Catalog 手机竖屏版</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">iPhone 14 Pro 竖屏断点；保持 iPad quiet luxury 风格；两列商品卡片、底部详情抽屉、全屏大图；手机版横屏显示切回竖屏提示，不提供横屏浏览布局 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1028</td>
+        <td class="td-name">Catalog 派生图加载优化</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">Catalog 商品卡片和详情主轮播使用 card，详情胶片条使用 thumb，全屏大图使用原图；IndexedDB 缓存键按 original/thumb/card 隔离并兼容旧 file:{id} 原图缓存；Playwright 回归覆盖三层请求 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1029</td>
+        <td class="td-name">Catalog 双指缩放卡顿修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">移除 `visualViewport.resize` 上的滚动重置，避免 pinch zoom 期间高频触发 `window.scrollTo(0,0)` 导致画面跳跃；横竖屏变化仍通过 `orientationchange` 做一次视口恢复；新增 Playwright 回归 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1030</td>
+        <td class="td-name">Catalog 图片集合边界修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">首页卡片只展示商品主图；点击商品图片/详情大图优先展示商品图集 `imageUrls`，无图集时才回退主图；商品图集过滤与主图重复的图片；SKU 图片不混入商品大图集合，保留给后续 SKU 图集详情使用 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1031</td>
+        <td class="td-name">Catalog iPad 搜索框触控修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">搜索框触摸时同步 focus 原生输入框；搜索输入区域覆盖页面级 `user-select:none`，恢复 `user-select:text` 与 `touch-action:manipulation`，避免 iPad 点击搜索框不弹键盘 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1032</td>
+        <td class="td-name">Catalog iPad 竖屏全屏大图裁剪修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 11: 客户 iPad 现货展示页（P1）</td>
+        <td class="td-remark">全屏 viewer 外层只负责裁剪，slide 内部负责图片边距；避免 iPad 竖屏下相邻图片从左右 padding 区域露出；新增 Playwright 回归验证 active slide 两侧 slide 均在视口外 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-001</td>
+        <td class="td-name">Vue3 PWA 项目初始化</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">Vite + Vue3 + TS |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-002</td>
+        <td class="td-name">PWA 配置</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">Service Worker + manifest |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-003</td>
+        <td class="td-name">路由配置</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">Vue Router |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-004</td>
+        <td class="td-name">响应式布局基础</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">Vuetify 4 响应式 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-006</td>
+        <td class="td-name">共享类型定义</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 1: 骨架搭建</td>
+        <td class="td-remark">packages/types 已搭建 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-101</td>
+        <td class="td-name">订单列表页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
+        <td class="td-remark">骨架已搭建，含列表/筛选/状态Tab |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-102</td>
+        <td class="td-name">订单详情页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
+        <td class="td-remark">骨架已搭建，含状态操作按钮 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-103</td>
+        <td class="td-name">新建订单页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
+        <td class="td-remark">骨架已搭建，含SKU选择/仓库选择 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-201</td>
+        <td class="td-name">库存列表页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 3: 库存系统</td>
+        <td class="td-remark">骨架已搭建，含仓库筛选/预警过滤 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-202</td>
+        <td class="td-name">入库页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 3: 库存系统</td>
+        <td class="td-remark">骨架已搭建，含SKU选择/图片上传 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-203</td>
+        <td class="td-name">出库页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 3: 库存系统</td>
+        <td class="td-remark">骨架已搭建，含ORDER/OTHER来源选择 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-901</td>
+        <td class="td-name">移动端入库图片上传接入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 3.5: 统一文件存储接入（P1）</td>
+        <td class="td-remark">入库页上传图片到统一文件接口，入库日志保存 fileId |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-301</td>
+        <td class="td-name">商品列表页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 4: 商品管理</td>
+        <td class="td-remark">骨架已搭建 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-401</td>
+        <td class="td-name">统计概览页</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 5: 看板系统</td>
+        <td class="td-remark">骨架已搭建，含数字卡片/趋势图 |</td>
+      </tr></table>
+    </section>
+
+  <footer>本页面由 <code>node scripts/gen-status.mjs</code> 自动生成，完整任务明细见 docs/03-TASKS.md</footer>
+</div>
+
+<script>
+  const search = document.getElementById('search')
+  const buttons = document.querySelectorAll('.controls button')
+  let filter = 'all'
+  const rows = () => Array.from(document.querySelectorAll('.task-table tr[data-status]'))
+  const apply = () => {
+    const q = search.value.trim().toLowerCase()
+    rows().forEach((tr) => {
+      const statusOk = filter === 'all' || tr.dataset.status === filter
+      const textOk = !q || tr.textContent.toLowerCase().includes(q)
+      tr.classList.toggle('hidden', !(statusOk && textOk))
+    })
+    document.querySelectorAll('.section').forEach((sec) => {
+      const visible = Array.from(sec.querySelectorAll('tr[data-status]')).some((tr) => !tr.classList.contains('hidden'))
+      sec.classList.toggle('hidden', !visible)
+    })
+  }
+  search.addEventListener('input', apply)
+  buttons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      buttons.forEach((b) => b.classList.remove('active'))
+      btn.classList.add('active')
+      filter = btn.dataset.filter
+      apply()
+    })
+  })
+</script>
+</body>
+</html>

@@ -12,7 +12,7 @@
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
 | 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传和文件中心底座已完成；图片派生图第一版 BE-1012、BA-1007、BA-1028 已完成，PC 与 Catalog 已按 thumb/card/original 分层加载；客户 iPad Catalog 现货选款页第一版已完成；移动端继续开发中 |
-| 下一步 | 订单库存软解耦生产口径已完成本地收口：MySQL 8 V1-V40 累计迁移、后端全量测试、PC 构建和浏览器关键路径均已通过；下一步进入 `develop` 集成，后续 release 仍需按发布规范做生产备份和 NAS 发布预检。部分发货、分批发货和缺货退款继续排除。 |
+| 下一步 | Catalog iPad 展示页最近一轮修复已完成专项收口，并已补齐当前分支后端 Controller 测试认证基线：`CatalogControllerTest`、`ProductControllerTest`、`OrderControllerTest` 均使用实际种子租户 `test_tenant`。Docker MySQL 开发库已迁移到 V40；后端全量 383/383、Catalog E2E 9/9、PC build 与真实 `/catalog` 冒烟均通过。下一步建议将 `feature/catalog-pinch-zoom-smooth` 合入 `develop` 做集成，再准备 release/NAS 发布预检。部分发货、分批发货和缺货退款继续排除。 |
 
 ---
 
@@ -41,6 +41,8 @@
 | NAS 生产环境 | `192.168.1.10:/volume2/blade`，入口 `http://192.168.1.10:8899/catalog` |
 | NAS 运维手册 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
 | Git 分支/发布规范 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
+
+> 2026-08-17 接手复验备注：本机 MySQL 已停止，Docker `blade-mysql` 已成功占用 `3306`；`blade_project` 开发库启动后由 Flyway 从 V38 迁移到 V40。`test_tenant/admin/admin123` 可登录，真实 Catalog API 返回 `code=200,total=1119`；真实前端 `/catalog` iPad 竖屏冒烟通过。
 
 ---
 
@@ -194,6 +196,7 @@
 | 了解项目入口与阅读顺序 | [01-README.md](./01-README.md) |
 | 了解业务与技术规则 | [02-PRD.md](./02-PRD.md) |
 | 查看任务状态 | [03-TASKS.md](./03-TASKS.md) |
+| 一眼看清项目进度（自动生成） | [STATUS.md](./STATUS.md)，可视化看板 `outputs/status.html` |
 | 查看最近变更 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
 | 看项目目录结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
 | 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
@@ -203,6 +206,7 @@
 | 查 NAS 生产运维发布 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
 | 查 Git 分支、GitHub 同步和上线流程 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
 | 查外部 AI Agent 对接设计 | [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md) |
+| 查双 Agent 协作同步协议 | [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) |
 | 查已知问题和历史坑 | [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md) |
 | 排查常见环境问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
 
@@ -213,8 +217,9 @@
 如果你是新接手的 AI，推荐阅读顺序：
 
 1. [SESSION_CONTEXT.md](./SESSION_CONTEXT.md)
-2. [01-README.md](./01-README.md)
-3. [02-PRD.md](./02-PRD.md)
-4. [03-TASKS.md](./03-TASKS.md)
-5. 开发/合并/上线前补读 [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md)
-6. 订单/库存相关开发再补读 [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md)
+2. [STATUS.md](./STATUS.md)（自动生成，一眼看清进度）
+3. [01-README.md](./01-README.md)
+4. [02-PRD.md](./02-PRD.md)
+5. [03-TASKS.md](./03-TASKS.md)
+6. 开发/合并/上线前补读 [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md)
+7. 订单/库存相关开发再补读 [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md)
