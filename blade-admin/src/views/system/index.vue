@@ -338,7 +338,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { getUserPage, getAllRoles, createUser, updateUser, deleteUser, resetUserPassword, type UserVO } from '@/api/user'
 import { getRolePage, createRole, updateRole, deleteRole, getRolePermissions, type RoleVO } from '@/api/role'
@@ -550,14 +550,19 @@ async function openRoleDialog(mode: 'create' | 'edit' | 'permission', row?: Role
     defaultCheckedPermissions.value = []
     // 确保权限树数据已加载
     if (permissionTree.value.length === 0) {
+      pendingRoleId = row.id
       await loadPermissionTree()
-      // 权限会在 loadPermissionTree 中自动加载
+      // 角色权限会在 loadPermissionTree 中自动加载
     } else {
       // 树已加载，直接获取角色权限
       const res = await getRolePermissions(row.id)
       defaultCheckedPermissions.value = res.data || []
     }
     permDialogVisible.value = true
+    // el-tree 的 default-checked-keys 只在首次渲染生效，
+    // 第二次打开时需用 setCheckedKeys 重新应用当前角色的勾选，避免残留上一角色状态
+    await nextTick()
+    permTreeRef.value?.setCheckedKeys(defaultCheckedPermissions.value)
   }
 }
 
@@ -610,9 +615,12 @@ async function loadRolePermissions(roleId: number) {
 
 async function submitRolePermissions() {
   if (!currentRole.value) return
+  // 合并完全勾选 + 半选（父节点部分选中）的节点，避免覆盖式保存时父权限丢失
   const checkedKeys = permTreeRef.value?.getCheckedKeys() || []
+  const halfCheckedKeys = permTreeRef.value?.getHalfCheckedKeys() || []
+  const permissionIds = [...new Set([...checkedKeys, ...halfCheckedKeys])]
   try {
-    await assignRolePermissions({ roleId: currentRole.value.id, permissionIds: checkedKeys })
+    await assignRolePermissions({ roleId: currentRole.value.id, permissionIds })
     ElMessage.success('权限分配成功')
     permDialogVisible.value = false
   } catch (e: any) {

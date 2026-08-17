@@ -150,6 +150,14 @@ public class PermissionServiceImpl implements PermissionService {
         if (permission == null) {
             throw new RuntimeException("权限不存在");
         }
+        // 存在子权限时禁止删除，避免权限树出现悬空子节点
+        LambdaQueryWrapper<SysPermission> childWrapper = new LambdaQueryWrapper<>();
+        childWrapper.eq(SysPermission::getParentId, id)
+                    .eq(SysPermission::getDeleted, 0);
+        Long childCount = permissionMapper.selectCount(childWrapper);
+        if (childCount != null && childCount > 0) {
+            throw new RuntimeException("该权限下存在 " + childCount + " 个子权限，请先删除或移动子权限");
+        }
         permission.setDeleted(1);
         permissionMapper.updateById(permission);
 
