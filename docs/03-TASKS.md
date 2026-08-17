@@ -11,6 +11,7 @@
 2. **主动更新**：完成任务后立即更新状态
 3. **交接同步**：任务状态变更必须同步到本文档
 4. **阻塞上报**：遇到阻塞立即在本文档注明，并通知用户
+5. **认领防撞车**：开始执行前先把任务状态改为 `⏳ 进行中（执行人：Codex / DeepSeek）`，完成后再改 `✅ 完成`；一个任务同一时刻只允许一个 Agent 认领（详见 [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md)）
 
 ---
 

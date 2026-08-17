@@ -12,6 +12,7 @@
 1. 📋 [docs/01-README.md](./docs/01-README.md) — 项目结构和工作流程
 2. 📝 [docs/02-PRD.md](./docs/02-PRD.md) — 产品需求文档（开发依据）
 3. ✅ [docs/03-TASKS.md](./docs/03-TASKS.md) — 开发任务清单（领取任务）
+4. 🤝 [docs/reference/AGENT_COLLABORATION.md](./docs/reference/AGENT_COLLABORATION.md) — 双 Agent（Codex + DeepSeek）联合开发同步协议
 
 ---
 
@@ -54,6 +55,19 @@
 任务完成后必须同步更新：
 - 任务状态（03-TASKS.md）
 - 变更记录（05-CHANGELOG.md）
+
+### 规则 6：分支和发布必须受控
+
+开发前必须确认当前 Git 分支和工作区状态。新功能默认使用 `feature/*` 分支，集成测试使用 `develop`，上线候选使用 `release/*`，NAS 生产环境只部署 `master`。详细规则见 [docs/reference/GIT_BRANCH_WORKFLOW.md](./docs/reference/GIT_BRANCH_WORKFLOW.md)。
+
+### 规则 7：双 Agent 联合开发必须同步
+
+Codex 与 DeepSeek（DSH）在同一工作区联合开发时，必须遵守 [docs/reference/AGENT_COLLABORATION.md](./docs/reference/AGENT_COLLABORATION.md)：
+
+- **任务认领**：TASKS.md 中开始任务前先把状态改为 `⏳ 进行中（执行人：Codex / DeepSeek）`，防止撞车；一个任务同一时刻只允许一个 Agent 认领。
+- **提交标注**：commit message 末尾必须带 `[codex]` / `[dsh]` 后缀。
+- **交接同步**：收工必须更新 SESSION_CONTEXT.md、03-TASKS.md、05-CHANGELOG.md 并 commit + push。
+- **验证结果必填**：变更记录必须包含实际执行的验证命令与结果，不能只写"已测试"。
 
 ---
 

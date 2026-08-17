@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-08-17 变更记录
+
+### [新增] - 双 Agent（Codex + DeepSeek）联合开发协作规范
+
+**变更内容**：
+- 新增 [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md)：定义 Codex 与 DeepSeek（DSH）在同一工作区联合开发的信息同步协议。包含五条协议：任务认领防撞车、commit message 执行人后缀（`[codex]` / `[dsh]`）、开工/收工仪式、会话快照维护、验证结果必填；以及冲突处理与交接检查清单。
+- 根目录 [AGENTS.md](../AGENTS.md) 快速开始新增第 6 项必读文档，核心规则新增「规则 7：双 Agent 联合开发必须同步」；[CLAUDE.md](../CLAUDE.md) 同步补齐规则 6、规则 7 与快速开始第 4 项。
+- [03-TASKS.md](./03-TASKS.md) 任务领取规则新增第 5 条「认领防撞车」：认领时把任务改为 `⏳ 进行中（执行人：Codex / DeepSeek）`，一个任务同一时刻只允许一个 Agent 认领。
+- [01-README.md](./01-README.md) 与 [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) 快捷索引新增协作规范入口。
+
+**变更原因**：
+- 项目由 Codex 单 Agent 开发改为 Codex（主力）+ DeepSeek（DSH）联合开发，需要统一信息同步机制，避免双 Agent 任务撞车、会话上下文漂移、git 历史无法区分执行人。
+
+**影响范围**：
+- `AGENTS.md`、`CLAUDE.md`（根目录规则入口，两个 Agent 均自动读取）
+- `docs/reference/AGENT_COLLABORATION.md`（新增）
+- `docs/03-TASKS.md`、`docs/01-README.md`、`docs/SESSION_CONTEXT.md`、`docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 文档类变更，无代码运行验证；已交叉核对 AGENTS.md / CLAUDE.md / 各索引文档内容一致，链接路径有效。
+
+**执行人**：DeepSeek（dsh）
+
+---
+
 ## 2026-06-21 变更记录
 
 ### [规划] - 订单库存软解耦生产版 ROM/SOW
