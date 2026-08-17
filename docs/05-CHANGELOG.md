@@ -8,6 +8,32 @@
 
 ## 2026-08-17 变更记录
 
+### [规范优化] - 多 Agent 工具协作与同步方案
+
+**变更内容**：
+- 将多 Agent 协作默认模式调整为独立 Git worktree，避免不同 Agent 通过同一工作目录的未提交文件互相覆盖。
+- 在任务认领中增加主要修改目录/文件范围，明确一个任务和一个核心文件同一时间只能有一个主 Agent 修改。
+- 增加执行 Agent、集成人、发布 Agent 三类职责，并规定 `develop`、`release/*`、`master` 同一时间只能由指定集成人操作。
+- 增加标准交接模板，要求交接信息包含分支、commit、修改范围、验证命令、push 状态和后续风险。
+- 扩展执行人 commit 标识，允许 Claude 等其他 Agent 使用稳定短标识。
+
+**变更原因**：
+- 原规范适用于 Codex 与 DeepSeek，但对其他 Agent 工具、未提交文件覆盖、文件级撞车和合并职责缺少明确约束。
+
+**影响范围**：
+- `AGENTS.md`
+- `docs/reference/GIT_BRANCH_WORKFLOW.md`
+- `docs/reference/AGENT_COLLABORATION.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `git diff --check`：通过。
+- `node scripts/gen-status.mjs`：通过，生成 `docs/STATUS.md` 和 `outputs/status.html`；任务统计 246 项（213 完成 / 0 进行中 / 29 待办 / 4 部分）。
+
+**执行人**：Codex
+
+## 2026-08-17 变更记录
+
 ### [发布] - 订单列表筛选确认按钮上线 NAS 生产
 
 **变更内容**：

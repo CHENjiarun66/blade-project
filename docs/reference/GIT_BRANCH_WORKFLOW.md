@@ -136,6 +136,24 @@ snapshot/current-all-work-20260611
 
 ## 四、标准开发流程
 
+### 4.0 多 Agent 工作区隔离
+
+多个 Agent 默认不得共用同一个工作目录。Git 仓库可以共享，但每个 Agent 应使用独立 worktree，避免未提交文件互相覆盖：
+
+```bash
+git fetch origin
+git worktree add ../BladeProject-codex -b feature/order-export origin/develop
+git worktree add ../BladeProject-dsh -b feature/customer-tags origin/develop
+```
+
+规则：
+
+- 主目录用于集成、测试和发布；各 Agent 在自己的 worktree 中开发。
+- 一个任务只能有一个主执行 Agent；若需要协作，必须在 TASKS.md 写明模块和文件边界。
+- `develop`、`release/*`、`master` 同一时间只能由指定集成人操作。
+- 禁止把另一个 Agent worktree 中的未提交文件直接复制、覆盖或加入自己的提交。
+- 共享目录是例外模式，只有用户或集成人明确指定后才可使用；此时仍必须遵守文件范围锁和提交前检查。
+
 ### 4.1 新功能开发
 
 推荐流程：
@@ -164,6 +182,16 @@ master
 5. 准备上线时创建 `release/*`。
 6. release 验收通过后合入 `master`。
 7. NAS 从 `master` 部署。
+
+### 4.1.1 集成角色
+
+每轮并行开发应明确以下角色：
+
+- **执行 Agent**：负责任务实现、单元/模块测试和功能分支提交。
+- **集成人**：负责将已 push 的功能分支合入 `develop`，解决冲突并运行集成测试。
+- **发布 Agent**：负责 `release/*`、`master` 和 NAS 发布；没有单独指定时由集成人承担。
+
+执行 Agent 不直接修改 `develop`、`release/*` 或 `master`。角色可以由同一个人承担，但同一时间不能有多个集成人并行合并。
 
 ### 4.2 多功能并行开发
 
@@ -272,6 +300,8 @@ git log --oneline --decorate -n 15
 - 当前分支正确。
 - 工作区没有未提交变更，或明确说明未提交内容。
 - 要推送的提交符合当前分支职责。
+
+若工作区存在未提交变更，先说明这些变更属于谁、是否允许继续；不得用 `git pull`、`reset --hard` 或 `checkout -- .` 覆盖他人的工作。
 
 ### 6.3 远程异常处理
 

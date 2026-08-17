@@ -73,7 +73,8 @@ blade-backend/wrapper/
 dump.rdb
 stitch/
 .claude/
-AGENTS.md
+# Project AI rules are shared between agents and must be versioned.
+!AGENTS.md
 
 # Production secrets and private keys
 deploy/nas/nginx/ssl/*.key
