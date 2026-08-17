@@ -8,6 +8,32 @@
 
 ## 2026-08-17 变更记录
 
+### [集成] - Catalog iPad 修复合入 develop 并完成集成验证
+
+**变更内容**：
+- 将 `feature/catalog-pinch-zoom-smooth` 合入 `develop`，合并提交为 `merge: catalog ipad viewer fixes`。
+- 在 `develop` 上重新执行后端、前端、Catalog E2E 与真实服务冒烟。
+
+**变更原因**：
+- Catalog/iPad 展示页修复分支已完成专项收口，需要进入集成分支验证，作为后续 release/NAS 发布预检的基础。
+
+**影响范围**：
+- `develop` 分支
+- Catalog/iPad 展示页、文件中心图片展示相关前端回归
+- 后端 Controller 测试认证租户基线
+- 项目状态与交接文档
+
+**验证结果**：
+- `git merge --no-ff feature/catalog-pinch-zoom-smooth -m "merge: catalog ipad viewer fixes"`：合并成功，无冲突。
+- `cd blade-backend && BLADE_DB_URL='jdbc:mysql://localhost:3306/blade_project?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true' BLADE_DB_USERNAME=root BLADE_DB_PASSWORD=root123 mvn test`：通过，383/383。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list`：通过，9/9。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build`：通过；仍有既有大 chunk 警告。
+- 真实服务冒烟：`test_tenant/admin/admin123` 登录成功；`GET /api/catalog/products?current=1&size=6` 返回 `code=200,total=1149,records=6`；真实前端 `/catalog` iPad 竖屏 820x1180 渲染 20 张卡片，无 console error/warn、无请求失败。
+
+**执行人**：Codex
+
+---
+
 ### [修复] - 后端 Controller 测试认证租户基线对齐
 
 **变更内容**：
