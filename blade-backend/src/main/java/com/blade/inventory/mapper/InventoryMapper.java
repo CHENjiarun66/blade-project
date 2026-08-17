@@ -31,4 +31,15 @@ public interface InventoryMapper extends BaseMapper<Inventory> {
         @Param("alertStatus") String alertStatus,
         @Param("keyword") String keyword
     );
+
+    /**
+     * Atomically deduct quantity from an inventory row, conditioned on
+     * id, tenant_id and (quantity - IFNULL(reserved_qty, 0)) >= requested.
+     * Returns 0 when the condition fails (insufficient available or row
+     * modified by a concurrent transaction).
+     */
+    @Update("UPDATE inventory SET quantity = quantity - #{qty}, version = version + 1 " +
+            "WHERE id = #{id} AND tenant_id = #{tenantId} " +
+            "AND (quantity - IFNULL(reserved_qty, 0)) >= #{qty}")
+    int deductQuantity(@Param("id") Long id, @Param("tenantId") Long tenantId, @Param("qty") Integer qty);
 }

@@ -62,7 +62,19 @@ public class Order {
     @TableField("paid_amount")
     private BigDecimal paidAmount;
 
-    // 支付状态: 0未付款 1已付定金 2已付全款
+    /**
+     * 抹零/短款结清金额，客户少付但业务确认不再追收
+     */
+    @TableField("write_off_amount")
+    private BigDecimal writeOffAmount;
+
+    /**
+     * 抹零/短款结清原因
+     */
+    @TableField("write_off_reason")
+    private String writeOffReason;
+
+    // 支付状态: 0未付款 1部分收款 2已结清
     @TableField("payment_status")
     private Integer paymentStatus;
 
@@ -163,6 +175,10 @@ public class Order {
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public BigDecimal getPaidAmount() { return paidAmount; }
     public void setPaidAmount(BigDecimal paidAmount) { this.paidAmount = paidAmount; }
+    public BigDecimal getWriteOffAmount() { return writeOffAmount; }
+    public void setWriteOffAmount(BigDecimal writeOffAmount) { this.writeOffAmount = writeOffAmount; }
+    public String getWriteOffReason() { return writeOffReason; }
+    public void setWriteOffReason(String writeOffReason) { this.writeOffReason = writeOffReason; }
     public Integer getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(Integer paymentStatus) { this.paymentStatus = paymentStatus; }
     public BigDecimal getDepositAmount() { return depositAmount; }

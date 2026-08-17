@@ -11,8 +11,8 @@
 |------|---|
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
-| 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传底座已完成；文件中心/数字资产中心后端 BE-1001~BE-1011 已完成到文件夹、列表、绑定、批量操作、删除保护、未绑定治理、安全清理调度、预览权限和回归测试；PC 文件中心 BA-1001~BA-1006 已完成；客户 iPad Catalog 现货选款页 BE-1020~BE-1023、BA-1020~BA-1024 已完成第一版（/catalog、横竖屏、筛选、SKU 矩阵、全屏大图）；移动端继续开发中 |
-| 下一步 | 商品管理 v2（SKU 精细维护、商品图集、SKU 图片、删除引用保护）、订单库存解耦收尾（BE-124、BE-126）、看板完善（仪表盘数据权限）、外部 Agent 只读 Gateway（BE-551~BE-565）、移动端页面继续推进、OCR 识别服务与拍照录单待开发；Catalog 后续可补客户身份、行为采集、选款清单、公开分享/只读专用账号 |
+| 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传和文件中心底座已完成；图片派生图第一版 BE-1012、BA-1007、BA-1028 已完成，PC 与 Catalog 已按 thumb/card/original 分层加载；客户 iPad Catalog 现货选款页第一版已完成；移动端继续开发中 |
+| 下一步 | 已创建 `release/2026-08-17-catalog-ipad` 并完成 release/NAS 发布预检：release 分支继承 develop 集成结果（后端全量 383/383、Catalog E2E 9/9、PC build、真实 `/catalog` 冒烟和 iPad 真机验收均通过）；NAS 平台只读检查通过但需走 WireGuard `10.13.13.1`。当前 release 相对 `master` 包含 V38/V39/V40 三个 Flyway migration，正式发布前必须确认生产库备份并按 `deploy/nas/deploy_app_from_local.sh --execute` 只更新 backend/web。等待用户明确确认是否执行生产发布。部分发货、分批发货和缺货退款继续排除。 |
 
 ---
 
@@ -41,6 +41,8 @@
 | NAS 生产环境 | `192.168.1.10:/volume2/blade`，入口 `http://192.168.1.10:8899/catalog` |
 | NAS 运维手册 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
 | Git 分支/发布规范 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
+
+> 2026-08-17 接手复验备注：本机 MySQL 已停止，Docker `blade-mysql` 已成功占用 `3306`；`blade_project` 开发库启动后由 Flyway 从 V38 迁移到 V40。`test_tenant/admin/admin123` 可登录，真实 Catalog API 返回 `code=200,total=1119`；真实前端 `/catalog` iPad 竖屏冒烟通过。
 
 ---
 
@@ -74,33 +76,33 @@
 - 配货计划与调整记录已落地，订单支持 `ADJUSTMENT_PENDING`、`READY_TO_SHIP` 等中间状态。
 - 订单状态机 4 项缺陷已修复（paymentStatus 同步、adjustmentStatus 初始化、减配释放多余预留、取消条件校验）。
 - 订单编辑功能已实现（客户信息/送货/备注/图片，支持 status>=4 禁止修改）。
-- 追加收款功能已实现（创建状态且未付全款可累加 paidAmount，自动更新 paymentStatus）。
+- 追加收款与抹零/短款结清已实现：收款不锁库存，`payment_status=2` 表示已结清；尾款统一按 `max(total-refund-writeOff-paid,0)` 计算。
 - `blade-admin` 已完成订单、库存、商品、客户、系统管理等主要页面。
 - 前端菜单权限过滤已完成，系统可按权限展示菜单和路由。
 - `packages/types` 已搭建并被移动端集成使用。
 - **客户模块国际化已完成**：国家区号选择器（WhatsApp 风格可搜索下拉，约 140 个国家/地区，支持中英文+区号筛选）、客户详情页（3 个独立 Tab：基本信息/订单记录/商品偏好，支持颜色/尺码/品类偏好柱状图）。E2E 测试全部通过（12/12 测试用例）。
 - **客户模块优化 Phase 4.6 M1~M4 全部完成**：M1 数据质量（BE-412~414）✅ + M2 用户体验（BE-415~417）✅ + M3 业务功能（BE-418~420）✅ + M4 架构能力（BE-421~423）✅ 已完成
 - **库存周转分析已完成**：仪表盘新增库存周转率、库存总量、库存积压预警卡片（BA-603），平均在库天数已移除。
-- **仪表盘订单统计口径已调整**：订单统计按 `order_date`（为空回退 `create_time`）+ 已产生收款订单（`paid_amount > 0` 或 `payment_status in (1,2)`）+ 应收净额（`total_amount - refund_amount`，最低 0）统计，并新增毛利和销量统计；卡片按“筛选周期 / 本周 / 库存”三行分组展示，第一行随日期范围动态变化。
+- **仪表盘订单统计口径已调整**：订单统计按 `order_date`（为空回退 `create_time`）+ 已产生收款订单（`paid_amount > 0` 或 `payment_status in (1,2)`）+ 应收净额（`total_amount - refund_amount - write_off_amount`，最低 0）统计，并新增毛利和销量统计。
 - **数据分析页 v1 已完成**：新增 `/analytics` 独立页面，支持经营汇总、趋势、商品/SKU/颜色/尺码排行和商品详情拆解；新增 `menu:analytics` 与 `data:analytics:profit` 权限，毛利/成本/毛利率按权限展示。
 - **保持登录 30 天已生效**：登录页 `remember` 会传到后端，勾选时 refresh token 有效期为 30 天并在续期时延续；access token 保持 1 小时，前端会在业务请求发出前发现 10 分钟内过期并主动刷新。
 - **订单导出已完成**：订单列表页新增导出按钮，支持筛选条件导出 Excel（BA-204）
 - **快速录单商品级批量录入已完成（BA-207）**：选择商品后展示正常状态 SKU 颜色 x 尺码矩阵，批量填写数量并一次性添加到订单明细；第一版不读取、不展示、不校验库存；重复 `skuId` 自动合并数量且不覆盖已改单价/成本价。SOW 见 [2026-06-11-quick-order-product-batch-entry-sow.md](./superpowers/plans/2026-06-11-quick-order-product-batch-entry-sow.md)。
 - **个人中心已完成**：个人中心页面（用户信息展示、修改密码）、头部下拉菜单（BA-704）
 - **统一文件存储第一版已完成**：新增 `file_storage` 表、统一上传/预览/软删除/绑定接口，本地存储落地；订单图片、PC/移动端入库凭证、商品主图均已改为上传后保存 fileId；浏览器原生 `<img>`/新窗口预览通过 `/api/files/{id}/preview?previewToken=...` 进入统一权限校验，后续可切七牛云/NAS。
+- **图片派生图第一版已完成**：V38 新增 `file_derivative`；上传图片后生成 `thumb`（长边 320px）和 `card`（长边 800px），生成失败不影响原图；`/api/files/{id}/variant` 继承原图权限并缺失回退原图。PC 商品/订单/文件中心与 Catalog 已分层接入，Catalog IndexedDB 缓存按 `original/thumb/card` 隔离。历史图片需通过当前租户批量接口分批补生成。
 - **文件中心/数字资产中心后端底座已完成 Phase 6.6**：新增 [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md)，明确文件中心不是单纯图片/视频相册，而是通用数字资产中心；BE-1001~BE-1011 已完成到资产表结构、分页/详情、文件夹、多业务绑定、批量操作、有效绑定删除保护、未绑定治理、第一版安全清理调度、商品/SKU 图片绑定、基础视频上传分类、私有预览权限和文件中心回归测试。清理调度默认关闭，按配置 tenant-id 处理单租户，仅软删除/标记元数据，不做真实物理删除。
 - **后端测试基线已修复**：独立分支 `fix/backend-test-baseline` 已完成 BE-1030~BE-1033；`cd blade-backend && mvn test` 通过（Tests run 244, Failures 0, Errors 0, Skipped 0），修复范围包含测试认证夹具、订单状态机断言和商品/文件实体显式列映射。
 - **NAS 生产环境已初步部署完成**：生产目录 `/volume2/blade`，前端入口 `http://192.168.1.10:8899/catalog`；容器为 `blade-mysql`、`blade-redis`、`blade-backend`、`blade-web`；NAS 数据库已从本机生产库 `blade_project_prod` 迁移并将主租户 code 调整为 `dwy_jiajiadress`。后续发布/备份/回滚按 [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) 执行。
 
 ### 仍在进行或未完成的事项
 
-- `BE-124`：订单相关表结构补充配货/调整字段，任务仍未完成。
-- `BE-126`：按配货计划出库方法虽已在代码中实现，但 `TASKS` 仍需结合验收结果收敛状态。
+- `TEST-ORDER-INV-001` 已完成：MySQL 8 临时库 V1-V40 累计迁移通过；后端全量 `mvn test` 383 项通过；PC `npm run build` 通过；浏览器关键路径覆盖 UI 登录、订单创建、定金、追加收款、抹零结清、配货计划、确认调整、发货和详情页渲染。
 - 仪表盘数据权限尚未实现。
-- 外部 Agent 对接需求已锁定为只读 Agent Gateway 第一版，优先做款式趋势、客户跟进/风险、颜色尺码结构、库存建议和周期分析；订单异常、利润解释、WhatsApp 反馈和经营记忆进入后续路线，WhatsApp 先做接入方案验证；后端任务尚未开始。
+- 外部 Agent 对接需求已锁定为只读 Agent Gateway 第一版；安全边界、认证审计、款式趋势和颜色尺码结构已完成，凭证管理与毛利 scope 部分完成，客户跟进/风险、库存建议、周期分析、统一搜索和限流验证尚未完成。
 - 文件中心/数字资产中心后端 BE-1001~BE-1011 已完成；PC `/files` 页面 BA-1001~BA-1006 已完成（路由菜单、虚拟入口文件夹树、网格列表视图筛选分页、上传移动删除、商品SKU绑定弹窗、未绑定清理管理），V36 已补齐 `menu:file` 与文件中心按钮权限；Catalog 聚合接口和 `/catalog` 展示页第一版已完成，V37 已补齐 `menu:catalog` 与 `data:catalog:view` 权限。
-- 图片派生图/缩略图性能优化已纳入待开发：`BE-1012`、`BA-1007`、`BA-1028`。目标是图片上传后生成 `thumb`/`card` 派生图，商品列表、订单图片墙、文件中心网格、Catalog 卡片优先加载派生图，点开大图/下载仍加载原图；本轮只完成文档规划，尚未开始开发。
-- 商品管理 v2 已纳入待开发：`BE-1013` 商品素材查询 API、`BE-1014` 删除引用保护验收、`BA-407~BA-410` 商品编辑页 v2/SKU 明细/商品素材/删除禁用交互；ROM/SOW 见 [2026-06-14-product-management-v2-rom-sow.md](./superpowers/plans/2026-06-14-product-management-v2-rom-sow.md)。
+- 图片派生图/缩略图性能优化 `BE-1012`、`BA-1007`、`BA-1028` 已完成第一版；本机测试环境 tenant 1 的 89 张历史图片已补齐 178 个 `thumb/card` 派生文件，0 失败、0 缺失。生产环境补生成及后续异步队列、自动重试、视频封面和 NAS/七牛云/CDN Provider 尚未执行。
+- 商品管理 v2 已完成：`BE-1013` 商品素材查询 API、`BE-1014` 删除引用保护与 SKU 精细更新、`BA-407~BA-410` 商品编辑页 v2/SKU 明细/商品素材/删除禁用交互均已落地；ROM/SOW 见 [2026-06-14-product-management-v2-rom-sow.md](./superpowers/plans/2026-06-14-product-management-v2-rom-sow.md)。
 - 文件预览权限补强已完成：PRIVATE 文件仍由后端校验登录、租户、业务权限；前端所有 fileId 预览必须走 `filePreviewUrl(fileId)`，不要手写 `/api/files/{id}/preview`，否则浏览器 `<img>` 不会带认证信息。
 - 移动端页面开发仍在继续。
 - OCR 拍照录单等任务仍未完成。
@@ -112,8 +114,7 @@
 | 问题 | 优先级 | 状态 | 说明 |
 |------|--------|------|------|
 | 仪表盘数据权限 | P2 | 🔴 未实现 | 后端统计接口尚未按权限过滤数据 |
-| 订单表结构收尾 | P1 | ⏳ 进行中 | `BE-124` 仍需与当前配货实现完全对齐 |
-| 文档状态漂移 | P1 | ⏳ 进行中 | 已发现多份入口文档与代码和任务状态不一致 |
+| 文档状态漂移 | P1 | 🟡 持续治理 | 2026-06-18 已修正商品 v2、看板和 Agent Gateway 的已知入口状态；后续每轮交接继续以 TASKS、CHANGELOG 和代码交叉核对 |
 | 文件中心边界漂移 | P1 | 🟡 已设边界 | 第一版不得漂移到视频转码、分片上传、七牛云/NAS、公开分享链接；以 `12-FILE_CENTER_ASSET_DESIGN.md` 为准 |
 
 **说明**：
@@ -133,14 +134,14 @@
 ### 订单编辑与追加收款
 
 - 订单列表页新增编辑按钮，弹窗顶部显示订单上下文摘要（订单号/状态/金额），支持编辑客户信息/送货方式/备注/图片 fileId。
-- 订单详情页新增"追加收款"按钮（创建状态且未付全款时显示），弹窗显示当前已付/待付余额，输入本次收款金额后累加到 paidAmount，paymentStatus 自动更新。
+- 订单详情页追加收款支持普通收款与标记结清；结清原因和核销金额可追溯，已结清订单不再显示追加收款按钮。
 - 后端 `GlobalExceptionHandler` 补充 `RuntimeException` 专项处理，业务校验错误不再返回 500。
 
 ### 跨仓总量预留
 
 - `inventory` 表已增加 `global_reserved_qty`。
 - 已实现 `globalReserve`、`globalRelease`、`getGlobalAvailableQty`。
-- 订单确认收款改为走跨仓总量预留，不再绑定单仓库预占。
+- 历史跨仓总量预留结构继续保留，但当前生产订单流程的确认收款、追加收款、取消和减配均不再创建或释放硬预留。
 
 ### 权限基础能力
 
@@ -173,7 +174,7 @@
 - 筛选栏：keyword 搜索、fileType 下拉、businessType 下拉、网格/列表切换。
 - 分页（prev/pager/next）、loading 状态、空状态提示、图片预览弹窗（大图 + 元数据）。
 - 上传：隐藏多文件 input，逐个调用 uploadFile(file, 'temp')，loading 态，上传后自动刷新。
-- 预览：图片缩略图和“打开原文件”统一使用 `filePreviewUrl(fileId)`，由 `previewToken` 补齐浏览器原生资源请求的认证信息。
+- 预览：网格缩略展示使用 `fileVariantUrl(fileId, 'card')`，列表小图使用 `fileVariantUrl(fileId, 'thumb')`；预览弹窗和“打开原文件”继续使用 `filePreviewUrl(fileId)`，两类 URL 都由 `previewToken` 补齐浏览器原生资源请求的认证信息。
 - 批量操作：选中后显示工具栏（移动/绑定/删除/取消选择），移动弹窗 radio-group 选文件夹或未归档。
 - 删除保护：删除前并行查询 getFileBindings，展示绑定风险详情弹窗，仅未绑定文件可被 batch-delete 删除。
 - 商品绑定弹窗：FileBindDialog.vue，remote 搜索商品→选角色 main/gallery/sku_image→sku_image 时显示 SKU 多选→PUT /api/products/{id}/file-bindings。
@@ -195,6 +196,7 @@
 | 了解项目入口与阅读顺序 | [01-README.md](./01-README.md) |
 | 了解业务与技术规则 | [02-PRD.md](./02-PRD.md) |
 | 查看任务状态 | [03-TASKS.md](./03-TASKS.md) |
+| 一眼看清项目进度（自动生成） | [STATUS.md](./STATUS.md)，可视化看板 `outputs/status.html` |
 | 查看最近变更 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
 | 看项目目录结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
 | 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
@@ -204,6 +206,7 @@
 | 查 NAS 生产运维发布 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
 | 查 Git 分支、GitHub 同步和上线流程 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
 | 查外部 AI Agent 对接设计 | [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md) |
+| 查双 Agent 协作同步协议 | [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) |
 | 查已知问题和历史坑 | [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md) |
 | 排查常见环境问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
 
@@ -214,8 +217,9 @@
 如果你是新接手的 AI，推荐阅读顺序：
 
 1. [SESSION_CONTEXT.md](./SESSION_CONTEXT.md)
-2. [01-README.md](./01-README.md)
-3. [02-PRD.md](./02-PRD.md)
-4. [03-TASKS.md](./03-TASKS.md)
-5. 开发/合并/上线前补读 [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md)
-6. 订单/库存相关开发再补读 [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md)
+2. [STATUS.md](./STATUS.md)（自动生成，一眼看清进度）
+3. [01-README.md](./01-README.md)
+4. [02-PRD.md](./02-PRD.md)
+5. [03-TASKS.md](./03-TASKS.md)
+6. 开发/合并/上线前补读 [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md)
+7. 订单/库存相关开发再补读 [reference/ORDER_SYSTEM_ISSUES.md](./reference/ORDER_SYSTEM_ISSUES.md)

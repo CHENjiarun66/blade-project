@@ -11,6 +11,7 @@
 2. **主动更新**：完成任务后立即更新状态
 3. **交接同步**：任务状态变更必须同步到本文档
 4. **阻塞上报**：遇到阻塞立即在本文档注明，并通知用户
+5. **认领防撞车**：开始执行前先把任务状态改为 `⏳ 进行中（执行人：Codex / DeepSeek）`，完成后再改 `✅ 完成`；一个任务同一时刻只允许一个 Agent 认领（详见 [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md)）
 
 ---
 
@@ -29,7 +30,7 @@
 | 移动端页面开发 | ⏳ 进行中 | 订单/库存/商品页面开发 |
 | PC 管理端骨架搭建 | ✅ 完成 | Vue3 + Element Plus + TailwindCSS，登录/布局/仪表盘全部完成 |
 | PC 管理端页面开发 | ✅ 完成 | 订单/库存/商品/客户管理页面 |
-| 看板系统开发 | ⏳ 待开始 | 统计展示 |
+| 看板系统开发 | ⏳ 部分完成 | 仪表盘、趋势、库存周转和数据分析已完成；仪表盘数据权限待补 |
 | 外部 Agent 对接 | ⏳ 进行中 | 第一版只读 Agent Gateway 已起步，款式趋势/客户跟进/客户风险/颜色尺码结构/库存建议/周期分析/搜索 |
 
 ---
@@ -116,24 +117,29 @@
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
 | BE-123 | 数据库迁移-新表创建 | ✅ 完成 | V20 创建 inventory_global_reserve 表，inventory 表加 global_reserved_qty 字段 |
-| BE-124 | 数据库迁移-表结构修改 | ⏳ 进行中 | sale_order, sale_order_item 仍需与当前配货/调整流程完全对齐 |
+| BE-124 | 数据库迁移-表结构修改 | ✅ 完成 | V20-V29 已完成配货/调整/快速录单字段；V39 新增 write_off_amount/write_off_reason；V40 补齐出库单展示冗余列，当前生产口径所需字段已对齐 |
 | BE-125 | 库存服务-跨仓总量预留 | ✅ 完成 | globalReserve/globalRelease/getGlobalAvailableQty 方法 |
-| BE-126 | 库存服务-按计划出库 | ⏳ 部分完成 | `outByPlan` 已实现，待结合任务验收和文档状态统一收口 |
+| BE-126 | 库存服务-按计划出库 | ✅ 完成 | `outByPlan` 按租户计划原子扣减实际库存，只更新 quantity/version，不再依赖 global_reserved_qty；直接单计划出库接口已关闭 |
 | BE-127 | 订单服务-创建订单重构 | ✅ 完成 | warehouseId 可选；创建订单不扣库存、不预占、不因库存不足失败 |
 | BE-128 | 订单服务-付款确认重构 | ✅ 完成 | 历史实现为调用跨仓总量预留；2026-06-17 生产口径已调整为收款不锁库存，待 BE-138/BE-139 收尾 |
 | BE-129 | 订单服务-配货计划 | ✅ 完成 | OrderDeliveryPlanService + Controller，配货计划 CRUD + 确认/取消调整 |
 | BE-130 | 订单服务-调整记录 | ✅ 完成 | AdjustmentLogDTO + recordAdjustment + getAdjustmentLogs |
 | BE-131 | 订单状态-配货中状态 | ✅ 完成 | status=2(ADJUSTMENT_PENDING)，status=3(READY_TO_SHIP)，完整流转 |
 
-### Phase 3.2A: 订单库存软解耦生产口径（P0）- 待开发
+### Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口
+
+> ROM/SOW：`docs/superpowers/plans/2026-06-21-order-inventory-soft-coupling-v1-rom-sow.md`
+> 本轮明确排除部分发货、分批发货和缺货退款，先完成收款去预留、发货时实际扣库存、发货路径统一、抹零结清和测试收口。
 
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
-| BE-138 | 确认收款移除硬库存预留 | ⏳ TODO | confirmPayment / addPayment 只更新 paidAmount、paymentStatus、payTime 和待配货状态；不得调用 globalReserve，不得因库存不足失败 |
-| BE-139 | 发货出库按实际配货明细扣库存 | ⏳ TODO | outByPlan 改为只在发货阶段校验并扣减实际发货 SKU/仓库/数量；第一版不依赖 global_reserved_qty；库存不足返回明确业务提示 |
-| BE-140 | 抹零/短款结清收款口径 | ⏳ TODO | sale_order 增加 write_off_amount/write_off_reason；paymentStatus=2 表示已结清；尾款按 total-refund-writeOff-paid 计算；销售额/毛利统计扣减 writeOff |
-| BA-212 | 订单详情配货页软提示改造 | ⏳ TODO | 配货阶段展示库存提示、替换/减配说明；库存不足不阻断方案保存，发货确认前再校验 |
-| BA-213 | 追加收款标记结清交互 | ⏳ TODO | 追加收款弹窗支持“标记结清”，自动把当前尾款写入抹零/短款金额；列表/详情将 paymentStatus=2 展示为“已结清” |
+| BE-138 | 确认收款移除硬库存预留 | ✅ 完成 | confirmPayment / addPayment 只更新支付数据；cancelOrder、取消状态更新、减配不再预留或释放库存；全量后端测试已在 MySQL 8 临时库通过 |
+| BE-139 | 发货出库按实际配货明细扣库存 | ✅ 完成 | 发货阶段按实际计划 SKU/仓库/数量扣减，库存不足返回 SKU、仓库、可用量和需求量；整单事务失败回滚 |
+| BE-140 | 抹零/短款结清收款口径 | ✅ 完成 | V39 增加 write_off_amount/write_off_reason；追加收款与标记结清使用租户订单行锁；尾款、筛选、导出、仪表盘和分析统一扣减 refund/writeOff |
+| BE-142 | 统一订单确认发货路径 | ✅ 完成 | deliverOrder 为唯一事务入口；confirmDelivery 委托统一入口；订单行 FOR UPDATE 串行化双入口，已发货/已完成幂等返回 |
+| BA-212 | 订单详情配货页软提示改造 | ✅ 完成 | 按仓库缓存并展示 SKU 可用量/不足/无记录/失败软提示；任何提示状态均不阻断配货方案保存 |
+| BA-213 | 追加收款标记结清交互 | ✅ 完成 | 追加收款支持零金额核销、结清原因和防重复提交；列表/详情统一为未付款/部分收款/已结清并使用后端尾款 |
+| TEST-ORDER-INV-001 | 订单库存软解耦测试收口 | ✅ 完成 | MySQL 8 临时库 V1-V40 累计 Flyway 通过；后端全量 `mvn test` 383 项通过；PC `npm run build` 通过；浏览器关键路径覆盖 UI 登录、订单创建、定金、追加收款、抹零结清、配货计划、确认调整、发货和详情页渲染 |
 | DOC-ORDER-INV-001 | 订单库存软解耦文档与流程图 | ✅ 完成 | 更新 PRD、订单库存设计、任务清单、变更记录；新增 drawio 流程图，明确发货状态和收款状态独立变化 |
 
 ### Phase 3.3: 订单状态机修复与功能完善（P0）
@@ -280,7 +286,7 @@
 | BE-1009B | 文件预览业务权限映射 | ✅ 完成 | 子任务，已合并到 BE-1009 |
 | BE-1010 | 基础视频文件支持 | ✅ 完成 | 上传支持 video/mp4、video/webm、video/quicktime；上传上限默认 200MB 且支持环境变量覆盖；自动分类 fileType（IMAGE/VIDEO/OTHER）和 fileExt；FileUploadVO 新增 fileType/fileExt；不做转码/封面/Range/分片 |
 | BE-1011 | 文件中心回归测试 | ✅ 完成 | 覆盖上传、列表、绑定、未绑定清理、删除保护；补充批量删除有效绑定文件拒绝测试；`File*Test` 98/98 通过 |
-| BE-1012 | 图片派生图/缩略图底座 | ⏳ TODO | 新增 file_derivative；建立派生图服务、生成器、存储 Provider 脚手架；上传图片后生成 thumb/card；新增 GET /api/files/{id}/variant?type=thumb/card；权限继承原图预览权限；历史图片批量补生成后续实现；预留异步/重试/NAS/七牛云/CDN 扩展点但第一版不实现 |
+| BE-1012 | 图片派生图/缩略图底座 | ✅ 完成 | SOW：docs/superpowers/plans/2026-06-18-file-derivatives-v1-sow.md；V38 新增 file_derivative；已建立派生图服务、生成器、存储 Provider 脚手架；上传后生成 thumb/card，失败不回滚原图；新增 GET /api/files/{id}/variant?type=thumb/card 并复用原图权限/previewToken，缺失时回退原图；新增当前租户幂等批量补生成接口；2026-06-18 已在本机测试环境为 tenant 1 的 89 张历史图补齐 178 个派生文件（0 FAILED、0 缺失），生产环境仍须按运维规范单独执行 |
 | BE-1013 | 商品素材查询 API | ✅ 完成 | GET /api/products/{id}/file-bindings，返回 main/gallery/skuImages 分组，previewUrl 统一为 /api/files/{fileId}/preview |
 | BE-1014 | 商品/SKU 删除引用保护验收 + SKU精细更新 | ✅ 完成 | 新增 PUT /api/products/skus 单个SKU更新；syncProductSkus 保留已有 SKU price/costPrice/barCode/status；delete/deleteColor/deleteSize 添加引用保护，有引用时提示建议禁用；39 个后端测试全部通过 |
 
@@ -369,7 +375,7 @@
 |---------|------|------|------|
 | BA-601 | 仪表盘 | ✅ 完成 | 数字卡片 + 趋势图 + ECharts，第一行随日期范围动态展示订单/销售额/毛利/销量 |
 | BA-602 | 订单统计 | ✅ 完成 | 趋势图集成到仪表盘 |
-| BA-603 | 库存统计 | ⏳ TODO | 预警/周转分析，平均在库天数已移除 |
+| BA-603 | 库存统计 | ✅ 完成 | 已完成库存周转率、库存总量和库存积压预警；平均在库天数已移除 |
 | BA-604 | 数据分析页 | ✅ 完成 | 独立 /analytics 页面，销售+商品分析，毛利字段按权限展示 |
 
 ### Phase 7: 权限系统（P1）
@@ -422,7 +428,7 @@
 | BA-1004 | 上传/预览/移动/删除 | ✅ 完成 | 上传按钮支持多文件到 temp；前端按 200MB 做上传前校验；网格/列表视图可多选；批量工具栏移动/绑定/删除；移动弹窗选文件夹或未归档；删除前查询绑定关系展示风险信息；仅 POST /api/files/batch-delete |
 | BA-1005 | 商品/SKU 绑定弹窗 | ✅ 完成 | FileBindDialog：远程搜索商品，选角色 main/gallery/sku_image，SKU 图片角色显示 SKU 多选，PUT /api/products/{id}/file-bindings |
 | BA-1006 | 未绑定文件清理管理 | ✅ 完成 | FileCleanupPanel：清理说明/保留天数/候选统计/刷新/软删除确认/回收站快捷入口；使用 GET unbound-candidates + POST soft-delete-unbound |
-| BA-1007 | PC 图片缩略图接入 | ⏳ TODO | 新增 fileVariantUrl 工具；商品列表、订单图片墙、文件中心网格/列表优先加载 thumb/card，点击预览/打开原文件仍加载原图 |
+| BA-1007 | PC 图片缩略图接入 | ✅ 完成 | 新增 fileVariantUrl/parseImageVariantSources；商品列表和主图使用 card，商品图集/SKU/订单图片墙使用 thumb，文件中心网格使用 card、列表使用 thumb；订单大图、文件预览、打开原文件仍使用原图 |
 
 ### Phase 11: 客户 iPad 现货展示页（P1）
 
@@ -438,7 +444,11 @@
 | BA-1025 | Catalog 无限滚动与本地缓存 | ✅ 完成 | 商品网格取消分页器，滚动触底自动请求下一页；筛选维度缓存商品列表；图片按 fileId 写入 IndexedDB，命中后使用本地 Blob URL |
 | BA-1026 | Catalog 图片滑动切换 | ✅ 完成 | 详情轮播和全屏大图支持左右滑动切图；增加跟手滑动与 220ms 相册式过渡；保留按钮/缩略图；仅拦截单指双击页面放大，保留两指缩放；横竖屏切换后恢复正常视口 |
 | BA-1027 | Catalog 手机竖屏版 | ✅ 完成 | iPhone 14 Pro 竖屏断点；保持 iPad quiet luxury 风格；两列商品卡片、底部详情抽屉、全屏大图；手机版横屏显示切回竖屏提示，不提供横屏浏览布局 |
-| BA-1028 | Catalog 派生图加载优化 | ⏳ TODO | Catalog 商品卡片使用 card，缩略图条使用 thumb，全屏大图/下载仍使用原图；与 IndexedDB 图片缓存策略兼容 |
+| BA-1028 | Catalog 派生图加载优化 | ✅ 完成 | Catalog 商品卡片和详情主轮播使用 card，详情胶片条使用 thumb，全屏大图使用原图；IndexedDB 缓存键按 original/thumb/card 隔离并兼容旧 file:{id} 原图缓存；Playwright 回归覆盖三层请求 |
+| BA-1029 | Catalog 双指缩放卡顿修复 | ✅ 完成 | 移除 `visualViewport.resize` 上的滚动重置，避免 pinch zoom 期间高频触发 `window.scrollTo(0,0)` 导致画面跳跃；横竖屏变化仍通过 `orientationchange` 做一次视口恢复；新增 Playwright 回归 |
+| BA-1030 | Catalog 图片集合边界修复 | ✅ 完成 | 首页卡片只展示商品主图；点击商品图片/详情大图优先展示商品图集 `imageUrls`，无图集时才回退主图；商品图集过滤与主图重复的图片；SKU 图片不混入商品大图集合，保留给后续 SKU 图集详情使用 |
+| BA-1031 | Catalog iPad 搜索框触控修复 | ✅ 完成 | 搜索框触摸时同步 focus 原生输入框；搜索输入区域覆盖页面级 `user-select:none`，恢复 `user-select:text` 与 `touch-action:manipulation`，避免 iPad 点击搜索框不弹键盘 |
+| BA-1032 | Catalog iPad 竖屏全屏大图裁剪修复 | ✅ 完成 | 全屏 viewer 外层只负责裁剪，slide 内部负责图片边距；避免 iPad 竖屏下相邻图片从左右 padding 区域露出；新增 Playwright 回归验证 active slide 两侧 slide 均在视口外 |
 
 ---
 

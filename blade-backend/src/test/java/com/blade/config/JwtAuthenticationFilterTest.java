@@ -65,4 +65,32 @@ class JwtAuthenticationFilterTest {
             SecurityContextHolder.clearContext();
         }
     }
+
+    @Test
+    void variantRequestAcceptsPreviewTokenQueryParam() throws ServletException, IOException {
+        JwtTokenProvider tokenProvider = mock(JwtTokenProvider.class);
+        UserDetailsService userDetailsService = mock(UserDetailsService.class);
+        when(tokenProvider.validateToken("variant-token")).thenReturn(true);
+        when(tokenProvider.getUsernameFromToken("variant-token")).thenReturn("admin");
+        when(userDetailsService.loadUserByUsername("admin"))
+                .thenReturn(new User("admin", "", List.of()));
+
+        SecurityConfig.JwtAuthenticationFilter filter =
+                new SecurityConfig.JwtAuthenticationFilter(tokenProvider, userDetailsService);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/files/123/variant");
+        request.setParameter("type", "thumb");
+        request.setParameter("previewToken", "variant-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        try {
+            filter.doFilter(request, response, new MockFilterChain());
+
+            assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+            assertThat(SecurityContextHolder.getContext().getAuthentication().getName()).isEqualTo("admin");
+            verify(tokenProvider).validateToken("variant-token");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
 }

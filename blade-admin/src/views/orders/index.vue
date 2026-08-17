@@ -66,8 +66,8 @@
         <el-select v-model="paymentStatusFilter" placeholder="全部" class="order-select">
           <el-option label="全部" :value="null" />
           <el-option label="未付款" :value="0" />
-          <el-option label="已付定金" :value="1" />
-          <el-option label="已付全款" :value="2" />
+          <el-option label="部分收款" :value="1" />
+          <el-option label="已结清" :value="2" />
         </el-select>
       </div>
 
@@ -168,8 +168,8 @@
 
           <el-table-column label="尾款" min-width="100" align="right">
             <template #default="{ row }">
-              <span :class="Number(row.balanceAmount ?? row.totalAmount - row.paidAmount) > 0 ? 'text-red-600 font-bold text-sm' : 'text-emerald-600 font-bold text-sm'">
-                {{ formatMoney(row.balanceAmount ?? row.totalAmount - row.paidAmount) }}
+              <span :class="Number(row.balanceAmount ?? 0) > 0 ? 'text-red-600 font-bold text-sm' : 'text-emerald-600 font-bold text-sm'">
+                {{ formatMoney(row.balanceAmount ?? 0) }}
               </span>
             </template>
           </el-table-column>
@@ -412,7 +412,7 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrderPage, updateOrder, exportOrders, type OrderUpdateDTO, type OrderVO } from '@/api/order'
-import { parseImageSources, parseImageValues, uploadFile } from '@/api/file'
+import { parseImageSources, parseImageValues, parseImageVariantSources, uploadFile } from '@/api/file'
 import { ElImageViewer, ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
 const router = useRouter()
@@ -499,7 +499,7 @@ const editImageUploading = ref(false)
 const editFormRef = ref<FormInstance>()
 const editingOrder = ref<OrderVO | null>(null)
 const editImageValues = ref<string[]>([])
-const editImageSources = computed(() => parseImageSources(JSON.stringify(editImageValues.value)))
+const editImageSources = computed(() => parseImageVariantSources(JSON.stringify(editImageValues.value), 'thumb'))
 const canEditBasicFields = computed(() => (editingOrder.value?.status ?? 0) < 4)
 const canEditFinancialFields = computed(() => (editingOrder.value?.status ?? 0) === 0)
 const imageViewerVisible = ref(false)
@@ -608,6 +608,10 @@ function syncEditImages() {
 }
 
 function orderImageSources(row: OrderVO) {
+  return parseImageVariantSources(row.images, 'thumb')
+}
+
+function orderImageOriginalSources(row: OrderVO) {
   return parseImageSources(row.images)
 }
 
@@ -616,7 +620,7 @@ function firstOrderImage(row: OrderVO) {
 }
 
 function openOrderImageViewer(row: OrderVO) {
-  const sources = orderImageSources(row)
+  const sources = orderImageOriginalSources(row)
   if (sources.length === 0) return
   imageViewerUrls.value = sources
   imageViewerIndex.value = 0
@@ -688,8 +692,8 @@ function getOrderStatusDotClass(status: number): string {
 function getPaymentStatusName(status: number): string {
   const nameMap: Record<number, string> = {
     0: '未付款',
-    1: '已付定金',
-    2: '已付全款'
+    1: '部分收款',
+    2: '已结清'
   }
   return nameMap[status] || '未知'
 }

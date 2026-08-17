@@ -3,7 +3,7 @@
 > 本文档汇总 BladeProject 当前数据库表结构，按模块分组。
 > **完整结构以 `blade-backend/src/main/resources/db/migration/*.sql` 的累计结果为准。**
 > 新增或变更字段时，必须同步更新本文档；专题设计文档只记录增量设计，不重复维护整表最终版。
-> 最后更新：2026-04-10
+> 最后更新：2026-06-21
 
 ---
 
@@ -447,7 +447,7 @@
 
 ### 4.1 sale_order 订单表
 
-**来源迁移**：`V2__product_order.sql`、`V5__order_refactor.sql`、`V7__order_table_rename.sql`、`V8__order_images.sql`、`V8__order_payment_delivery_fields.sql`、`V10__order_salesman.sql`、`V19__order_add_salesman_name.sql`、`V21__order_delivery_plan.sql`、`V29__order_quick_entry_finance.sql`、`V30__order_source_shop.sql`
+**来源迁移**：`V2__product_order.sql`、`V5__order_refactor.sql`、`V7__order_table_rename.sql`、`V8__order_images.sql`、`V8__order_payment_delivery_fields.sql`、`V10__order_salesman.sql`、`V19__order_add_salesman_name.sql`、`V21__order_delivery_plan.sql`、`V29__order_quick_entry_finance.sql`、`V30__order_source_shop.sql`、`V39__order_write_off.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -465,8 +465,8 @@
 | original_amount | decimal(12,2) | | 原始订单金额 |
 | refund_amount | decimal(12,2) | DEFAULT 0 | 已退款金额 |
 | paid_amount | decimal(12,2) | DEFAULT 0 | 已支付金额 |
-| write_off_amount | decimal(12,2) | DEFAULT 0, 待迁移 | 抹零/短款结清金额 |
-| write_off_reason | varchar(255) | 待迁移 | 抹零/短款结清原因 |
+| write_off_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 抹零/短款结清金额 |
+| write_off_reason | varchar(255) | | 抹零/短款结清原因 |
 | payment_status | tinyint | NOT NULL, DEFAULT 0 | 收款状态: 0未付款 1部分收款 2已结清 |
 | deposit_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 定金金额 |
 | freight_amount | decimal(12,2) | NOT NULL, DEFAULT 0 | 客户运费收入 |
@@ -535,7 +535,7 @@
 
 ### 4.3 order_delivery 出库单表
 
-**来源迁移**：`V17__order_delivery_tables.sql`
+**来源迁移**：`V17__order_delivery_tables.sql`、`V40__order_delivery_display_columns.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -543,6 +543,7 @@
 | delivery_no | varchar(30) | UNIQUE, NOT NULL | 出库单号 |
 | order_id | bigint | NOT NULL | 订单ID |
 | warehouse_id | bigint | NOT NULL | 仓库ID |
+| warehouse_name | varchar(50) | | 仓库名称（冗余） |
 | status | tinyint | NOT NULL, DEFAULT 0 | 状态: 0待出库 1部分出库 2已出库 3已取消 |
 | total_quantity | int | NOT NULL, DEFAULT 0 | 出库总数量 |
 | deliverer | varchar(50) | | 发货人 |
@@ -559,7 +560,7 @@
 
 ### 4.4 order_delivery_item 出库明细表
 
-**来源迁移**：`V17__order_delivery_tables.sql`
+**来源迁移**：`V17__order_delivery_tables.sql`、`V40__order_delivery_display_columns.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -567,6 +568,10 @@
 | delivery_id | bigint | NOT NULL | 出库单ID |
 | order_item_id | bigint | NOT NULL | 订单明细ID |
 | sku_id | bigint | NOT NULL | SKU ID |
+| sku_code | varchar(50) | | SKU编码（冗余） |
+| product_name | varchar(100) | | 商品名称（冗余） |
+| color_name | varchar(50) | | 颜色名称（冗余） |
+| size_name | varchar(50) | | 尺码名称（冗余） |
 | quantity | int | NOT NULL | 出库数量 |
 | create_time | datetime | DEFAULT | 创建时间 |
 

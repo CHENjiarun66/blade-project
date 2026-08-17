@@ -231,7 +231,8 @@ class OrderControllerTest {
                 "items": [
                     {
                         "skuId": %d,
-                        "quantity": 2
+                        "quantity": 2,
+                        "price": 99.50
                     }
                 ]
             }
@@ -442,7 +443,8 @@ class OrderControllerTest {
                 "items": [
                     {
                         "skuId": %d,
-                        "quantity": 2
+                        "quantity": 2,
+                        "price": 99.50
                     }
                 ]
             }
@@ -545,7 +547,8 @@ class OrderControllerTest {
                 "items": [
                     {
                         "skuId": %d,
-                        "quantity": 5
+                        "quantity": 5,
+                        "price": 100.00
                     }
                 ]
             }
@@ -617,7 +620,8 @@ class OrderControllerTest {
                 "items": [
                     {
                         "skuId": %d,
-                        "quantity": 1
+                        "quantity": 1,
+                        "price": 100.00
                     }
                 ]
             }
@@ -744,7 +748,8 @@ class OrderControllerTest {
                 "items": [
                     {
                         "skuId": %d,
-                        "quantity": 1
+                        "quantity": 1,
+                        "price": 100.00
                     }
                 ]
             }

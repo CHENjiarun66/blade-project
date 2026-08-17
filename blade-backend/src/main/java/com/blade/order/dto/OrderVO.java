@@ -24,8 +24,10 @@ public class OrderVO {
     private BigDecimal originalAmount;
     private BigDecimal refundAmount;
     private BigDecimal paidAmount;
+    private BigDecimal writeOffAmount;
+    private String writeOffReason;
     private BigDecimal balanceAmount;
-    // 支付状态: 0未付款 1已付定金 2已付全款
+    // 支付状态: 0未付款 1部分收款 2已结清
     private Integer paymentStatus;
     private String paymentStatusName;
     private String adjustmentStatus;
@@ -90,6 +92,10 @@ public class OrderVO {
     public void setRefundAmount(BigDecimal refundAmount) { this.refundAmount = refundAmount; }
     public BigDecimal getPaidAmount() { return paidAmount; }
     public void setPaidAmount(BigDecimal paidAmount) { this.paidAmount = paidAmount; }
+    public BigDecimal getWriteOffAmount() { return writeOffAmount; }
+    public void setWriteOffAmount(BigDecimal writeOffAmount) { this.writeOffAmount = writeOffAmount; }
+    public String getWriteOffReason() { return writeOffReason; }
+    public void setWriteOffReason(String writeOffReason) { this.writeOffReason = writeOffReason; }
     public BigDecimal getBalanceAmount() { return balanceAmount; }
     public void setBalanceAmount(BigDecimal balanceAmount) { this.balanceAmount = balanceAmount; }
     public Integer getPaymentStatus() { return paymentStatus; }

@@ -44,9 +44,9 @@ public class OrderCreateDTO {
     @Schema(description = "客户地址")
     private String customerAddress;
 
-    // 支付状态: 0未付款 1已付定金 2已付全款
+    // 支付状态: 0未付款 1部分收款 2已结清
     @NotNull(message = "支付状态不能为空")
-    @Schema(description = "支付状态: 0未付款 1已付定金 2已付全款")
+    @Schema(description = "支付状态: 0未付款 1部分收款 2已结清")
     private Integer paymentStatus;
 
     @Schema(description = "定金金额（当 paymentStatus=1 时必填）")

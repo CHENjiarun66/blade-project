@@ -15,8 +15,9 @@
           <span class="brand-main">嘉嘉服饰</span>
           <span class="brand-sub">现货选款</span>
         </div>
-        <div class="search-box">
+        <div class="search-box" @touchstart.passive="focusSearchInput">
           <el-input
+            ref="searchInputRef"
             v-model="filters.keyword"
             placeholder="搜索款号 / 商品名"
             clearable
@@ -162,7 +163,7 @@
               >
                 <CachedImage
                   v-if="product.mainImageUrl"
-                  :src="product.mainImageUrl"
+                  :src="withVariantUrl(product.mainImageUrl, 'card')"
                   :alt="product.name"
                   loading="lazy"
                   image-class="card-img"
@@ -208,6 +209,7 @@
             :product="selectedProduct"
             :all-images="selectedProductDetailImages"
             :fullscreen-images="selectedProductGalleryImages"
+            :thumb-images="selectedProductDetailThumbImages"
             @open-fullscreen="openFullscreen"
             @close="selectedProduct = null"
           />
@@ -232,6 +234,7 @@
         :product="selectedProduct"
         :all-images="selectedProductDetailImages"
         :fullscreen-images="selectedProductGalleryImages"
+        :thumb-images="selectedProductDetailThumbImages"
         :show-close="false"
         @open-fullscreen="openFullscreen"
       />
@@ -358,7 +361,7 @@ import {
   type FilterOption,
   type ColorSizeEntry,
 } from '@/api/catalog'
-import { filePreviewUrl } from '@/api/file'
+import { filePreviewUrl, fileVariantUrl } from '@/api/file'
 import {
   readCatalogProductsCache,
   writeCatalogProductsCache,
@@ -368,6 +371,7 @@ import CachedImage from '@/components/CachedImage.vue'
 import DetailView from './DetailView.vue'
 
 // --- orientation ---
+const searchInputRef = ref<{ focus: () => void } | null>(null)
 const windowWidth = ref(window.innerWidth)
 const windowHeight = ref(window.innerHeight)
 const isLandscape = computed(() => windowWidth.value > windowHeight.value)
@@ -380,6 +384,10 @@ function onResize() {
 }
 onMounted(() => window.addEventListener('resize', onResize))
 onUnmounted(() => window.removeEventListener('resize', onResize))
+
+function focusSearchInput() {
+  searchInputRef.value?.focus()
+}
 
 // --- filters ---
 const filters = reactive({
@@ -549,25 +557,56 @@ function loadNextPage() {
   fetchProducts({ reset: false })
 }
 
-function productImages(product: CatalogProductVO) {
-  const imgs: string[] = []
-  if (product.mainImageUrl) imgs.push(withPreviewToken(product.mainImageUrl))
-  if (product.imageUrls) imgs.push(...product.imageUrls.map(withPreviewToken))
-  return [...new Set(imgs.filter(Boolean))]
+function productImages(product: CatalogProductVO): string[] {
+  const gallery = productGalleryImages(product)
+  if (gallery.length > 0) return gallery
+  return product.mainImageUrl ? [withPreviewToken(product.mainImageUrl)] : []
 }
 
-function skuImages(product: CatalogProductVO) {
-  const imgs = (product.skus || []).flatMap((sku) => sku.imageUrls || []).map(withPreviewToken)
-  return [...new Set(imgs.filter(Boolean))]
+function productGalleryImages(product: CatalogProductVO): string[] {
+  const mainImage = product.mainImageUrl ? withPreviewToken(product.mainImageUrl) : ''
+  const gallery = (product.imageUrls || [])
+    .map(withPreviewToken)
+    .filter((img) => img && img !== mainImage)
+  return [...new Set(gallery)]
 }
 
-function detailImages(product: CatalogProductVO) {
-  return [...new Set([...productImages(product), ...skuImages(product)].filter(Boolean))]
+function productCardImages(product: CatalogProductVO): string[] {
+  const gallery = productGalleryCardImages(product)
+  if (gallery.length > 0) return gallery
+  return product.mainImageUrl ? [withVariantUrl(product.mainImageUrl, 'card')] : []
+}
+
+function productGalleryCardImages(product: CatalogProductVO): string[] {
+  const mainImage = product.mainImageUrl ? withVariantUrl(product.mainImageUrl, 'card') : ''
+  const gallery = (product.imageUrls || [])
+    .map((u) => withVariantUrl(u, 'card'))
+    .filter((img) => img && img !== mainImage)
+  return [...new Set(gallery)]
+}
+
+function detailCardImages(product: CatalogProductVO): string[] {
+  return productCardImages(product)
+}
+
+function detailThumbImages(product: CatalogProductVO): string[] {
+  const mainImage = product.mainImageUrl ? withVariantUrl(product.mainImageUrl, 'thumb') : ''
+  const gallery = (product.imageUrls || [])
+    .map((u) => withVariantUrl(u, 'thumb'))
+    .filter((img) => img && img !== mainImage)
+  const uniqueGallery = [...new Set(gallery)]
+  if (uniqueGallery.length > 0) return uniqueGallery
+  return mainImage ? [mainImage] : []
 }
 
 function withPreviewToken(url: string) {
   const match = url.match(/^\/api\/files\/(\d+)\/preview(?:\?.*)?$/)
   return match ? filePreviewUrl(match[1]) : url
+}
+
+function withVariantUrl(url: string, type: 'thumb' | 'card') {
+  const match = url.match(/^\/api\/files\/(\d+)\/preview(?:\?.*)?$/)
+  return match ? fileVariantUrl(match[1], type) : url
 }
 
 function normalizeCatalogProduct(product: CatalogProductVO): CatalogProductVO {
@@ -625,12 +664,17 @@ const drawerHeight = computed(() => {
 
 const selectedProductGalleryImages = computed(() => {
   if (!selectedProduct.value) return []
-  return productImages(selectedProduct.value)
+  return productImages(selectedProduct.value) // original URLs for fullscreen
 })
 
 const selectedProductDetailImages = computed(() => {
   if (!selectedProduct.value) return []
-  return detailImages(selectedProduct.value)
+  return detailCardImages(selectedProduct.value) // card variant for carousel
+})
+
+const selectedProductDetailThumbImages = computed(() => {
+  if (!selectedProduct.value) return []
+  return detailThumbImages(selectedProduct.value) // thumb variant for strip
 })
 
 async function selectProduct(product: CatalogProductVO) {
@@ -749,7 +793,7 @@ function onKeydown(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
-function resetViewportScale() {
+function resetViewportAfterOrientationChange() {
   window.scrollTo(0, 0)
   document.documentElement.scrollTop = 0
   document.body.scrollTop = 0
@@ -776,14 +820,12 @@ function preventDoubleTapZoom(event: TouchEvent) {
 }
 
 onMounted(() => {
-  window.addEventListener('orientationchange', resetViewportScale)
-  window.visualViewport?.addEventListener('resize', resetViewportScale)
+  window.addEventListener('orientationchange', resetViewportAfterOrientationChange)
   document.addEventListener('touchstart', recordTouchStart, { passive: true })
   document.addEventListener('touchend', preventDoubleTapZoom, { passive: false })
 })
 onUnmounted(() => {
-  window.removeEventListener('orientationchange', resetViewportScale)
-  window.visualViewport?.removeEventListener('resize', resetViewportScale)
+  window.removeEventListener('orientationchange', resetViewportAfterOrientationChange)
   document.removeEventListener('touchstart', recordTouchStart)
   document.removeEventListener('touchend', preventDoubleTapZoom)
 })
@@ -920,6 +962,9 @@ onMounted(() => {
 
 .search-box {
   width: 100%;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: manipulation;
 }
 
 .search-input :deep(.el-input__wrapper) {
@@ -929,6 +974,14 @@ onMounted(() => {
   border: 1px solid #d9cfc3;
   box-shadow: none;
   transition: border-color 0.2s;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: manipulation;
+}
+.search-input :deep(.el-input__inner) {
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: manipulation;
 }
 .search-input :deep(.el-input__wrapper:hover) {
   border-color: var(--accent-gold);
@@ -1375,7 +1428,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 70px 100px 124px;
+  padding: 0;
   max-width: 100%;
   max-height: 100%;
   width: 100%;
@@ -1399,6 +1452,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  padding: 70px 100px 124px;
+  overflow: hidden;
 }
 
 .fs-image {
@@ -1846,6 +1902,10 @@ onMounted(() => {
   }
 
   .fs-image-wrap {
+    padding: 0;
+  }
+
+  .fs-image-slide {
     padding: calc(62px + env(safe-area-inset-top)) 14px calc(112px + env(safe-area-inset-bottom));
   }
 

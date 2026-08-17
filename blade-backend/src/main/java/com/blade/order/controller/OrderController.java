@@ -58,14 +58,14 @@ public class OrderController {
     }
 
     @PostMapping("/confirm-payment")
-    @Operation(summary = "付款确认（锁定库存）")
+    @Operation(summary = "付款确认")
     public R<Void> confirmPayment(@RequestBody @Valid PaymentConfirmDTO dto) {
         orderService.confirmPayment(dto.getOrderId(), dto.getPaidAmount());
         return R.ok();
     }
 
     @PostMapping("/{id}/deliver")
-    @Operation(summary = "订单发货（预留转出库）")
+    @Operation(summary = "订单发货")
     public R<Void> deliver(@PathVariable Long id) {
         orderService.deliverOrder(id);
         return R.ok();
@@ -79,14 +79,14 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/add-payment")
-    @Operation(summary = "追加收款（不改变订单状态）")
+    @Operation(summary = "追加收款 / 标记结清")
     public R<Void> addPayment(@PathVariable Long id, @RequestBody @Valid AddPaymentDTO dto) {
-        orderService.addPayment(id, dto.getAdditionalAmount());
+        orderService.addPayment(id, dto);
         return R.ok();
     }
 
     @PostMapping("/{id}/cancel")
-    @Operation(summary = "取消订单（释放预留库存）")
+    @Operation(summary = "取消订单")
     public R<Void> cancel(@PathVariable Long id, @RequestBody @Valid CancelOrderDTO dto) {
         orderService.cancelOrder(id, dto.getReason());
         return R.ok();

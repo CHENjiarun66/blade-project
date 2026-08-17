@@ -249,7 +249,7 @@
                 <!-- 图片 -->
                 <img
                   v-if="isImageFile(file.fileType)"
-                  :src="filePreviewUrl(file.id)"
+                  :src="fileVariantUrl(file.id, 'card')"
                   :alt="file.originalName"
                   class="w-full h-full object-cover"
                   loading="lazy"
@@ -312,7 +312,7 @@
                   <!-- 图片缩略图 -->
                   <img
                     v-if="isImageFile(row.fileType)"
-                    :src="filePreviewUrl(row.id)"
+                    :src="fileVariantUrl(row.id, 'thumb')"
                     class="w-10 h-10 rounded-lg object-cover bg-gray-100"
                     loading="lazy"
                     @error="($event.target as HTMLImageElement).style.display = 'none'"
@@ -634,6 +634,7 @@ import {
   getFileBindings,
   uploadFile,
   filePreviewUrl,
+  fileVariantUrl,
   formatFileSize,
   isImageFile,
   isVideoFile,

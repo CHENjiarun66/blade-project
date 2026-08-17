@@ -726,14 +726,33 @@ public class InventoryServiceImpl implements InventoryService {
     public void outByPlan(Long planId, Integer quantity, Long operatorId) {
         Long tenantId = TenantContext.getTenantId();
 
-        // 获取配货计划
-        OrderDeliveryPlan plan = deliveryPlanMapper.selectById(planId);
+        // Validate positive quantity
+        if (quantity == null || quantity <= 0) {
+            throw new RuntimeException("出库数量必须大于0");
+        }
+
+        // Query delivery plan with explicit tenant filter
+        LambdaQueryWrapper<OrderDeliveryPlan> planQw = new LambdaQueryWrapper<>();
+        planQw.eq(OrderDeliveryPlan::getId, planId);
+        planQw.eq(OrderDeliveryPlan::getTenantId, tenantId);
+        OrderDeliveryPlan plan = deliveryPlanMapper.selectOne(planQw);
         if (plan == null) {
             throw new RuntimeException("配货计划不存在");
         }
 
         if (plan.getWarehouseId() == null) {
             throw new RuntimeException("配货计划未指定仓库");
+        }
+
+        // Validate plan data integrity — null allocatedQty/outQty is invalid
+        if (plan.getAllocatedQty() == null || plan.getOutQty() == null) {
+            throw new RuntimeException("配货计划数据异常: 配货数量或已出库数量为空");
+        }
+
+        // Validate not exceeding allocatedQty - outQty
+        int maxOut = plan.getAllocatedQty() - plan.getOutQty();
+        if (quantity > maxOut) {
+            throw new RuntimeException("出库数量超过配货计划待出库数量");
         }
 
         String lockKey = INVENTORY_LOCK_PREFIX + plan.getSkuId() + ":" + plan.getWarehouseId();
@@ -744,62 +763,70 @@ public class InventoryServiceImpl implements InventoryService {
                 throw new RuntimeException("系统繁忙，请稍后重试");
             }
 
-            // 获取库存
-            Inventory inv = inventoryMapper.selectBySkuAndWarehouse(plan.getSkuId(), plan.getWarehouseId());
+            // Query inventory with explicit tenant filter
+            LambdaQueryWrapper<Inventory> invQw = new LambdaQueryWrapper<>();
+            invQw.eq(Inventory::getSkuId, plan.getSkuId());
+            invQw.eq(Inventory::getWarehouseId, plan.getWarehouseId());
+            invQw.eq(Inventory::getTenantId, tenantId);
+            Inventory inv = inventoryMapper.selectOne(invQw);
             if (inv == null) {
                 throw new RuntimeException("库存记录不存在");
             }
 
+            // Validate inventory data integrity — quantity must not be null
+            if (inv.getQuantity() == null) {
+                throw new RuntimeException("库存数据异常: 库存数量为空");
+            }
+
             int beforeQty = inv.getQuantity();
+            int reservedQty = inv.getReservedQty() != null ? inv.getReservedQty() : 0;
 
-            // 验证库存是否足够
-            // 1. 检查全局预留是否足够
-            if (inv.getGlobalReservedQty() < quantity) {
-                throw new RuntimeException("配货预留不足，无法出库");
-            }
-            // 2. 检查实际可用库存是否足够（考虑其他非订单来源的占用）
-            int available = inv.getQuantity() - inv.getReservedQty() - inv.getGlobalReservedQty();
+            // Available = quantity - reserved_qty (never requires global_reserved_qty)
+            int available = inv.getQuantity() - reservedQty;
             if (available < quantity) {
-                throw new RuntimeException("库存不足，无法出库");
+                throw new RuntimeException(String.format(
+                        "库存不足: SKU[%d] 仓库[%d] 可用:%d 需要:%d",
+                        plan.getSkuId(), plan.getWarehouseId(), available, quantity));
             }
 
-            int changeQty = -quantity;
-
-            // 使用乐观锁更新库存
-            // 注意：outByPlan 只扣减 quantity 和 global_reserved_qty，不碰 reserved_qty
-            // 因为 reserved_qty 是单个订单的预占，global_reserved_qty 是跨仓全局预留
-            LambdaUpdateWrapper<Inventory> wrapper = new LambdaUpdateWrapper<>();
-            wrapper.eq(Inventory::getId, inv.getId())
-                    .eq(Inventory::getVersion, inv.getVersion())
-                    .setSql("quantity = quantity + " + changeQty +
-                            ", global_reserved_qty = global_reserved_qty + " + changeQty);
-
-            int rows = inventoryMapper.update(null, wrapper);
+            // Atomic deduct: only quantity, conditioned by id, tenant_id and
+            // available >= requested, version auto-incremented
+            int rows = inventoryMapper.deductQuantity(inv.getId(), tenantId, quantity);
             if (rows == 0) {
-                throw new RuntimeException("库存已被其他操作修改，请重试");
+                // Re-read with explicit tenant-scoped query (selectById does not filter by tenant)
+                LambdaQueryWrapper<Inventory> recheckQw = new LambdaQueryWrapper<>();
+                recheckQw.eq(Inventory::getId, inv.getId());
+                recheckQw.eq(Inventory::getTenantId, tenantId);
+                Inventory recheck = inventoryMapper.selectOne(recheckQw);
+                int rq = recheck != null && recheck.getReservedQty() != null ? recheck.getReservedQty() : 0;
+                int recheckQuantity = recheck != null && recheck.getQuantity() != null ? recheck.getQuantity() : 0;
+                int ravail = recheckQuantity - rq;
+                throw new RuntimeException(String.format(
+                        "库存不足或已被修改: SKU[%d] 仓库[%d] 可用:%d 需要:%d",
+                        plan.getSkuId(), plan.getWarehouseId(), ravail, quantity));
             }
 
-            // 更新配货计划的已出库数量
+            // Update delivery plan outQty and status
             OrderDeliveryPlan updatePlan = new OrderDeliveryPlan();
             updatePlan.setId(planId);
-            updatePlan.setOutQty(plan.getOutQty() + quantity);
-            // 如果全部出库完成，更新状态为OUT
-            if (plan.getAllocatedQty() <= plan.getOutQty() + quantity) {
+            int newOutQty = plan.getOutQty() + quantity;
+            updatePlan.setOutQty(newOutQty);
+            if (plan.getAllocatedQty() <= newOutQty) {
                 updatePlan.setStatus(OrderDeliveryPlan.Status.OUT);
             }
             deliveryPlanMapper.updateById(updatePlan);
 
-            // 记录变动日志
+            // Record inventory log
             InventoryLog log = new InventoryLog();
             log.setSkuId(plan.getSkuId());
             log.setWarehouseId(plan.getWarehouseId());
             log.setChangeType("SALE_OUT");
-            log.setChangeQty(changeQty);
+            log.setChangeQty(-quantity);
             log.setBeforeQty(beforeQty);
-            log.setAfterQty(beforeQty + changeQty);
+            log.setAfterQty(beforeQty - quantity);
             log.setOrderId(plan.getOrderId());
             log.setOperatorId(operatorId);
-            log.setRemark("配货计划出库");
+            log.setRemark("配货计划出库(SOW-2)");
             log.setTenantId(tenantId);
             inventoryLogMapper.insert(log);
 

@@ -351,7 +351,7 @@
                 <div class="flex justify-between items-end">
                   <div>
                     <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">应付尾款余额</p>
-                    <h4 class="text-3xl font-black tracking-tight">¥ {{ (order.totalAmount - order.paidAmount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }}</h4>
+                    <h4 class="text-3xl font-black tracking-tight">¥ {{ (order.balanceAmount ?? 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }}</h4>
                   </div>
                   <div class="p-2 bg-[#408aee]/20 rounded-lg">
                     <span class="material-symbols-outlined text-blue-400">account_balance_wallet</span>
@@ -384,6 +384,14 @@
               <span class="text-gray-500">确认时间</span>
               <span class="text-gray-900">{{ formatDateTime(order.confirmTime) }}</span>
             </div>
+          </div>
+          <!-- 抹零/短款结清信息 -->
+          <div v-if="(order.writeOffAmount ?? 0) > 0" class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div class="flex justify-between text-sm">
+              <span class="text-amber-700 font-medium">抹零/短款结清</span>
+              <span class="font-bold text-amber-700">¥ {{ order.writeOffAmount?.toFixed(2) }}</span>
+            </div>
+            <div v-if="order.writeOffReason" class="text-xs text-amber-600 mt-1">{{ order.writeOffReason }}</div>
           </div>
         </div>
 
@@ -501,7 +509,7 @@
     </el-dialog>
 
     <!-- 追加收款弹窗 -->
-    <el-dialog v-model="showAddPayDialog" title="追加收款" width="400px">
+    <el-dialog v-model="showAddPayDialog" title="追加收款" width="420px">
       <div class="py-4 space-y-3">
         <div class="flex justify-between text-sm">
           <span class="text-gray-500">订单总额</span>
@@ -513,26 +521,39 @@
         </div>
         <div class="flex justify-between text-sm">
           <span class="text-gray-500">待付余额</span>
-          <span class="font-bold text-red-500">
-            ¥ {{ ((order?.totalAmount ?? 0) - (order?.paidAmount ?? 0)).toFixed(2) }}
-          </span>
+          <span class="font-bold text-red-500">¥ {{ (order?.balanceAmount ?? 0).toFixed(2) }}</span>
         </div>
         <el-divider />
         <div>
           <label class="block text-sm font-bold text-gray-500 mb-2">本次收款金额</label>
           <el-input-number
             v-model="addPayAmount"
-            :min="0.01"
-            :max="(order?.totalAmount ?? 0) - (order?.paidAmount ?? 0)"
+            :min="addPayMarkSettled ? 0 : 0.01"
+            :max="order?.balanceAmount ?? 0"
             :precision="2"
             :step="100"
             class="!w-full"
           />
         </div>
+        <div>
+          <el-checkbox v-model="addPayMarkSettled">
+            标记结清（尾款金额将写入抹零/短款）
+          </el-checkbox>
+        </div>
+        <div v-if="addPayMarkSettled" class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <p class="text-xs text-amber-700 mb-2">
+            标记结清后，当前尾款 ¥{{ ((order?.balanceAmount ?? 0) - addPayAmount).toFixed(2) }} 将记为抹零/短款，此订单不再追收。
+          </p>
+          <label class="block text-xs font-bold text-amber-700 mb-1">结清原因 <span class="text-red-500">*</span></label>
+          <el-input
+            v-model="addPayWriteOffReason"
+            placeholder="如：客户少付2元，确认不再追收"
+          />
+        </div>
       </div>
       <template #footer>
-        <el-button @click="showAddPayDialog = false">取消</el-button>
-        <el-button type="primary" @click="confirmAddPay">确认收款</el-button>
+        <el-button @click="showAddPayDialog = false" :disabled="addPaySubmitting">取消</el-button>
+        <el-button type="primary" :loading="addPaySubmitting" @click="confirmAddPay">确认收款</el-button>
       </template>
     </el-dialog>
 
@@ -557,51 +578,60 @@
     </el-dialog>
 
     <!-- 创建/编辑配货计划弹窗 -->
-    <el-dialog v-model="showDeliveryPlanDialog" :title="deliveryPlanDialogTitle" width="800px">
-      <div class="py-4">
+    <el-dialog v-model="showDeliveryPlanDialog" :title="deliveryPlanDialogTitle" width="1050px" class="delivery-plan-dialog">
+      <div class="py-2">
         <!-- 提示信息 -->
         <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
           为每个商品选择仓库和配货数量。确认后将同步仓库信息到订单明细。
+          <span class="text-xs text-blue-500 block mt-1">库存提示仅作软参考，最终库存校验在发货时进行。库存不足不阻断配货方案保存。</span>
         </div>
 
         <!-- 配货明细表格 -->
         <div class="border border-gray-200 rounded-lg overflow-hidden">
-          <table class="w-full text-left text-sm">
-            <thead class="bg-gray-50 text-gray-500">
-              <tr>
-                <th class="px-4 py-3">商品</th>
-                <th class="px-4 py-3">颜色/尺码</th>
-                <th class="px-4 py-3">计划数量</th>
-                <th class="px-4 py-3">仓库</th>
-                <th class="px-4 py-3">配货数量</th>
-                <th class="px-4 py-3">备注</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-              <tr v-for="item in deliveryPlanItems" :key="item.orderItemId" class="hover:bg-gray-50">
-                <td class="px-4 py-3 font-medium text-gray-900">{{ item.productName }}</td>
-                <td class="px-4 py-3 text-gray-600">{{ item.colorName }} / {{ item.sizeName }}</td>
-                <td class="px-4 py-3 font-bold">{{ item.plannedQty }}</td>
-                <td class="px-4 py-3">
-                  <el-select v-model="item.warehouseId" placeholder="选择仓库" size="small" class="!w-32">
-                    <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.warehouseName" :value="wh.id" />
-                  </el-select>
-                </td>
-                <td class="px-4 py-3">
-                  <el-input-number
-                    v-model="item.allocatedQty"
-                    :min="0"
-                    :max="item.plannedQty"
-                    size="small"
-                    class="!w-24"
-                  />
-                </td>
-                <td class="px-4 py-3">
-                  <el-input v-model="item.remark" placeholder="备注" size="small" class="!w-28" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="delivery-plan-table-wrapper">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-gray-50 text-gray-500 text-xs">
+                <tr>
+                  <th class="px-3 py-2.5">商品</th>
+                  <th class="px-3 py-2.5">颜色/尺码</th>
+                  <th class="px-3 py-2.5 w-[60px]">计划</th>
+                  <th class="px-3 py-2.5">仓库</th>
+                  <th class="px-3 py-2.5 w-[80px]">配货</th>
+                  <th class="px-3 py-2.5 w-[120px]">库存提示</th>
+                  <th class="px-3 py-2.5">备注</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="item in deliveryPlanItems" :key="item.orderItemId" class="hover:bg-gray-50">
+                  <td class="px-3 py-2.5 font-medium text-gray-900">{{ item.productName }}</td>
+                  <td class="px-3 py-2.5 text-gray-600 text-xs">{{ item.colorName }} / {{ item.sizeName }}</td>
+                  <td class="px-3 py-2.5 font-bold text-center">{{ item.plannedQty }}</td>
+                  <td class="px-3 py-2.5">
+                    <el-select v-model="item.warehouseId" placeholder="选择仓库" size="small" class="!w-28" @change="onWarehouseChange">
+                      <el-option v-for="wh in warehouses" :key="wh.id" :label="wh.warehouseName" :value="wh.id" />
+                    </el-select>
+                  </td>
+                  <td class="px-3 py-2.5">
+                    <el-input-number
+                      v-model="item.allocatedQty"
+                      :min="0"
+                      :max="item.plannedQty"
+                      size="small"
+                      class="!w-[72px]"
+                    />
+                  </td>
+                  <td class="px-3 py-2.5">
+                    <span :class="getInventoryStatus(item).cssClass" class="text-xs font-medium whitespace-nowrap">
+                      {{ getInventoryStatus(item).text }}
+                    </span>
+                  </td>
+                  <td class="px-3 py-2.5">
+                    <el-input v-model="item.remark" placeholder="调整/替换说明" size="small" class="!w-28" />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
       <template #footer>
@@ -612,7 +642,7 @@
 
     <ElImageViewer
       v-if="imageViewerVisible"
-      :url-list="orderImageSources"
+      :url-list="orderImageOriginalSources"
       :initial-index="imageViewerIndex"
       @close="closeImageViewer"
     />
@@ -620,13 +650,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
-import { getOrderById, confirmPayment, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO } from '@/api/order'
-import { getAllWarehouses, type WarehouseVO } from '@/api/inventory'
-import { parseImageSources } from '@/api/file'
+import { getOrderById, confirmPayment, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO, type AddPaymentDTO } from '@/api/order'
+import { getAllWarehouses, getInventoryByWarehouse, type WarehouseVO, type InventoryVO } from '@/api/inventory'
+import { parseImageSources, parseImageVariantSources } from '@/api/file'
 
 const router = useRouter()
 const route = useRoute()
@@ -662,12 +692,78 @@ const deliveryPlanItems = ref<{
 }[]>([])
 const planLoading = ref(false)
 
+// Inventory hint cache (per-warehouse, per dialog session)
+const inventoryCache = reactive<Record<number, InventoryVO[]>>({})
+const inventoryLoadingState = reactive<Record<number, boolean>>({})
+const inventoryError = reactive<Record<number, boolean>>({})
+const inventoryPromiseMap = new Map<number, Promise<void>>()
+let inventorySessionId = 0
+
+function clearInventoryCache() {
+  inventorySessionId += 1
+  Object.keys(inventoryCache).forEach(k => delete inventoryCache[Number(k)])
+  Object.keys(inventoryLoadingState).forEach(k => delete inventoryLoadingState[Number(k)])
+  Object.keys(inventoryError).forEach(k => delete inventoryError[Number(k)])
+  inventoryPromiseMap.clear()
+}
+
+async function ensureWarehouseInventory(warehouseId: number) {
+  if (!warehouseId) return
+  if (inventoryCache[warehouseId] || inventoryLoadingState[warehouseId]) return
+  if (inventoryPromiseMap.has(warehouseId)) {
+    await inventoryPromiseMap.get(warehouseId)
+    return
+  }
+  inventoryLoadingState[warehouseId] = true
+  inventoryError[warehouseId] = false
+  const sessionId = inventorySessionId
+  const promise = getInventoryByWarehouse(warehouseId)
+    .then((res: any) => {
+      if (sessionId !== inventorySessionId) return
+      inventoryCache[warehouseId] = res.data || []
+      inventoryError[warehouseId] = false
+    })
+    .catch(() => {
+      if (sessionId !== inventorySessionId) return
+      inventoryError[warehouseId] = true
+    })
+    .finally(() => {
+      if (sessionId !== inventorySessionId) return
+      inventoryLoadingState[warehouseId] = false
+      inventoryPromiseMap.delete(warehouseId)
+    })
+  inventoryPromiseMap.set(warehouseId, promise)
+  await promise
+}
+
+function onWarehouseChange(warehouseId: number) {
+  if (warehouseId) ensureWarehouseInventory(warehouseId)
+}
+
+function getInventoryStatus(item: typeof deliveryPlanItems.value[number]): { text: string; cssClass: string } {
+  const wid = item.warehouseId
+  if (!wid) return { text: '未选仓库', cssClass: 'text-gray-400' }
+  if (inventoryLoadingState[wid]) return { text: '查询中...', cssClass: 'text-blue-500' }
+  if (inventoryError[wid]) return { text: '查询失败', cssClass: 'text-red-500' }
+  const records = inventoryCache[wid]
+  if (!records) return { text: '...', cssClass: 'text-gray-400' }
+  const inv = records.find((r: InventoryVO) => r.skuId === item.skuId)
+  if (!inv) return { text: '无库存记录', cssClass: 'text-amber-600' }
+  // Order allocation is advisory only and follows the shipment rule. Historical
+  // global reservations must not make an otherwise shippable SKU look short.
+  const available = (inv.quantity || 0) - (inv.reservedQty || 0)
+  const need = item.allocatedQty
+  if (available >= need) return { text: `可用 ${available}`, cssClass: 'text-green-600' }
+  return { text: `可用 ${available} / 缺 ${need - available}`, cssClass: 'text-amber-600' }
+}
+
 const orderId = Number(route.params.id)
 const canAddPayment = computed(() => {
   if (!order.value || order.value.paymentStatus === 2) return false
-  return ![5, 6, 7, 8].includes(order.value.status)
+  return Number(order.value.balanceAmount ?? 0) > 0 && ![5, 6, 7, 8].includes(order.value.status)
 })
-const orderImageSources = computed(() => parseImageSources(order.value?.images))
+const orderImageSources = computed(() => parseImageVariantSources(order.value?.images, 'thumb'))
+const orderImageOriginalSources = computed(() => parseImageSources(order.value?.images))
 
 function openOrderImageViewer(index = 0) {
   if (orderImageSources.value.length === 0) return
@@ -731,20 +827,50 @@ async function confirmPay() {
 // 追加收款
 const showAddPayDialog = ref(false)
 const addPayAmount = ref(0)
+const addPayMarkSettled = ref(false)
+const addPayWriteOffReason = ref('')
+const addPaySubmitting = ref(false)
 
 function handleAddPayment() {
   addPayAmount.value = 0
+  addPayMarkSettled.value = false
+  addPayWriteOffReason.value = ''
+  addPaySubmitting.value = false
   showAddPayDialog.value = true
 }
 
 async function confirmAddPay() {
+  if (addPaySubmitting.value) return
+  const balance = Number(order.value?.balanceAmount ?? 0)
+  if (!addPayMarkSettled.value && addPayAmount.value <= 0) {
+    ElMessage.warning('本次收款金额必须大于0')
+    return
+  }
+  if (addPayMarkSettled.value && !addPayWriteOffReason.value.trim()) {
+    ElMessage.warning('请填写结清原因')
+    return
+  }
+  if (addPayMarkSettled.value && balance - addPayAmount.value <= 0) {
+    ElMessage.warning('本次收款已覆盖全部尾款，无需勾选标记结清')
+    return
+  }
+  addPaySubmitting.value = true
   try {
-    await addPayment(orderId, addPayAmount.value)
-    ElMessage.success('收款记录已更新')
+    const payload: AddPaymentDTO = {
+      additionalAmount: addPayAmount.value,
+    }
+    if (addPayMarkSettled.value) {
+      payload.markAsSettled = true
+      payload.writeOffReason = addPayWriteOffReason.value.trim()
+    }
+    await addPayment(orderId, payload)
+    ElMessage.success(addPayMarkSettled.value ? '订单已标记结清' : '收款记录已更新')
     showAddPayDialog.value = false
     await loadOrder()
   } catch (error: any) {
     ElMessage.error(error.message || '操作失败')
+  } finally {
+    addPaySubmitting.value = false
   }
 }
 
@@ -803,6 +929,9 @@ async function handleCreateDeliveryPlan() {
     return
   }
 
+  // 清除会话内库存缓存
+  clearInventoryCache()
+
   // 初始化配货明细（从订单商品）
   deliveryPlanItems.value = (order.value?.items || []).map(item => ({
     orderItemId: item.id,
@@ -815,6 +944,10 @@ async function handleCreateDeliveryPlan() {
     warehouseId: order.value?.warehouseId || undefined,
     remark: ''
   }))
+
+  // 加载当前已选仓库的库存
+  const selectedIds = [...new Set(deliveryPlanItems.value.map(item => item.warehouseId).filter(Boolean))] as number[]
+  selectedIds.forEach(wid => ensureWarehouseInventory(wid))
 
   deliveryPlanDialogTitle.value = '创建配货计划'
   showDeliveryPlanDialog.value = true
@@ -831,6 +964,9 @@ async function handleEditDeliveryPlan() {
     return
   }
 
+  // 清除会话内库存缓存
+  clearInventoryCache()
+
   // 初始化配货明细（从现有配货计划）
   deliveryPlanItems.value = deliveryPlans.value.map(plan => ({
     orderItemId: plan.orderItemId,
@@ -843,6 +979,10 @@ async function handleEditDeliveryPlan() {
     warehouseId: plan.warehouseId || undefined,
     remark: plan.remark || ''
   }))
+
+  // 加载当前已选仓库的库存
+  const selectedIds = [...new Set(deliveryPlanItems.value.map(item => item.warehouseId).filter(Boolean))] as number[]
+  selectedIds.forEach(wid => ensureWarehouseInventory(wid))
 
   deliveryPlanDialogTitle.value = '编辑配货计划'
   showDeliveryPlanDialog.value = true
@@ -1092,5 +1232,15 @@ function formatDateTime(dateStr: string) {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+:global(.delivery-plan-dialog) {
+  max-width: 94vw;
+}
+
+.delivery-plan-table-wrapper {
+  overflow-x: auto;
+  max-height: 50vh;
+  overflow-y: auto;
 }
 </style>

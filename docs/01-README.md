@@ -39,6 +39,7 @@ BladeProject/
 | 场景 | 文档 |
 |------|------|
 | 快速接手当前状态 | [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) |
+| 一眼看清项目进度（自动生成） | [STATUS.md](./STATUS.md) |
 | 确认业务规则和技术栈 | [02-PRD.md](./02-PRD.md) |
 | 查看任务状态 | [03-TASKS.md](./03-TASKS.md) |
 | 查看变更历史 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
@@ -50,6 +51,7 @@ BladeProject/
 | 查 NAS 生产环境发布/运维 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
 | 查外部 AI Agent 对接设计 | [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md) |
 | 接入外部 AI Agent | [11-AGENT_ACCESS_GUIDE.md](./11-AGENT_ACCESS_GUIDE.md) |
+| 双 Agent 协作同步（Codex + DeepSeek） | [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) |
 | 排查问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
 | 查看技术决策 | [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md) |
 

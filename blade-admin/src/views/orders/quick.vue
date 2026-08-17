@@ -450,7 +450,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createOrder } from '@/api/order'
 import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO } from '@/api/customer'
-import { filePreviewUrl, parseImageSources, uploadFile } from '@/api/file'
+import { fileVariantUrl, parseImageSources, uploadFile } from '@/api/file'
 import { getProductFileBindings, getProductPage, type ProductVO, type ProductSku, type ProductFileBindingsVO } from '@/api/product'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
 
@@ -575,13 +575,13 @@ function productMainImage(product?: ProductVO | null) {
 
 function bindingMainImage(bindings?: ProductFileBindingsVO | null) {
   const fileId = bindings?.main?.fileId
-  return fileId ? filePreviewUrl(fileId) : ''
+  return fileId ? fileVariantUrl(fileId, 'thumb') : ''
 }
 
 function bindingSkuImage(bindings: ProductFileBindingsVO | null | undefined, skuId: number) {
   const group = bindings?.skuImages?.find(item => item.skuId === skuId)
   const fileId = group?.files?.[0]?.fileId
-  return fileId ? filePreviewUrl(fileId) : ''
+  return fileId ? fileVariantUrl(fileId, 'thumb') : ''
 }
 
 function skuImage(skuId: number) {
@@ -960,7 +960,7 @@ async function handleImageUpload(event: Event) {
       const res = await uploadFile(file, 'order')
       const fileId = res.data.id
       imageFileIds.value.push(String(fileId))
-      imageSources.value.push(filePreviewUrl(fileId))
+      imageSources.value.push(fileVariantUrl(fileId, 'thumb'))
     }
   } catch (error: any) {
     ElMessage.error(error.message || '图片上传失败')

@@ -12,6 +12,7 @@
 - 收款不锁库存，只让订单进入待配货/优先配货队列。
 - 库存只在配货/发货阶段作为提示、复核和实际扣减依据。
 - 发货时按实际发货 SKU、仓库、数量扣减库存；如果发生替换 SKU、减配、补发或退款，必须记录在配货方案或调整说明中。
+- 第一版确认发货仍是库存强校验节点：缺库存记录或库存不足会阻止发货；部分发货、分批发货和缺货退款不在本版范围。
 - `inventory_global_reserve` 和 `global_reserved_qty` 作为历史兼容结构暂不删除，但第一版生产订单流程不再依赖硬预留。
 
 对应流程图文件：[`architecture/order-inventory-soft-coupling-flow.drawio`](./architecture/order-inventory-soft-coupling-flow.drawio)。
@@ -227,7 +228,7 @@ CREATE TABLE inventory_global_reserve (
 ) COMMENT '库存总量预留表（跨仓）';
 ```
 
-### 4.2 修改表（部分已落地，部分待收尾）
+### 4.2 修改表（当前生产口径已落地）
 
 #### 4.2.1 订单表（sale_order）
 
@@ -242,7 +243,9 @@ ALTER TABLE sale_order ADD COLUMN adjustment_status VARCHAR(20) DEFAULT 'NONE' C
 
 **现状**：
 - 上述字段已由 `V21__order_delivery_plan.sql` 落地。
-- `BE-124` 在任务清单中仍未关闭，表示订单相关表结构与整体业务流程的文档/验收仍需收口。
+- `V29__order_quick_entry_finance.sql` 已补齐快速录单日期、类型、运费、成本和毛利字段。
+- `V39__order_write_off.sql` 新增 `write_off_amount`、`write_off_reason`；`BE-124` 所需生产字段已收口。
+- `V40__order_delivery_display_columns.sql` 补齐历史出库单表展示冗余列，避免出库单详情查询实体字段时报 unknown column。
 
 #### 4.2.2 订单明细表（sale_order_item）
 
@@ -398,11 +401,11 @@ public R<List<OrderAdjustmentLogVO>> getAdjustmentLogs(@PathVariable Long id);
 
 ### 5.2 库存接口新增
 
-#### 5.2.1 跨仓总量预留
+#### 5.2.1 跨仓总量预留（历史兼容接口）
 
 ```java
 /**
- * 跨仓总量预留（付款确认时调用）
+ * 跨仓总量预留（历史兼容；当前付款确认不调用）
  * POST /api/inventory/global-reserve
  */
 @PostMapping("/global-reserve")
@@ -420,12 +423,13 @@ public R<Void> globalReserve(@RequestBody InventoryGlobalReserveDTO dto);
 public R<Void> globalRelease(@RequestBody InventoryGlobalReleaseDTO dto);
 ```
 
-#### 5.2.3 按配货计划出库
+#### 5.2.3 按配货计划出库（仅由订单发货事务调用）
 
 ```java
 /**
  * 按配货计划出库（发货时调用）
- * POST /api/inventory/out-by-plan
+ * 外部 POST /api/inventory/out-by-plan 已关闭，防止绕过整单状态机形成部分发货。
+ * OrderService.deliverOrder() 在事务内逐条调用 InventoryService.outByPlan()。
  */
 @PostMapping("/out-by-plan")
 public R<Void> outByPlan(@RequestBody List<DeliveryPlanDTO> plans);
@@ -436,36 +440,29 @@ public R<Void> outByPlan(@RequestBody List<DeliveryPlanDTO> plans);
 void outByPlan(Long planId, Integer quantity, Long operatorId);
 ```
 
-**验证逻辑**（必须按顺序执行）：
-1. 检查配货计划是否存在，不存在则抛出 `RuntimeException("配货计划不存在")`
-2. 检查配货计划是否已指定仓库，未指定则抛出 `RuntimeException("配货计划未指定仓库")`
-3. 获取 Redis 分布式锁：`inventory:lock:{skuId}:{warehouseId}`
-4. 检查全局预留是否足够：`globalReservedQty < quantity` 时抛出 `RuntimeException("配货预留不足，无法出库")`
-5. 检查实际可用库存是否足够：`(inv.quantity - inv.reservedQty - inv.globalReservedQty) < quantity` 时抛出 `RuntimeException("库存不足，无法出库")`
+**当前验证逻辑**（必须按顺序执行）：
+1. 按当前租户查询配货计划，校验计划、仓库、状态和剩余可出数量。
+2. 获取 Redis 分布式锁：`inventory:lock:{skuId}:{warehouseId}`。
+3. 按当前租户查询 SKU/仓库库存，校验 `quantity - reserved_qty >= 本次出库量`。
+4. 使用带 `tenant_id` 和可用量条件的原子 SQL 扣减 `quantity` 并递增 `version`。
+5. 任一计划失败时由订单发货事务整体回滚；订单行锁保证两个发货入口不会重复扣减。
 
 **库存变动**（注意与 out() 的区别）：
 | 字段 | 变动 | 说明 |
 |------|------|------|
 | quantity | `quantity - quantity` | 扣减实际库存 |
 | reserved_qty | **不变** | 跨仓流程不涉及单仓预占 |
-| global_reserved_qty | `globalReservedQty - quantity` | 扣减全局预留 |
+| global_reserved_qty | **不变** | 当前生产发货不依赖历史全局预留 |
 
-**与 out() 的区别**：
-
-| 维度 | out() | outByPlan() |
-|------|-------|-------------|
-| 适用场景 | 单仓库订单出库 | 跨仓订单出库（配货计划） |
-| 扣减字段 | quantity + reserved_qty | quantity + global_reserved_qty |
-| 预留检查 | reserved_qty >= quantity | globalReservedQty >= quantity |
-| 日志备注 | "出库" | "配货计划出库" |
+`outByPlan()` 是当前订单确认发货的唯一库存扣减实现；旧 `out()` 不再由订单发货路径直接调用。
 
 **日志记录**：
 - changeType = `SALE_OUT`
 - 备注 = `"配货计划出库"`
 
 **当前实现补充**：
-- `inventory_log.warehouse_id` 在跨仓预留类日志中允许为 `NULL`。
-- `outByPlan()` 当前实现扣减 `quantity + global_reserved_qty`，不扣减 `reserved_qty`。
+- `inventory_log.warehouse_id` 在历史跨仓预留类日志中允许为 `NULL`。
+- `outByPlan()` 只扣减 `quantity`，不修改 `reserved_qty` 或 `global_reserved_qty`。
 
 ---
 
@@ -1027,7 +1024,9 @@ public class OrderNotificationDTO {
 
 ---
 
-## 十、当前代码问题与修复计划（2026-03-26）
+## 十、历史代码问题与修复计划（2026-03-26，已被生产口径替代）
+
+> 本章保留早期问题分析作为历史记录，不代表 2026-06-21 当前实现。当前实现以本文第 0、3、4、5 节和 ROM/SOW 为准：收款不预留库存，配货只软提示，确认发货统一调用 `deliverOrder()` → `outByPlan()` 实际扣减。
 
 ### 11.1 库存锁定流程完整梳理
 

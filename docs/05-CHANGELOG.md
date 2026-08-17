@@ -6,6 +6,448 @@
 
 ---
 
+## 2026-08-17 变更记录
+
+### [发布预检] - 创建 Catalog iPad release 候选分支
+
+**变更内容**：
+- 从已验收的 `develop` 创建 `release/2026-08-17-catalog-ipad`。
+- 执行 NAS 日常发布脚本 dry-run，确认默认不会上传或修改 NAS，正式执行命令为 `deploy/nas/deploy_app_from_local.sh --execute`。
+- 执行 NAS 平台只读检查：局域网 SSH `192.168.1.10` 不可达，自动切换 WireGuard `10.13.13.1`；NAS 为 `linux/amd64`，docker-compose v1 可用，`blade-mysql`、`blade-redis`、`blade-backend`、`blade-web` 均为 Up。
+- 明确 release 相对 `master` 的数据库 migration 影响范围：`V38__file_derivative.sql`、`V39__order_write_off.sql`、`V40__order_delivery_display_columns.sql`。
+
+**变更原因**：
+- Catalog/iPad 展示页已完成 develop 集成和 iPad 真机验收，需要进入 release/NAS 发布预检阶段。
+- 当前 release 不是单独 Catalog 小补丁；相对 `master` 还包含文件派生图、订单库存软解耦等已集成变更，正式发布必须按整体 release 候选处理。
+
+**影响范围**：
+- `release/2026-08-17-catalog-ipad`
+- `docs/05-CHANGELOG.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/STATUS.md`
+- `outputs/status.html`
+
+**验证结果**：
+- `git switch -c release/2026-08-17-catalog-ipad`：成功。
+- release 分支本地集成验证：后端全量 383/383、Catalog E2E 9/9、PC build 通过、真实 `/catalog` 冒烟通过。
+- `deploy/nas/deploy_app_from_local.sh`：dry-run 通过，未修改 NAS。
+- `deploy/nas/check_platform.sh`：通过；使用 WireGuard `10.13.13.1` 连接 NAS；系统 `x86_64`，Docker server `linux/amd64`，docker-compose `1.28.5`，生产目录 `/volume2/blade`、`mysql`、`uploads` 存在，4 个生产容器均为 Up。
+
+**待用户确认**：
+- 是否允许执行正式生产发布：`deploy/nas/deploy_app_from_local.sh --execute`。正式发布会先创建 NAS 生产库备份并校验非空，然后只重启 `backend` 和 `web`，不会重启 MySQL/Redis，也不会覆盖 `/volume2/blade/mysql`、`/volume2/blade/uploads`、`.env.prod`。
+
+**执行人**：Codex
+
+---
+
+### [验收] - Catalog iPad 真机人工验收通过
+
+**变更内容**：
+- 用户在 iPad 真机访问 `http://192.168.1.3:5777/catalog` 完成人工验收，反馈“测试通过”。
+
+**变更原因**：
+- Catalog/iPad 展示页已完成 develop 集成验证，需要补齐真机人工验收结论，作为后续 release/NAS 发布预检依据。
+
+**影响范围**：
+- `docs/05-CHANGELOG.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/STATUS.md`
+- `outputs/status.html`
+
+**验证结果**：
+- 用户人工验收：iPad 真机测试通过。
+- 自动化前置验证仍沿用本轮 develop 集成结果：后端全量 383/383、Catalog E2E 9/9、PC build 通过、真实 `/catalog` 冒烟通过。
+
+**执行人**：用户验收 + Codex 记录
+
+---
+
+### [集成] - Catalog iPad 修复合入 develop 并完成集成验证
+
+**变更内容**：
+- 将 `feature/catalog-pinch-zoom-smooth` 合入 `develop`，合并提交为 `merge: catalog ipad viewer fixes`。
+- 在 `develop` 上重新执行后端、前端、Catalog E2E 与真实服务冒烟。
+
+**变更原因**：
+- Catalog/iPad 展示页修复分支已完成专项收口，需要进入集成分支验证，作为后续 release/NAS 发布预检的基础。
+
+**影响范围**：
+- `develop` 分支
+- Catalog/iPad 展示页、文件中心图片展示相关前端回归
+- 后端 Controller 测试认证租户基线
+- 项目状态与交接文档
+
+**验证结果**：
+- `git merge --no-ff feature/catalog-pinch-zoom-smooth -m "merge: catalog ipad viewer fixes"`：合并成功，无冲突。
+- `cd blade-backend && BLADE_DB_URL='jdbc:mysql://localhost:3306/blade_project?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true' BLADE_DB_USERNAME=root BLADE_DB_PASSWORD=root123 mvn test`：通过，383/383。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list`：通过，9/9。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build`：通过；仍有既有大 chunk 警告。
+- 真实服务冒烟：`test_tenant/admin/admin123` 登录成功；`GET /api/catalog/products?current=1&size=6` 返回 `code=200,total=1149,records=6`；真实前端 `/catalog` iPad 竖屏 820x1180 渲染 20 张卡片，无 console error/warn、无请求失败。
+
+**执行人**：Codex
+
+---
+
+### [修复] - 后端 Controller 测试认证租户基线对齐
+
+**变更内容**：
+- 将 `CatalogControllerTest`、`ProductControllerTest`、`OrderControllerTest` 的登录租户从不存在于当前开发库的 `super_admin` 改为实际种子租户 `test_tenant`。
+- 启动 Docker MySQL `blade-mysql` 后，后端启动时 Flyway 已将开发库 `blade_project` 从 V38 自动迁移到 V40。
+- 启动本地后端 `http://localhost:8080` 与前端 `http://localhost:5777`，完成测试与真实服务冒烟。
+
+**变更原因**：
+- 当前 `feature/catalog-pinch-zoom-smooth` 分支缺少之前测试认证基线修复，导致后端全量测试在登录阶段找不到 `super_admin` 租户，token 为空后引发 Catalog/Product/Order Controller 相关用例 403。
+- 当前开发库真实存在并授权完整的测试租户为 `test_tenant`，应以该租户作为 Controller 集成测试登录基线。
+
+**影响范围**：
+- `blade-backend/src/test/java/com/blade/catalog/CatalogControllerTest.java`
+- `blade-backend/src/test/java/com/blade/product/ProductControllerTest.java`
+- `blade-backend/src/test/java/com/blade/order/OrderControllerTest.java`
+- `docs/05-CHANGELOG.md`
+- `docs/SESSION_CONTEXT.md`
+
+**验证结果**：
+- `docker start blade-mysql`：成功；`blade_project` 和 `blade_project_prod` 均可通过 `root/root123` 访问。
+- `cd blade-backend && BLADE_DB_URL='jdbc:mysql://localhost:3306/blade_project?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true' BLADE_DB_USERNAME=root BLADE_DB_PASSWORD=root123 mvn spring-boot:run`：启动成功；Flyway validated 42 migrations，开发库从 V38 迁移到 V40。
+- `cd blade-backend && BLADE_DB_URL='jdbc:mysql://localhost:3306/blade_project?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true' BLADE_DB_USERNAME=root BLADE_DB_PASSWORD=root123 mvn -Dtest=CatalogControllerTest,ProductControllerTest,OrderControllerTest test`：通过，55/55。
+- `cd blade-backend && BLADE_DB_URL='jdbc:mysql://localhost:3306/blade_project?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true' BLADE_DB_USERNAME=root BLADE_DB_PASSWORD=root123 mvn test`：通过，383/383。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list`：通过，9/9。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build`：通过；仍有既有大 chunk 警告。
+- 真实服务冒烟：`POST /api/auth/login` 使用 `test_tenant/admin/admin123` 成功返回 token；`GET /api/catalog/products?current=1&size=6` 返回 `code=200,total=1119,records=6`；真实前端 `/catalog` iPad 竖屏 820x1180 渲染 20 张卡片，无 console error/warn、无请求失败。
+
+**执行人**：Codex
+
+---
+
+### [验证] - Catalog iPad 展示页修复收口复验
+
+**变更内容**：
+- 对 `feature/catalog-pinch-zoom-smooth` 分支上的 Catalog 修复进行收口复验，覆盖双指缩放、商品/图集/SKU 图片边界、iPad 搜索框触控聚焦和竖屏全屏大图裁剪。
+- 刷新自动状态看板 `docs/STATUS.md` 与 `outputs/status.html`。
+
+**变更原因**：
+- 项目间隔较久后重新接手，需要把最近未提交的 Catalog 修复形成可追溯的验证节点，避免后续集成时无法判断当前分支是否稳定。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+- `docs/STATUS.md`
+- `outputs/status.html`
+
+**验证结果**：
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list`：通过，9/9。
+- `cd blade-admin && PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build`：通过；仍有既有大 chunk 警告。
+- Playwright mock 渲染验证 `http://localhost:5777/catalog`：iPad 竖屏 820x1180 下页面标题正确、商品卡片 8 个、详情抽屉可见、全屏大图可见、无 console error/warn、无框架错误覆盖层；稳定截图确认竖屏全屏大图未露出相邻图片。
+- 本轮未完成真实后端联调：本机 `3306` 存在 MySQL 响应但 `root/root123` 登录失败，Docker `blade-mysql` 因端口占用无法启动；需后续单独核对本机 MySQL 凭证或释放端口后再做真实数据联调。
+
+**执行人**：Codex
+
+---
+
+### [新增] - 双 Agent（Codex + DeepSeek）联合开发协作规范
+
+**变更内容**：
+- 新增 [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md)：定义 Codex 与 DeepSeek（DSH）在同一工作区联合开发的信息同步协议。包含五条协议：任务认领防撞车、commit message 执行人后缀（`[codex]` / `[dsh]`）、开工/收工仪式、会话快照维护、验证结果必填；以及冲突处理与交接检查清单。
+- 根目录 [AGENTS.md](../AGENTS.md) 快速开始新增第 6 项必读文档，核心规则新增「规则 7：双 Agent 联合开发必须同步」；[CLAUDE.md](../CLAUDE.md) 同步补齐规则 6、规则 7 与快速开始第 4 项。
+- [03-TASKS.md](./03-TASKS.md) 任务领取规则新增第 5 条「认领防撞车」：认领时把任务改为 `⏳ 进行中（执行人：Codex / DeepSeek）`，一个任务同一时刻只允许一个 Agent 认领。
+- [01-README.md](./01-README.md) 与 [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) 快捷索引新增协作规范入口。
+
+**变更原因**：
+- 项目由 Codex 单 Agent 开发改为 Codex（主力）+ DeepSeek（DSH）联合开发，需要统一信息同步机制，避免双 Agent 任务撞车、会话上下文漂移、git 历史无法区分执行人。
+
+**影响范围**：
+- `AGENTS.md`、`CLAUDE.md`（根目录规则入口，两个 Agent 均自动读取）
+- `docs/reference/AGENT_COLLABORATION.md`（新增）
+- `docs/03-TASKS.md`、`docs/01-README.md`、`docs/SESSION_CONTEXT.md`、`docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 文档类变更，无代码运行验证；已交叉核对 AGENTS.md / CLAUDE.md / 各索引文档内容一致，链接路径有效。
+
+**执行人**：DeepSeek（dsh）
+
+---
+
+## 2026-07-06 变更记录
+
+### [修复] - Catalog iPad 竖屏全屏大图露出相邻图片
+
+**变更内容**：
+- 调整 Catalog 全屏图片 viewer 的裁剪结构：`.fs-image-wrap` 不再承担图片左右/上下边距，只保留 100% 宽高和 `overflow: hidden` 裁剪职责。
+- 将全屏图片边距移动到 `.fs-image-slide`，每个 slide 独立负责图片居中和安全边距。
+- 手机断点同步改为 slide 内部 padding，避免恢复旧的 padding-box 裁剪问题。
+- 新增 Playwright 回归：iPad 竖屏 820 × 1180 下打开第 2 张全屏图，上一张 slide 右边界必须在 0，下一张 slide 左边界必须在视口宽度外。
+
+**变更原因**：
+- 旧结构把 `padding: 70px 100px 124px` 放在裁剪容器 `.fs-image-wrap` 上；CSS overflow 会按 padding box 裁剪，导致 iPad 竖屏下相邻 slide 可从左右 padding 区域露出。
+- 横屏下图片更宽、视觉上不明显；竖屏下中间图较窄，左右相邻图露出更明显。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list --grep "clips adjacent"` 通过，1/1。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，9/9。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仍有既有大 chunk 警告。
+
+**执行人**：Codex
+
+---
+
+### [修复] - Catalog iPad 搜索框键盘唤起
+
+**变更内容**：
+- Catalog 搜索框外层增加 `touchstart` 处理，在 iPad 触摸搜索框时同步调用 Element Plus 输入框 `focus()`。
+- 搜索框、输入框 wrapper 和原生 input 覆盖页面级 `user-select: none`，恢复 `user-select: text` / `-webkit-user-select: text`。
+- 搜索输入区域设置 `touch-action: manipulation`，降低 iOS Safari 对触控输入区域的手势歧义。
+- 新增 Playwright 回归：iPad 视口下触发搜索框 `touchstart` 后，原生 `.el-input__inner` 必须获得焦点，并且 `user-select` 为 `text`。
+
+**变更原因**：
+- Catalog 根节点为了展示页防误触设置了 `user-select: none`；在 iPad Safari/PWA 中，搜索框外层触摸再由组件间接聚焦时容易无法唤起软键盘。
+- 搜索框属于明确的文本输入区域，应从展示页的防选择策略中排除，并在触摸手势内同步聚焦。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list --grep "search input focuses"` 通过，1/1。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，8/8。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仍有既有大 chunk 警告。
+
+**执行人**：Codex
+
+---
+
+### [修复] - Catalog 商品图集与 SKU 图集边界
+
+**变更内容**：
+- Catalog 首页商品卡片继续只展示 `mainImageUrl` 商品主图。
+- 点击首页图片、点击详情轮播进入全屏时，优先展示商品图集 `imageUrls`，不再把 `mainImageUrl` 混入大图集合。
+- 当商品图集为空时，商品大图才回退展示主图，避免无图集商品无法查看图片。
+- 商品图集会过滤与主图重复的图片，避免同一张图片在大图模式重复出现。
+- SKU 图片不再混入商品详情轮播和商品大图集合，边界保留给后续 SKU 图集详情使用。
+- 更新 Catalog Playwright 用例，覆盖商品图集不包含重复主图、SKU 图不进入商品大图集合、card/thumb/original 三层请求仍正确。
+
+**变更原因**：
+- 用户反馈当前大图展示为“主图 + 图集”，如果主图也在图集内会重复；同时 SKU 图片应属于 SKU 详情图集，不应混入商品级大图。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list --grep "intended layers|duplicated main"` 通过，2/2。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，7/7。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仍有既有大 chunk 警告。
+
+**执行人**：Codex
+
+---
+
+### [修复] - Catalog 双指缩放跳跃卡顿
+
+**变更内容**：
+- 移除 Catalog 页面 `visualViewport.resize` 到滚动重置函数的绑定。
+- 保留 `orientationchange` 后的一次性滚动恢复，用于横竖屏切换后的视口归位。
+- `resetViewportScale()` 重命名为 `resetViewportAfterOrientationChange()`，明确该函数只服务横竖屏切换，不服务双指缩放。
+- 新增 Playwright 回归：模拟 `visualViewport.resize` 时不允许触发 `window.scrollTo`。
+
+**变更原因**：
+- 移动端双指放大/缩小时，浏览器会连续触发 `visualViewport.resize`。
+- 旧实现每次 `visualViewport.resize` 都调用 `window.scrollTo(0, 0)`，与用户 pinch zoom 手势抢控制权，导致画面跳跃和卡顿。
+
+**影响范围**：
+- `blade-admin/src/views/catalog/index.vue`
+- `blade-admin/e2e-catalog-infinite-cache.spec.ts`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 新增回归在修复前失败：模拟 `visualViewport.resize` 后 `window.scrollTo` 被调用 1 次。
+- 修复后新增回归通过。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium --reporter=list` 通过，6/6。
+- `PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build` 通过；仍有既有大 chunk 警告。
+
+**执行人**：Codex
+
+---
+
+## 2026-06-21 变更记录
+
+### [规划] - 订单库存软解耦生产版 ROM/SOW
+
+**变更内容**：
+- 新增 `docs/superpowers/plans/2026-06-21-order-inventory-soft-coupling-v1-rom-sow.md`，锁定收款去预留、发货时实际扣库存、两条发货路径统一、抹零结清、配货软提示和测试收口范围。
+- 新增 `BE-142`，处理 `deliverOrder` 与 `confirmDelivery` 两条发货路径状态和库存规则不一致的问题。
+- 新增 `TEST-ORDER-INV-001`，覆盖事务回滚、重复发货、双入口、跨租户和财务公式测试。
+- 明确本轮排除部分发货、分批发货和缺货退款，不在实现过程中扩大范围。
+- SOW-0 只读审计后补充两项门禁：取消状态通用入口不得再释放旧库存预留；两条发货入口必须具备订单级并发保护，不能只依赖库存行乐观锁。
+
+**变更原因**：
+- 当前确认收款、减配和按计划出库仍依赖全局预留，同时存在两条发货路径和旧状态值；需要按高风险分阶段 SOW 由 Claude Code 实现、Codex 独立审查。
+
+**影响范围**：
+- `docs/superpowers/plans/2026-06-21-order-inventory-soft-coupling-v1-rom-sow.md`
+- `docs/03-TASKS.md`
+- `docs/05-CHANGELOG.md`
+
+**验证结果**：
+- 当前仅完成工作单和任务登记，尚未开始业务代码修改。
+
+**执行人**：Codex
+
+### [完成] - BE-138 收款与配货调整移除库存预留副作用
+
+**变更内容**：
+- `confirmPayment()` 不再创建全局库存预留，零库存不阻断收款流程。
+- `confirmPayment()` 与追加收款统一使用租户范围订单行锁，避免两个收款入口并发覆盖实收金额。
+- `cancelOrder()`、`updateStatus(..., CANCELLED)` 和 `confirmAdjustment()` 不再释放订单预留。
+- 清理订单服务中已无调用方的旧预留/释放私有方法，并移除配货计划服务对 `InventoryService` 的无效依赖。
+- 新增无 Spring、MySQL、Redis 依赖的订单软解耦单元测试。
+
+**验证结果**：
+- `mvn -DskipTests compile`：通过。
+- `mvn -DskipTests test-compile`：通过。
+- 临时使用 Mockito subclass mock maker 执行定向测试：14 tests，0 failures，0 errors。
+- `OrderControllerTest` 基线因本机 `localhost:3306` 未启动而无法加载 Spring Context，留待最终测试环境收口。
+
+**执行人**：Claude Code（受限实现）+ Codex（审查、修正与独立验收）
+
+### [完成] - BE-126/BE-139/BE-142 发货路径与实际库存扣减统一
+
+**变更内容**：
+- `deliverOrder()` 使用租户范围内的订单行 `FOR UPDATE` 作为唯一整单发货事务入口，已发货/已完成请求幂等返回。
+- 旧出库单确认接口改为委托统一订单发货入口，不再使用旧状态值或独立库存规则。
+- `outByPlan()` 仅按 `quantity - reserved_qty` 校验可用量，并通过租户范围内的原子 SQL 只扣减 `quantity`、递增 `version`；不检查或修改 `global_reserved_qty`。
+- 关闭直接调用单条 `out-by-plan` 绕过订单状态机的能力，第一版不形成部分发货。
+
+**验证结果**：
+- `mvn -DskipTests compile`：通过。
+- `mvn -DskipTests test-compile`：通过。
+- 定向软解耦与发货测试：52 tests，0 failures，0 errors。
+- `git diff --check`：通过。
+- 收口浏览器验证时发现 `order_delivery.warehouse_name` 等出库单展示冗余列缺失；新增 `V40__order_delivery_display_columns.sql` 补齐 `order_delivery.warehouse_name` 以及 `order_delivery_item` 的 SKU/商品/颜色/尺码展示字段。
+
+**执行人**：Claude Code（受限实现）+ Codex（方案、两轮审查修正与独立验收）
+
+### [完成] - BE-124/BE-140 抹零短款结清与统一财务口径
+
+**变更内容**：
+- 新增 Flyway `V39__order_write_off.sql`，为 `sale_order` 增加 `write_off_amount` 和 `write_off_reason`。
+- 追加收款接口支持同一请求内继续收款并将剩余尾款标记为核销；普通追加收款接口保持源码兼容。
+- 追加收款和标记结清统一使用租户范围订单行 `FOR UPDATE`，避免并发覆盖。
+- 尾款、欠款筛选、订单 VO、Excel 导出、仪表盘和数据分析统一使用 `total - refund - writeOff` 口径，并将状态文案统一为“未付款/部分收款/已结清”。
+
+**验证结果**：
+- Codex 修正 Claude Code 未实际断言 SQL/统计公式的测试缺口后，订单、库存、核销、Controller、Dashboard、Analytics 共 90 项聚焦测试通过。
+- `mvn -DskipTests test-compile` 与 `git diff --check` 通过；V39 数据库实测留在最终环境收口执行。
+
+**执行人**：Claude Code（受限实现）+ Codex（财务公式审查、修正与独立测试）
+
+### [完成] - BA-212/BA-213 配货软提示与前端标记结清
+
+**变更内容**：
+- 订单详情配货弹窗新增按仓库/SKU 的库存软提示，区分查询中、充足、不足、无记录和查询失败；仓库查询按弹窗会话缓存并去重。
+- 配货提示可用量与确认发货统一按 `quantity - reserved_qty` 计算，不读取历史 `global_reserved_qty`，避免旧预留影响当前软提示。
+- 库存提示不参与保存校验，库存不足、无记录或查询失败均可保存配货方案，最终强校验仍在确认发货。
+- 追加收款弹窗新增“标记结清”和结清原因，尾款以服务端 `balanceAmount` 为准，并增加重复提交和全额收款误核销保护。
+- 追加收款弹窗默认金额改为 0，避免零金额核销场景被默认写入 0.01 元误收；普通收款仍在提交时强制要求金额大于 0。
+- 订单列表和详情统一展示“未付款/部分收款/已结清”，并展示核销金额与原因。
+
+**验证结果**：
+- `cd blade-admin && npm run build`：通过，0 个 TypeScript 错误。
+- `git diff --check`：通过。
+- 浏览器联调需等待本地 Docker/MySQL/Redis 服务授权后在 SOW-6 完成。
+
+**执行人**：Claude Code（受限实现）+ Codex（交互、竞态与构建审查）
+
+### [完成] - TEST-ORDER-INV-001 测试收口
+
+**验证结果**：
+- 后端聚焦回归：90 tests，0 failures，0 errors。
+- PC 管理端 `npm run build`：通过，0 个 TypeScript 错误。
+- MySQL 8 临时库 `blade_migration_check_v40` 从 V1 到 V40 累计 Flyway 执行成功；`sale_order.write_off_amount`、`sale_order.write_off_reason`、`order_delivery.warehouse_name` 已验证存在。
+- 后端 `mvn test`：Tests run 383, Failures 0, Errors 0, Skipped 0。
+- 浏览器关键路径：通过 Playwright 真实登录 PC 前端，完成订单创建、定金、追加收款、抹零结清、配货计划、确认调整、确认发货和订单详情页渲染。
+- `git diff --check`：通过。
+
+**业务边界**：
+- 本版创建订单、收款、配货方案保存不因库存阻断；确认发货仍按实际配货计划强校验并扣减库存，缺库存记录或库存不足会阻止发货。
+- 部分发货、分批发货和缺货退款仍按 SOW 排除，不在本轮扩大。
+
+**执行人**：Codex
+
+---
+
+## 2026-06-18 变更记录
+
+### [发布准备] - 图片派生图生产发布边界与预检清单
+
+**变更内容**：
+- 修正商品管理 v2、看板和 Agent Gateway 在入口文档中的状态漂移。
+- NAS 运维手册新增生产历史图片派生图章节，明确原图记录、`/data/uploads` 路径、容器可读性和磁盘空间预检。
+- 新增生产 rollout 清单，锁定数据库/uploads 备份、V38 发布、按租户小批补生成、停止条件和回滚边界。
+
+**安全边界**：
+- 生产已有图片可以补生成，但路径不符合 `/data/uploads/%` 或容器不可读时禁止执行。
+- 本轮只完成测试、文档、分支集成和发布准备，不连接或修改 NAS 生产环境。
+
+**执行人**：Codex
+
+### [测试环境运维] - 历史图片派生图分批补生成完成
+
+**执行范围**：
+- 仅本机测试库 `blade_project`、tenant 1；未连接 `blade_project_prod`，未操作 NAS。
+- 执行前生成并校验测试库备份。
+- 按 5、20、20、20、20、20、4 张分批处理，逐批确认失败数为 0 后继续。
+
+**验证结果**：
+- 89 张有效历史图片全部完成，共生成 178 个派生文件：89 个 `thumb`、89 个 `card`。
+- 数据库状态：178 `READY`、0 `FAILED`、0 重复、0 缺失配对。
+- 物理文件：178 个均存在且非空；`thumb` 长边不超过 320px，`card` 长边不超过 800px。
+- 接口实测：`/api/files/{id}/variant` 返回 JPEG 和 7 天浏览器缓存头。
+- 幂等复跑：processed=0、failed=0。
+
+**生产边界**：
+- 本次结果不代表生产环境已执行；生产补生成仍须按 NAS 运维规范先备份，再分租户、小批处理和验收。
+
+**执行人**：Codex
+
+### [完成] - 图片派生图第一版与业务接入
+
+**变更内容**：
+- V38 新增 `file_derivative`，建立 `FileDerivativeService`、`ImageDerivativeGenerator` 和存储 Provider 派生文件边界；业务表继续只保存原始 `fileId`。
+- 图片上传提交成功后生成 `thumb`（长边 320px）和 `card`（长边 800px）；支持 JPEG、PNG、WebP 输入、EXIF 方向、透明背景白底和超大像素保护。派生失败只记录 FAILED，不回滚原图。
+- 新增 `GET /api/files/{id}/variant?type=thumb|card`，复用 `/preview` 的租户、业务权限、创建人权限和 `previewToken`；派生缺失或读取失败时服务端回退原图。
+- 新增当前租户历史图片幂等补生成接口，单批默认 100、最大 500；单文件失败不终止整批，不自动跨租户运行。
+- PC 商品、订单、文件中心已按场景切换 `thumb/card`，大图预览、打开原文件和下载继续使用原图。
+- Catalog 商品卡片和详情主轮播使用 `card`，详情胶片条使用 `thumb`，全屏使用原图；IndexedDB 缓存键按 `file:{id}:original|thumb|card` 隔离，并兼容旧 `file:{id}` 原图缓存。
+- 新增 Catalog Playwright 回归，验证网格、详情缩略图和全屏分别请求 `card`、`thumb` 和原图。
+
+**架构边界**：
+- 第一版使用本地存储和上传后同步生成，但状态表、服务接口和 Provider 已为后续异步队列、失败重试、NAS/七牛云/CDN 留出替换边界。
+- 本轮不实现视频封面/转码、自动跨租户补生成、派生图物理清理、多格式输出或外部存储 Provider。
+- 历史文件不会因代码发布自动全部生成派生图；测试/生产环境需由管理员分租户、分批执行补生成并检查 FAILED 记录。
+
+**验证结果**：
+- `cd blade-backend && mvn test`：298 tests，0 failures，0 errors，0 skipped。
+- `cd blade-admin && npm run build`（Node 22.22.0）：通过。
+- `npx playwright test e2e-catalog-infinite-cache.spec.ts --project=chromium`：5/5 通过。
+- `git diff --check`：通过。
+
+**执行人**：Claude Code（受限实现）+ Codex（方案、审查、修正与独立验收）
+
+---
+
 ## 2026-06-17 变更记录
 
 ### [运维] - 修正 NAS 生产发布 HTTPS 验证口径
