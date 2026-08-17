@@ -8,6 +8,28 @@
 
 ## 2026-08-17 变更记录
 
+### [验收] - Catalog iPad 真机人工验收通过
+
+**变更内容**：
+- 用户在 iPad 真机访问 `http://192.168.1.3:5777/catalog` 完成人工验收，反馈“测试通过”。
+
+**变更原因**：
+- Catalog/iPad 展示页已完成 develop 集成验证，需要补齐真机人工验收结论，作为后续 release/NAS 发布预检依据。
+
+**影响范围**：
+- `docs/05-CHANGELOG.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/STATUS.md`
+- `outputs/status.html`
+
+**验证结果**：
+- 用户人工验收：iPad 真机测试通过。
+- 自动化前置验证仍沿用本轮 develop 集成结果：后端全量 383/383、Catalog E2E 9/9、PC build 通过、真实 `/catalog` 冒烟通过。
+
+**执行人**：用户验收 + Codex 记录
+
+---
+
 ### [集成] - Catalog iPad 修复合入 develop 并完成集成验证
 
 **变更内容**：
