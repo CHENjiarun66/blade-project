@@ -8,6 +8,36 @@
 
 ## 2026-08-17 变更记录
 
+### [发布] - Catalog iPad release 上线 NAS 生产
+
+**变更内容**：
+- 将 `release/2026-08-17-catalog-ipad` 合并到 `master`，并推送 GitHub。
+- 使用 NAS 日常发布脚本执行正式上线：`NAS_HOST=10.13.13.1 NAS_HOST_FIXED=1 deploy/nas/deploy_app_from_local.sh --execute`。
+- 发布脚本先创建生产库备份，再只重启 `backend` 和 `web`，未重启 MySQL/Redis，未覆盖 `/volume2/blade/mysql`、`/volume2/blade/uploads`、`.env.prod`。
+- 生产入口：`https://10.13.13.1:8899/catalog`（WireGuard）/ `https://192.168.1.10:8899/catalog`（局域网）。
+
+**变更原因**：
+- Catalog/iPad 展示页已完成 develop 集成、release 预检和 iPad 真机人工验收，需要发布到 NAS 生产环境。
+
+**影响范围**：
+- `master` 分支
+- NAS 生产容器：`blade-backend`、`blade-web`
+- 生产库 Flyway migration：V38、V39、V40
+- 备份文件：`/volume2/blade/db-backups/pre_app_deploy_20260817_145152.sql`
+
+**验证结果**：
+- `git merge --no-ff release/2026-08-17-catalog-ipad -m "merge: catalog ipad release"`：成功，生成合并提交 `c32a1f3`。
+- `git push origin master`：成功，`master` 推送到 `c32a1f3`。
+- 发布脚本 Release id：`20260817_145152`；后端与前端生产构建通过；Docker 镜像架构均为 `linux/amd64`。
+- NAS 生产库备份文件存在：`/volume2/blade/db-backups/pre_app_deploy_20260817_145152.sql`，大小 444K。
+- NAS 容器验收：`blade-mysql`、`blade-redis`、`blade-backend`、`blade-web` 均为 Up；`blade-web` 暴露 `0.0.0.0:8899->443/tcp`。
+- `curl -k -I https://10.13.13.1:8899/catalog`：返回 `HTTP/1.1 200 OK`。
+- 生产库 `flyway_schema_history`：最新版本为 V40 `order delivery display columns`，V38/V39/V40 均 success=1。
+
+**执行人**：Codex
+
+---
+
 ### [发布预检] - 创建 Catalog iPad release 候选分支
 
 **变更内容**：

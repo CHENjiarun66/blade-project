@@ -11,8 +11,8 @@
 |------|---|
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
-| 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传和文件中心底座已完成；图片派生图第一版 BE-1012、BA-1007、BA-1028 已完成，PC 与 Catalog 已按 thumb/card/original 分层加载；客户 iPad Catalog 现货选款页第一版已完成；移动端继续开发中 |
-| 下一步 | 已创建 `release/2026-08-17-catalog-ipad` 并完成 release/NAS 发布预检：release 分支继承 develop 集成结果（后端全量 383/383、Catalog E2E 9/9、PC build、真实 `/catalog` 冒烟和 iPad 真机验收均通过）；NAS 平台只读检查通过但需走 WireGuard `10.13.13.1`。当前 release 相对 `master` 包含 V38/V39/V40 三个 Flyway migration，正式发布前必须确认生产库备份并按 `deploy/nas/deploy_app_from_local.sh --execute` 只更新 backend/web。等待用户明确确认是否执行生产发布。部分发货、分批发货和缺货退款继续排除。 |
+| 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传和文件中心底座已完成；图片派生图第一版 BE-1012、BA-1007、BA-1028 已完成，PC 与 Catalog 已按 thumb/card/original 分层加载；客户 iPad Catalog 现货选款页第一版已完成并已上线 NAS 生产；移动端继续开发中 |
+| 下一步 | `release/2026-08-17-catalog-ipad` 已合入并推送 `master`，NAS 正式发布 Release id `20260817_145152` 已完成：发布前生产库备份 `/volume2/blade/db-backups/pre_app_deploy_20260817_145152.sql` 已生成；只重启 `blade-backend`/`blade-web`，MySQL/Redis/uploads 未触碰；生产库 Flyway 已到 V40；`https://10.13.13.1:8899/catalog` 返回 200。建议用户在 iPad 上对生产入口 `https://192.168.1.10:8899/catalog` 或 WireGuard 入口 `https://10.13.13.1:8899/catalog` 做最终人工复验。部分发货、分批发货和缺货退款继续排除。 |
 
 ---
 
