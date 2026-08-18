@@ -8,6 +8,35 @@
 
 ## 2026-08-18 变更记录
 
+### [发布] - 权限验收正式上线 NAS 生产
+
+**变更内容**：
+- 执行发布第二阶段：`docker-compose --env-file .env.prod -f docker-compose.prod.yml up -d --no-deps backend web` 重启应用容器（未触碰 MySQL/Redis/uploads）。
+- Flyway 将生产库 `blade_project_prod` 从 V40 迁移到 **V42**：V41（ROLE_OWNER 补齐 API 权限）+ V42（修正多租户角色-权限关联），仅权限数据变更，无表结构变更。
+- 生产容器 `blade-backend`、`blade-web` 已切换到新版本镜像运行。
+
+**变更原因**：
+- 权限页面 BA-701~703 验收通过，用户确认执行 NAS 生产发布第二阶段（重启应用容器）。
+
+**影响范围**：
+- NAS 生产容器：`blade-backend`、`blade-web`（已重启）；`blade-mysql`、`blade-redis` 未动
+- 生产库 `blade_project_prod`：Flyway V40 → V42（ROLE_OWNER API 权限补齐 + 多租户修正）
+- 备份文件：`/volume2/blade/db-backups/pre_app_deploy_20260818_124459.sql`（458KB，发布前已生成）
+
+**验证结果**：
+- 容器状态：`blade-backend` Up、`blade-web` Up、`blade-mysql` Up、`blade-redis` Up。
+- Flyway：`Successfully applied 2 migrations ... now at version v42`；`flyway_schema_history` 确认 41/42 success=1。
+- 前端入口：`https://127.0.0.1:8899/catalog`、`/orders`、`/system` 均返回 200。
+- 登录：`POST /api/auth/login`（admin/dwy_jiajiadress）返回 token，200。
+- 权限 API：`GET /api/system/users` 返回 code=200；删除被引用角色 `DELETE /api/system/roles/6` 返回 `400 该角色已分配给 1 个用户`（删除保护在生产生效）。
+- 权限数据：`ROLE_OWNER` 与 `ROLE_ADMIN` 的 type=4 API 权限数均为 11（V41/V42 生效）。
+
+**执行人**：DeepSeek（DSH）
+
+---
+
+## 2026-08-18 变更记录
+
 ### [发布准备] - 权限验收 release 已合入 master，NAS 分步发布第一阶段完成
 
 **变更内容**：
