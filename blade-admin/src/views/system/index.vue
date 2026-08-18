@@ -254,7 +254,7 @@
         :check-strictly="false"
         :expand-on-click-node="false"
         :default-expanded-keys="expandedPermissionIds"
-        :default-checked-keys="defaultCheckedPermissions"
+        :default-checked-keys="leafOnlyPermissionIds(defaultCheckedPermissions)"
         class="permission-tree"
       >
         <template #default="{ node, data }">
@@ -495,9 +495,13 @@ async function submitUserForm() {
 
 async function handleDeleteUser(row: UserVO) {
   await ElMessageBox.confirm(`确定删除用户「${row.username}」吗？`, '提示', { type: 'warning' })
-  await deleteUser(row.id)
-  ElMessage.success('删除成功')
-  loadUsers()
+  try {
+    await deleteUser(row.id)
+    ElMessage.success('删除成功')
+    loadUsers()
+  } catch (e: any) {
+    ElMessage.error(e?.message || e?.response?.data?.message || '删除失败')
+  }
 }
 
 // ==================== 角色管理 ====================
@@ -560,9 +564,11 @@ async function openRoleDialog(mode: 'create' | 'edit' | 'permission', row?: Role
     }
     permDialogVisible.value = true
     // el-tree 的 default-checked-keys 只在首次渲染生效，
-    // 第二次打开时需用 setCheckedKeys 重新应用当前角色的勾选，避免残留上一角色状态
+    // 第二次打开时需用 setCheckedKeys 重新应用当前角色的勾选，避免残留上一角色状态。
+    // 回显只传叶子节点 id：父节点（如 menu:order）由 el-tree 根据子节点联动半选，
+    // 若直接传父节点 id 会触发其所有子节点全选，丢失半选状态。
     await nextTick()
-    permTreeRef.value?.setCheckedKeys(defaultCheckedPermissions.value)
+    permTreeRef.value?.setCheckedKeys(leafOnlyPermissionIds(defaultCheckedPermissions.value))
   }
 }
 
@@ -598,9 +604,13 @@ async function submitRoleForm() {
 
 async function handleDeleteRole(row: RoleVO) {
   await ElMessageBox.confirm(`确定删除角色「${row.roleName}」吗？`, '提示', { type: 'warning' })
-  await deleteRole(row.id)
-  ElMessage.success('删除成功')
-  loadRoles()
+  try {
+    await deleteRole(row.id)
+    ElMessage.success('删除成功')
+    loadRoles()
+  } catch (e: any) {
+    ElMessage.error(e?.message || e?.response?.data?.message || '删除失败')
+  }
 }
 
 // ==================== 分配权限 ====================
@@ -633,6 +643,27 @@ const permissionTree = ref<PermissionVO[]>([])
 const expandedPermissionIds = ref<number[]>([])
 const defaultCheckedPermissions = ref<number[]>([])
 let pendingRoleId: number | null = null
+
+// 收集权限树中的父节点 id 集合（有 children 的节点）
+function collectParentPermissionIds(nodes: PermissionVO[], acc: Set<number> = new Set()): Set<number> {
+  for (const n of nodes) {
+    if (n.children && n.children.length > 0) {
+      acc.add(n.id)
+      collectParentPermissionIds(n.children, acc)
+    }
+  }
+  return acc
+}
+
+// 从勾选 id 列表中过滤掉父节点，只保留叶子节点 id。
+// el-tree 回显勾选时若传入父节点 id（如 menu:order），其 setChecked(true,true)
+// 会把该父节点下所有子节点联动全选，导致半选状态丢失；因此回显只用叶子 id，
+// 父节点的半选/全选由 el-tree 根据子节点自动联动计算。
+function leafOnlyPermissionIds(checkedIds: number[]): number[] {
+  if (permissionTree.value.length === 0) return checkedIds
+  const parentIds = collectParentPermissionIds(permissionTree.value)
+  return checkedIds.filter(id => !parentIds.has(id))
+}
 
 function getPermissionTypeName(type: number) {
   const map: Record<number, string> = { 1: '菜单', 2: '按钮', 3: '字段', 4: 'API' }
@@ -754,9 +785,13 @@ async function submitPermissionForm() {
 
 async function handleDeletePermission(row: PermissionVO) {
   await ElMessageBox.confirm(`确定删除权限「${row.name}」吗？`, '提示', { type: 'warning' })
-  await deletePermission(row.id)
-  ElMessage.success('删除成功')
-  loadPermissionTree()
+  try {
+    await deletePermission(row.id)
+    ElMessage.success('删除成功')
+    loadPermissionTree()
+  } catch (e: any) {
+    ElMessage.error(e?.message || e?.response?.data?.message || '删除失败')
+  }
 }
 
 // ==================== 通用 ====================

@@ -158,8 +158,9 @@ public class PermissionServiceImpl implements PermissionService {
         if (childCount != null && childCount > 0) {
             throw new RuntimeException("该权限下存在 " + childCount + " 个子权限，请先删除或移动子权限");
         }
-        permission.setDeleted(1);
-        permissionMapper.updateById(permission);
+        // 必须用 deleteById：全局 logic-delete-field 配置下 updateById 会忽略 deleted 字段，
+        // setDeleted(1)+updateById 不会真正软删
+        permissionMapper.deleteById(id);
 
         // 同时删除角色权限关联
         rolePermissionMapper.deleteByPermissionId(id);

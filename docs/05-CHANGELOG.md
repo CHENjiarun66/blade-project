@@ -11,30 +11,34 @@
 ### [验收] - BA-701~BA-703 权限页面最终验收与修复
 
 **变更内容**：
-- 对系统管理页用户管理/角色管理/权限配置三个 Tab 做最终验收，前后端接口逐项核对（用户 6 个接口、角色 7 个接口、权限 8 个接口全部对齐）。
+- 对系统管理页用户管理/角色管理/权限配置三个 Tab 做完整最终验收，前后端接口逐项核对（用户 6 个接口、角色 7 个接口、权限 8 个接口全部对齐）。
 - 修复用户搜索不生效：前端 `getUserPage` 传 `keyword`，后端 `UserPageDTO` 原本只有 `username/nickname/phone/status`，keyword 被忽略；新增 `keyword` 字段，`pageList` 中 keyword 同时匹配用户名/昵称（`UserPageDTO.java`、`UserServiceImpl.java`）。
 - 修复 ROLE_OWNER 缺 API 权限：V15 只给 ROLE_ADMIN 分配了 type=4 的 API 权限，ROLE_OWNER 拥有全部菜单/按钮权限但调用用户/角色/权限管理接口会 403；新增 V41 迁移 `V41__owner_api_permissions.sql` 为 ROLE_OWNER 补齐全部 type=4 API 权限（与 ROLE_ADMIN 对齐，11 项）。
+- **V41 多租户补强（V42 修正）**：V41 未限制 `r.tenant_id = p.tenant_id` 且 INSERT 未显式写入 `tenant_id`，多租户下会产生跨租户角色-权限关联且关联行 tenant_id 错位；新增 V42 迁移 `V42__fix_owner_api_permissions_tenant.sql`，先清理租户不匹配的错误关联，再按 `p.tenant_id = r.tenant_id` 匹配补齐并显式写入角色租户 ID（V41 已在本地执行且已合入 develop，按 Flyway 规范不修改已执行迁移，改用新增迁移修正）。
 - 角色删除加引用保护：`RoleServiceImpl.delete` 删除前统计 `sys_user_role` 有效关联数，有用户引用时拒绝删除（`RoleMapper.countActiveUsersByRoleId`）。
+- **修复角色/权限软删不生效（P0 级缺陷）**：全局 `logic-delete-field: deleted` 配置下，MyBatis-Plus 的 `updateById` 会忽略实体 deleted 字段（不允许手动改），原 `setDeleted(1)+updateById` 生成的 UPDATE 不含 deleted 列，删除接口返回 200 但数据未变；改为 `roleMapper.deleteById(id)` / `permissionMapper.deleteById(id)`（MP 自动转为 `UPDATE ... SET deleted=1`）。验收中发现残留大量测试角色即因此原因。
 - 权限删除加子权限保护：`PermissionServiceImpl.delete` 删除前检查子权限，存在子权限时拒绝，避免权限树出现悬空子节点。
-- 前端修复分配权限勾选残留：el-tree 的 `default-checked-keys` 只在首次渲染生效，二次打开同一对话框时勾选残留上一角色状态；`pendingRoleId` 死代码从未赋值。改为 `openRoleDialog('permission')` 时正确设置 `pendingRoleId`，打开对话框后 `nextTick` + `setCheckedKeys` 重新应用当前角色勾选（`blade-admin/src/views/system/index.vue`）。
+- 前端修复分配权限勾选残留：el-tree 的 `default-checked-keys` 只在首次渲染生效，二次打开同一对话框时勾选残留上一角色状态；`pendingRoleId` 死代码从未赋值。改为 `openRoleDialog('permission')` 时正确设置 `pendingRoleId`，打开对话框后 `nextTick` + `setCheckedKeys` 重新应用当前角色勾选。
+- **前端修复回显半选父节点全选（P0 级缺陷）**：`setCheckedKeys` 传入父节点 id（如 menu:order）时，Element Plus 会先 `setChecked(true,true)` 把该父节点所有子节点联动全选，导致重开对话框时"订单管理"全部子权限被勾选、半选状态丢失；新增 `leafOnlyPermissionIds()` 在回显时过滤掉父节点只传叶子 id（`default-checked-keys` 与 `setCheckedKeys` 均用叶子），父节点半选由 el-tree 根据子节点自动联动（`blade-admin/src/views/system/index.vue`）。
 - 前端修复分配权限半选父节点丢失：后端 `assignPermissions` 是先删后插的覆盖式保存，原 `submitRolePermissions` 只用 `getCheckedKeys()`（不含半选父节点），导致部分勾选时父权限被覆盖删除；改为合并 `getCheckedKeys()` + `getHalfCheckedKeys()` 提交。
-- 新增 Playwright 冒烟测试 `blade-admin/e2e-system-acceptance.spec.ts`：覆盖登录、进入系统管理、用户搜索、角色列表、分配权限对话框勾选加载/二次打开、权限树渲染与删除保护提示。
+- 前端删除操作补错误提示：`handleDeleteUser/handleDeleteRole/handleDeletePermission` 原无 try/catch，删除保护拒绝（400）时界面无任何反馈（用户点击删除"没反应"）；补 try/catch 显示后端错误消息。
+- 重写 Playwright 验收脚本 `blade-admin/e2e-system-acceptance.spec.ts`：从冒烟级升级为完整 CRUD 验收，覆盖用户新建/搜索/编辑/重置密码/删除、角色新建/编辑/删除、分配权限真实勾选+保存+重开验证半选持久化、角色删除保护、权限删除保护；全部使用硬断言（`expect` 必须命中，无条件跳过），删除确认弹窗按钮用 primary 类定位（页面未配 Element Plus 中文 locale，ElMessageBox 按钮为英文 OK/Cancel）。
 
 **变更原因**：
-- 任务清单中 BA-701~703 长期处于"部分完成"状态，本次按 SESSION_CONTEXT 下一步计划执行最终验收并收口；验收过程中发现上述真实缺陷一并修复。
+- 任务清单中 BA-701~703 长期处于"部分完成"状态，本次按 SESSION_CONTEXT 下一步计划执行最终验收并收口；验收过程中发现上述真实缺陷（含 2 个 P0 级缺陷：软删不生效、半选回显全选）一并修复。
 
 **影响范围**：
-- 后端：`UserPageDTO.java`、`UserServiceImpl.java`、`RoleMapper.java`、`RoleServiceImpl.java`、`PermissionServiceImpl.java`、新增迁移 `V41__owner_api_permissions.sql`
-- 前端：`blade-admin/src/views/system/index.vue`、新增 `blade-admin/e2e-system-acceptance.spec.ts`
-- 数据库：新增 V41（为 ROLE_OWNER 补齐 API 权限关联，仅权限数据，无表结构变更）
+- 后端：`UserPageDTO.java`、`UserServiceImpl.java`、`RoleMapper.java`、`RoleServiceImpl.java`、`PermissionServiceImpl.java`、新增迁移 `V41__owner_api_permissions.sql`、`V42__fix_owner_api_permissions_tenant.sql`
+- 前端：`blade-admin/src/views/system/index.vue`、重写 `blade-admin/e2e-system-acceptance.spec.ts`
+- 数据库：新增 V41（ROLE_OWNER 补齐 API 权限）、V42（修正多租户关联），均为权限数据变更，无表结构变更
 
 **验证结果**：
 - `cd blade-backend && mvn test`：Tests run 383, Failures 0, Errors 0, Skipped 0（BUILD SUCCESS）。
 - `cd blade-admin && npm run build`：构建成功，无 TypeScript 错误。
-- Flyway：V41 已在本地 `blade_project` 库成功执行（`flyway_schema_history` version=41 success=1）；`ROLE_OWNER` API 权限数 = 11（与 ROLE_ADMIN 一致）。
-- curl 验证：删除有子权限的权限返回 `400 该权限下存在 14 个子权限，请先删除或移动子权限`；删除被用户引用的角色返回 `400 该角色已分配给 1 个用户`；用户 `keyword=admin` 搜索返回 total=1，`keyword=不存在` 返回 total=0；合并提交 `permissionIds=[2,11,12]` 重查返回 `[2, 11, 12]` 完整保留。
-- Playwright `e2e-system-acceptance.spec.ts`：1 passed（角色列表 7 行、分配权限弹窗勾选 29 节点、权限树 29 节点、删除保护提示正常）。
-- 测试角色 ROLE_ACCEPT_TEST（id=7）验收后已删除。
+- Flyway：V41、V42 已在本地 `blade_project` 库成功执行（`flyway_schema_history` version 41/42 success=1）；SQL 核对 `ROLE_OWNER`/`ROLE_ADMIN` 的 type=4 权限数均为 11，角色租户/权限租户/关联行租户全部一致（单租户下无跨租户污染）。
+- curl 验证：删除有子权限的权限返回 `400 该权限下存在 14 个子权限，请先删除或移动子权限`；删除被用户引用的角色返回 `400 该角色已分配给 1 个用户`；用户 `keyword=admin` 搜索返回 total=1，`keyword=不存在` 返回 total=0；合并提交 `permissionIds=[2,11,12]` 重查返回 `[2, 11, 12]` 完整保留；修复软删后 DB 确认 `sys_role.deleted=1`（修复前 deleted 恒为 0）。
+- Playwright `e2e-system-acceptance.spec.ts`：3/3 全部通过，**连续三轮复跑均通过**（用户 CRUD、角色 CRUD + 半选权限保存/重开验证 + 角色删除保护、权限树删除保护）。
+- 验收产生的测试用户/角色全部清理，仅保留 6 个预置角色与 admin 用户。
 
 **执行人**：DeepSeek（DSH）
 
