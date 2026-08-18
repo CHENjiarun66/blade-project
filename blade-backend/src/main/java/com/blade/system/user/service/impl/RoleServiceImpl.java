@@ -142,8 +142,13 @@ public class RoleServiceImpl implements RoleService {
         if (role == null) {
             throw new RuntimeException("角色不存在");
         }
-        role.setDeleted(1);
-        roleMapper.updateById(role);
+        Long activeUsers = roleMapper.countActiveUsersByRoleId(id);
+        if (activeUsers != null && activeUsers > 0) {
+            throw new RuntimeException("该角色已分配给 " + activeUsers + " 个用户，请先移除用户与角色的关联后再删除");
+        }
+        // 必须用 deleteById：全局 logic-delete-field 配置下 updateById 会忽略 deleted 字段，
+        // setDeleted(1)+updateById 不会真正软删
+        roleMapper.deleteById(id);
     }
 
     @Override

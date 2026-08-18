@@ -54,7 +54,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/8/17 17:05:59　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/8/18 12:32:40　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -78,10 +78,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">67 完成 · 0 进行中 · 2 待办 · 3 部分</span>
+          <span class="card-nums">70 完成 · 0 进行中 · 2 待办 · 0 部分</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:93%"></div></div>
-        <div class="bar-label">93% 完成（共 72 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:97%"></div></div>
+        <div class="bar-label">97% 完成（共 72 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -307,7 +307,7 @@
     </section>
   
     <section class="section partial">
-      <h2>🔵 部分完成 <span class="count">4</span></h2>
+      <h2>🔵 部分完成 <span class="count">1</span></h2>
       <table class="task-table">
       <tr data-status="partial">
         <td class="td-id">BE-552</td>
@@ -315,32 +315,11 @@
         <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
         <td class="td-remark">V33 落 Agent Key 哈希、租户绑定和 scope 映射；管理入口与毛利 scope 待补 |</td>
-      </tr>
-      <tr data-status="partial">
-        <td class="td-id">BA-701</td>
-        <td class="td-name">用户管理页面</td>
-        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
-        <td class="td-remark">系统管理页已包含用户列表、新建/编辑、重置密码、分配角色；待补最终验收与文档收口 |</td>
-      </tr>
-      <tr data-status="partial">
-        <td class="td-id">BA-702</td>
-        <td class="td-name">角色管理页面</td>
-        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
-        <td class="td-remark">系统管理页已包含角色列表、新建/编辑与权限分配；待补最终验收与文档收口 |</td>
-      </tr>
-      <tr data-status="partial">
-        <td class="td-id">BA-703</td>
-        <td class="td-name">权限配置页面</td>
-        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
-        <td class="td-remark">系统管理页已包含权限树配置；按钮/字段权限仍需结合实际验收继续完善 |</td>
       </tr></table>
     </section>
   
     <section class="section done">
-      <h2>✅ 已完成（共 213 项） <span class="count">213</span></h2>
+      <h2>✅ 已完成（共 216 项） <span class="count">216</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1559,6 +1538,27 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
         <td class="td-remark">6个预置角色 + 完整权限数据（菜单/按钮/字段） |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-701</td>
+        <td class="td-name">用户管理页面</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">用户列表、搜索（keyword 前后端对齐）、新建/编辑、重置密码、分配角色；ROLE_OWNER 补齐 API 权限（V41）；角色删除加用户引用保护；修复软删不生效（deleteById）；Playwright 完整 CRUD 验收通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-702</td>
+        <td class="td-name">角色管理页面</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">角色列表、新建/编辑与权限分配；修复权限树勾选残留（setCheckedKeys 重应用 + 叶子过滤防父节点全选）、半选父节点合并提交（getHalfCheckedKeys）；角色删除保护覆盖；Playwright 完整 CRUD + 半选持久化验收通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-703</td>
+        <td class="td-name">权限配置页面</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
+        <td class="td-remark">权限树配置（新建/编辑/删除）；权限删除加子权限引用保护；修复软删不生效（deleteById）；前端删除操作补错误提示；Playwright 删除保护验收通过 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-704</td>

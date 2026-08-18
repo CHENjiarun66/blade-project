@@ -18,6 +18,10 @@ public interface RoleMapper extends BaseMapper<Role> {
             "WHERE ur.user_id = #{userId} AND r.deleted = 0 AND ur.deleted = 0")
     List<Role> selectByUserId(@Param("userId") Long userId);
 
+    @Select("SELECT COUNT(*) FROM sys_user_role ur " +
+            "WHERE ur.role_id = #{roleId} AND ur.deleted = 0")
+    Long countActiveUsersByRoleId(@Param("roleId") Long roleId);
+
     @Select("SELECT r.id FROM sys_role r " +
             "INNER JOIN sys_user_role ur ON r.id = ur.role_id " +
             "WHERE ur.user_id = #{userId} AND r.deleted = 0 AND ur.deleted = 0")
