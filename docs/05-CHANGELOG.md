@@ -8,6 +8,40 @@
 
 ## 2026-08-18 变更记录
 
+### [发布准备] - 权限验收 release 已合入 master，NAS 分步发布第一阶段完成
+
+**变更内容**：
+- `release/2026-08-18-permission-acceptance` 从 `develop` 创建，release 验收通过（后端 383 项测试 + 前端构建）后合入 `master` 并推送 GitHub（`8d19a7a`）。
+- `develop` 已 fast-forward 同步到 `master`（`8d19a7a`）并推送，无分叉。
+- NAS 分步发布第一阶段（备份+上传+加载镜像，**未重启容器**）完成：
+  - 本地构建 `blade-backend:prod` / `blade-web:prod` 均为 `linux/amd64`，`docker save` 导出 `blade-app-images-amd64.tar`（669MB）。
+  - NAS 生产库备份：`/volume2/blade/db-backups/pre_app_deploy_20260818_124459.sql`（458KB，`test -s` 校验非空）。
+  - 上传 jar/dist/Dockerfile/nginx/compose 至 `/volume2/blade/app/`，镜像 tar 至 `/volume2/blade/releases/20260818_124459/`。
+  - NAS `docker load` 加载新镜像成功（旧镜像自动保留引用）。
+- **生产容器未重启**：`blade-mysql`/`blade-redis`/`blade-backend`/`blade-web` 仍为旧版本正常运行，`https://127.0.0.1:8899/catalog` 返回 200。
+- 待用户确认后执行第二阶段：`docker-compose up -d --no-deps backend web` 重启应用容器（Flyway 将把生产库从 V40 迁移到 V42）。
+
+**变更原因**：
+- 权限页面 BA-701~703 验收通过后按发布流程进入 NAS 上线；用户选择分步发布，先完成备份与上传，重启操作另行确认。
+
+**影响范围**：
+- GitHub：`master`（`8d19a7a`）、`develop`（fast-forward `8d19a7a`）、`release/2026-08-18-permission-acceptance`
+- NAS：生产库备份已生成；应用镜像已加载；容器未重启，生产仍运行旧版本
+- 数据库：本次发布含 V41（ROLE_OWNER API 权限）、V42（多租户修正）迁移，重启后生产库 `blade_project_prod` 将由 V40 迁移到 V42（仅权限数据变更，无表结构变更）
+
+**验证结果**：
+- release 分支：`cd blade-backend && mvn test` 383 项通过；`cd blade-admin && npm run build` 成功。
+- 镜像架构：`blade-backend:prod` 与 `blade-web:prod` 均为 `linux/amd64`。
+- NAS 备份：`pre_app_deploy_20260818_124459.sql` 458KB 非空。
+- 上传校验：jar/dist/镜像 tar 已落地 NAS 并 `docker load` 成功。
+- 生产状态：4 容器 Up，`/catalog` 200（未受影响）。
+
+**执行人**：DeepSeek（DSH）
+
+---
+
+## 2026-08-18 变更记录
+
 ### [验收] - BA-701~BA-703 权限页面最终验收与修复
 
 **变更内容**：
