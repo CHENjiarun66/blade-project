@@ -165,6 +165,35 @@ SpringBlade 的多租户是手动拼接 tenant_id，容易遗漏导致数据串�
 
 ---
 
+### [2026-08-24] 需求 #007 - WhatsApp Mac 本地归档与 ERP/Agent 集成
+
+**提出者**：用户
+
+**需求描述**：
+- 继续使用当前 WhatsApp Business 号码和 Mac App，不换号码。
+- 先把联系人、聊天文本和已下载媒体统一归档到本地电脑，不需要自动回复。
+- 把结构化聊天事实与 Blade ERP 的客户、订单、商品和库存结合。
+- 后续由 Agent 分析客户偏好、营销时机和需要跟进的客户，但营销动作由用户决定。
+- 建表前先形成详细计划，锁定边界、表字段、开发内容和各 Agent 分工，再开始开发。
+
+**AI 分析**：
+- 当前 Mac App 的 ChatStorage、Contacts、Labels 和 Biz SQLite 可只读访问，但属于 WhatsApp 私有结构，必须通过一致性快照、schema guard 和版本化适配降低升级风险。
+- 消息源行存在逻辑重复，旧行还会在媒体下载后更新；不能只按最大主键增量，需逻辑消息键、源行引用和内容哈希三层幂等。
+- 原始归档与 ERP 结构化事实应分层：原始快照留在 Git 外的加密本地目录，Blade MySQL 只保存业务所需记录和媒体引用。
+- WhatsApp 联系人不能批量自动创建 ERP 客户；只做租户内规范化号码精确匹配候选，并保留人工确认。
+- Agent 继续走只读 Gateway，不直连源库/MySQL，不自动发消息或覆盖人工标签。
+
+**方案建议**：
+- 采用“Mac 只读快照 → 独立 Collector → Blade 内部导入 API → `wa_*` 事实表/文件中心 → Agent Gateway”的链路。
+- v1 先实现 1:1 联系人、会话、文本、已下载媒体、CRM 绑定和导入审计；群聊、状态、自动发送、推荐模型和 Business Platform 后置。
+- 详细字段、唯一键、SOW、测试矩阵和分工以 `docs/superpowers/plans/2026-08-24-whatsapp-local-archive-rom-sow.md` 为实施契约。
+
+**结果**：✅ 采纳
+
+**同步到 PRD**：已同步到 `02-PRD.md` WhatsApp 本地归档 v1、`03-TASKS.md` BE-564/BE-566～BE-571 和 `10-AGENT_INTEGRATION_DESIGN.md`
+
+---
+
 ## 待讨论需求
 
 （暂无）

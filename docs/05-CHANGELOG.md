@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-08-24 变更记录
+
+### [需求规划] - WhatsApp Mac 本地归档 v1 边界与实施计划
+
+**变更内容**：
+- 新增 `docs/superpowers/plans/2026-08-24-whatsapp-local-archive-rom-sow.md`，记录已验证源数据特征、双层存储、9 张表字段/索引、源字段映射、幂等算法、内部导入 API、Agent 分工、SOW、测试矩阵、ROM 和回滚边界。
+- PRD 将 WhatsApp 从“仅后续验证”更新为“本地归档 v1 进入实施”，锁定继续使用原号码、Mac 源只读、不自动发送、CRM 人工确认绑定和 Agent 只读分析。
+- Agent 专项设计同步本地归档边界和实施顺序；需求日志新增需求 #007。
+- BE-564 方案验证完成，并拆分 BE-566～BE-571，分别承接事实表、导入鉴权/API、CRM 绑定、消息媒体、Mac Collector 和 Agent 查询。
+
+**变更原因**：
+- 用户要求建表前先把 WhatsApp 与 ERP/Agent 的整体方案、数据边界、字段和各 Agent 分工形成正式计划，确认后再开发。
+
+**影响范围**：
+- `docs/superpowers/plans/2026-08-24-whatsapp-local-archive-rom-sow.md`
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/04-REQUISITION_LOG.md`
+- `docs/10-AGENT_INTEGRATION_DESIGN.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/STATUS.md`
+
+**验证结果**：
+- 三路只读审查完成：ERP schema/多租户/文件中心、Mac Collector/SQLite、文档与任务边界。
+- `git diff --check`：通过。
+- 未修改 WhatsApp 源数据库，未把真实客户内容或媒体写入仓库。
+
+**执行人**：Codex
+
+---
+
 ## 2026-08-18 变更记录
 
 ### [发布] - 权限验收正式上线 NAS 生产

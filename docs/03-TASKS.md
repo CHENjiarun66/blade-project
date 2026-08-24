@@ -240,8 +240,14 @@
 | BE-561 | Agent 定时提醒接入验证 | ⏳ TODO | 验证客户跟进清单可被定时 Agent 调用，提醒渠道另行锁定 |
 | BE-562 | Agent API 限流与回归验证 | ⏳ TODO | 多租户隔离、无毛利 scope、真实 Agent 工具调用验证 |
 | BE-563 | 统一业务事件日志设计 | ⏳ TODO | 为后续 /api/agent/changes、订单异常分析和窄范围 Agent 写动作打基础 |
-| BE-564 | WhatsApp 数据接入方案验证 | ⏳ 进行中（执行人：Codex） | 已完成 Mac 本地数据可读性抽样，正在锁定本地归档、客户映射、消息保留/权限/脱敏策略与第一阶段建表方案 |
+| BE-564 | WhatsApp 数据接入方案验证 | ✅ 完成 | 已验证 Mac SQLite/媒体可只读归档，锁定双层存储、CRM 人工确认绑定、权限/保留/脱敏与 ROM/SOW |
 | BE-565 | Agent 后续能力路线评审 | ⏳ TODO | 订单运营异常、利润解释、WhatsApp 反馈分析、经营记忆分阶段排序 |
+| BE-566 | WhatsApp 结构化事实表 | ⏳ TODO | Flyway 新建账号、批次、水位、联系人、绑定、会话、逻辑消息、源行引用、媒体 9 张表 |
+| BE-567 | WhatsApp 导入鉴权与批次 API | ⏳ TODO | 独立 Collector 凭证、租户绑定、批次生命周期、幂等和审计 |
+| BE-568 | WhatsApp 联系人与 CRM 绑定 | ⏳ TODO | 电话规范化、唯一精确匹配候选、人工确认/拒绝，不自动创建客户 |
+| BE-569 | WhatsApp 消息与媒体幂等导入 | ⏳ TODO | 逻辑去重、旧行更新、媒体 hash、PRIVATE 文件绑定与失败重试 |
+| BE-570 | WhatsApp Mac Collector | ⏳ TODO | 一致性快照、schema guard、完整流式扫描、outbox 和合成 fixture 测试 |
+| BE-571 | WhatsApp 只读查询与 Agent 上下文 | ⏳ TODO | scoped 沟通时间线/摘要事实、脱敏、审计和限流；不自动发送 |
 
 ### Phase 6: OCR 拍照录单（P2）
 

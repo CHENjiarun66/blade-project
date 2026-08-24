@@ -60,6 +60,13 @@
 
 ## 当前摘要
 
+### WhatsApp 本地归档 v1（2026-08-24）
+
+- `BE-564` 方案验证已完成，正式实施契约为 [2026-08-24-whatsapp-local-archive-rom-sow.md](./superpowers/plans/2026-08-24-whatsapp-local-archive-rom-sow.md)。
+- 已锁定“Mac 只读源 → Git 外加密快照 → 独立 Collector → Blade 内部导入 API → `wa_*` 事实表/文件中心 → 只读 Agent Gateway”的链路。
+- v1 保留原 WhatsApp Business 号码，只接 1:1 联系人、会话、文本和已下载媒体；不自动回复、不自动创建 CRM 客户、不让 Agent 直接访问数据库或执行营销。
+- TASKS 已拆分 `BE-566`～`BE-571`；下一步先执行 `BE-566`，新增 9 张 WhatsApp 事实表并验证 Flyway 迁移。
+
 ### 当前 Git / 发布规则
 
 - 当前已建立分支规范：[reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md)。
