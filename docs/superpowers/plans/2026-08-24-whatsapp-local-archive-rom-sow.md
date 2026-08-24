@@ -419,6 +419,8 @@ v1 中只有用户可以决定营销动作；Agent 不发送消息、不修改�
 
 ### SOW-5：Mac Collector `BE-570`
 
+> v0.1 已于 2026-08-24 完成：独立仓库提交 `f7b5551`；真实 dry-run 已验证，尚未接 ERP API。
+
 - 在 `/Users/chenjiarun/Documents/CodexWhatsapp` 建立独立采集器项目。
 - schema adapter、SQLite Backup、manifest、fixture、增量扫描、逻辑去重、媒体复制和受控上传。
 - 默认 dry-run；真实导入必须显式配置目标租户与账号并由用户触发。

@@ -8,6 +8,38 @@
 
 ## 2026-08-24 变更记录
 
+### [功能开发] - WhatsApp Mac Collector v0.1
+
+**变更内容**：
+- 在独立项目 `/Users/chenjiarun/Documents/CodexWhatsapp` 建立 Python 3.11+ 采集器，提供 `doctor`、`snapshot`、`scan --dry-run`、`media-report` 和 `open-report`。
+- 以 SQLite `mode=ro`、`query_only=ON` 和 Backup API 读取 WhatsApp Mac 的 ChatStorage、Contacts、Labels、Biz，按库记录 schema/store hash 和快照时间，不伪造跨库原子性。
+- v0.1 只扫描 `s.whatsapp.net`/`lid` 私聊，排除群聊、状态、频道和广播；按版本化逻辑键合并重复源行，并保留 `Z_OPT`、row hash 和源引用。
+- 媒体路径按实际 `Media/...` → `Message/Media/...` 规则安全解析，拒绝越界与符号链接；识别路径为空、文件缺失、仅缩略图、大小异常和复制期间变化。
+- 每次扫描在 Git 外生成 manifest、结构化 JSONL、仅当前用户可读的 `media_issues.csv`，本地 SQLite 记录问题重复发现与自动恢复状态；默认不复制媒体、不上传 ERP。
+- 采集器独立 Git 初始提交：`f7b5551`。
+
+**变更原因**：
+- 先用真实 Mac 数据验证提取、去重和缺失媒体语义，再开发 Blade 导入 API，避免 API 契约脱离实际源结构。
+
+**影响范围**：
+- `/Users/chenjiarun/Documents/CodexWhatsapp/**`
+- Git 外归档：`~/Library/Application Support/BladeWhatsAppArchive/`
+- `docs/03-TASKS.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/STATUS.md`
+
+**验证结果**：
+- `PYTHONWARNINGS=error::ResourceWarning PYTHONPATH=src python3 -m unittest discover -v`：6 项通过。
+- `python3 -m compileall -q src tests`：通过。
+- `.venv/bin/pip install -e .`、`.venv/bin/blade-wa --version`：安装成功，版本 0.1.0。
+- 真实 `doctor`：ChatStorage/Contacts/Labels/Biz 均可读、quick_check 正常，关键 schema 兼容。
+- 真实 dry-run：989 个私聊、48,244 个源消息行归并为 32,035 条逻辑消息，合并 16,209 个重复源行；2,133 个媒体文件可用，14,993 个媒体记录缺少本地路径；未上传 ERP、未复制媒体。
+- 归档目录权限 `0700`，报告和结构化文件权限 `0600`；真实数据未进入 Git。
+
+**执行人**：Codex
+
+---
+
 ### [需求规划] - WhatsApp 缺失媒体诊断与重扫恢复
 
 **变更内容**：
