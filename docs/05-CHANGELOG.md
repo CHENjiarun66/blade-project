@@ -8,6 +8,36 @@
 
 ## 2026-08-24 变更记录
 
+### [功能开发] - WhatsApp 结构化事实表 V43
+
+**变更内容**：
+- 新增 `V43__whatsapp_archive.sql`，建立 `wa_account`、`wa_import_batch`、`wa_sync_cursor`、`wa_contact`、`wa_customer_binding`、`wa_conversation`、`wa_message`、`wa_message_source_ref` 和 `wa_message_media`。
+- 所有 9 张表具备 `tenant_id`、标准审计字段和租户优先索引；自然唯一键不包含 `deleted`，支持同步时恢复/更新原行。
+- 逻辑消息采用 `logical_key_hash` 幂等，源行单独保留 `source_opt`、`row_hash`、首次/末次批次和完整扫描缺失状态；媒体支持元数据先落库和后续补齐。
+- 表结构不增加物理外键，不修改 CRM、文件中心或历史 migration；跨表租户归属校验由后续导入服务负责。
+
+**变更原因**：
+- 按已锁定 WhatsApp ROM/SOW 先建立稳定事实层，为后续受控导入 API 和 Mac Collector 提供数据库契约。
+
+**影响范围**：
+- `blade-backend/src/main/resources/db/migration/V43__whatsapp_archive.sql`
+- `docs/superpowers/plans/2026-08-24-whatsapp-local-archive-rom-sow.md`
+- `docs/03-TASKS.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/STATUS.md`
+- `outputs/status.html`
+
+**验证结果**：
+- 隔离临时 MySQL 结构执行：9 张 `wa_*` 表、9 个 `tenant_id`、9 组自然唯一键，全部符合预期；临时库已删除。
+- 空库 Flyway 累计迁移：成功验证 45 个 migration 并从 V1 执行到 V43，`flyway_schema_history` 最新 `43 / success=1`；临时库已删除。
+- 本地开发库 V42→V43：后端全量测试启动时由 Flyway 成功执行。
+- `cd blade-backend && mvn test`：383 项通过，Failures 0，Errors 0，Skipped 0。
+- `git diff --check`：通过。
+
+**执行人**：Codex
+
+---
+
 ### [需求规划] - WhatsApp Mac 本地归档 v1 边界与实施计划
 
 **变更内容**：

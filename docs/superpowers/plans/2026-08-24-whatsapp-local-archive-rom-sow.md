@@ -93,7 +93,7 @@ flowchart LR
 
 - 新增迁移暂定 `V43__whatsapp_archive.sql`；执行前再次确认最高 Flyway 版本。
 - 只新增 `wa_*` 表，不修改 V1～V42，不在首个迁移中 ALTER CRM 或文件中心。
-- 业务实体统一包含 `id BIGINT AUTO_INCREMENT`、`tenant_id BIGINT NOT NULL`、`create_time DATETIME(3)`、`update_time DATETIME(3)`、`deleted TINYINT NOT NULL DEFAULT 0`。
+- 所有新表统一包含 `id BIGINT AUTO_INCREMENT`、`tenant_id BIGINT NOT NULL`、`create_by BIGINT NULL`、`create_time DATETIME(3)`、`update_time DATETIME(3)`、`deleted TINYINT NOT NULL DEFAULT 0`，满足项目表规范。批次和源引用虽然保留软删除字段，但应用层按 append/upsert 审计事实管理，不提供删除动作。
 - 项目现有迁移基本不使用物理外键；本模块也不加 FOREIGN KEY。服务层必须用 `tenant_id + id` 校验引用归属。
 - SHA-256 使用 `BINARY(32)`；API 以 64 位十六进制传输。
 - 自然唯一键不包含 `deleted`；重新出现的数据 upsert/恢复原行，避免产生重复历史壳。
@@ -134,7 +134,7 @@ flowchart LR
 | error_summary | VARCHAR(1000) | 脱敏错误摘要 |
 | started_at/completed_at/create_time | DATETIME(3) | 批次生命周期 |
 
-批次为 append-only 审计事实，不做软删除。唯一键：`(tenant_id, batch_no)`；索引：`(tenant_id, account_id, started_at)`、`(tenant_id, status, started_at)`。
+批次为 append-only 审计事实，保留通用 `deleted` 字段但不提供删除动作。唯一键：`(tenant_id, batch_no)`；索引：`(tenant_id, account_id, started_at)`、`(tenant_id, status, started_at)`。
 
 ### 6.4 `wa_sync_cursor`：扫描水位
 
@@ -146,7 +146,7 @@ flowchart LR
 | last_source_pk | BIGINT | 仅用于缩小扫描范围 |
 | last_scan_at | DATETIME(3) | 最近扫描时间 |
 | state_json | JSON | 版本化扫描状态 |
-| create_time/update_time | DATETIME(3) | 审计时间 |
+| create_by/create_time/update_time/deleted | 标准字段 | 审计字段；不提供删除动作 |
 
 唯一键：`(tenant_id, account_id, source_database, source_entity)`。该表不是正确性依据；每轮必须包含可配置回看窗口，并用 `source_opt + row_hash` 检查旧行更新。
 
@@ -245,7 +245,7 @@ flowchart LR
 | source_missing/missing_since_batch_id | TINYINT / BIGINT | 完整成功扫描后发现源行缺失；不物理删除 |
 | create_time/update_time | DATETIME(3) | 审计时间 |
 
-该表为 upsert 审计映射，不做软删除。唯一键：`(tenant_id, account_id, source_database, source_entity, source_pk)`；索引：`(tenant_id, message_id)`、`(tenant_id, account_id, last_seen_batch_id)`。
+该表为 upsert 审计映射，保留通用 `deleted` 字段但不提供删除动作。唯一键：`(tenant_id, account_id, source_database, source_entity, source_pk)`；索引：`(tenant_id, message_id)`、`(tenant_id, account_id, last_seen_batch_id)`。
 
 ### 6.10 `wa_message_media`：消息媒体
 
