@@ -41,6 +41,7 @@ public class WhatsappService {
     private final ObjectMapper objectMapper;
     private final PasswordEncoder passwordEncoder;
     private final FileStorageService fileStorageService;
+    private final WhatsappAnalysisService analysisService;
 
     @Transactional
     public CollectorCredential createCollector(CollectorCreateRequest request, Long userId) {
@@ -267,6 +268,9 @@ public class WhatsappService {
                     """, principal.tenantId(), principal.accountId(), batch.id());
             jdbc.update("UPDATE wa_account SET last_success_batch_id=?,last_sync_time=NOW(3) WHERE id=? AND tenant_id=?",
                     batch.id(), principal.accountId(), principal.tenantId());
+            if ("SUCCEEDED".equals(request.status())) {
+                analysisService.enqueueForBatch(principal.tenantId(), batch.id());
+            }
         }
         return new BatchResult(batch.id(), batchNo, request.status(), 0, 1);
     }
@@ -370,11 +374,20 @@ public class WhatsappService {
     @Transactional
     public void decideBinding(Long id, BindingDecision decision, Long userId) {
         long tenant=requiredTenant();
+        List<Map<String,Object>> binding=jdbc.queryForList("""
+                SELECT customer_id,wa_contact_id FROM wa_customer_binding
+                WHERE id=? AND tenant_id=? AND status='PENDING' AND deleted=0
+                """,id,tenant);
+        if(binding.size()!=1)throw new IllegalStateException("绑定候选不存在或已处理");
         int count=jdbc.update("""
                 UPDATE wa_customer_binding SET status=?,confirmed_by=?,confirmed_at=NOW(3),note=?
                 WHERE id=? AND tenant_id=? AND status='PENDING' AND deleted=0
                 """,decision.status(),userId,decision.note(),id,tenant);
         if(count!=1)throw new IllegalStateException("绑定候选不存在或已处理");
+        if("CONFIRMED".equals(decision.status())) {
+            analysisService.enqueueForCustomer(tenant,((Number)binding.get(0).get("customer_id")).longValue(),
+                    ((Number)binding.get(0).get("wa_contact_id")).longValue());
+        }
     }
 
     public PageResult<IssueView> issues(int page, int size, String status, String mediaType, Long accountId) {

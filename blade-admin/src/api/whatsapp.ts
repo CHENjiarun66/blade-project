@@ -12,6 +12,12 @@ export interface CollectionIssue {
 export interface ScanJob { id: number; accountId: number; accountName?: string; status: string; requestedAt: string; claimedAt?: string; completedAt?: string; resultBatchId?: number; errorSummary?: string }
 export interface BindingCandidate { id: number; contactId: number; contactName?: string; phoneNormalized?: string; customerId: number; customerName?: string; matchMethod: string; status: string; createTime: string }
 export interface CollectorCredential { accountId: number; keyId: number; collectorKey: string; keyPrefix: string; scopes: string[] }
+export interface WhatsappInsight {
+  recommendationId: number; analysisId: number; customerId: number; customerName: string; status: string; dueAt?: string
+  summary: string; preferences: Record<string, unknown>; intentStage: string; sentiment: string; churnRisk: string
+  recommendedAction: string; confidence: number; evidenceMessageIds: number[]; model: string; analyzedAt: string; handledAt?: string; handleNote?: string
+}
+export interface InsightEvidence { messageId: number; sentAt: string; direction: string; excerpt: string }
 
 export const getWhatsappAccounts = () => client.get<any, ApiResult<WhatsappAccount[]>>('/whatsapp/accounts')
 export const getIssueSummary = () => client.get<any, ApiResult<IssueSummary>>('/whatsapp/issues/summary')
@@ -22,3 +28,7 @@ export const getPendingBindings = () => client.get<any, ApiResult<BindingCandida
 export const decideBinding = (id: number, status: 'CONFIRMED' | 'REJECTED', note?: string) => client.put(`/whatsapp/bindings/${id}`, { status, note })
 export const createCollector = (payload: { name: string; accountRef: string; displayName?: string; phoneNormalized?: string; sourceInstanceHash?: string }) =>
   client.post<any, ApiResult<CollectorCredential>>('/whatsapp/collectors', payload)
+export const getWhatsappInsights = (params: Record<string, unknown>) => client.get<any, ApiResult<PageResult<WhatsappInsight>>>('/whatsapp/insights', { params })
+export const getInsightEvidence = (analysisId: number) => client.get<any, ApiResult<InsightEvidence[]>>(`/whatsapp/insights/${analysisId}/evidence`)
+export const decideWhatsappRecommendation = (id: number, status: 'ADOPTED' | 'DISMISSED' | 'COMPLETED', note?: string) =>
+  client.put(`/whatsapp/recommendations/${id}`, { status, note })

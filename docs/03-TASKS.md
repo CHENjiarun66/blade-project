@@ -247,12 +247,12 @@
 | BE-568 | WhatsApp 联系人与 CRM 绑定 | ✅ 完成 | E.164 digits-only 规范化、租户内唯一精确号码生成待确认候选、人工确认/拒绝；不自动创建客户 |
 | BE-569 | WhatsApp 消息与媒体幂等导入 | ✅ 完成 | 联系人/会话/逻辑消息/源引用/媒体分块 upsert，服务端 SHA-256、PRIVATE 文件绑定与旧媒体补载不重复消息 |
 | BE-570 | WhatsApp Mac Collector | ✅ 完成 | 独立 Python v0.2 支持 doctor、只读快照、schema guard、私聊扫描、ERP sync/watch、分块导入、媒体上传和 9 项测试 |
-| BE-571 | WhatsApp 只读查询与 Agent 上下文 | ⏳ 进行中（执行人：Codex） | scoped 最小上下文、90天/200条上限、正文脱敏、订单/商品事实、审计和限流 |
+| BE-571 | WhatsApp 只读查询与 Agent 上下文 | ✅ 完成 | scoped 最小上下文、90天/200条上限、正文脱敏、订单/商品事实、独立 Worker Key 和调用审计 |
 | BE-572 | WhatsApp 采集完整性诊断 | ✅ 完成 | V44 问题/扫描任务表、稳定问题键、缺失媒体分类、统计/明细 API、完整扫描自动恢复；明确 Mac 单端检测边界 |
-| BE-573 | WhatsApp Agent 分析队列 | ⏳ 进行中（执行人：Codex） | V45 分析任务、租约、重试、幂等上下文版本；新消息/确认绑定后自动排队 |
-| BE-574 | WhatsApp 客户画像与跟进推荐 | ⏳ 进行中（执行人：Codex） | 结构化分析结果、证据引用、置信度、模型版本；用户采纳/忽略/完成工作流 |
-| BE-575 | WhatsApp 可替换 Agent Worker | ⏳ 进行中（执行人：Codex） | Agent Key claim/complete/fail 契约；兼容 NAS 本地模型或云端模型，不在 ERP 保存模型密钥 |
-| BE-576 | WhatsApp Agent 安全与回归 | ⏳ 进行中（执行人：Codex） | 脱敏、上下文上限、跨租户、租约重领、非法证据 ID、日志正文泄漏测试 |
+| BE-573 | WhatsApp Agent 分析队列 | ✅ 完成 | V45/V46 分析任务、领取时消息快照、10 分钟租约、3 次重试、幂等上下文版本；新消息/确认绑定后自动排队 |
+| BE-574 | WhatsApp 客户画像与跟进推荐 | ✅ 完成 | 结构化分析结果、证据引用、置信度、模型版本；用户采纳/忽略/完成工作流 |
+| BE-575 | WhatsApp 可替换 Agent Worker | ✅ 完成 | Agent Key claim/complete/fail 契约和 OpenAI-compatible Worker；兼容 NAS 本地或云端模型，ERP 不保存模型密钥 |
+| BE-576 | WhatsApp Agent 安全与回归 | ✅ 完成 | 脱敏/上限/租户/非法证据/失败重试/幂等回归通过，并修复认证前 tenant=1 回落导致非 1 租户 Key 不可用的问题 |
 
 ### Phase 6: OCR 拍照录单（P2）
 
@@ -467,7 +467,7 @@
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
 | BA-1101 | WhatsApp 缺失媒体工作台 | ✅ 完成 | 按客户/聊天、媒体类型和状态查看问题；支持打开 WhatsApp、触发扫描任务、轮询结果及人工确认 CRM 绑定 |
-| BA-1102 | WhatsApp 客户洞察与跟进工作台 | ⏳ 进行中（执行人：Codex） | 展示客户摘要、偏好、意向、风险、建议时间和证据；支持采纳/忽略/完成，不自动发消息 |
+| BA-1102 | WhatsApp 客户洞察与跟进工作台 | ✅ 完成 | 展示客户摘要、偏好、意向、风险、建议时间和证据；支持采纳/忽略/完成，不自动发消息 |
 
 ---
 

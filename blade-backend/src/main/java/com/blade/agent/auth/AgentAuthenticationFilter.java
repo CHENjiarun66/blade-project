@@ -51,8 +51,13 @@ public class AgentAuthenticationFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
-            if (principal != null) {
-                auditRecorder.record(principal, buildAuditEvent(request, response, start));
+            try {
+                if (principal != null) {
+                    auditRecorder.record(principal, buildAuditEvent(request, response, start));
+                }
+            } finally {
+                SecurityContextHolder.clearContext();
+                TenantContext.clear();
             }
         }
     }

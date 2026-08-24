@@ -65,11 +65,12 @@
 - `BE-564` 方案验证已完成，正式实施契约为 [2026-08-24-whatsapp-local-archive-rom-sow.md](./superpowers/plans/2026-08-24-whatsapp-local-archive-rom-sow.md)。
 - 已锁定“Mac 只读源 → Git 外加密快照 → 独立 Collector → Blade 内部导入 API → `wa_*` 事实表/文件中心 → 只读 Agent Gateway”的链路。
 - v1 保留原 WhatsApp Business 号码，只接 1:1 联系人、会话、文本和已下载媒体；不自动回复、不自动创建 CRM 客户、不让 Agent 直接访问数据库或执行营销。
-- `BE-566～BE-570`、`BE-572` 和 `BA-1101` 已完成：V43/V44 建立事实层、Collector Key、批次/扫描任务、CRM 候选绑定、消息媒体幂等导入和缺失媒体工作台。
+- `BE-566～BE-576`、`BA-1101～BA-1102` 已完成：V43～V46 建立事实层、采集链路、缺失媒体诊断、混合 Agent 分析队列、领取时上下文快照和客户跟进工作台。
 - Mac Collector 已升级为 v0.2，支持 `configure`、`sync` 和 `watch`：从一致性快照生成结构化 spool，分块上传 ERP；后台可领取 ERP 发起的重扫任务。
 - 合成端到端验证：首次导入 5 条逻辑消息、4 条媒体元数据和 1 个文件；重复导入总数保持 5/4/1；补载旧图片后保持 5 条消息、4 条媒体并新增第 2 个文件，账号问题状态变为 2 个待处理、1 个已恢复。
-- 自动化验证通过：空库 Flyway V1→V44、后端 386 项测试、前端生产构建、Collector 9 项测试；生产/NAS 尚未部署，真实聊天仍只保留在用户本机归档目录。
-- 下一步为 `BE-571`：通过 scoped Agent Gateway 提供脱敏沟通时间线、摘要事实和证据引用；继续禁止自动发送或营销执行。
+- 混合 Agent 链路已实现：ERP 以独立 scoped Worker Key 提供最近 90 天/最多 200 条的脱敏上下文和订单商品汇总；NAS Worker 可接本地或 OpenAI-compatible 云端模型，结果必须携带有效消息证据，用户只在 ERP 采纳、忽略或完成。
+- 自动化验证通过：空库 Flyway V1→V46（48 个 migration）、后端 390 项测试、前端生产构建、Collector/Worker 11 项测试；合成端到端覆盖脱敏、幂等完成、非法证据、失败重试和跨租户队列隔离。
+- 生产/NAS 尚未部署，真实聊天仍只保留在用户本机归档目录；上线时由运维一次配置 ERP、Mac Assistant、NAS Worker 和模型密钥，业务用户无需终端操作。
 
 ### 当前 Git / 发布规则
 

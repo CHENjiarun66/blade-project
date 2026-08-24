@@ -8,6 +8,39 @@
 
 ## 2026-08-24 变更记录
 
+### [功能开发] - WhatsApp 混合 Agent 客户分析与跟进工作台 v1
+
+**变更内容**：
+- V45 新增分析任务、客户分析和跟进推荐三张租户表；V46 固化任务领取时的上下文消息 ID 快照，支持上下文版本幂等、租约领取、并发新消息隔离、失败重试、结构化结果和人工处理状态。
+- Agent Gateway 新增独立 Analysis Worker Key，以及 claim/complete/fail 契约；上下文限制为最近 90 天、最多 200 条，正文脱敏并只提供必要订单/商品汇总，结果证据必须属于当前客户上下文。
+- ERP WhatsApp 页面新增“智能跟进”，展示摘要、偏好、意向、风险、建议时间、置信度和证据，支持采纳、忽略和完成，不发送 WhatsApp。
+- 独立 Collector 项目新增 OpenAI-compatible Analysis Worker，支持 NAS 本地模型或合规云端模型；模型密钥只由 NAS 私密配置注入。
+- 修复 Agent Key 认证前 tenant 未知时被 tenant=1 回落过滤的问题：认证查询仅按全局唯一 prefix 绕过租户插件，成功后立即绑定 Key tenant，并在请求结束清理认证与租户上下文。
+
+**变更原因**：
+- 让用户无需终端操作，即可把 Mac 本地采集的 WhatsApp 沟通事实与 ERP 订单/商品事实结合，在 ERP 获得可解释、可人工控制的客户营销时机与偏好建议。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/whatsapp/**`
+- `blade-backend/src/main/java/com/blade/agent/**`
+- `blade-backend/src/main/resources/db/migration/V45__whatsapp_agent_analysis.sql`
+- `blade-admin/src/api/whatsapp.ts`、`blade-admin/src/views/whatsapp/index.vue`
+- `/Users/chenjiarun/Documents/CodexWhatsapp/**`
+- WhatsApp PRD、任务、Agent 设计和 ROM/SOW
+
+**验证结果**：
+- 隔离空库 Flyway V1→V46：48 个 migration 全部成功；`mvn -q test`：390 项通过，Failures 0、Errors 0、Skipped 0。
+- 管理端 `npm run build` 成功；Collector/Worker `unittest`：11 项通过；两个仓库 `git diff --check` 通过。
+- 合成端到端：上下文只含 1 条有效消息且不含测试电话、邮箱、URL、JID；complete 重放返回相同结果；非法证据 ID 返回 400 且任务保持 CLAIMED；fail 后回到 PENDING 且 attempt=1。
+- 租户 2 Worker 认证后返回自己的空队列，调用审计 tenant=2，不能领取租户 1 任务。推荐 PENDING→ADOPTED→COMPLETED 成功。
+- 未读取或上传真实聊天，未操作生产/NAS，未配置真实模型密钥。
+
+**执行人**：Codex
+
+---
+
+## 2026-08-24 变更记录
+
 ### [功能开发] - WhatsApp ERP 同步与缺失媒体工作台 v0.2
 
 **变更内容**：
