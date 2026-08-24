@@ -248,6 +248,7 @@
 | BE-569 | WhatsApp 消息与媒体幂等导入 | ⏳ TODO | 逻辑去重、旧行更新、媒体 hash、PRIVATE 文件绑定与失败重试 |
 | BE-570 | WhatsApp Mac Collector | ⏳ TODO | 一致性快照、schema guard、完整流式扫描、outbox 和合成 fixture 测试 |
 | BE-571 | WhatsApp 只读查询与 Agent 上下文 | ⏳ TODO | scoped 沟通时间线/摘要事实、脱敏、审计和限流；不自动发送 |
+| BE-572 | WhatsApp 采集完整性诊断 | ⏳ TODO | V44采集问题表、缺失媒体分类、重扫恢复、统计/明细 API；明确 Mac 单端检测边界 |
 
 ### Phase 6: OCR 拍照录单（P2）
 
@@ -456,6 +457,12 @@
 | BA-1030 | Catalog 图片集合边界修复 | ✅ 完成 | 首页卡片只展示商品主图；点击商品图片/详情大图优先展示商品图集 `imageUrls`，无图集时才回退主图；商品图集过滤与主图重复的图片；SKU 图片不混入商品大图集合，保留给后续 SKU 图集详情使用 |
 | BA-1031 | Catalog iPad 搜索框触控修复 | ✅ 完成 | 搜索框触摸时同步 focus 原生输入框；搜索输入区域覆盖页面级 `user-select:none`，恢复 `user-select:text` 与 `touch-action:manipulation`，避免 iPad 点击搜索框不弹键盘 |
 | BA-1032 | Catalog iPad 竖屏全屏大图裁剪修复 | ✅ 完成 | 全屏 viewer 外层只负责裁剪，slide 内部负责图片边距；避免 iPad 竖屏下相邻图片从左右 padding 区域露出；新增 Playwright 回归验证 active slide 两侧 slide 均在视口外 |
+
+### Phase 12: WhatsApp 采集完整性工作台（P2）
+
+| 任务 ID | 任务 | 状态 | 备注 |
+|---------|------|------|------|
+| BA-1101 | WhatsApp 缺失媒体工作台 | ⏳ TODO | 按客户/联系人、媒体类型、问题状态展示缺失项，支持打开对应聊天、触发重扫并查看恢复结果 |
 
 ---
 

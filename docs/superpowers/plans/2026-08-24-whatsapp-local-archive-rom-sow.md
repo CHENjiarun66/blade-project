@@ -2,7 +2,7 @@
 
 > 日期：2026-08-24  
 > 分支：`feature/whatsapp-local-archive`  
-> 任务：`BE-564`、`BE-566`～`BE-571`  
+> 任务：`BE-564`、`BE-566`～`BE-572`、`BA-1101`
 > 状态：边界已锁定，按 SOW 分阶段实施  
 > 相关设计：[10-AGENT_INTEGRATION_DESIGN.md](../../10-AGENT_INTEGRATION_DESIGN.md)
 
@@ -271,6 +271,30 @@ flowchart LR
 
 媒体导入成功后使用：`file_storage.source=whatsapp`、`purpose=customer_chat`、`visibility=PRIVATE`，并写 `file_business_bind.business_type=whatsapp_message`、`bind_role=attachment`。现有文件上传服务尚未计算 `file_hash`，OGG/PDF 也不在当前白名单，因此必须由 BE-569 独立补齐，不能假定已经支持。
 
+### 6.11 `wa_collection_issue`：采集完整性问题
+
+V43 已执行后不得修改；该表由后续新增的 V44 migration 创建，用于支持“查看缺失媒体 → 在 WhatsApp 中加载 → 重新扫描 → 自动恢复”的工作台。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id, tenant_id, account_id | BIGINT | 主键、租户和来源账号 |
+| batch_id | BIGINT | 最近发现问题的批次 |
+| conversation_id/message_id/media_id | BIGINT | 可空的问题定位 |
+| issue_key_hash | BINARY(32) | 账号 + 源引用 + 问题类型的稳定键 |
+| issue_type | VARCHAR(40) | `MEDIA_ITEM_MISSING/LOCAL_PATH_EMPTY/LOCAL_FILE_MISSING/THUMBNAIL_ONLY/SIZE_MISMATCH/COPY_CHANGED/UNSUPPORTED_MEDIA/IMPORT_FAILED` |
+| status | VARCHAR(24) | `ACTION_REQUIRED/RETRYABLE/RESOLVED/IGNORED` |
+| severity | VARCHAR(12) | `INFO/WARN/ERROR` |
+| media_type | VARCHAR(20) | 图片、视频、语音、文档等 |
+| occurrence_count | INT | 重复发现次数 |
+| first_detected_at/last_detected_at | DATETIME(3) | 首次/最近发现时间 |
+| resolved_at | DATETIME(3) | 文件成功归档后的解决时间 |
+| detail_json | JSON | 脱敏诊断，例如是否仅缩略图、期望/实际大小；禁止正文和绝对路径 |
+| create_by/create_time/update_time/deleted | 标准字段 | 审计和软删除 |
+
+唯一键：`(tenant_id, account_id, issue_key_hash)`。索引：`(tenant_id, status, last_detected_at)`、`(tenant_id, conversation_id, status)`、`(tenant_id, issue_type, status)`。
+
+该表只能证明 Mac 上“存在消息/媒体元数据但本地文件不完整”。如果某条 iPhone 消息从未在 Mac 生成任何记录，采集器没有可比较的手机端真相，不能声称已检测到；界面必须明确展示这个限制。
+
 ## 七、源字段映射与幂等算法
 
 ### 7.1 主要源映射
@@ -312,6 +336,7 @@ flowchart LR
 - 只有完整扫描成功后，才把本批未出现的 source ref 标记 `source_missing`；不物理删除逻辑消息。
 - 旧消息补下载媒体时更新 `source_ref` 和 `wa_message_media`，不新增 `wa_message`。
 - 文件缺失写 `MISSING`，文本和消息元数据照常提交；后续批次可补齐。
+- 每次扫描把缺失原因 upsert 到 `wa_collection_issue`；媒体成功校验并归档后自动转为 `RESOLVED`，保留发现和恢复时间。
 
 ## 八、内部导入 API 契约
 
@@ -404,6 +429,17 @@ v1 中只有用户可以决定营销动作；Agent 不发送消息、不修改�
 - 单独 scope、脱敏、审计和限流；默认不返回全量正文和媒体。
 - 分析和推荐表在导入正确性验收后另开任务，不在本 SOW 建表。
 
+### SOW-7：采集完整性工作台 `BE-572`、`BA-1101`
+
+- 新增 V44 `wa_collection_issue`，不修改已执行的 V43。
+- Collector 对媒体消息无 media item、无本地路径、路径文件不存在、仅缩略图、大小不一致、复制期间变化和导入失败进行分类。
+- 后端提供按账号、联系人/客户、问题类型、媒体类型、状态和时间筛选的统计与明细 API。
+- PC 工作台展示客户/联系人、会话、消息时间、缺失类型、图片/视频/语音数量、首次/最近发现、最近扫描和恢复状态。
+- 能解析标准号码时提供“打开 WhatsApp 聊天”操作；无法生成深链时展示联系人和消息时间供人工定位。
+- 用户在 WhatsApp 中加载媒体后，可触发重新扫描；验证文件 hash 并归档成功后，问题自动标记 `RESOLVED`，不得新增重复消息。
+
+验收：同一缺失项重复扫描不重复；媒体补下载后状态从 `ACTION_REQUIRED` 变为 `RESOLVED`；无法证明的“手机端完全未同步消息”不显示为已检测。
+
 ## 十一、测试矩阵
 
 | 场景 | 预期 |
@@ -415,6 +451,11 @@ v1 中只有用户可以决定营销动作；Agent 不发送消息、不修改�
 | 多个源行代表同一消息 | 1 条 `wa_message` + 多条 source ref |
 | 旧消息后补图片/语音 | 只更新 source ref/media，不新增 message |
 | 媒体文件缺失 | 消息成功，媒体为 `MISSING`，后续可补 |
+| 媒体元数据存在但路径为空 | 创建/更新 `LOCAL_PATH_EMPTY` 问题，工作台可筛选 |
+| 路径存在但文件不存在 | 创建/更新 `LOCAL_FILE_MISSING`，不阻断消息导入 |
+| 用户打开聊天并加载媒体后重扫 | 导入实际文件、复用原消息，问题转 `RESOLVED` |
+| 同一缺失项多次扫描 | 只增加 occurrence/更新时间，不产生重复 issue |
+| iPhone 上消息完全未到 Mac | 明确标记为不可由本地单端检测，不伪造完整性结论 |
 | 导入中断后重试 | 从幂等键继续，不重复，不丢批次审计 |
 | 同号码跨租户 | 数据互不冲突、不可跨租户绑定 |
 | CRM 精确唯一号码 | 只生成 `PENDING` 候选 |
@@ -460,8 +501,9 @@ v1 中只有用户可以决定营销动作；Agent 不发送消息、不修改�
 | SOW-4 消息/媒体导入 | 4～7 人日 | 去重、文件幂等、MIME |
 | SOW-5 Mac Collector | 4～7 人日 | 私有 schema 变化、权限 |
 | SOW-6 Agent 查询 | 2～4 人日 | 隐私、上下文长度 |
+| SOW-7 采集完整性工作台 | 3～5 人日 | 私有状态语义、Mac 单端可见性限制 |
 
-总计约 15.5～28 人日，不含推荐模型、UI、Business Platform 和生产部署。ROM 仅用于排期，SOW 验收门槛优先于时间估算。
+总计约 18.5～33 人日，不含推荐模型、Business Platform 和生产部署。ROM 仅用于排期，SOW 验收门槛优先于时间估算。
 
 ## 十四、回滚与故障恢复
 

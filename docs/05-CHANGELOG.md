@@ -8,6 +8,35 @@
 
 ## 2026-08-24 变更记录
 
+### [需求规划] - WhatsApp 缺失媒体诊断与重扫恢复
+
+**变更内容**：
+- WhatsApp ROM/SOW 新增 `wa_collection_issue` 设计和 SOW-7，按稳定问题键记录媒体路径为空、文件缺失、仅缩略图、大小不一致、复制变化和导入失败，并保留发现/恢复时间。
+- PRD 新增采集完整性工作台能力与 Mac 单端检测限制；需求日志新增需求 #008。
+- TASKS 新增 BE-572 后端诊断/API 和 BA-1101 PC 缺失媒体工作台。
+- 明确 V43 已执行不得修改，问题表后续使用新增 V44 migration。
+
+**变更原因**：
+- 用户需要定位 Mac 尚未加载的图片/视频，手动打开对应聊天下载后重新运行脚本补齐归档。
+
+**影响范围**：
+- `docs/superpowers/plans/2026-08-24-whatsapp-local-archive-rom-sow.md`
+- `docs/02-PRD.md`
+- `docs/03-TASKS.md`
+- `docs/04-REQUISITION_LOG.md`
+- `docs/SESSION_CONTEXT.md`
+- `docs/STATUS.md`
+- `outputs/status.html`
+
+**验证结果**：
+- `git diff --check`：通过。
+- 状态看板重新生成：254 项，218 完成，35 待办，1 部分完成。
+- 本轮仅更新需求与实施边界，未修改 V43、WhatsApp 源数据或生产环境。
+
+**执行人**：Codex
+
+---
+
 ### [功能开发] - WhatsApp 结构化事实表 V43
 
 **变更内容**：
