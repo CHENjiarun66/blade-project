@@ -54,7 +54,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/8/24 19:01:05　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/8/24 23:06:00　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -70,18 +70,18 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">139 完成 · 0 进行中 · 16 待办 · 1 部分</span>
+          <span class="card-nums">139 完成 · 5 进行中 · 15 待办 · 1 部分</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:89%"></div></div>
-        <div class="bar-label">89% 完成（共 156 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:87%"></div></div>
+        <div class="bar-label">87% 完成（共 160 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">71 完成 · 0 进行中 · 2 待办 · 0 部分</span>
+          <span class="card-nums">71 完成 · 1 进行中 · 2 待办 · 0 部分</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:97%"></div></div>
-        <div class="bar-label">97% 完成（共 73 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:96%"></div></div>
+        <div class="bar-label">96% 完成（共 74 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -94,12 +94,54 @@
 
   
     <section class="section doing">
-      <h2>🔴 正在做 <span class="count">0</span></h2>
-      <p class="empty">（无）</p>
+      <h2>🔴 正在做 <span class="count">6</span></h2>
+      <table class="task-table">
+      <tr data-status="doing">
+        <td class="td-id">BE-571</td>
+        <td class="td-name">WhatsApp 只读查询与 Agent 上下文<span class="tag executor">执行人：Codex</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">scoped 最小上下文、90天/200条上限、正文脱敏、订单/商品事实、审计和限流 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-573</td>
+        <td class="td-name">WhatsApp Agent 分析队列<span class="tag executor">执行人：Codex</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V45 分析任务、租约、重试、幂等上下文版本；新消息/确认绑定后自动排队 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-574</td>
+        <td class="td-name">WhatsApp 客户画像与跟进推荐<span class="tag executor">执行人：Codex</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">结构化分析结果、证据引用、置信度、模型版本；用户采纳/忽略/完成工作流 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-575</td>
+        <td class="td-name">WhatsApp 可替换 Agent Worker<span class="tag executor">执行人：Codex</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">Agent Key claim/complete/fail 契约；兼容 NAS 本地模型或云端模型，不在 ERP 保存模型密钥 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-576</td>
+        <td class="td-name">WhatsApp Agent 安全与回归<span class="tag executor">执行人：Codex</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">脱敏、上下文上限、跨租户、租约重领、非法证据 ID、日志正文泄漏测试 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BA-1102</td>
+        <td class="td-name">WhatsApp 客户洞察与跟进工作台<span class="tag executor">执行人：Codex</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">展示客户摘要、偏好、意向、风险、建议时间和证据；支持采纳/忽略/完成，不自动发消息 |</td>
+      </tr></table>
     </section>
   
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">29</span></h2>
+      <h2>🟡 还没做 <span class="count">28</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -170,13 +212,6 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
         <td class="td-remark">订单运营异常、利润解释、WhatsApp 反馈分析、经营记忆分阶段排序 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-571</td>
-        <td class="td-name">WhatsApp 只读查询与 Agent 上下文</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">scoped 沟通时间线/摘要事实、脱敏、审计和限流；不自动发送 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BE-601</td>
