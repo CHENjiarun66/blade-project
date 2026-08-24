@@ -215,6 +215,7 @@ const navItems = computed<NavItem[]>(() => {
       { name: '商品分类', path: '/products/categories' },
     ]},
     { name: '客户管理', path: '/clients', icon: 'group', permission: 'menu:customer' },
+    { name: 'WhatsApp归档', path: '/whatsapp', icon: 'chat', permission: 'menu:whatsapp' },
     { name: '文件中心', path: '/files', icon: 'folder', permission: 'menu:file' },
     { name: '系统管理', path: '/system', icon: 'settings', permission: 'menu:system' },
   ]
@@ -247,6 +248,7 @@ const pageTitle = computed(() => {
     '/products/categories': '商品分类',
     '/clients': '客户',
     '/files': '文件中心',
+    '/whatsapp': 'WhatsApp 归档',
     '/customers': '客户详情',
     '/system': '系统管理',
     '/personal': '个人中心',

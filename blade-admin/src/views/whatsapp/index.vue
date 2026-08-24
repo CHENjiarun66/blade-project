@@ -1,0 +1,115 @@
+<template>
+  <div class="space-y-5">
+    <div class="flex items-end justify-between">
+      <div>
+        <h2 class="text-2xl font-bold text-slate-900">WhatsApp 归档</h2>
+        <p class="mt-1 text-sm text-slate-500">检查 Mac 已同步的聊天媒体。这里反映的是 Mac 本地完整性，不代表 iPhone 云端的全量状态。</p>
+      </div>
+      <div class="flex gap-2">
+        <el-button @click="collectorDialog=true">连接采集器</el-button>
+        <el-button :icon="Refresh" @click="loadAll">刷新</el-button>
+        <el-button type="primary" :loading="rescanning" :disabled="!selectedAccount" @click="requestRescan">重新扫描</el-button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-5 gap-4">
+      <MetricCard label="待恢复媒体" :value="summary.open" tone="rose" />
+      <MetricCard label="路径尚未同步" :value="summary.missingPath" tone="amber" />
+      <MetricCard label="文件缺失/异常" :value="summary.missingFile" tone="orange" />
+      <MetricCard label="已恢复" :value="summary.resolved" tone="emerald" />
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <p class="text-xs text-slate-500">最近采集</p>
+        <p class="mt-2 text-sm font-semibold text-slate-800">{{ formatTime(summary.lastScanAt) }}</p>
+        <el-tag class="mt-2" size="small" :type="summary.lastScanStatus === 'SUCCEEDED' ? 'success' : 'info'">{{ summary.lastScanStatus || '暂无' }}</el-tag>
+      </div>
+    </div>
+
+    <el-alert v-if="latestJob" :closable="false" show-icon :type="jobAlertType" class="rounded-xl">
+      <template #title>重扫任务 #{{ latestJob.id }}：{{ jobLabel(latestJob.status) }}</template>
+      <div class="text-xs">{{ latestJob.accountName || `账号 ${latestJob.accountId}` }} · {{ formatTime(latestJob.requestedAt) }}<span v-if="latestJob.errorSummary"> · {{ latestJob.errorSummary }}</span></div>
+    </el-alert>
+
+    <el-tabs v-model="activeTab" class="rounded-2xl border border-slate-200 bg-white px-5 pt-2">
+      <el-tab-pane label="缺失媒体" name="issues">
+        <div class="mb-4 flex items-center gap-3">
+          <el-select v-model="selectedAccount" placeholder="选择账号" class="w-56" clearable @change="resetAndLoad">
+            <el-option v-for="account in accounts" :key="account.id" :label="account.displayName || account.accountRef" :value="account.id" />
+          </el-select>
+          <el-select v-model="filters.status" class="w-36" @change="resetAndLoad">
+            <el-option label="待恢复" value="OPEN" /><el-option label="已恢复" value="RESOLVED" /><el-option label="全部" value="" />
+          </el-select>
+          <el-select v-model="filters.mediaType" placeholder="媒体类型" clearable class="w-36" @change="resetAndLoad">
+            <el-option label="图片" value="IMAGE" /><el-option label="视频" value="VIDEO" /><el-option label="语音/音频" value="AUDIO" />
+          </el-select>
+          <span class="ml-auto text-xs text-slate-400">打开聊天并让媒体加载后，点击“重新扫描”</span>
+        </div>
+        <el-table v-loading="loading" :data="issues" stripe>
+          <el-table-column label="客户 / 聊天" min-width="210">
+            <template #default="{ row }"><div class="font-medium text-slate-800">{{ row.customerName || row.conversationTitle || maskedJid(row.conversationJid) }}</div><div class="text-xs text-slate-400"><span v-if="row.customerName && row.conversationTitle">{{ row.conversationTitle }} · </span>{{ maskedJid(row.conversationJid) }}</div></template>
+          </el-table-column>
+          <el-table-column label="消息时间" width="170"><template #default="{row}">{{ formatTime(row.messageTime) }}</template></el-table-column>
+          <el-table-column label="媒体" width="100"><template #default="{row}"><el-tag size="small">{{ mediaLabel(row.mediaType) }}</el-tag></template></el-table-column>
+          <el-table-column label="问题" min-width="170"><template #default="{row}">{{ issueLabel(row.issueType) }}</template></el-table-column>
+          <el-table-column label="状态" width="100"><template #default="{row}"><el-tag :type="row.status==='OPEN'?'danger':'success'" size="small">{{ row.status==='OPEN'?'待恢复':'已恢复' }}</el-tag></template></el-table-column>
+          <el-table-column label="最近检测" width="170"><template #default="{row}">{{ formatTime(row.lastDetectedAt) }}</template></el-table-column>
+          <el-table-column label="操作" width="110" fixed="right"><template #default="{row}"><el-button link type="primary" :disabled="!row.conversationJid" @click="openChat(row)">打开聊天</el-button></template></el-table-column>
+        </el-table>
+        <div class="flex justify-end py-4"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" layout="total, prev, pager, next" :total="total" @current-change="loadIssues" /></div>
+      </el-tab-pane>
+
+      <el-tab-pane :label="`客户绑定 (${bindings.length})`" name="bindings">
+        <el-table :data="bindings" empty-text="暂无待确认的唯一手机号匹配">
+          <el-table-column prop="contactName" label="WhatsApp 联系人" min-width="180" />
+          <el-table-column label="号码" min-width="150"><template #default="{row}">{{ maskPhone(row.phoneNormalized) }}</template></el-table-column>
+          <el-table-column prop="customerName" label="ERP 客户" min-width="180" />
+          <el-table-column prop="matchMethod" label="匹配方式" width="150" />
+          <el-table-column label="操作" width="180"><template #default="{row}"><el-button link type="success" @click="handleBinding(row.id,'CONFIRMED')">确认</el-button><el-button link type="danger" @click="handleBinding(row.id,'REJECTED')">拒绝</el-button></template></el-table-column>
+        </el-table>
+      </el-tab-pane>
+    </el-tabs>
+
+    <el-dialog v-model="collectorDialog" title="连接 Mac 采集器" width="560px">
+      <el-alert title="密钥只显示一次。创建后把它保存到 Mac 采集器配置中。" type="warning" :closable="false" class="mb-4" />
+      <el-form label-width="110px">
+        <el-form-item label="采集器名称"><el-input v-model="collectorForm.name" placeholder="例如：办公室 Mac" /></el-form-item>
+        <el-form-item label="账号标识"><el-input v-model="collectorForm.accountRef" placeholder="例如：mac:office-main" /></el-form-item>
+        <el-form-item label="显示名称"><el-input v-model="collectorForm.displayName" /></el-form-item>
+        <el-form-item label="WhatsApp号码"><el-input v-model="collectorForm.phoneNormalized" placeholder="仅数字，含国家码" /></el-form-item>
+      </el-form>
+      <div v-if="createdCredential" class="rounded-xl bg-slate-950 p-4 text-white"><p class="mb-2 text-xs text-slate-400">X-Collector-Key（请立即复制）</p><div class="flex gap-2"><code class="min-w-0 flex-1 break-all text-xs">{{ createdCredential.collectorKey }}</code><el-button size="small" @click="copyKey">复制</el-button></div></div>
+      <template #footer><el-button @click="collectorDialog=false">关闭</el-button><el-button type="primary" :loading="creatingCollector" @click="handleCreateCollector">创建凭证</el-button></template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, defineComponent, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
+import { createCollector, decideBinding, getIssueSummary, getIssues, getLatestWhatsappScan, getPendingBindings, getWhatsappAccounts, requestWhatsappScan, type BindingCandidate, type CollectionIssue, type CollectorCredential, type IssueSummary, type ScanJob, type WhatsappAccount } from '@/api/whatsapp'
+
+const MetricCard = defineComponent({ props:{label:String,value:Number,tone:String}, setup(props){return()=>h('div',{class:'rounded-2xl border border-slate-200 bg-white p-4'},[h('p',{class:'text-xs text-slate-500'},props.label),h('p',{class:`mt-2 text-3xl font-bold ${props.tone==='rose'?'text-rose-600':props.tone==='emerald'?'text-emerald-600':'text-amber-600'}`},String(props.value||0))])} })
+const emptySummary: IssueSummary={open:0,resolved:0,missingPath:0,missingFile:0,image:0,video:0,audio:0}
+const summary=ref<IssueSummary>({...emptySummary}),accounts=ref<WhatsappAccount[]>([]),issues=ref<CollectionIssue[]>([]),bindings=ref<BindingCandidate[]>([]),latestJob=ref<ScanJob|null>(null)
+const loading=ref(false),rescanning=ref(false),page=ref(1),pageSize=ref(20),total=ref(0),activeTab=ref('issues'),selectedAccount=ref<number>(),filters=reactive({status:'OPEN',mediaType:''})
+const collectorDialog=ref(false),creatingCollector=ref(false),createdCredential=ref<CollectorCredential|null>(null),collectorForm=reactive({name:'这台 Mac',accountRef:'mac:primary',displayName:'',phoneNormalized:''})
+let pollTimer:number|undefined
+const jobAlertType=computed(()=>latestJob.value?.status==='FAILED'?'error':latestJob.value?.status==='SUCCEEDED'?'success':'info')
+
+async function loadAll(){loading.value=true;try{const [s,a,j,b]=await Promise.all([getIssueSummary(),getWhatsappAccounts(),getLatestWhatsappScan(),getPendingBindings()]);summary.value=s.data||{...emptySummary};accounts.value=a.data||[];latestJob.value=j.data;bindings.value=b.data||[];if(!selectedAccount.value&&accounts.value.length)selectedAccount.value=accounts.value[0].id;await loadIssues();startPollingIfNeeded()}finally{loading.value=false}}
+async function loadIssues(){const r=await getIssues({page:page.value,size:pageSize.value,status:filters.status||undefined,mediaType:filters.mediaType||undefined,accountId:selectedAccount.value});issues.value=r.data.records;total.value=r.data.total}
+function resetAndLoad(){page.value=1;void loadIssues()}
+async function requestRescan(){if(!selectedAccount.value)return;rescanning.value=true;try{latestJob.value=(await requestWhatsappScan(selectedAccount.value)).data;ElMessage.success('重扫任务已提交，Mac 采集器在线后会自动领取');startPollingIfNeeded()}finally{rescanning.value=false}}
+function startPollingIfNeeded(){if(pollTimer)window.clearInterval(pollTimer);if(latestJob.value&&['PENDING','CLAIMED'].includes(latestJob.value.status))pollTimer=window.setInterval(async()=>{latestJob.value=(await getLatestWhatsappScan()).data;if(!latestJob.value||!['PENDING','CLAIMED'].includes(latestJob.value.status)){if(pollTimer)clearInterval(pollTimer);await loadAll()}},5000)}
+function openChat(row:CollectionIssue){const digits=(row.conversationJid||'').split('@')[0].replace(/\D/g,'');if(!digits)return ElMessage.warning('该记录无法定位聊天');window.location.href=`whatsapp://send?phone=${digits}`}
+async function handleBinding(id:number,status:'CONFIRMED'|'REJECTED'){await ElMessageBox.confirm(status==='CONFIRMED'?'确认将该 WhatsApp 联系人与 ERP 客户绑定？':'确认拒绝这条匹配候选？','确认操作');await decideBinding(id,status);ElMessage.success('处理成功');bindings.value=(await getPendingBindings()).data||[]}
+async function handleCreateCollector(){if(!collectorForm.name||!collectorForm.accountRef)return ElMessage.warning('请填写名称和账号标识');creatingCollector.value=true;try{createdCredential.value=(await createCollector({...collectorForm,phoneNormalized:collectorForm.phoneNormalized||undefined})).data;await loadAll()}finally{creatingCollector.value=false}}
+async function copyKey(){if(createdCredential.value){await navigator.clipboard.writeText(createdCredential.value.collectorKey);ElMessage.success('密钥已复制')}}
+const formatTime=(v?:string)=>v?new Date(v).toLocaleString('zh-CN',{hour12:false}):'暂无'
+const maskPhone=(v?:string)=>!v?'—':v.length<8?v:`${v.slice(0,3)}****${v.slice(-4)}`
+const maskedJid=(v?:string)=>maskPhone(v?.split('@')[0])
+const mediaLabel=(v?:string)=>({IMAGE:'图片',VIDEO:'视频',AUDIO:'音频',VOICE:'语音'}[v||'']||v||'未知')
+const issueLabel=(v:string)=>({MEDIA_PATH_EMPTY:'Mac 尚未获得媒体路径',LOCAL_PATH_EMPTY:'Mac 尚未获得媒体路径',THUMBNAIL_ONLY:'只有缩略图，原文件未同步',MEDIA_FILE_MISSING:'Mac 本地文件不存在',LOCAL_FILE_MISSING:'Mac 本地文件不存在',MEDIA_SIZE_MISMATCH:'媒体文件大小异常',SIZE_MISMATCH:'媒体文件大小异常',MEDIA_READ_FAILED:'媒体文件读取失败',MEDIA_ITEM_MISSING:'媒体元数据缺失',UNSAFE_PATH:'媒体路径异常',COPY_CHANGED:'复制期间文件发生变化'}[v]||v)
+const jobLabel=(v:string)=>({PENDING:'等待 Mac 采集器',CLAIMED:'正在扫描',SUCCEEDED:'扫描完成',FAILED:'扫描失败'}[v]||v)
+onMounted(loadAll);onBeforeUnmount(()=>{if(pollTimer)window.clearInterval(pollTimer)})
+</script>

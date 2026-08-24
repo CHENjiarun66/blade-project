@@ -2,6 +2,7 @@ package com.blade.config;
 
 import com.blade.auth.service.JwtTokenProvider;
 import com.blade.agent.auth.AgentAuthenticationFilter;
+import com.blade.whatsapp.auth.CollectorAuthenticationFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,6 +38,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                           AgentAuthenticationFilter agentAuthFilter,
+                                          CollectorAuthenticationFilter collectorAuthFilter,
                                           JwtAuthenticationFilter jwtAuthFilter,
                                           AuthenticationProvider authenticationProvider) throws Exception {
         http
@@ -62,6 +64,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider)
+            .addFilterBefore(collectorAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 

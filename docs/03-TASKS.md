@@ -243,12 +243,12 @@
 | BE-564 | WhatsApp 数据接入方案验证 | ✅ 完成 | 已验证 Mac SQLite/媒体可只读归档，锁定双层存储、CRM 人工确认绑定、权限/保留/脱敏与 ROM/SOW |
 | BE-565 | Agent 后续能力路线评审 | ⏳ TODO | 订单运营异常、利润解释、WhatsApp 反馈分析、经营记忆分阶段排序 |
 | BE-566 | WhatsApp 结构化事实表 | ✅ 完成 | V43 新建账号、批次、水位、联系人、绑定、会话、逻辑消息、源行引用、媒体 9 张表；累计迁移与 383 项测试通过 |
-| BE-567 | WhatsApp 导入鉴权与批次 API | ⏳ 进行中（执行人：Codex） | 独立 Collector 凭证、租户绑定、批次生命周期、幂等和审计 |
-| BE-568 | WhatsApp 联系人与 CRM 绑定 | ⏳ 进行中（执行人：Codex） | 电话规范化、唯一精确匹配候选、人工确认/拒绝，不自动创建客户 |
-| BE-569 | WhatsApp 消息与媒体幂等导入 | ⏳ 进行中（执行人：Codex） | 逻辑去重、旧行更新、媒体 hash、PRIVATE 文件绑定与失败重试 |
-| BE-570 | WhatsApp Mac Collector | ✅ 完成 | 独立 Python v0.1 已实现 doctor、SQLite Backup、schema guard、私聊完整扫描、逻辑去重、媒体诊断、CSV 报告、本地状态/outbox 底座和 6 项合成测试 |
+| BE-567 | WhatsApp 导入鉴权与批次 API | ✅ 完成 | V44 独立 Collector Key（BCrypt、租户/账号/scope 绑定）及批次/扫描任务 API；成功批次不可回退，失败批次可安全重跑 |
+| BE-568 | WhatsApp 联系人与 CRM 绑定 | ✅ 完成 | E.164 digits-only 规范化、租户内唯一精确号码生成待确认候选、人工确认/拒绝；不自动创建客户 |
+| BE-569 | WhatsApp 消息与媒体幂等导入 | ✅ 完成 | 联系人/会话/逻辑消息/源引用/媒体分块 upsert，服务端 SHA-256、PRIVATE 文件绑定与旧媒体补载不重复消息 |
+| BE-570 | WhatsApp Mac Collector | ✅ 完成 | 独立 Python v0.2 支持 doctor、只读快照、schema guard、私聊扫描、ERP sync/watch、分块导入、媒体上传和 9 项测试 |
 | BE-571 | WhatsApp 只读查询与 Agent 上下文 | ⏳ TODO | scoped 沟通时间线/摘要事实、脱敏、审计和限流；不自动发送 |
-| BE-572 | WhatsApp 采集完整性诊断 | ⏳ 进行中（执行人：Codex） | V44采集问题表、缺失媒体分类、重扫恢复、统计/明细 API；明确 Mac 单端检测边界 |
+| BE-572 | WhatsApp 采集完整性诊断 | ✅ 完成 | V44 问题/扫描任务表、稳定问题键、缺失媒体分类、统计/明细 API、完整扫描自动恢复；明确 Mac 单端检测边界 |
 
 ### Phase 6: OCR 拍照录单（P2）
 
@@ -462,7 +462,7 @@
 
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
-| BA-1101 | WhatsApp 缺失媒体工作台 | ⏳ 进行中（执行人：Codex） | 按客户/联系人、媒体类型、问题状态展示缺失项，支持打开对应聊天、触发重扫并查看恢复结果 |
+| BA-1101 | WhatsApp 缺失媒体工作台 | ✅ 完成 | 按客户/聊天、媒体类型和状态查看问题；支持打开 WhatsApp、触发扫描任务、轮询结果及人工确认 CRM 绑定 |
 
 ---
 

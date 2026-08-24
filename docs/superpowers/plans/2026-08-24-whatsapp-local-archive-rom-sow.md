@@ -534,3 +534,28 @@ v1 中只有用户可以决定营销动作；Agent 不发送消息、不修改�
 - 自动化测试命令、数量与结果。
 - 真实样本仅记录脱敏计数和一致性结论。
 - 未完成项、风险和下一 SOW 建议。
+
+## 十七、v0.2 实施结果（2026-08-24）
+
+### 17.1 已完成范围
+
+- V44 新增 `wa_collector_key`、`wa_collection_issue` 和 `wa_scan_job`，Collector 凭证与 Agent Key 分离并绑定租户、账号和 scope。
+- 内部导入 API 支持批次、联系人、会话、逻辑消息、源行引用、媒体元数据、媒体文件和采集问题的幂等写入；成功批次不可回退，失败/部分失败批次可重跑。
+- 媒体由服务端计算 SHA-256，以 `source=whatsapp`、`purpose=customer_chat`、`visibility=PRIVATE` 写入文件中心并建立幂等业务绑定。
+- CRM 只对租户内唯一精确号码创建 `PENDING` 候选，由工作台人工确认或拒绝；未自动创建或覆盖客户主档。
+- ERP 工作台支持按账号、客户/聊天、媒体类型和问题状态筛选，打开 WhatsApp 对应号码、发起重扫、轮询结果和查看恢复状态。
+- Collector v0.2 支持 `configure --erp-url`、`sync`、`watch --once` 和持续 `watch`；凭证配置文件权限为 `0600`，非 localhost 地址强制 HTTPS。
+
+### 17.2 实际验证
+
+- 空库 Flyway 从 V1 累计迁移到 V44 成功；后端全量测试 386 项通过，Failures 0、Errors 0。
+- 管理端生产构建通过；Collector 9 项 unittest 通过，包含只读快照、schema guard、媒体越界/符号链接拒绝、问题恢复和配置权限。
+- 合成端到端首次导入得到 5 条逻辑消息、4 条媒体元数据和 1 个文件；重复导入后总数仍为 5/4/1。
+- 在旧消息补充本地媒体文件后重扫，逻辑消息和媒体记录保持 5/4，文件增至 2，原问题自动转为 `RESOLVED`；扫描任务状态由 `PENDING` 正常转为 `SUCCEEDED`。
+- 同一已成功批次重放保持 `SUCCEEDED`，拒绝改为失败；失败批次可重新进入 `RUNNING`。真实 WhatsApp 源未被写入，真实聊天和凭证未进入 Git。
+
+### 17.3 后续边界
+
+- 本阶段未部署生产/NAS，启用前需生成账号专用 Collector Key，在 Mac 完成 `configure` 后先人工执行一次 `sync`，再决定是否常驻 `watch`。
+- `BE-571` Agent 只读查询、摘要与推荐尚未实现；Agent 仍不得直连数据库、读取原始快照、自动发消息或执行营销。
+- Mac 单端仍无法识别“iPhone 上存在但从未进入 Mac 数据库”的整条消息，工作台只陈述 Mac 可观察到的媒体缺失和恢复事实。

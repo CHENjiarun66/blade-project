@@ -8,6 +8,39 @@
 
 ## 2026-08-24 变更记录
 
+### [功能开发] - WhatsApp ERP 同步与缺失媒体工作台 v0.2
+
+**变更内容**：
+- V44 新增独立 Collector Key、采集问题和扫描任务表；Collector 写入凭证与 Agent Key 分离，并绑定租户、账号和 scope。
+- 新增联系人、会话、消息、源引用、媒体元数据/文件、采集问题和批次生命周期的内部幂等导入 API；媒体由服务端计算 SHA-256，以 PRIVATE 客户聊天资产进入文件中心。
+- 联系人仅按租户内唯一规范化号码生成 CRM 待确认候选，管理端支持人工确认/拒绝，不自动创建客户。
+- 新增 WhatsApp 完整性工作台：按客户/聊天、媒体类型和状态查看缺失项，打开对应 WhatsApp 聊天，发起 Mac 重扫并轮询恢复结果。
+- 独立 Collector 升级到 v0.2，支持保存 0600 权限的 ERP 凭证、`sync` 分块同步和 `watch` 扫描任务执行；未知直接联系人可生成仅供绑定的 observed contact。
+
+**变更原因**：
+- 让 Mac 本地 WhatsApp 归档可以安全、可重放地进入 Blade，并让用户定位未下载图片/视频，在 WhatsApp 手动加载后再次扫描补齐，而不更换号码或启用自动回复。
+
+**影响范围**：
+- `blade-backend/src/main/java/com/blade/whatsapp/**`
+- `blade-backend/src/main/resources/db/migration/V44__whatsapp_collector_workbench.sql`
+- `blade-admin/src/api/whatsapp.ts`
+- `blade-admin/src/views/whatsapp/**`
+- `/Users/chenjiarun/Documents/CodexWhatsapp/**`
+- WhatsApp 规划、PRD、任务与 Agent 边界文档
+
+**验证结果**：
+- 隔离空库 Flyway V1→V44：46 个 migration 全部成功。
+- `mvn -q test`：386 项通过，Failures 0、Errors 0；管理端生产构建通过。
+- Collector `unittest`：9 项通过；`git diff --check` 通过。
+- 合成端到端：首次导入消息/媒体元数据/文件为 5/4/1，重复导入保持 5/4/1；旧消息补载媒体后保持 5/4，文件增至 2，问题状态为 2 个待处理、1 个已恢复；ERP 扫描任务可由 Collector 领取并完成。
+- 批次重放验证：成功批次保持成功且不可回退；失败批次可重新进入运行状态。未修改 WhatsApp 源库，未操作生产/NAS。
+
+**执行人**：Codex
+
+---
+
+## 2026-08-24 变更记录
+
 ### [功能开发] - WhatsApp Mac Collector v0.1
 
 **变更内容**：

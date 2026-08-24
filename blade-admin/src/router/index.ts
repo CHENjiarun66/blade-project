@@ -114,6 +114,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '文件中心', permission: 'menu:file' },
       },
       {
+        path: 'whatsapp',
+        name: 'WhatsappArchive',
+        component: () => import('@/views/whatsapp/index.vue'),
+        meta: { title: 'WhatsApp 归档', permission: 'menu:whatsapp' },
+      },
+      {
         path: 'personal',
         name: 'Personal',
         component: () => import('@/views/personal/index.vue'),
@@ -234,6 +240,7 @@ function canAccessPath(path: string, permissions: string[]): boolean {
     '/products': 'menu:product',
     '/clients': 'menu:customer',
     '/files': 'menu:file',
+    '/whatsapp': 'menu:whatsapp',
     '/system': 'menu:system',
     '/catalog': 'data:catalog:view',
   }
@@ -256,11 +263,12 @@ function getFirstAccessiblePage(permissions: string[]): string {
     '/products': 'menu:product',
     '/clients': 'menu:customer',
     '/files': 'menu:file',
+    '/whatsapp': 'menu:whatsapp',
     '/system': 'menu:system',
     '/catalog': 'data:catalog:view',
   }
 
-  const priorityPages = ['/dashboard', '/analytics', '/orders', '/inventory', '/products', '/clients', '/files', '/system', '/catalog']
+  const priorityPages = ['/dashboard', '/analytics', '/orders', '/inventory', '/products', '/clients', '/whatsapp', '/files', '/system', '/catalog']
   for (const page of priorityPages) {
     const requiredPermission = pagePermissionMap[page]
     if (permissions.includes(requiredPermission)) {
