@@ -246,7 +246,7 @@
 | BE-567 | WhatsApp 导入鉴权与批次 API | ⏳ TODO | 独立 Collector 凭证、租户绑定、批次生命周期、幂等和审计 |
 | BE-568 | WhatsApp 联系人与 CRM 绑定 | ⏳ TODO | 电话规范化、唯一精确匹配候选、人工确认/拒绝，不自动创建客户 |
 | BE-569 | WhatsApp 消息与媒体幂等导入 | ⏳ TODO | 逻辑去重、旧行更新、媒体 hash、PRIVATE 文件绑定与失败重试 |
-| BE-570 | WhatsApp Mac Collector | ⏳ TODO | 一致性快照、schema guard、完整流式扫描、outbox 和合成 fixture 测试 |
+| BE-570 | WhatsApp Mac Collector | ⏳ 进行中（执行人：Codex） | 正在实现独立 Python 采集器：doctor、一致性快照、schema guard、完整流式扫描、媒体诊断和合成 fixture 测试 |
 | BE-571 | WhatsApp 只读查询与 Agent 上下文 | ⏳ TODO | scoped 沟通时间线/摘要事实、脱敏、审计和限流；不自动发送 |
 | BE-572 | WhatsApp 采集完整性诊断 | ⏳ TODO | V44采集问题表、缺失媒体分类、重扫恢复、统计/明细 API；明确 Mac 单端检测边界 |
 
