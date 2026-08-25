@@ -26,6 +26,17 @@ export interface WhatsappInsight {
   recommendedAction: string; confidence: number; evidenceMessageIds: number[]; model: string; analyzedAt: string; handledAt?: string; handleNote?: string
 }
 export interface InsightEvidence { messageId: number; sentAt: string; direction: string; excerpt: string }
+export interface ArchiveChat {
+  accountId: number; identityKey: string; displayName: string; phoneNormalized?: string; messageCount: number
+  lastMessageId?: number; lastMessageAt?: string; lastDirection?: string; lastMessageType?: string; lastText?: string
+}
+export interface ArchiveMedia {
+  id?: number; fileId?: number; mediaType: string; mimeType?: string; originalName?: string; fileSize?: number; caption?: string
+  durationMs?: number; width?: number; height?: number; downloadStatus: string; issueType?: string
+}
+export interface ArchiveMessage {
+  id: number; sentAt: string; direction: string; messageType: string; textContent?: string; status?: string; starred: boolean; media: ArchiveMedia[]
+}
 
 export const getWhatsappAccounts = () => client.get<any, ApiResult<WhatsappAccount[]>>('/whatsapp/accounts')
 export const getIssueSummary = () => client.get<any, ApiResult<IssueSummary>>('/whatsapp/issues/summary')
@@ -43,3 +54,5 @@ export const getWhatsappInsights = (params: Record<string, unknown>) => client.g
 export const getInsightEvidence = (analysisId: number) => client.get<any, ApiResult<InsightEvidence[]>>(`/whatsapp/insights/${analysisId}/evidence`)
 export const decideWhatsappRecommendation = (id: number, status: 'ADOPTED' | 'DISMISSED' | 'COMPLETED', note?: string) =>
   client.put(`/whatsapp/recommendations/${id}`, { status, note })
+export const getArchiveChats = (params: Record<string, unknown>) => client.get<any, ApiResult<PageResult<ArchiveChat>>>('/whatsapp/archive/chats', { params })
+export const getArchiveMessages = (params: Record<string, unknown>) => client.get<any, ApiResult<PageResult<ArchiveMessage>>>('/whatsapp/archive/messages', { params })

@@ -165,6 +165,20 @@ public final class WhatsappDtos {
                                 long openCount, long resolvedCount, LocalDateTime latestMessageTime,
                                 LocalDateTime lastDetectedAt) {}
 
+    public record ArchiveChatView(Long accountId, String identityKey, String displayName,
+                                  String phoneNormalized, long messageCount, Long lastMessageId,
+                                  LocalDateTime lastMessageAt, String lastDirection,
+                                  String lastMessageType, String lastText) {}
+
+    public record ArchiveMediaView(Long id, Long fileId, String mediaType, String mimeType,
+                                   String originalName, Long fileSize, String caption,
+                                   Long durationMs, Integer width, Integer height,
+                                   String downloadStatus, String issueType) {}
+
+    public record ArchiveMessageView(Long id, LocalDateTime sentAt, String direction,
+                                     String messageType, String textContent, String status,
+                                     boolean starred, List<ArchiveMediaView> media) {}
+
     public record ScanJobView(Long id, Long accountId, String accountName, String scopeType,
                               String targetPhoneNormalized, String targetConversationJid, String status,
                               LocalDateTime requestedAt, LocalDateTime claimedAt,

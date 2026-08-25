@@ -39,6 +39,14 @@ public class WhatsappAdminController {
           @RequestParam(required=false)String phoneNormalized,@RequestParam(required=false)String conversationJid,
           @RequestParam(required=false)Long conversationId){
         return R.ok(service.issues(page,size,status,mediaType,accountId,phoneNormalized,conversationJid,conversationId));}
+    @GetMapping("/archive/chats") @PreAuthorize("hasAuthority('menu:whatsapp')")
+    public R<PageResult<ArchiveChatView>> archiveChats(@RequestParam(defaultValue="1")int page,
+          @RequestParam(defaultValue="30")int size,@RequestParam(required=false)Long accountId,
+          @RequestParam(required=false)String keyword){return R.ok(service.archiveChats(page,size,accountId,keyword));}
+    @GetMapping("/archive/messages") @PreAuthorize("hasAuthority('menu:whatsapp')")
+    public R<PageResult<ArchiveMessageView>> archiveMessages(@RequestParam(defaultValue="1")int page,
+          @RequestParam(defaultValue="50")int size,@RequestParam Long accountId,
+          @RequestParam String identityKey){return R.ok(service.archiveMessages(page,size,accountId,identityKey));}
     @PostMapping("/scan-jobs") @PreAuthorize("hasAuthority('btn:whatsapp:rescan')")
     public R<ScanJobView> scan(@RequestParam Long accountId,
           @RequestParam(defaultValue="ACCOUNT")String scopeType,

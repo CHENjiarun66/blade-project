@@ -19,6 +19,7 @@ test('缺失媒体按聊天聚合，并在详情抽屉展示该客户全部明�
   })
   await page.route('**/api/whatsapp/bindings/pending', route => route.fulfill({ json: ok([]) }))
   await page.route('**/api/whatsapp/insights?*', route => route.fulfill({ json: ok({ records: [], total: 0, size: 20, current: 1, pages: 0 }) }))
+  await page.route('**/api/whatsapp/archive/chats?*', route => route.fulfill({ json: ok({ records: [], total: 0, size: 30, current: 1, pages: 0 }) }))
   await page.route('**/api/whatsapp/issues/chats?*', route => route.fulfill({ json: ok({
     records: [
       { accountId: 1, conversationId: 10, conversationTitle: 'Shakirah 拉友', conversationJid: '126817868456165@lid', phoneNormalized: '2349164306062', issueCount: 3, imageCount: 2, videoCount: 1, audioCount: 0, openCount: 3, resolvedCount: 0, latestMessageTime: '2026-08-03T09:09:11', lastDetectedAt: '2026-08-25T04:11:17' },

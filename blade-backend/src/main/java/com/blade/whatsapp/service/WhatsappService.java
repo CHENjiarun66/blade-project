@@ -504,6 +504,123 @@ public class WhatsappService {
         return PageResult.of(records,total,safeSize,safePage);
     }
 
+    public PageResult<ArchiveChatView> archiveChats(int page, int size, Long accountId, String keyword) {
+        long tenant = requiredTenant();
+        int safePage = Math.max(1, page), safeSize = Math.min(100, Math.max(1, size));
+        String identity = "COALESCE(NULLIF(wc.phone_normalized,''),c.conversation_jid)";
+        StringBuilder eligibleWhere = new StringBuilder("""
+                WHERE c.tenant_id=? AND c.deleted=0 AND c.conversation_type='DIRECT'
+                """);
+        List<Object> eligibleArgs = new ArrayList<>();
+        eligibleArgs.add(tenant);
+        if (accountId != null) {
+            eligibleWhere.append(" AND c.account_id=?");
+            eligibleArgs.add(accountId);
+        }
+        String search = blankToNull(keyword);
+        if (search != null) {
+            eligibleWhere.append(" AND (wc.phone_normalized LIKE ? OR wc.display_name LIKE ? OR wc.business_name LIKE ? OR c.title LIKE ?)");
+            String like = "%" + search + "%";
+            String phoneLike = digits(search) == null ? like : "%" + digits(search) + "%";
+            eligibleArgs.add(phoneLike); eligibleArgs.add(like); eligibleArgs.add(like); eligibleArgs.add(like);
+        }
+        String from = " FROM wa_conversation c LEFT JOIN wa_contact wc ON wc.id=c.contact_id AND wc.tenant_id=c.tenant_id AND wc.deleted=0 ";
+        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM (SELECT c.account_id," + identity + " identity_key" + from +
+                eligibleWhere + " GROUP BY c.account_id," + identity + ") grouped", Long.class, eligibleArgs.toArray());
+
+        String cte = """
+                WITH eligible AS (
+                  SELECT c.id conversation_id,c.account_id,
+                    COALESCE(NULLIF(wc.phone_normalized,''),c.conversation_jid) identity_key,
+                    COALESCE(NULLIF(wc.business_name,''),NULLIF(wc.display_name,''),NULLIF(c.title,''),
+                             NULLIF(wc.phone_normalized,''),c.conversation_jid) display_name,
+                    wc.phone_normalized
+                  FROM wa_conversation c
+                  LEFT JOIN wa_contact wc ON wc.id=c.contact_id AND wc.tenant_id=c.tenant_id AND wc.deleted=0
+                """ + eligibleWhere + """
+                ), ranked AS (
+                  SELECT e.account_id,e.identity_key,e.display_name,e.phone_normalized,
+                    m.id,m.sent_at,m.direction,m.message_type,m.text_content,
+                    COUNT(*) OVER (PARTITION BY e.account_id,e.identity_key) message_count,
+                    ROW_NUMBER() OVER (PARTITION BY e.account_id,e.identity_key ORDER BY m.sent_at DESC,m.id DESC) row_no
+                  FROM eligible e
+                  JOIN wa_message m ON m.conversation_id=e.conversation_id AND m.tenant_id=? AND m.deleted=0
+                )
+                SELECT account_id,identity_key,display_name,phone_normalized,message_count,id,last_message_at,
+                       direction,message_type,text_content
+                FROM (SELECT account_id,identity_key,display_name,phone_normalized,message_count,id,
+                             sent_at last_message_at,direction,message_type,text_content,row_no
+                      FROM ranked) latest
+                WHERE row_no=1
+                ORDER BY last_message_at DESC,id DESC LIMIT ? OFFSET ?
+                """;
+        List<Object> args = new ArrayList<>(eligibleArgs);
+        args.add(tenant); args.add(safeSize); args.add((safePage - 1) * safeSize);
+        List<ArchiveChatView> records = jdbc.query(cte, (rs,row) -> new ArchiveChatView(
+                rs.getLong("account_id"), rs.getString("identity_key"), rs.getString("display_name"),
+                rs.getString("phone_normalized"), rs.getLong("message_count"), nullableLong(rs,"id"),
+                local(rs,"last_message_at"), rs.getString("direction"), rs.getString("message_type"),
+                rs.getString("text_content")), args.toArray());
+        return PageResult.of(records, total == null ? 0 : total, safeSize, safePage);
+    }
+
+    public PageResult<ArchiveMessageView> archiveMessages(int page, int size, Long accountId, String identityKey) {
+        long tenant = requiredTenant();
+        int safePage = Math.max(1, page), safeSize = Math.min(100, Math.max(1, size));
+        String identity = blankToNull(identityKey);
+        if (accountId == null || identity == null) throw new IllegalArgumentException("缺少WhatsApp聊天标识");
+        if (!exists("SELECT COUNT(*) FROM wa_account WHERE tenant_id=? AND id=? AND deleted=0", tenant, accountId))
+            throw new IllegalArgumentException("WhatsApp账号不存在");
+        String scope = """
+                FROM wa_message m
+                JOIN wa_conversation c ON c.id=m.conversation_id AND c.tenant_id=m.tenant_id AND c.deleted=0 AND c.conversation_type='DIRECT'
+                LEFT JOIN wa_contact wc ON wc.id=c.contact_id AND wc.tenant_id=c.tenant_id AND wc.deleted=0
+                WHERE m.tenant_id=? AND m.account_id=? AND m.deleted=0
+                  AND COALESCE(NULLIF(wc.phone_normalized,''),c.conversation_jid)=?
+                """;
+        Long total = jdbc.queryForObject("SELECT COUNT(*) " + scope, Long.class, tenant, accountId, identity);
+        List<ArchiveMessageView> messages = jdbc.query("""
+                SELECT m.id,m.sent_at,m.direction,m.message_type,m.text_content,m.status,m.is_starred
+                """ + scope + " ORDER BY m.sent_at DESC,m.id DESC LIMIT ? OFFSET ?", (rs,row) -> new ArchiveMessageView(
+                rs.getLong("id"), local(rs,"sent_at"), rs.getString("direction"), rs.getString("message_type"),
+                rs.getString("text_content"), rs.getString("status"), rs.getBoolean("is_starred"), new ArrayList<>()),
+                tenant, accountId, identity, safeSize, (safePage - 1) * safeSize);
+        if (!messages.isEmpty()) {
+            List<Long> messageIds = messages.stream().map(ArchiveMessageView::id).toList();
+            String placeholders = String.join(",", Collections.nCopies(messageIds.size(), "?"));
+            List<Object> mediaArgs = new ArrayList<>(); mediaArgs.add(tenant); mediaArgs.addAll(messageIds);
+            Map<Long,List<ArchiveMediaView>> mediaByMessage = new HashMap<>();
+            jdbc.query("""
+                    SELECT mm.message_id,mm.id,mm.file_id,mm.media_type,mm.mime_type,mm.original_name,mm.file_size,
+                           mm.caption,mm.duration_ms,mm.width,mm.height,mm.download_status,
+                           (SELECT i.issue_type FROM wa_collection_issue i
+                            WHERE i.tenant_id=mm.tenant_id AND i.message_id=mm.message_id
+                              AND (i.media_id=mm.id OR i.media_id IS NULL) AND i.status='OPEN' AND i.deleted=0
+                            ORDER BY i.last_detected_at DESC LIMIT 1) issue_type
+                    FROM wa_message_media mm
+                    WHERE mm.tenant_id=? AND mm.deleted=0 AND mm.message_id IN (""" + placeholders + ") ORDER BY mm.id", rs -> {
+                long messageId = rs.getLong("message_id");
+                ArchiveMediaView media = new ArchiveMediaView(rs.getLong("id"), nullableLong(rs,"file_id"),
+                        rs.getString("media_type"), rs.getString("mime_type"), rs.getString("original_name"),
+                        nullableLong(rs,"file_size"), rs.getString("caption"), nullableLong(rs,"duration_ms"),
+                        nullableInteger(rs,"width"), nullableInteger(rs,"height"), rs.getString("download_status"),
+                        rs.getString("issue_type"));
+                mediaByMessage.computeIfAbsent(messageId, ignored -> new ArrayList<>()).add(media);
+            }, mediaArgs.toArray());
+            Set<String> mediaTypes = Set.of("IMAGE","VIDEO","AUDIO","VOICE","DOCUMENT","STICKER");
+            messages = messages.stream().map(message -> {
+                List<ArchiveMediaView> media = mediaByMessage.getOrDefault(message.id(), List.of());
+                if (media.isEmpty() && mediaTypes.contains(message.messageType())) {
+                    media = List.of(new ArchiveMediaView(null,null,message.messageType(),null,null,0L,null,
+                            null,null,null,"MISSING","MEDIA_ITEM_MISSING"));
+                }
+                return new ArchiveMessageView(message.id(),message.sentAt(),message.direction(),message.messageType(),
+                        message.textContent(),message.status(),message.starred(),media);
+            }).sorted(Comparator.comparing(ArchiveMessageView::sentAt).thenComparing(ArchiveMessageView::id)).toList();
+        }
+        return PageResult.of(messages, total == null ? 0 : total, safeSize, safePage);
+    }
+
     private StringBuilder issueWhere(String status, String mediaType, Long accountId) {
         StringBuilder where = new StringBuilder(" WHERE i.tenant_id=? AND i.deleted=0");
         if (status != null && !status.isBlank()) where.append(" AND i.status=?");
@@ -656,6 +773,7 @@ public class WhatsappService {
     private static long number(Map<String,Object> row,String key){Object v=row.get(key);return v==null?0:((Number)v).longValue();}
     private static LocalDateTime asLocalDateTime(Object value){if(value==null)return null;if(value instanceof LocalDateTime local)return local;if(value instanceof java.sql.Timestamp timestamp)return timestamp.toLocalDateTime();throw new IllegalArgumentException("不支持的时间值");}
     private static Long nullableLong(java.sql.ResultSet rs,String name)throws java.sql.SQLException{long value=rs.getLong(name);return rs.wasNull()?null:value;}
+    private static Integer nullableInteger(java.sql.ResultSet rs,String name)throws java.sql.SQLException{int value=rs.getInt(name);return rs.wasNull()?null:value;}
     private static LocalDateTime local(java.sql.ResultSet rs,String name)throws java.sql.SQLException{java.sql.Timestamp value=rs.getTimestamp(name);return value==null?null:value.toLocalDateTime();}
     private record BatchRow(Long id,String status,String scanScopeType,String targetPhoneNormalized,String targetConversationJid){}
     private static final class Counter{long inserted,updated;void add(boolean exists){if(exists)updated++;else inserted++;}ImportCounts result(){return new ImportCounts(inserted,updated);}}
