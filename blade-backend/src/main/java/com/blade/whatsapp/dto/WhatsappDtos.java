@@ -153,6 +153,12 @@ public final class WhatsappDtos {
                             String mediaType, int occurrenceCount, LocalDateTime firstDetectedAt,
                             LocalDateTime lastDetectedAt, LocalDateTime resolvedAt) {}
 
+    public record IssueChatView(Long accountId, Long conversationId, String conversationTitle,
+                                Long customerId, String customerName, String conversationJid,
+                                long issueCount, long imageCount, long videoCount, long audioCount,
+                                long openCount, long resolvedCount, LocalDateTime latestMessageTime,
+                                LocalDateTime lastDetectedAt) {}
+
     public record ScanJobView(Long id, Long accountId, String accountName, String status,
                               LocalDateTime requestedAt, LocalDateTime claimedAt,
                               LocalDateTime completedAt, Long resultBatchId, String errorSummary) {}

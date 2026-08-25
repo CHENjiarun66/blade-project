@@ -9,6 +9,11 @@ export interface CollectionIssue {
   messageId?: number; messageTime?: string; direction?: string; issueType: string; status: string
   severity: string; mediaType?: string; occurrenceCount: number; firstDetectedAt: string; lastDetectedAt: string; resolvedAt?: string
 }
+export interface IssueChat {
+  accountId: number; conversationId?: number; conversationTitle?: string; customerId?: number; customerName?: string; conversationJid?: string
+  issueCount: number; imageCount: number; videoCount: number; audioCount: number; openCount: number; resolvedCount: number
+  latestMessageTime?: string; lastDetectedAt?: string
+}
 export interface ScanJob { id: number; accountId: number; accountName?: string; status: string; requestedAt: string; claimedAt?: string; completedAt?: string; resultBatchId?: number; errorSummary?: string }
 export interface BindingCandidate { id: number; contactId: number; contactName?: string; phoneNormalized?: string; customerId: number; customerName?: string; matchMethod: string; status: string; createTime: string }
 export interface CollectorCredential { accountId: number; keyId: number; collectorKey: string; keyPrefix: string; scopes: string[] }
@@ -21,6 +26,7 @@ export interface InsightEvidence { messageId: number; sentAt: string; direction:
 
 export const getWhatsappAccounts = () => client.get<any, ApiResult<WhatsappAccount[]>>('/whatsapp/accounts')
 export const getIssueSummary = () => client.get<any, ApiResult<IssueSummary>>('/whatsapp/issues/summary')
+export const getIssueChats = (params: Record<string, unknown>) => client.get<any, ApiResult<PageResult<IssueChat>>>('/whatsapp/issues/chats', { params })
 export const getIssues = (params: Record<string, unknown>) => client.get<any, ApiResult<PageResult<CollectionIssue>>>('/whatsapp/issues', { params })
 export const requestWhatsappScan = (accountId: number) => client.post<any, ApiResult<ScanJob>>('/whatsapp/scan-jobs', null, { params: { accountId } })
 export const getLatestWhatsappScan = () => client.get<any, ApiResult<ScanJob | null>>('/whatsapp/scan-jobs/latest')

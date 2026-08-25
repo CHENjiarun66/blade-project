@@ -390,15 +390,48 @@ public class WhatsappService {
         }
     }
 
-    public PageResult<IssueView> issues(int page, int size, String status, String mediaType, Long accountId) {
+    public PageResult<IssueChatView> issueChats(int page, int size, String status, String mediaType, Long accountId) {
         long tenant = requiredTenant();
         int safePage = Math.max(1,page), safeSize = Math.min(100,Math.max(1,size));
-        StringBuilder where = new StringBuilder(" WHERE i.tenant_id=? AND i.deleted=0");
-        List<Object> args = new ArrayList<>(); args.add(tenant);
-        if (status != null && !status.isBlank()) { where.append(" AND i.status=?"); args.add(status); }
-        if (mediaType != null && !mediaType.isBlank()) { where.append(" AND i.media_type=?"); args.add(mediaType); }
-        if (accountId != null) { where.append(" AND i.account_id=?"); args.add(accountId); }
-        long total = jdbc.queryForObject("SELECT COUNT(*) FROM wa_collection_issue i"+where,Long.class,args.toArray());
+        StringBuilder where = issueWhere(status, mediaType, accountId);
+        List<Object> args = issueArgs(tenant, status, mediaType, accountId);
+        String groupKey = "COALESCE(NULLIF(c.conversation_jid,''),CONCAT('#',i.conversation_id))";
+        long total = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM (
+                  SELECT 1 FROM wa_collection_issue i
+                  LEFT JOIN wa_conversation c ON c.id=i.conversation_id AND c.tenant_id=i.tenant_id
+                """+where+" GROUP BY i.account_id,"+groupKey+") grouped_chats",Long.class,args.toArray());
+        args.add(safeSize); args.add((safePage-1)*safeSize);
+        List<IssueChatView> records = jdbc.query("""
+                SELECT i.account_id,MAX(i.conversation_id) conversation_id,MAX(c.title) conversation_title,
+                  MAX(b.customer_id) customer_id,MAX(cu.name) customer_name,MAX(c.conversation_jid) conversation_jid,
+                  COUNT(*) issue_count,SUM(i.media_type='IMAGE') image_count,SUM(i.media_type='VIDEO') video_count,
+                  SUM(i.media_type IN ('AUDIO','VOICE')) audio_count,SUM(i.status='OPEN') open_count,
+                  SUM(i.status='RESOLVED') resolved_count,MAX(m.sent_at) latest_message_time,
+                  MAX(i.last_detected_at) last_detected_at
+                FROM wa_collection_issue i
+                LEFT JOIN wa_conversation c ON c.id=i.conversation_id AND c.tenant_id=i.tenant_id
+                LEFT JOIN wa_message m ON m.id=i.message_id AND m.tenant_id=i.tenant_id
+                LEFT JOIN wa_customer_binding b ON b.wa_contact_id=c.contact_id AND b.tenant_id=i.tenant_id AND b.status='CONFIRMED' AND b.deleted=0
+                LEFT JOIN crm_customer cu ON cu.id=b.customer_id AND cu.tenant_id=i.tenant_id AND cu.deleted=0
+                """+where+" GROUP BY i.account_id,"+groupKey+" ORDER BY latest_message_time DESC,last_detected_at DESC LIMIT ? OFFSET ?",
+                (rs,row)->new IssueChatView(rs.getLong("account_id"),nullableLong(rs,"conversation_id"),rs.getString("conversation_title"),
+                        nullableLong(rs,"customer_id"),rs.getString("customer_name"),rs.getString("conversation_jid"),
+                        rs.getLong("issue_count"),rs.getLong("image_count"),rs.getLong("video_count"),rs.getLong("audio_count"),
+                        rs.getLong("open_count"),rs.getLong("resolved_count"),local(rs,"latest_message_time"),local(rs,"last_detected_at")),args.toArray());
+        return PageResult.of(records,total,safeSize,safePage);
+    }
+
+    public PageResult<IssueView> issues(int page, int size, String status, String mediaType, Long accountId,
+                                        String conversationJid, Long conversationId) {
+        long tenant = requiredTenant();
+        int safePage = Math.max(1,page), safeSize = Math.min(100,Math.max(1,size));
+        StringBuilder where = issueWhere(status, mediaType, accountId);
+        List<Object> args = issueArgs(tenant, status, mediaType, accountId);
+        if (conversationJid != null && !conversationJid.isBlank()) { where.append(" AND c.conversation_jid=?"); args.add(conversationJid); }
+        else if (conversationId != null) { where.append(" AND i.conversation_id=?"); args.add(conversationId); }
+        String joins = " LEFT JOIN wa_conversation c ON c.id=i.conversation_id AND c.tenant_id=i.tenant_id";
+        long total = jdbc.queryForObject("SELECT COUNT(*) FROM wa_collection_issue i"+joins+where,Long.class,args.toArray());
         args.add(safeSize); args.add((safePage-1)*safeSize);
         List<IssueView> records = jdbc.query("""
                 SELECT i.id,i.account_id,i.conversation_id,c.title,b.customer_id,cu.name AS customer_name,c.conversation_jid,i.message_id,m.sent_at,m.direction,
@@ -414,6 +447,23 @@ public class WhatsappService {
                 rs.getString("issue_type"),rs.getString("status"),rs.getString("severity"),rs.getString("media_type"),
                 rs.getInt("occurrence_count"),local(rs,"first_detected_at"),local(rs,"last_detected_at"),local(rs,"resolved_at")),args.toArray());
         return PageResult.of(records,total,safeSize,safePage);
+    }
+
+    private StringBuilder issueWhere(String status, String mediaType, Long accountId) {
+        StringBuilder where = new StringBuilder(" WHERE i.tenant_id=? AND i.deleted=0");
+        if (status != null && !status.isBlank()) where.append(" AND i.status=?");
+        if (mediaType != null && !mediaType.isBlank()) where.append(" AND i.media_type=?");
+        if (accountId != null) where.append(" AND i.account_id=?");
+        return where;
+    }
+
+    private List<Object> issueArgs(long tenant, String status, String mediaType, Long accountId) {
+        List<Object> args = new ArrayList<>();
+        args.add(tenant);
+        if (status != null && !status.isBlank()) args.add(status);
+        if (mediaType != null && !mediaType.isBlank()) args.add(mediaType);
+        if (accountId != null) args.add(accountId);
+        return args;
     }
 
     @Transactional

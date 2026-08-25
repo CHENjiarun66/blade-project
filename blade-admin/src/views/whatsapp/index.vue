@@ -64,18 +64,17 @@
           </el-select>
           <span class="ml-auto text-xs text-slate-400">打开聊天并让媒体加载后，点击“重新扫描”</span>
         </div>
-        <el-table v-loading="loading" :data="issues" stripe>
-          <el-table-column label="客户 / 聊天" min-width="210">
-            <template #default="{ row }"><div class="font-medium text-slate-800">{{ row.customerName || row.conversationTitle || maskedJid(row.conversationJid) }}</div><div class="text-xs text-slate-400"><span v-if="row.customerName && row.conversationTitle">{{ row.conversationTitle }} · </span>{{ maskedJid(row.conversationJid) }}</div></template>
+        <el-table v-loading="loading" :data="issueChats" stripe empty-text="当前筛选条件下没有缺失媒体">
+          <el-table-column label="客户 / 聊天" min-width="230">
+            <template #default="{ row }"><button class="text-left" @click="openIssueDetail(row)"><div class="font-medium text-slate-800 hover:text-blue-600">{{ chatDisplayName(row) }}</div><div class="text-xs text-slate-400"><span v-if="row.customerName && row.conversationTitle">{{ row.conversationTitle }} · </span>{{ maskedJid(row.conversationJid) }}</div></button></template>
           </el-table-column>
-          <el-table-column label="消息时间" width="170"><template #default="{row}">{{ formatTime(row.messageTime) }}</template></el-table-column>
-          <el-table-column label="媒体" width="100"><template #default="{row}"><el-tag size="small">{{ mediaLabel(row.mediaType) }}</el-tag></template></el-table-column>
-          <el-table-column label="问题" min-width="170"><template #default="{row}">{{ issueLabel(row.issueType) }}</template></el-table-column>
-          <el-table-column label="状态" width="100"><template #default="{row}"><el-tag :type="row.status==='OPEN'?'danger':'success'" size="small">{{ row.status==='OPEN'?'待恢复':'已恢复' }}</el-tag></template></el-table-column>
+          <el-table-column label="缺失媒体" min-width="240"><template #default="{row}"><div class="flex items-center gap-2"><strong class="text-rose-600">{{ row.issueCount }} 项</strong><el-tag v-if="row.imageCount" size="small" type="info">图片 {{ row.imageCount }}</el-tag><el-tag v-if="row.videoCount" size="small">视频 {{ row.videoCount }}</el-tag><el-tag v-if="row.audioCount" size="small" type="warning">音频 {{ row.audioCount }}</el-tag></div></template></el-table-column>
+          <el-table-column label="最近消息" width="170"><template #default="{row}">{{ formatTime(row.latestMessageTime) }}</template></el-table-column>
+          <el-table-column label="状态" width="110"><template #default="{row}"><el-tag :type="row.openCount>0?'danger':'success'" size="small">{{ row.openCount>0?`待恢复 ${row.openCount}`:'已恢复' }}</el-tag></template></el-table-column>
           <el-table-column label="最近检测" width="170"><template #default="{row}">{{ formatTime(row.lastDetectedAt) }}</template></el-table-column>
-          <el-table-column label="操作" width="110" fixed="right"><template #default="{row}"><el-button link type="primary" :disabled="!row.conversationJid" @click="openChat(row)">打开聊天</el-button></template></el-table-column>
+          <el-table-column label="操作" width="110" fixed="right"><template #default="{row}"><el-button link type="primary" @click="openIssueDetail(row)">查看详情</el-button></template></el-table-column>
         </el-table>
-        <div class="flex justify-end py-4"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" layout="total, prev, pager, next" :total="total" @current-change="loadIssues" /></div>
+        <div class="flex justify-end py-4"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" layout="total, prev, pager, next" :total="total" @current-change="loadIssueChats" /></div>
       </el-tab-pane>
 
       <el-tab-pane :label="`客户绑定 (${bindings.length})`" name="bindings">
@@ -104,6 +103,26 @@
       <el-timeline v-if="evidence.length"><el-timeline-item v-for="item in evidence" :key="item.messageId" :timestamp="formatTime(item.sentAt)" placement="top"><div class="rounded-xl bg-slate-50 p-3"><p class="mb-1 text-xs text-slate-400">{{ item.direction==='OUTBOUND'?'我方':'客户' }} · 消息 #{{ item.messageId }}</p><p class="text-sm text-slate-700">{{ item.excerpt }}</p></div></el-timeline-item></el-timeline>
       <el-empty v-else description="没有可显示的证据" />
     </el-dialog>
+    <el-drawer v-model="issueDetailDrawer" size="820px" destroy-on-close>
+      <template #header><div><h3 class="text-lg font-semibold text-slate-900">{{ selectedIssueChat ? chatDisplayName(selectedIssueChat) : '缺失媒体详情' }}</h3><p class="mt-1 text-xs text-slate-400">{{ maskedJid(selectedIssueChat?.conversationJid) }} · 共 {{ selectedIssueChat?.issueCount || 0 }} 项</p></div></template>
+      <div v-if="selectedIssueChat" class="flex h-full flex-col">
+        <el-alert title="请先打开这个客户的聊天，让图片、视频或语音完成加载；然后回到这里点击“重新扫描”。" type="info" :closable="false" show-icon class="mb-4" />
+        <div class="mb-4 flex items-center gap-2 rounded-xl bg-slate-50 p-3">
+          <el-tag v-if="selectedIssueChat.imageCount" type="info">图片 {{ selectedIssueChat.imageCount }}</el-tag>
+          <el-tag v-if="selectedIssueChat.videoCount">视频 {{ selectedIssueChat.videoCount }}</el-tag>
+          <el-tag v-if="selectedIssueChat.audioCount" type="warning">音频 {{ selectedIssueChat.audioCount }}</el-tag>
+          <div class="ml-auto flex gap-2"><el-button type="primary" :disabled="!selectedIssueChat.conversationJid" @click="openChat(selectedIssueChat)">打开这个聊天</el-button><el-button :loading="rescanning" @click="requestRescan">重新扫描</el-button></div>
+        </div>
+        <el-table v-loading="detailLoading" :data="detailIssues" stripe empty-text="没有缺失媒体明细">
+          <el-table-column label="消息时间" width="170"><template #default="{row}">{{ formatTime(row.messageTime) }}</template></el-table-column>
+          <el-table-column label="媒体" width="90"><template #default="{row}"><el-tag size="small">{{ mediaLabel(row.mediaType) }}</el-tag></template></el-table-column>
+          <el-table-column label="缺失原因" min-width="210"><template #default="{row}">{{ issueLabel(row.issueType) }}</template></el-table-column>
+          <el-table-column label="状态" width="90"><template #default="{row}"><el-tag :type="row.status==='OPEN'?'danger':'success'" size="small">{{ row.status==='OPEN'?'待恢复':'已恢复' }}</el-tag></template></el-table-column>
+          <el-table-column label="最近检测" width="170"><template #default="{row}">{{ formatTime(row.lastDetectedAt) }}</template></el-table-column>
+        </el-table>
+        <div class="flex justify-end py-4"><el-pagination v-model:current-page="detailPage" :page-size="20" layout="total, prev, pager, next" :total="detailTotal" @current-change="loadIssueDetails" /></div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -111,25 +130,28 @@
 import { computed, defineComponent, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import { createCollector, decideBinding, decideWhatsappRecommendation, getInsightEvidence, getIssueSummary, getIssues, getLatestWhatsappScan, getPendingBindings, getWhatsappAccounts, getWhatsappInsights, requestWhatsappScan, type BindingCandidate, type CollectionIssue, type CollectorCredential, type InsightEvidence, type IssueSummary, type ScanJob, type WhatsappAccount, type WhatsappInsight } from '@/api/whatsapp'
+import { createCollector, decideBinding, decideWhatsappRecommendation, getInsightEvidence, getIssueChats, getIssueSummary, getIssues, getLatestWhatsappScan, getPendingBindings, getWhatsappAccounts, getWhatsappInsights, requestWhatsappScan, type BindingCandidate, type CollectionIssue, type CollectorCredential, type InsightEvidence, type IssueChat, type IssueSummary, type ScanJob, type WhatsappAccount, type WhatsappInsight } from '@/api/whatsapp'
 
 const MetricCard = defineComponent({ props:{label:String,value:Number,tone:String}, setup(props){return()=>h('div',{class:'rounded-2xl border border-slate-200 bg-white p-4'},[h('p',{class:'text-xs text-slate-500'},props.label),h('p',{class:`mt-2 text-3xl font-bold ${props.tone==='rose'?'text-rose-600':props.tone==='emerald'?'text-emerald-600':'text-amber-600'}`},String(props.value||0))])} })
 const emptySummary: IssueSummary={open:0,resolved:0,missingPath:0,missingFile:0,image:0,video:0,audio:0}
-const summary=ref<IssueSummary>({...emptySummary}),accounts=ref<WhatsappAccount[]>([]),issues=ref<CollectionIssue[]>([]),bindings=ref<BindingCandidate[]>([]),latestJob=ref<ScanJob|null>(null)
+const summary=ref<IssueSummary>({...emptySummary}),accounts=ref<WhatsappAccount[]>([]),issueChats=ref<IssueChat[]>([]),bindings=ref<BindingCandidate[]>([]),latestJob=ref<ScanJob|null>(null)
+const detailIssues=ref<CollectionIssue[]>([]),selectedIssueChat=ref<IssueChat|null>(null),issueDetailDrawer=ref(false),detailLoading=ref(false),detailPage=ref(1),detailTotal=ref(0)
 const insights=ref<WhatsappInsight[]>([]),evidence=ref<InsightEvidence[]>([]),insightStatus=ref('PENDING'),insightPage=ref(1),insightTotal=ref(0),evidenceDialog=ref(false)
 const loading=ref(false),rescanning=ref(false),page=ref(1),pageSize=ref(20),total=ref(0),activeTab=ref('insights'),selectedAccount=ref<number>(),filters=reactive({status:'OPEN',mediaType:''})
 const collectorDialog=ref(false),creatingCollector=ref(false),createdCredential=ref<CollectorCredential|null>(null),collectorForm=reactive({name:'这台 Mac',accountRef:'mac:primary',displayName:'',phoneNormalized:''})
 let pollTimer:number|undefined
 const jobAlertType=computed(()=>latestJob.value?.status==='FAILED'?'error':latestJob.value?.status==='SUCCEEDED'?'success':'info')
 
-async function loadAll(){loading.value=true;try{const [s,a,j,b]=await Promise.all([getIssueSummary(),getWhatsappAccounts(),getLatestWhatsappScan(),getPendingBindings()]);summary.value=s.data||{...emptySummary};accounts.value=a.data||[];latestJob.value=j.data;bindings.value=b.data||[];if(!selectedAccount.value&&accounts.value.length)selectedAccount.value=accounts.value[0].id;await Promise.all([loadIssues(),loadInsights()]);startPollingIfNeeded()}finally{loading.value=false}}
-async function loadIssues(){const r=await getIssues({page:page.value,size:pageSize.value,status:filters.status||undefined,mediaType:filters.mediaType||undefined,accountId:selectedAccount.value});issues.value=r.data.records;total.value=r.data.total}
+async function loadAll(){loading.value=true;try{const [s,a,j,b]=await Promise.all([getIssueSummary(),getWhatsappAccounts(),getLatestWhatsappScan(),getPendingBindings()]);summary.value=s.data||{...emptySummary};accounts.value=a.data||[];latestJob.value=j.data;bindings.value=b.data||[];if(!selectedAccount.value&&accounts.value.length)selectedAccount.value=accounts.value[0].id;await Promise.all([loadIssueChats(),loadInsights()]);if(issueDetailDrawer.value)await loadIssueDetails();startPollingIfNeeded()}finally{loading.value=false}}
+async function loadIssueChats(){const r=await getIssueChats({page:page.value,size:pageSize.value,status:filters.status||undefined,mediaType:filters.mediaType||undefined,accountId:selectedAccount.value});issueChats.value=r.data.records;total.value=r.data.total}
+async function loadIssueDetails(){if(!selectedIssueChat.value)return;detailLoading.value=true;try{const chat=selectedIssueChat.value;const r=await getIssues({page:detailPage.value,size:20,status:filters.status||undefined,mediaType:filters.mediaType||undefined,accountId:chat.accountId,conversationJid:chat.conversationJid||undefined,conversationId:chat.conversationJid?undefined:chat.conversationId});detailIssues.value=r.data.records;detailTotal.value=r.data.total}finally{detailLoading.value=false}}
+async function openIssueDetail(row:IssueChat){selectedIssueChat.value=row;detailPage.value=1;issueDetailDrawer.value=true;await loadIssueDetails()}
 async function loadInsights(){const r=await getWhatsappInsights({page:insightPage.value,size:20,status:insightStatus.value||undefined});insights.value=r.data.records;insightTotal.value=r.data.total}
 function resetInsights(){insightPage.value=1;void loadInsights()}
-function resetAndLoad(){page.value=1;void loadIssues()}
+function resetAndLoad(){page.value=1;issueDetailDrawer.value=false;void loadIssueChats()}
 async function requestRescan(){if(!selectedAccount.value)return;rescanning.value=true;try{latestJob.value=(await requestWhatsappScan(selectedAccount.value)).data;ElMessage.success('重扫任务已提交，Mac 采集器在线后会自动领取');startPollingIfNeeded()}finally{rescanning.value=false}}
 function startPollingIfNeeded(){if(pollTimer)window.clearInterval(pollTimer);if(latestJob.value&&['PENDING','CLAIMED'].includes(latestJob.value.status))pollTimer=window.setInterval(async()=>{latestJob.value=(await getLatestWhatsappScan()).data;if(!latestJob.value||!['PENDING','CLAIMED'].includes(latestJob.value.status)){if(pollTimer)clearInterval(pollTimer);await loadAll()}},5000)}
-function openChat(row:CollectionIssue){const digits=(row.conversationJid||'').split('@')[0].replace(/\D/g,'');if(!digits)return ElMessage.warning('该记录无法定位聊天');window.location.href=`whatsapp://send?phone=${digits}`}
+function openChat(row:{conversationJid?:string}){const digits=(row.conversationJid||'').split('@')[0].replace(/\D/g,'');if(!digits)return ElMessage.warning('该记录无法定位聊天');window.location.href=`whatsapp://send?phone=${digits}`}
 async function handleBinding(id:number,status:'CONFIRMED'|'REJECTED'){await ElMessageBox.confirm(status==='CONFIRMED'?'确认将该 WhatsApp 联系人与 ERP 客户绑定？':'确认拒绝这条匹配候选？','确认操作');await decideBinding(id,status);ElMessage.success('处理成功');bindings.value=(await getPendingBindings()).data||[]}
 async function handleRecommendation(row:WhatsappInsight,status:'ADOPTED'|'DISMISSED'|'COMPLETED'){await ElMessageBox.confirm(`确认${recommendationLabel(status)}这条建议？`,'确认操作');await decideWhatsappRecommendation(row.recommendationId,status);ElMessage.success('处理成功');await loadInsights()}
 async function showEvidence(row:WhatsappInsight){evidence.value=(await getInsightEvidence(row.analysisId)).data||[];evidenceDialog.value=true}
@@ -138,6 +160,7 @@ async function copyKey(){if(createdCredential.value){await navigator.clipboard.w
 const formatTime=(v?:string)=>v?new Date(v).toLocaleString('zh-CN',{hour12:false}):'暂无'
 const maskPhone=(v?:string)=>!v?'—':v.length<8?v:`${v.slice(0,3)}****${v.slice(-4)}`
 const maskedJid=(v?:string)=>maskPhone(v?.split('@')[0])
+const chatDisplayName=(row:IssueChat)=>row.customerName||row.conversationTitle||maskedJid(row.conversationJid)
 const mediaLabel=(v?:string)=>({IMAGE:'图片',VIDEO:'视频',AUDIO:'音频',VOICE:'语音'}[v||'']||v||'未知')
 const issueLabel=(v:string)=>({MEDIA_PATH_EMPTY:'Mac 尚未获得媒体路径',LOCAL_PATH_EMPTY:'Mac 尚未获得媒体路径',THUMBNAIL_ONLY:'只有缩略图，原文件未同步',MEDIA_FILE_MISSING:'Mac 本地文件不存在',LOCAL_FILE_MISSING:'Mac 本地文件不存在',MEDIA_SIZE_MISMATCH:'媒体文件大小异常',SIZE_MISMATCH:'媒体文件大小异常',MEDIA_READ_FAILED:'媒体文件读取失败',MEDIA_ITEM_MISSING:'媒体元数据缺失',UNSAFE_PATH:'媒体路径异常',COPY_CHANGED:'复制期间文件发生变化'}[v]||v)
 const jobLabel=(v:string)=>({PENDING:'等待 Mac 采集器',CLAIMED:'正在扫描',SUCCEEDED:'扫描完成',FAILED:'扫描失败'}[v]||v)
