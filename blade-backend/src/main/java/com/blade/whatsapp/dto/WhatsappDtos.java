@@ -147,7 +147,7 @@ public final class WhatsappDtos {
 
     public record BindingView(Long id, Long contactId, String contactName, String phoneNormalized,
                               Long customerId, String customerName, String matchMethod,
-                              String status, LocalDateTime createTime) {}
+                              String status, LocalDateTime createTime, LocalDateTime confirmedAt) {}
 
     public record BindingDecision(@NotBlank @Pattern(regexp="CONFIRMED|REJECTED") String status,
                                   @Size(max=500) String note) {}

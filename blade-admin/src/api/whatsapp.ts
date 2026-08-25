@@ -18,7 +18,7 @@ export interface ScanJob {
   id: number; accountId: number; accountName?: string; scopeType: 'ACCOUNT' | 'CONTACT'; targetPhoneNormalized?: string; targetConversationJid?: string
   status: string; requestedAt: string; claimedAt?: string; completedAt?: string; resultBatchId?: number; errorSummary?: string
 }
-export interface BindingCandidate { id: number; contactId: number; contactName?: string; phoneNormalized?: string; customerId: number; customerName?: string; matchMethod: string; status: string; createTime: string }
+export interface BindingCandidate { id: number; contactId: number; contactName?: string; phoneNormalized?: string; customerId: number; customerName?: string; matchMethod: string; status: string; createTime: string; confirmedAt?: string }
 export interface CollectorCredential { accountId: number; keyId: number; collectorKey: string; keyPrefix: string; scopes: string[] }
 export interface WhatsappInsight {
   recommendationId: number; analysisId: number; customerId: number; customerName: string; status: string; dueAt?: string
@@ -47,6 +47,7 @@ export const requestWhatsappScan = (accountId: number, target?: { phoneNormalize
 })
 export const getLatestWhatsappScan = () => client.get<any, ApiResult<ScanJob | null>>('/whatsapp/scan-jobs/latest')
 export const getPendingBindings = () => client.get<any, ApiResult<BindingCandidate[]>>('/whatsapp/bindings/pending')
+export const getConfirmedBindings = () => client.get<any, ApiResult<BindingCandidate[]>>('/whatsapp/bindings/confirmed')
 export const refreshBindingCandidates = () => client.post<any, ApiResult<BindingCandidate[]>>('/whatsapp/bindings/refresh')
 export const decideBinding = (id: number, status: 'CONFIRMED' | 'REJECTED', note?: string) => client.put(`/whatsapp/bindings/${id}`, { status, note })
 export const createCollector = (payload: { name: string; accountRef: string; displayName?: string; phoneNormalized?: string; sourceInstanceHash?: string }) =>

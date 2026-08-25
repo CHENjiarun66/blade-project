@@ -57,6 +57,8 @@ public class WhatsappAdminController {
     public R<ScanJobView> latest(){return R.ok(service.latestScan());}
     @GetMapping("/bindings/pending") @PreAuthorize("hasAuthority('menu:whatsapp')")
     public R<List<BindingView>> bindings(){return R.ok(service.pendingBindings());}
+    @GetMapping("/bindings/confirmed") @PreAuthorize("hasAuthority('menu:whatsapp')")
+    public R<List<BindingView>> confirmedBindings(){return R.ok(service.confirmedBindings());}
     @PostMapping("/bindings/refresh") @PreAuthorize("hasAuthority('menu:whatsapp')")
     public R<List<BindingView>> refreshBindings(){return R.ok(service.refreshBindingCandidates());}
     @PutMapping("/bindings/{id}") @PreAuthorize("hasAuthority('btn:whatsapp:collector')")

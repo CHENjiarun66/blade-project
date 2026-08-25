@@ -18,6 +18,7 @@ test('缺失媒体按聊天聚合，并在详情抽屉展示该客户全部明�
     return route.fulfill({ json: ok({ id: 9, accountId: 1, accountName: 'Mac WhatsApp Business', scopeType: 'CONTACT', targetPhoneNormalized: '2349164306062', status: 'PENDING', requestedAt: '2026-08-25T10:00:00' }) })
   })
   await page.route('**/api/whatsapp/bindings/pending', route => route.fulfill({ json: ok([]) }))
+  await page.route('**/api/whatsapp/bindings/confirmed', route => route.fulfill({ json: ok([]) }))
   await page.route('**/api/whatsapp/bindings/refresh', route => route.fulfill({ json: ok([]) }))
   await page.route('**/api/whatsapp/insights?*', route => route.fulfill({ json: ok({ records: [], total: 0, size: 20, current: 1, pages: 0 }) }))
   await page.route('**/api/whatsapp/archive/chats?*', route => route.fulfill({ json: ok({ records: [], total: 0, size: 30, current: 1, pages: 0 }) }))

@@ -409,7 +409,12 @@ public class WhatsappService {
 
     public List<BindingView> pendingBindings() {
         long tenant=requiredTenant();
-        return pendingBindings(tenant);
+        return bindings(tenant,"PENDING");
+    }
+
+    public List<BindingView> confirmedBindings() {
+        long tenant=requiredTenant();
+        return bindings(tenant,"CONFIRMED");
     }
 
     @Transactional
@@ -432,19 +437,20 @@ public class WhatsappService {
                 upsertExactPhoneCandidate(tenant, contactId, matches.iterator().next());
             }
         }
-        return pendingBindings(tenant);
+        return bindings(tenant,"PENDING");
     }
 
-    private List<BindingView> pendingBindings(long tenant) {
+    private List<BindingView> bindings(long tenant, String status) {
         return jdbc.query("""
                 SELECT b.id,b.wa_contact_id,COALESCE(c.business_name,c.display_name,c.push_name),c.phone_normalized,
-                  b.customer_id,cu.name,b.match_method,b.status,b.create_time
+                  b.customer_id,cu.name,b.match_method,b.status,b.create_time,b.confirmed_at
                 FROM wa_customer_binding b JOIN wa_contact c ON c.id=b.wa_contact_id AND c.tenant_id=b.tenant_id
                 JOIN crm_customer cu ON cu.id=b.customer_id AND cu.tenant_id=b.tenant_id
-                WHERE b.tenant_id=? AND b.deleted=0 AND c.deleted=0 AND cu.deleted=0 AND b.status='PENDING'
-                ORDER BY b.create_time DESC
+                WHERE b.tenant_id=? AND b.deleted=0 AND c.deleted=0 AND cu.deleted=0 AND b.status=?
+                ORDER BY COALESCE(b.confirmed_at,b.create_time) DESC,b.id DESC
                 """,(rs,row)->new BindingView(rs.getLong(1),rs.getLong(2),rs.getString(3),rs.getString(4),
-                rs.getLong(5),rs.getString(6),rs.getString(7),rs.getString(8),local(rs,"create_time")),tenant);
+                rs.getLong(5),rs.getString(6),rs.getString(7),rs.getString(8),local(rs,"create_time"),
+                local(rs,"confirmed_at")),tenant,status);
     }
 
     @Transactional
