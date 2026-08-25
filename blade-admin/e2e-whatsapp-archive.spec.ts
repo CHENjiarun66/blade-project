@@ -14,6 +14,7 @@ test('聊天记录以只读 WhatsApp 视图展示文字与媒体完整性', asyn
   await page.route('**/api/whatsapp/issues/summary', route => route.fulfill({ json: ok({ open: 1, resolved: 0, missingPath: 1, missingFile: 0, image: 0, video: 1, audio: 0 }) }))
   await page.route('**/api/whatsapp/scan-jobs/latest', route => route.fulfill({ json: ok(null) }))
   await page.route('**/api/whatsapp/bindings/pending', route => route.fulfill({ json: ok([]) }))
+  await page.route('**/api/whatsapp/bindings/refresh', route => route.fulfill({ json: ok([]) }))
   await page.route('**/api/whatsapp/insights?*', route => route.fulfill({ json: ok(emptyPage) }))
   await page.route('**/api/whatsapp/issues/chats?*', route => route.fulfill({ json: ok(emptyPage) }))
   await page.route('**/api/whatsapp/archive/chats?*', route => route.fulfill({ json: ok({

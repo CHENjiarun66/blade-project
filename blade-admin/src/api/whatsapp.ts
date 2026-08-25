@@ -47,6 +47,7 @@ export const requestWhatsappScan = (accountId: number, target?: { phoneNormalize
 })
 export const getLatestWhatsappScan = () => client.get<any, ApiResult<ScanJob | null>>('/whatsapp/scan-jobs/latest')
 export const getPendingBindings = () => client.get<any, ApiResult<BindingCandidate[]>>('/whatsapp/bindings/pending')
+export const refreshBindingCandidates = () => client.post<any, ApiResult<BindingCandidate[]>>('/whatsapp/bindings/refresh')
 export const decideBinding = (id: number, status: 'CONFIRMED' | 'REJECTED', note?: string) => client.put(`/whatsapp/bindings/${id}`, { status, note })
 export const createCollector = (payload: { name: string; accountRef: string; displayName?: string; phoneNormalized?: string; sourceInstanceHash?: string }) =>
   client.post<any, ApiResult<CollectorCredential>>('/whatsapp/collectors', payload)

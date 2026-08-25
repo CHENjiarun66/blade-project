@@ -409,6 +409,33 @@ public class WhatsappService {
 
     public List<BindingView> pendingBindings() {
         long tenant=requiredTenant();
+        return pendingBindings(tenant);
+    }
+
+    @Transactional
+    public List<BindingView> refreshBindingCandidates() {
+        long tenant = requiredTenant();
+        Map<String,Set<Long>> customersByPhone = customerIdsByPhone(tenant);
+        List<Map<String,Object>> contacts = jdbc.queryForList("""
+                SELECT id,phone_normalized FROM wa_contact
+                WHERE tenant_id=? AND deleted=0 AND phone_normalized IS NOT NULL AND phone_normalized<>''
+                """, tenant);
+        jdbc.update("""
+                UPDATE wa_customer_binding SET deleted=1,update_time=NOW(3)
+                WHERE tenant_id=? AND status='PENDING' AND deleted=0
+                """, tenant);
+        for (Map<String,Object> contact : contacts) {
+            long contactId = ((Number) contact.get("id")).longValue();
+            String phone = digits((String) contact.get("phone_normalized"));
+            Set<Long> matches = phone == null ? Set.of() : customersByPhone.getOrDefault(phone, Set.of());
+            if (matches.size() == 1) {
+                upsertExactPhoneCandidate(tenant, contactId, matches.iterator().next());
+            }
+        }
+        return pendingBindings(tenant);
+    }
+
+    private List<BindingView> pendingBindings(long tenant) {
         return jdbc.query("""
                 SELECT b.id,b.wa_contact_id,COALESCE(c.business_name,c.display_name,c.push_name),c.phone_normalized,
                   b.customer_id,cu.name,b.match_method,b.status,b.create_time
@@ -729,15 +756,34 @@ public class WhatsappService {
 
     private void createExactPhoneCandidate(long tenant, long contactId, String phone) {
         String normalized=digits(phone); if(normalized==null||normalized.length()<6)return;
-        List<Map<String,Object>> rows=jdbc.queryForList("SELECT customer_id,phone FROM crm_customer_phone WHERE tenant_id=? AND deleted=0",tenant);
-        Set<Long> matches=new HashSet<>(); for(Map<String,Object> row:rows) if(normalized.equals(digits(String.valueOf(row.get("phone"))))) matches.add(((Number)row.get("customer_id")).longValue());
+        Set<Long> matches=customerIdsByPhone(tenant).getOrDefault(normalized,Set.of());
         if(matches.size()!=1)return;
-        Long customerId=matches.iterator().next();
+        upsertExactPhoneCandidate(tenant,contactId,matches.iterator().next());
+    }
+
+    private Map<String,Set<Long>> customerIdsByPhone(long tenant) {
+        List<Map<String,Object>> rows=jdbc.queryForList("""
+                SELECT cp.customer_id,cp.phone,c.country_code
+                FROM crm_customer_phone cp
+                JOIN crm_customer c ON c.id=cp.customer_id AND c.tenant_id=cp.tenant_id AND c.deleted=0
+                WHERE cp.tenant_id=? AND cp.deleted=0
+                """,tenant);
+        Map<String,Set<Long>> result=new HashMap<>();
+        for(Map<String,Object> row:rows) {
+            long customerId=((Number)row.get("customer_id")).longValue();
+            for(String variant:WhatsappPhoneMatcher.customerPhoneVariants((String)row.get("country_code"),(String)row.get("phone")))
+                if(variant.length()>=6)result.computeIfAbsent(variant,ignored->new HashSet<>()).add(customerId);
+        }
+        return result;
+    }
+
+    private void upsertExactPhoneCandidate(long tenant,long contactId,long customerId) {
         jdbc.update("""
                 INSERT INTO wa_customer_binding(tenant_id,wa_contact_id,customer_id,match_method,confidence,status,note)
-                VALUES(?,?,?,'EXACT_PHONE',1.0000,'PENDING','手机号唯一精确匹配，待人工确认')
+                VALUES(?,?,?,'EXACT_PHONE',1.0000,'PENDING','国家区号与手机号唯一精确匹配，待人工确认')
                 ON DUPLICATE KEY UPDATE customer_id=IF(status='PENDING',VALUES(customer_id),customer_id),
-                  match_method=IF(status='PENDING','EXACT_PHONE',match_method),confidence=IF(status='PENDING',1.0000,confidence),deleted=0
+                  match_method=IF(status='PENDING','EXACT_PHONE',match_method),confidence=IF(status='PENDING',1.0000,confidence),
+                  note=IF(status='PENDING',VALUES(note),note),deleted=IF(status='PENDING',0,deleted),update_time=NOW(3)
                 """,tenant,contactId,customerId);
     }
     private void ensureBinding(long tenant,long fileId,long messageId){if(!exists("SELECT COUNT(*) FROM file_business_bind WHERE tenant_id=? AND file_id=? AND business_type='whatsapp_message' AND business_id=? AND bind_role='attachment' AND deleted=0",tenant,fileId,messageId))jdbc.update("INSERT INTO file_business_bind(file_id,business_type,business_id,bind_role,sort,is_primary,tenant_id,deleted) VALUES(?,'whatsapp_message',?,'attachment',0,0,?,0)",fileId,messageId,tenant);}
