@@ -36,8 +36,9 @@ public class WhatsappAdminController {
     @GetMapping("/issues") @PreAuthorize("hasAuthority('menu:whatsapp')")
     public R<PageResult<IssueView>> issues(@RequestParam(defaultValue="1")int page,@RequestParam(defaultValue="20")int size,
           @RequestParam(required=false)String status,@RequestParam(required=false)String mediaType,@RequestParam(required=false)Long accountId,
-          @RequestParam(required=false)String conversationJid,@RequestParam(required=false)Long conversationId){
-        return R.ok(service.issues(page,size,status,mediaType,accountId,conversationJid,conversationId));}
+          @RequestParam(required=false)String phoneNormalized,@RequestParam(required=false)String conversationJid,
+          @RequestParam(required=false)Long conversationId){
+        return R.ok(service.issues(page,size,status,mediaType,accountId,phoneNormalized,conversationJid,conversationId));}
     @PostMapping("/scan-jobs") @PreAuthorize("hasAuthority('btn:whatsapp:rescan')")
     public R<ScanJobView> scan(@RequestParam Long accountId){return R.ok(service.requestScan(accountId,userId()));}
     @GetMapping("/scan-jobs/latest") @PreAuthorize("hasAuthority('menu:whatsapp')")

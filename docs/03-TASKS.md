@@ -256,6 +256,7 @@
 | BE-577 | WhatsApp 本地真实数据部署验证 | ✅ 完成 | 本地 ERP 18080 + Admin 5777 + Mac Assistant 跑通；真实只读快照导入 1527 联系人、989 会话、32050 消息、17132 媒体元数据和 2140 已下载媒体 |
 | BE-578 | WhatsApp 媒体失败增量补传 | ⏳ TODO | 失败重试只上传服务端尚未导入的媒体，避免对已成功文件重复传输和重复 BCrypt 鉴权 |
 | BE-579 | WhatsApp 缺失媒体按聊天聚合接口 | ✅ 完成 | 新增 `/api/whatsapp/issues/chats`，按租户、账号和会话号码聚合缺失数量及媒体类型；明细接口支持按 conversationJid/conversationId 查询 |
+| BE-580 | WhatsApp LID 与真实手机号映射 | ✅ 完成 | 缺失媒体聚合与明细查询关联 wa_contact.phone_normalized；按真实手机号合并 LID/phone JID 会话，禁止把 `@lid` 内部标识当成号码 |
 
 ### Phase 6: OCR 拍照录单（P2）
 
@@ -474,6 +475,7 @@
 | BA-1103 | WhatsApp 只读聊天归档浏览 | ⏳ TODO | 在 ERP 按客户/会话查看消息时间线、方向、正文和媒体引用；继续按租户/JWT 权限控制，不提供发送能力 |
 | BA-1104 | WhatsApp 菜单权限缓存刷新 | ✅ 完成 | PC 管理端每次页面会话自动刷新一次服务端权限，避免已登录浏览器因 localStorage 旧权限看不到“WhatsApp归档” |
 | BA-1105 | WhatsApp 缺失媒体客户聚合与详情 | ✅ 完成 | 缺失媒体首页同一聊天号码只显示一行及图片/视频/音频计数；点击详情抽屉查看该客户全部缺失明细、打开聊天并重新扫描 |
+| BA-1106 | WhatsApp 真实号码展示与安全打开聊天 | ✅ 完成 | 页面优先显示联系人真实号码并用其生成 WhatsApp 链接；仅有 LID 且无号码映射时禁用入口，避免打开错误用户 |
 
 ---
 

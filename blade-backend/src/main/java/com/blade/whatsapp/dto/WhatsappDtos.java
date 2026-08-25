@@ -154,7 +154,7 @@ public final class WhatsappDtos {
                             LocalDateTime lastDetectedAt, LocalDateTime resolvedAt) {}
 
     public record IssueChatView(Long accountId, Long conversationId, String conversationTitle,
-                                Long customerId, String customerName, String conversationJid,
+                                Long customerId, String customerName, String conversationJid, String phoneNormalized,
                                 long issueCount, long imageCount, long videoCount, long audioCount,
                                 long openCount, long resolvedCount, LocalDateTime latestMessageTime,
                                 LocalDateTime lastDetectedAt) {}

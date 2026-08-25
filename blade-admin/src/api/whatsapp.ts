@@ -10,7 +10,7 @@ export interface CollectionIssue {
   severity: string; mediaType?: string; occurrenceCount: number; firstDetectedAt: string; lastDetectedAt: string; resolvedAt?: string
 }
 export interface IssueChat {
-  accountId: number; conversationId?: number; conversationTitle?: string; customerId?: number; customerName?: string; conversationJid?: string
+  accountId: number; conversationId?: number; conversationTitle?: string; customerId?: number; customerName?: string; conversationJid?: string; phoneNormalized?: string
   issueCount: number; imageCount: number; videoCount: number; audioCount: number; openCount: number; resolvedCount: number
   latestMessageTime?: string; lastDetectedAt?: string
 }
