@@ -8,6 +8,26 @@
 
 ## 2026-08-25 变更记录
 
+### [缺陷修复] - WhatsApp 菜单权限自动刷新
+
+**变更内容**：
+- PC 管理端不再长期使用 localStorage 中的旧权限；每次新页面会话会向服务端刷新一次权限码。
+- 修复后端已下发 `menu:whatsapp`、但已登录浏览器左侧仍不显示“WhatsApp归档”的问题。
+
+**变更原因**：
+- 用户在本地测试 ERP 时发现 WhatsApp 页面已开发、账号也有权限，但侧边栏没有入口。
+
+**影响范围**：
+- `blade-admin` 登录态恢复、路由权限与侧边栏菜单显示；不改变后端权限模型和业务数据。
+
+**验证结果**：
+- `cd blade-admin && npm run build`：通过。
+- Playwright 注入仅含 `menu:dashboard` 的旧权限缓存后打开仪表盘：页面自动刷新出 `menu:whatsapp`，且“WhatsApp归档”菜单可见。
+
+**执行人**：Codex
+
+---
+
 ### [本地部署验证] - WhatsApp Mac Assistant 真实只读全量同步
 
 **变更内容**：

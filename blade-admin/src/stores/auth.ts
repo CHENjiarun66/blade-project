@@ -27,6 +27,8 @@ export const useAuthStore = defineStore('auth', () => {
   const userInfo = ref<UserInfo | null>(readJson<UserInfo | null>('userInfo', null))
   // 存储用户的权限码列表，如 ['order:create', 'order:update', ...]
   const permissions = ref<string[]>(readJson<string[]>('permissions', []))
+  // localStorage 仅用于首屏兜底；每次页面会话都必须向服务端刷新一次，避免新增菜单后仍使用旧权限。
+  const permissionsLoadedForSession = ref(false)
 
   function setToken(newToken: string) {
     token.value = newToken
@@ -52,6 +54,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function setPermissions(codes: string[]) {
     permissions.value = codes
+    permissionsLoadedForSession.value = true
     localStorage.setItem('permissions', JSON.stringify(codes))
   }
 
@@ -60,6 +63,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken.value = null
     userInfo.value = null
     permissions.value = []
+    permissionsLoadedForSession.value = false
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('userInfo')
@@ -72,6 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     userInfo,
     permissions,
+    permissionsLoadedForSession,
     setToken,
     setRefreshToken,
     setTokens,
