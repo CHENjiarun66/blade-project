@@ -14,7 +14,10 @@ export interface IssueChat {
   issueCount: number; imageCount: number; videoCount: number; audioCount: number; openCount: number; resolvedCount: number
   latestMessageTime?: string; lastDetectedAt?: string
 }
-export interface ScanJob { id: number; accountId: number; accountName?: string; status: string; requestedAt: string; claimedAt?: string; completedAt?: string; resultBatchId?: number; errorSummary?: string }
+export interface ScanJob {
+  id: number; accountId: number; accountName?: string; scopeType: 'ACCOUNT' | 'CONTACT'; targetPhoneNormalized?: string; targetConversationJid?: string
+  status: string; requestedAt: string; claimedAt?: string; completedAt?: string; resultBatchId?: number; errorSummary?: string
+}
 export interface BindingCandidate { id: number; contactId: number; contactName?: string; phoneNormalized?: string; customerId: number; customerName?: string; matchMethod: string; status: string; createTime: string }
 export interface CollectorCredential { accountId: number; keyId: number; collectorKey: string; keyPrefix: string; scopes: string[] }
 export interface WhatsappInsight {
@@ -28,7 +31,9 @@ export const getWhatsappAccounts = () => client.get<any, ApiResult<WhatsappAccou
 export const getIssueSummary = () => client.get<any, ApiResult<IssueSummary>>('/whatsapp/issues/summary')
 export const getIssueChats = (params: Record<string, unknown>) => client.get<any, ApiResult<PageResult<IssueChat>>>('/whatsapp/issues/chats', { params })
 export const getIssues = (params: Record<string, unknown>) => client.get<any, ApiResult<PageResult<CollectionIssue>>>('/whatsapp/issues', { params })
-export const requestWhatsappScan = (accountId: number) => client.post<any, ApiResult<ScanJob>>('/whatsapp/scan-jobs', null, { params: { accountId } })
+export const requestWhatsappScan = (accountId: number, target?: { phoneNormalized?: string; conversationJid?: string }) => client.post<any, ApiResult<ScanJob>>('/whatsapp/scan-jobs', null, {
+  params: target ? { accountId, scopeType: 'CONTACT', targetPhoneNormalized: target.phoneNormalized, targetConversationJid: target.conversationJid } : { accountId, scopeType: 'ACCOUNT' },
+})
 export const getLatestWhatsappScan = () => client.get<any, ApiResult<ScanJob | null>>('/whatsapp/scan-jobs/latest')
 export const getPendingBindings = () => client.get<any, ApiResult<BindingCandidate[]>>('/whatsapp/bindings/pending')
 export const decideBinding = (id: number, status: 'CONFIRMED' | 'REJECTED', note?: string) => client.put(`/whatsapp/bindings/${id}`, { status, note })

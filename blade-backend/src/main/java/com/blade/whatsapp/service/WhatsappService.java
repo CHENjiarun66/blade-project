@@ -76,22 +76,27 @@ public class WhatsappService {
     @Transactional
     public BatchResult startBatch(CollectorPrincipal principal, BatchStartRequest request) {
         requireScope(principal, "batch:write");
+        String scanScope = normalizeScanScope(request.scanScopeType());
+        String targetPhone = "CONTACT".equals(scanScope) ? digits(request.targetPhoneNormalized()) : null;
+        String targetJid = "CONTACT".equals(scanScope) ? blankToNull(request.targetConversationJid()) : null;
+        if ("CONTACT".equals(scanScope) && targetPhone == null && targetJid == null)
+            throw new IllegalArgumentException("客户扫描缺少目标号码或会话标识");
         int inserted = jdbc.update("""
-                INSERT IGNORE INTO wa_import_batch(tenant_id,account_id,batch_no,snapshot_at,source_app_version,
+                INSERT IGNORE INTO wa_import_batch(tenant_id,account_id,scan_scope_type,target_phone_normalized,target_conversation_jid,batch_no,snapshot_at,source_app_version,
                   chat_schema_hash,contact_schema_hash,status,manifest_json,started_at)
-                VALUES(?,?,?,?,?,?,?,'RUNNING',?,NOW(3))
-                """, principal.tenantId(), principal.accountId(), request.batchNo(), request.snapshotAt(),
+                VALUES(?,?,?,?,?,?,?,?,?,?,'RUNNING',?,NOW(3))
+                """, principal.tenantId(), principal.accountId(), scanScope, targetPhone, targetJid, request.batchNo(), request.snapshotAt(),
                 request.sourceAppVersion(), hexOrNull(request.chatSchemaHash()), hexOrNull(request.contactSchemaHash()), json(request.manifest()));
         BatchRow row = batch(principal, request.batchNo());
         if (inserted == 0 && Set.of("FAILED", "PARTIAL").contains(row.status())) {
             jdbc.update("""
-                    UPDATE wa_import_batch SET status='RUNNING',snapshot_at=?,source_app_version=?,chat_schema_hash=?,contact_schema_hash=?,
+                    UPDATE wa_import_batch SET status='RUNNING',scan_scope_type=?,target_phone_normalized=?,target_conversation_jid=?,snapshot_at=?,source_app_version=?,chat_schema_hash=?,contact_schema_hash=?,
                       manifest_json=?,source_row_count=0,logical_message_count=0,inserted_count=0,updated_count=0,duplicate_count=0,
                       error_count=0,error_summary=NULL,started_at=NOW(3),completed_at=NULL
                     WHERE id=? AND tenant_id=? AND account_id=?
-                    """,request.snapshotAt(),request.sourceAppVersion(),hexOrNull(request.chatSchemaHash()),hexOrNull(request.contactSchemaHash()),
+                    """,scanScope,targetPhone,targetJid,request.snapshotAt(),request.sourceAppVersion(),hexOrNull(request.chatSchemaHash()),hexOrNull(request.contactSchemaHash()),
                     json(request.manifest()),row.id(),principal.tenantId(),principal.accountId());
-            row=new BatchRow(row.id(),"RUNNING");
+            row=new BatchRow(row.id(),"RUNNING",scanScope,targetPhone,targetJid);
         }
         return new BatchResult(row.id(), request.batchNo(), row.status(), inserted, inserted == 0 ? 1 : 0);
     }
@@ -246,6 +251,23 @@ public class WhatsappService {
         return counter.result();
     }
 
+    public List<String> pendingMedia(CollectorPrincipal principal, MediaPendingRequest request) {
+        requireScope(principal, "media:write");
+        List<String> normalized = request.mediaKeyHashes().stream().map(String::toLowerCase).distinct().toList();
+        if (normalized.isEmpty()) return List.of();
+        String placeholders = String.join(",", Collections.nCopies(normalized.size(), "UNHEX(?)"));
+        List<Object> args = new ArrayList<>();
+        args.add(principal.tenantId()); args.add(principal.accountId()); args.addAll(normalized);
+        Set<String> imported = new HashSet<>(jdbc.query("""
+                SELECT LOWER(HEX(mm.media_key_hash))
+                FROM wa_message_media mm
+                JOIN wa_message m ON m.id=mm.message_id AND m.tenant_id=mm.tenant_id
+                WHERE mm.tenant_id=? AND m.account_id=? AND mm.deleted=0 AND m.deleted=0
+                  AND mm.download_status='IMPORTED' AND mm.media_key_hash IN (
+                """+placeholders+")",(rs,row)->rs.getString(1),args.toArray()));
+        return normalized.stream().filter(key -> !imported.contains(key)).toList();
+    }
+
     @Transactional
     public BatchResult completeBatch(CollectorPrincipal principal, String batchNo, BatchCompleteRequest request) {
         requireScope(principal, "batch:write");
@@ -262,17 +284,44 @@ public class WhatsappService {
                 zero(request.duplicateCount()), zero(request.errorCount()), request.errorSummary(), batch.id(),
                 principal.tenantId(), principal.accountId());
         if (!"FAILED".equals(request.status())) {
-            jdbc.update("""
-                    UPDATE wa_collection_issue SET status='RESOLVED',resolved_at=NOW(3),update_time=NOW(3)
-                    WHERE tenant_id=? AND account_id=? AND status='OPEN' AND batch_id<>? AND deleted=0
-                    """, principal.tenantId(), principal.accountId(), batch.id());
-            jdbc.update("UPDATE wa_account SET last_success_batch_id=?,last_sync_time=NOW(3) WHERE id=? AND tenant_id=?",
-                    batch.id(), principal.accountId(), principal.tenantId());
+            resolveStaleIssues(principal, batch);
+            if ("ACCOUNT".equals(batch.scanScopeType())) {
+                jdbc.update("UPDATE wa_account SET last_success_batch_id=?,last_sync_time=NOW(3) WHERE id=? AND tenant_id=?",
+                        batch.id(), principal.accountId(), principal.tenantId());
+            }
             if ("SUCCEEDED".equals(request.status())) {
                 analysisService.enqueueForBatch(principal.tenantId(), batch.id());
             }
         }
         return new BatchResult(batch.id(), batchNo, request.status(), 0, 1);
+    }
+
+    private void resolveStaleIssues(CollectorPrincipal principal, BatchRow batch) {
+        if ("ACCOUNT".equals(batch.scanScopeType())) {
+            jdbc.update("""
+                    UPDATE wa_collection_issue SET status='RESOLVED',resolved_at=NOW(3),update_time=NOW(3)
+                    WHERE tenant_id=? AND account_id=? AND status='OPEN' AND batch_id<>? AND deleted=0
+                    """, principal.tenantId(), principal.accountId(), batch.id());
+            return;
+        }
+        if (batch.targetPhoneNormalized() != null) {
+            jdbc.update("""
+                    UPDATE wa_collection_issue i
+                    JOIN wa_conversation c ON c.id=i.conversation_id AND c.tenant_id=i.tenant_id
+                    JOIN wa_contact wc ON wc.id=c.contact_id AND wc.tenant_id=i.tenant_id AND wc.deleted=0
+                    SET i.status='RESOLVED',i.resolved_at=NOW(3),i.update_time=NOW(3)
+                    WHERE i.tenant_id=? AND i.account_id=? AND i.status='OPEN' AND i.batch_id<>?
+                      AND i.deleted=0 AND wc.phone_normalized=?
+                    """, principal.tenantId(), principal.accountId(), batch.id(), batch.targetPhoneNormalized());
+        } else if (batch.targetConversationJid() != null) {
+            jdbc.update("""
+                    UPDATE wa_collection_issue i
+                    JOIN wa_conversation c ON c.id=i.conversation_id AND c.tenant_id=i.tenant_id
+                    SET i.status='RESOLVED',i.resolved_at=NOW(3),i.update_time=NOW(3)
+                    WHERE i.tenant_id=? AND i.account_id=? AND i.status='OPEN' AND i.batch_id<>?
+                      AND i.deleted=0 AND c.conversation_jid=?
+                    """, principal.tenantId(), principal.accountId(), batch.id(), batch.targetConversationJid());
+        }
     }
 
     @Transactional
@@ -473,17 +522,47 @@ public class WhatsappService {
     }
 
     @Transactional
-    public ScanJobView requestScan(Long accountId, Long userId) {
+    public ScanJobView requestScan(Long accountId, String scopeType, String requestedPhone,
+                                   String requestedConversationJid, Long userId) {
         long tenant = requiredTenant();
         if (!exists("SELECT COUNT(*) FROM wa_account WHERE tenant_id=? AND id=? AND status=1 AND deleted=0",tenant,accountId))
             throw new IllegalArgumentException("WhatsApp账号不存在");
-        List<Long> pending = jdbc.query("SELECT id FROM wa_scan_job WHERE tenant_id=? AND account_id=? AND status IN ('PENDING','CLAIMED') AND deleted=0",
-                (rs,row)->rs.getLong(1),tenant,accountId);
+        String scope = normalizeScanScope(scopeType);
+        String targetPhone = null, targetJid = null;
+        if ("CONTACT".equals(scope)) {
+            String phone = digits(requestedPhone), jid = blankToNull(requestedConversationJid);
+            if (phone == null && jid == null) throw new IllegalArgumentException("客户扫描缺少目标号码或会话标识");
+            StringBuilder sql = new StringBuilder("""
+                    SELECT wc.phone_normalized,c.conversation_jid
+                    FROM wa_conversation c JOIN wa_contact wc ON wc.id=c.contact_id AND wc.tenant_id=c.tenant_id
+                    WHERE c.tenant_id=? AND c.account_id=? AND c.deleted=0 AND wc.deleted=0
+                    """);
+            List<Object> targetArgs = new ArrayList<>(); targetArgs.add(tenant); targetArgs.add(accountId);
+            if (phone != null) { sql.append(" AND wc.phone_normalized=?"); targetArgs.add(phone); }
+            if (jid != null) { sql.append(" AND c.conversation_jid=?"); targetArgs.add(jid); }
+            List<Map<String,Object>> matches = jdbc.queryForList(sql+" LIMIT 1",targetArgs.toArray());
+            if (matches.isEmpty()) throw new IllegalArgumentException("目标客户不属于当前WhatsApp账号");
+            targetPhone = phone != null ? phone : digits((String) matches.get(0).get("phone_normalized"));
+            targetJid = jid != null ? jid : blankToNull((String) matches.get(0).get("conversation_jid"));
+        }
+        List<Long> pending;
+        if ("ACCOUNT".equals(scope)) {
+            pending = jdbc.query("SELECT id FROM wa_scan_job WHERE tenant_id=? AND account_id=? AND scope_type='ACCOUNT' AND status IN ('PENDING','CLAIMED') AND deleted=0 ORDER BY requested_at LIMIT 1",
+                    (rs,row)->rs.getLong(1),tenant,accountId);
+        } else if (targetPhone != null) {
+            pending = jdbc.query("SELECT id FROM wa_scan_job WHERE tenant_id=? AND account_id=? AND scope_type='CONTACT' AND target_phone_normalized=? AND status IN ('PENDING','CLAIMED') AND deleted=0 ORDER BY requested_at LIMIT 1",
+                    (rs,row)->rs.getLong(1),tenant,accountId,targetPhone);
+        } else {
+            pending = jdbc.query("SELECT id FROM wa_scan_job WHERE tenant_id=? AND account_id=? AND scope_type='CONTACT' AND target_conversation_jid=? AND status IN ('PENDING','CLAIMED') AND deleted=0 ORDER BY requested_at LIMIT 1",
+                    (rs,row)->rs.getLong(1),tenant,accountId,targetJid);
+        }
         Long id;
         if (!pending.isEmpty()) id=pending.get(0); else {
             KeyHolder holder=new GeneratedKeyHolder();
-            jdbc.update(c->{PreparedStatement ps=c.prepareStatement("INSERT INTO wa_scan_job(tenant_id,account_id,status,requested_by,requested_at) VALUES(?,?,'PENDING',?,NOW(3))",Statement.RETURN_GENERATED_KEYS);
-                ps.setLong(1,tenant);ps.setLong(2,accountId);if(userId==null)ps.setNull(3,java.sql.Types.BIGINT);else ps.setLong(3,userId);return ps;},holder);
+            String finalTargetPhone = targetPhone, finalTargetJid = targetJid;
+            jdbc.update(c->{PreparedStatement ps=c.prepareStatement("INSERT INTO wa_scan_job(tenant_id,account_id,scope_type,target_phone_normalized,target_conversation_jid,status,requested_by,requested_at) VALUES(?,?,?,?,?,'PENDING',?,NOW(3))",Statement.RETURN_GENERATED_KEYS);
+                ps.setLong(1,tenant);ps.setLong(2,accountId);ps.setString(3,scope);ps.setString(4,finalTargetPhone);ps.setString(5,finalTargetJid);
+                if(userId==null)ps.setNull(6,java.sql.Types.BIGINT);else ps.setLong(6,userId);return ps;},holder);
             id=Objects.requireNonNull(holder.getKey()).longValue();
         }
         return scanJob(tenant,id);
@@ -503,7 +582,15 @@ public class WhatsappService {
     public ScanJobView completeScan(CollectorPrincipal principal, Long jobId, ScanJobCompleteRequest request) {
         requireScope(principal,"scan:poll");
         if(!Set.of("SUCCEEDED","FAILED").contains(request.status())) throw new IllegalArgumentException("非法重扫状态");
-        Long batchId=request.batchNo()==null?null:batch(principal,request.batchNo()).id();
+        BatchRow completedBatch=request.batchNo()==null?null:batch(principal,request.batchNo());
+        Long batchId=completedBatch==null?null:completedBatch.id();
+        if (completedBatch != null && !exists("""
+                SELECT COUNT(*) FROM wa_scan_job
+                WHERE id=? AND tenant_id=? AND account_id=? AND scope_type=?
+                  AND (target_phone_normalized <=> ?) AND (target_conversation_jid <=> ?)
+                """,jobId,principal.tenantId(),principal.accountId(),completedBatch.scanScopeType(),
+                completedBatch.targetPhoneNormalized(),completedBatch.targetConversationJid()))
+            throw new IllegalArgumentException("扫描任务与导入批次范围不一致");
         int count=jdbc.update("UPDATE wa_scan_job SET status=?,completed_at=NOW(3),result_batch_id=?,error_summary=? WHERE id=? AND tenant_id=? AND account_id=? AND status='CLAIMED'",
                 request.status(),batchId,request.errorSummary(),jobId,principal.tenantId(),principal.accountId());
         if(count!=1) throw new IllegalStateException("重扫任务状态已变化");
@@ -517,9 +604,11 @@ public class WhatsappService {
     }
 
     private ScanJobView scanJob(long tenant,long id){return jdbc.queryForObject("""
-            SELECT j.id,j.account_id,a.display_name,j.status,j.requested_at,j.claimed_at,j.completed_at,j.result_batch_id,j.error_summary
+            SELECT j.id,j.account_id,a.display_name,j.scope_type,j.target_phone_normalized,j.target_conversation_jid,
+              j.status,j.requested_at,j.claimed_at,j.completed_at,j.result_batch_id,j.error_summary
             FROM wa_scan_job j JOIN wa_account a ON a.id=j.account_id AND a.tenant_id=j.tenant_id WHERE j.tenant_id=? AND j.id=?
-            """,(rs,row)->new ScanJobView(rs.getLong(1),rs.getLong(2),rs.getString(3),rs.getString(4),local(rs,"requested_at"),local(rs,"claimed_at"),local(rs,"completed_at"),nullableLong(rs,"result_batch_id"),rs.getString("error_summary")),tenant,id);}
+            """,(rs,row)->new ScanJobView(rs.getLong(1),rs.getLong(2),rs.getString(3),rs.getString(4),rs.getString(5),rs.getString(6),
+                    rs.getString(7),local(rs,"requested_at"),local(rs,"claimed_at"),local(rs,"completed_at"),nullableLong(rs,"result_batch_id"),rs.getString("error_summary")),tenant,id);}
 
     private void createExactPhoneCandidate(long tenant, long contactId, String phone) {
         String normalized=digits(phone); if(normalized==null||normalized.length()<6)return;
@@ -535,7 +624,7 @@ public class WhatsappService {
                 """,tenant,contactId,customerId);
     }
     private void ensureBinding(long tenant,long fileId,long messageId){if(!exists("SELECT COUNT(*) FROM file_business_bind WHERE tenant_id=? AND file_id=? AND business_type='whatsapp_message' AND business_id=? AND bind_role='attachment' AND deleted=0",tenant,fileId,messageId))jdbc.update("INSERT INTO file_business_bind(file_id,business_type,business_id,bind_role,sort,is_primary,tenant_id,deleted) VALUES(?,'whatsapp_message',?,'attachment',0,0,?,0)",fileId,messageId,tenant);}
-    private BatchRow batch(CollectorPrincipal p,String no){List<BatchRow> rows=jdbc.query("SELECT id,status FROM wa_import_batch WHERE tenant_id=? AND account_id=? AND batch_no=? AND deleted=0",(rs,row)->new BatchRow(rs.getLong(1),rs.getString(2)),p.tenantId(),p.accountId(),no);if(rows.size()!=1)throw new IllegalArgumentException("导入批次不存在");return rows.get(0);}
+    private BatchRow batch(CollectorPrincipal p,String no){List<BatchRow> rows=jdbc.query("SELECT id,status,scan_scope_type,target_phone_normalized,target_conversation_jid FROM wa_import_batch WHERE tenant_id=? AND account_id=? AND batch_no=? AND deleted=0",(rs,row)->new BatchRow(rs.getLong(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5)),p.tenantId(),p.accountId(),no);if(rows.size()!=1)throw new IllegalArgumentException("导入批次不存在");return rows.get(0);}
     private BatchRow runningBatch(CollectorPrincipal p,String no){BatchRow row=batch(p,no);if(!"RUNNING".equals(row.status()))throw new IllegalStateException("导入批次已结束");return row;}
     private Long contactId(CollectorPrincipal p,String jid){Long id=nullableContactId(p,jid);if(id==null)throw new IllegalArgumentException("联系人不存在: "+jid);return id;}
     private Long nullableContactId(CollectorPrincipal p,String jid){if(jid==null||jid.isBlank())return null;List<Long> ids=jdbc.query("SELECT id FROM wa_contact WHERE tenant_id=? AND account_id=? AND contact_jid=? AND deleted=0",(rs,row)->rs.getLong(1),p.tenantId(),p.accountId(),jid);return ids.isEmpty()?null:ids.get(0);}
@@ -555,6 +644,8 @@ public class WhatsappService {
     private static byte[] hex(String value){try{byte[] bytes=HexFormat.of().parseHex(value);if(bytes.length!=32)throw new IllegalArgumentException("哈希长度必须为32字节");return bytes;}catch(IllegalArgumentException e){throw new IllegalArgumentException("无效SHA-256",e);}}
     private static byte[] hexOrNull(String value){return value==null||value.isBlank()?null:hex(value);}
     private static String digits(String value){if(value==null)return null;String d=value.trim().replaceFirst("^00","+").replaceAll("[^0-9]","");return d.isBlank()?null:d;}
+    private static String blankToNull(String value){return value==null||value.isBlank()?null:value.trim();}
+    private static String normalizeScanScope(String value){String scope=value==null||value.isBlank()?"ACCOUNT":value.toUpperCase(Locale.ROOT);if(!Set.of("ACCOUNT","CONTACT").contains(scope))throw new IllegalArgumentException("非法扫描范围");return scope;}
     private static String randomToken(int bytes){byte[] raw=new byte[bytes];RANDOM.nextBytes(raw);return Base64.getUrlEncoder().withoutPadding().encodeToString(raw);}
     private static int bool(Boolean value){return Boolean.TRUE.equals(value)?1:0;} private static long zero(Long v){return v==null?0:v;} private static int zero(Integer v){return v==null?0:v;}
     private static String normalizedDirection(String d){String v=d.toUpperCase(Locale.ROOT);if(!Set.of("INBOUND","OUTBOUND","SYSTEM").contains(v))throw new IllegalArgumentException("非法消息方向");return v;}
@@ -566,6 +657,6 @@ public class WhatsappService {
     private static LocalDateTime asLocalDateTime(Object value){if(value==null)return null;if(value instanceof LocalDateTime local)return local;if(value instanceof java.sql.Timestamp timestamp)return timestamp.toLocalDateTime();throw new IllegalArgumentException("不支持的时间值");}
     private static Long nullableLong(java.sql.ResultSet rs,String name)throws java.sql.SQLException{long value=rs.getLong(name);return rs.wasNull()?null:value;}
     private static LocalDateTime local(java.sql.ResultSet rs,String name)throws java.sql.SQLException{java.sql.Timestamp value=rs.getTimestamp(name);return value==null?null:value.toLocalDateTime();}
-    private record BatchRow(Long id,String status){}
+    private record BatchRow(Long id,String status,String scanScopeType,String targetPhoneNormalized,String targetConversationJid){}
     private static final class Counter{long inserted,updated;void add(boolean exists){if(exists)updated++;else inserted++;}ImportCounts result(){return new ImportCounts(inserted,updated);}}
 }

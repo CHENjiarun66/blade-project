@@ -27,6 +27,9 @@ public final class WhatsappDtos {
             @Size(max=32) @JsonAlias("source_app_version") String sourceAppVersion,
             @Pattern(regexp="[0-9a-fA-F]{64}") @JsonAlias("chat_schema_hash") String chatSchemaHash,
             @Pattern(regexp="[0-9a-fA-F]{64}") @JsonAlias("contact_schema_hash") String contactSchemaHash,
+            @Pattern(regexp="ACCOUNT|CONTACT") String scanScopeType,
+            @Pattern(regexp="[0-9]{6,32}") String targetPhoneNormalized,
+            @Size(max=191) String targetConversationJid,
             Map<String,Object> manifest) {}
 
     public record BatchResult(Long batchId, String batchNo, String status, long inserted, long updated) {}
@@ -132,6 +135,9 @@ public final class WhatsappDtos {
 
     public record MediaResult(Long mediaId, Long fileId, String status, boolean reused) {}
 
+    public record MediaPendingRequest(
+            @NotEmpty @Size(max=500) List<@Pattern(regexp="[0-9a-fA-F]{64}") String> mediaKeyHashes) {}
+
     public record IssueSummary(long open, long resolved, long missingPath, long missingFile,
                                long image, long video, long audio, LocalDateTime lastScanAt,
                                String lastScanStatus) {}
@@ -159,7 +165,8 @@ public final class WhatsappDtos {
                                 long openCount, long resolvedCount, LocalDateTime latestMessageTime,
                                 LocalDateTime lastDetectedAt) {}
 
-    public record ScanJobView(Long id, Long accountId, String accountName, String status,
+    public record ScanJobView(Long id, Long accountId, String accountName, String scopeType,
+                              String targetPhoneNormalized, String targetConversationJid, String status,
                               LocalDateTime requestedAt, LocalDateTime claimedAt,
                               LocalDateTime completedAt, Long resultBatchId, String errorSummary) {}
 

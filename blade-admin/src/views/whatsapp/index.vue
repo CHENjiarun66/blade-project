@@ -8,7 +8,7 @@
       <div class="flex gap-2">
         <el-button @click="collectorDialog=true">连接采集器</el-button>
         <el-button :icon="Refresh" @click="loadAll">刷新</el-button>
-        <el-button type="primary" :loading="rescanning" :disabled="!selectedAccount" @click="requestRescan">重新扫描</el-button>
+        <el-button type="primary" :loading="rescanning" :disabled="!selectedAccount" @click="requestAccountRescan">扫描整个账号</el-button>
       </div>
     </div>
 
@@ -25,8 +25,8 @@
     </div>
 
     <el-alert v-if="latestJob" :closable="false" show-icon :type="jobAlertType" class="rounded-xl">
-      <template #title>重扫任务 #{{ latestJob.id }}：{{ jobLabel(latestJob.status) }}</template>
-      <div class="text-xs">{{ latestJob.accountName || `账号 ${latestJob.accountId}` }} · {{ formatTime(latestJob.requestedAt) }}<span v-if="latestJob.errorSummary"> · {{ latestJob.errorSummary }}</span></div>
+      <template #title>{{ latestJob.scopeType === 'CONTACT' ? '客户扫描' : '账号扫描' }}任务 #{{ latestJob.id }}：{{ jobLabel(latestJob.status) }}</template>
+      <div class="text-xs">{{ latestJob.accountName || `账号 ${latestJob.accountId}` }}<span v-if="latestJob.scopeType === 'CONTACT'"> · {{ maskPhone(latestJob.targetPhoneNormalized) }}</span> · {{ formatTime(latestJob.requestedAt) }}<span v-if="latestJob.errorSummary"> · {{ latestJob.errorSummary }}</span></div>
     </el-alert>
 
     <el-tabs v-model="activeTab" class="rounded-2xl border border-slate-200 bg-white px-5 pt-2">
@@ -62,7 +62,7 @@
           <el-select v-model="filters.mediaType" placeholder="媒体类型" clearable class="w-36" @change="resetAndLoad">
             <el-option label="图片" value="IMAGE" /><el-option label="视频" value="VIDEO" /><el-option label="语音/音频" value="AUDIO" />
           </el-select>
-          <span class="ml-auto text-xs text-slate-400">打开聊天并让媒体加载后，点击“重新扫描”</span>
+          <span class="ml-auto text-xs text-slate-400">打开聊天并让媒体加载后，在详情里点击“仅扫描此客户”</span>
         </div>
         <el-table v-loading="loading" :data="issueChats" stripe empty-text="当前筛选条件下没有缺失媒体">
           <el-table-column label="客户 / 聊天" min-width="230">
@@ -106,12 +106,12 @@
     <el-drawer v-model="issueDetailDrawer" size="820px" destroy-on-close>
       <template #header><div><h3 class="text-lg font-semibold text-slate-900">{{ selectedIssueChat ? chatDisplayName(selectedIssueChat) : '缺失媒体详情' }}</h3><p class="mt-1 text-xs text-slate-400">{{ maskPhone(chatPhone(selectedIssueChat)) }} · 共 {{ selectedIssueChat?.issueCount || 0 }} 项</p></div></template>
       <div v-if="selectedIssueChat" class="flex h-full flex-col">
-        <el-alert title="请先打开这个客户的聊天，让图片、视频或语音完成加载；然后回到这里点击“重新扫描”。" type="info" :closable="false" show-icon class="mb-4" />
+        <el-alert title="请先打开这个客户的聊天，让图片、视频或语音完成加载；然后回到这里点击“仅扫描此客户”。" type="info" :closable="false" show-icon class="mb-4" />
         <div class="mb-4 flex items-center gap-2 rounded-xl bg-slate-50 p-3">
           <el-tag v-if="selectedIssueChat.imageCount" type="info">图片 {{ selectedIssueChat.imageCount }}</el-tag>
           <el-tag v-if="selectedIssueChat.videoCount">视频 {{ selectedIssueChat.videoCount }}</el-tag>
           <el-tag v-if="selectedIssueChat.audioCount" type="warning">音频 {{ selectedIssueChat.audioCount }}</el-tag>
-          <div class="ml-auto flex gap-2"><el-button type="primary" :disabled="!chatPhone(selectedIssueChat)" @click="openChat(selectedIssueChat)">打开这个聊天</el-button><el-button :loading="rescanning" @click="requestRescan">重新扫描</el-button></div>
+          <div class="ml-auto flex gap-2"><el-button type="primary" :disabled="!chatPhone(selectedIssueChat)" @click="openChat(selectedIssueChat)">打开这个聊天</el-button><el-button :loading="rescanning" :disabled="!chatPhone(selectedIssueChat)" @click="requestContactRescan">仅扫描此客户</el-button></div>
         </div>
         <el-table v-loading="detailLoading" :data="detailIssues" stripe empty-text="没有缺失媒体明细">
           <el-table-column label="消息时间" width="170"><template #default="{row}">{{ formatTime(row.messageTime) }}</template></el-table-column>
@@ -149,7 +149,8 @@ async function openIssueDetail(row:IssueChat){selectedIssueChat.value=row;detail
 async function loadInsights(){const r=await getWhatsappInsights({page:insightPage.value,size:20,status:insightStatus.value||undefined});insights.value=r.data.records;insightTotal.value=r.data.total}
 function resetInsights(){insightPage.value=1;void loadInsights()}
 function resetAndLoad(){page.value=1;issueDetailDrawer.value=false;void loadIssueChats()}
-async function requestRescan(){if(!selectedAccount.value)return;rescanning.value=true;try{latestJob.value=(await requestWhatsappScan(selectedAccount.value)).data;ElMessage.success('重扫任务已提交，Mac 采集器在线后会自动领取');startPollingIfNeeded()}finally{rescanning.value=false}}
+async function requestAccountRescan(){if(!selectedAccount.value)return;rescanning.value=true;try{latestJob.value=(await requestWhatsappScan(selectedAccount.value)).data;ElMessage.success('账号全盘扫描已提交，Mac 采集器会自动领取');startPollingIfNeeded()}finally{rescanning.value=false}}
+async function requestContactRescan(){const chat=selectedIssueChat.value;const phone=chatPhone(chat);if(!chat||!phone)return ElMessage.warning('该聊天暂未找到真实手机号，无法定向扫描');rescanning.value=true;try{latestJob.value=(await requestWhatsappScan(chat.accountId,{phoneNormalized:phone,conversationJid:chat.conversationJid})).data;ElMessage.success('已提交仅扫描此客户的任务');startPollingIfNeeded()}finally{rescanning.value=false}}
 function startPollingIfNeeded(){if(pollTimer)window.clearInterval(pollTimer);if(latestJob.value&&['PENDING','CLAIMED'].includes(latestJob.value.status))pollTimer=window.setInterval(async()=>{latestJob.value=(await getLatestWhatsappScan()).data;if(!latestJob.value||!['PENDING','CLAIMED'].includes(latestJob.value.status)){if(pollTimer)clearInterval(pollTimer);await loadAll()}},5000)}
 function openChat(row:{phoneNormalized?:string;conversationJid?:string}){const digits=chatPhone(row);if(!digits)return ElMessage.warning('该聊天暂未找到真实手机号，无法安全打开');window.location.href=`whatsapp://send?phone=${digits}`}
 async function handleBinding(id:number,status:'CONFIRMED'|'REJECTED'){await ElMessageBox.confirm(status==='CONFIRMED'?'确认将该 WhatsApp 联系人与 ERP 客户绑定？':'确认拒绝这条匹配候选？','确认操作');await decideBinding(id,status);ElMessage.success('处理成功');bindings.value=(await getPendingBindings()).data||[]}

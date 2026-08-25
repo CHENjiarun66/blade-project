@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 const ok = (data: unknown) => ({ code: 200, message: 'success', data })
 
 test('缺失媒体按聊天聚合，并在详情抽屉展示该客户全部明细', async ({ page }) => {
+  let scanRequestUrl = ''
   await page.addInitScript(() => {
     localStorage.setItem('token', 'e2e-token')
     localStorage.setItem('userInfo', JSON.stringify({ userId: '1', username: 'admin', realName: '管理员', roles: ['ROLE_ADMIN'] }))
@@ -12,6 +13,10 @@ test('缺失媒体按聊天聚合，并在详情抽屉展示该客户全部明�
   await page.route('**/api/whatsapp/issues/summary', route => route.fulfill({ json: ok({ open: 5, resolved: 0, missingPath: 5, missingFile: 0, image: 3, video: 1, audio: 1 }) }))
   await page.route('**/api/whatsapp/accounts', route => route.fulfill({ json: ok([{ id: 1, displayName: 'Mac WhatsApp Business', accountRef: 'mac:primary', status: 1 }]) }))
   await page.route('**/api/whatsapp/scan-jobs/latest', route => route.fulfill({ json: ok(null) }))
+  await page.route('**/api/whatsapp/scan-jobs?*', route => {
+    scanRequestUrl = route.request().url()
+    return route.fulfill({ json: ok({ id: 9, accountId: 1, accountName: 'Mac WhatsApp Business', scopeType: 'CONTACT', targetPhoneNormalized: '2349164306062', status: 'PENDING', requestedAt: '2026-08-25T10:00:00' }) })
+  })
   await page.route('**/api/whatsapp/bindings/pending', route => route.fulfill({ json: ok([]) }))
   await page.route('**/api/whatsapp/insights?*', route => route.fulfill({ json: ok({ records: [], total: 0, size: 20, current: 1, pages: 0 }) }))
   await page.route('**/api/whatsapp/issues/chats?*', route => route.fulfill({ json: ok({
@@ -41,4 +46,8 @@ test('缺失媒体按聊天聚合，并在详情抽屉展示该客户全部明�
   await expect(drawer.getByText('共 3 项', { exact: false })).toBeVisible()
   await expect(drawer.locator('.el-table__body tbody tr')).toHaveCount(3)
   await expect(drawer.getByRole('button', { name: '打开这个聊天' })).toBeVisible()
+  await drawer.getByRole('button', { name: '仅扫描此客户' }).click()
+  await expect.poll(() => scanRequestUrl).toContain('scopeType=CONTACT')
+  expect(scanRequestUrl).toContain('targetPhoneNormalized=2349164306062')
+  expect(scanRequestUrl).toContain('targetConversationJid=126817868456165%40lid')
 })

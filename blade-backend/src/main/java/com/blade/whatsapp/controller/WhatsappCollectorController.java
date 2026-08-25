@@ -1,5 +1,7 @@
 package com.blade.whatsapp.controller;
 
+import java.util.List;
+
 import com.blade.common.result.R;
 import com.blade.whatsapp.auth.CollectorPrincipal;
 import com.blade.whatsapp.dto.WhatsappDtos.*;
@@ -28,6 +30,8 @@ public class WhatsappCollectorController {
             @Valid @RequestBody ImportRequest<IssueItem> body){return R.ok(service.upsertIssues(p,body));}
     @PostMapping("/media:upsert") public R<ImportCounts> mediaMetadata(@AuthenticationPrincipal CollectorPrincipal p,
             @Valid @RequestBody ImportRequest<MediaItem> body){return R.ok(service.upsertMediaMetadata(p,body));}
+    @PostMapping("/media:pending") public R<List<String>> pendingMedia(@AuthenticationPrincipal CollectorPrincipal p,
+            @Valid @RequestBody MediaPendingRequest body){return R.ok(service.pendingMedia(p,body));}
     @PostMapping("/batches/{batchNo}:complete") public R<BatchResult> complete(@AuthenticationPrincipal CollectorPrincipal p,
             @PathVariable String batchNo,@Valid @RequestBody BatchCompleteRequest body){return R.ok(service.completeBatch(p,batchNo,body));}
     @PostMapping(value="/media",consumes="multipart/form-data") public R<MediaResult> media(@AuthenticationPrincipal CollectorPrincipal p,
