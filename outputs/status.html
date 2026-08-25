@@ -54,7 +54,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/8/24 23:34:02　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/8/25 11:48:37　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -70,18 +70,18 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">144 完成 · 0 进行中 · 15 待办 · 1 部分</span>
+          <span class="card-nums">145 完成 · 0 进行中 · 16 待办 · 1 部分</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:90%"></div></div>
-        <div class="bar-label">90% 完成（共 160 项）</div>
+        <div class="bar-label">90% 完成（共 162 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">72 完成 · 0 进行中 · 2 待办 · 0 部分</span>
+          <span class="card-nums">72 完成 · 0 进行中 · 3 待办 · 0 部分</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:97%"></div></div>
-        <div class="bar-label">97% 完成（共 74 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:96%"></div></div>
+        <div class="bar-label">96% 完成（共 75 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -99,7 +99,7 @@
     </section>
   
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">28</span></h2>
+      <h2>🟡 还没做 <span class="count">30</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -172,6 +172,13 @@
         <td class="td-remark">订单运营异常、利润解释、WhatsApp 反馈分析、经营记忆分阶段排序 |</td>
       </tr>
       <tr data-status="todo">
+        <td class="td-id">BE-578</td>
+        <td class="td-name">WhatsApp 媒体失败增量补传</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">失败重试只上传服务端尚未导入的媒体，避免对已成功文件重复传输和重复 BCrypt 鉴权 |</td>
+      </tr>
+      <tr data-status="todo">
         <td class="td-id">BE-601</td>
         <td class="td-name">OCR 图片上传接入</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
@@ -219,6 +226,13 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
         <td class="td-remark">AI 识别 + 置信度标注 + 候选推荐 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-1103</td>
+        <td class="td-name">WhatsApp 只读聊天归档浏览</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">在 ERP 按客户/会话查看消息时间线、方向、正文和媒体引用；继续按租户/JWT 权限控制，不提供发送能力 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">FE-005</td>
@@ -312,7 +326,7 @@
     </section>
   
     <section class="section done">
-      <h2>✅ 已完成（共 230 项） <span class="count">230</span></h2>
+      <h2>✅ 已完成（共 231 项） <span class="count">231</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1104,6 +1118,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
         <td class="td-remark">脱敏/上限/租户/非法证据/失败重试/幂等回归通过，并修复认证前 tenant=1 回落导致非 1 租户 Key 不可用的问题 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-577</td>
+        <td class="td-name">WhatsApp 本地真实数据部署验证</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">本地 ERP 18080 + Admin 5777 + Mac Assistant 跑通；真实只读快照导入 1527 联系人、989 会话、32050 消息、17132 媒体元数据和 2140 已下载媒体 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-901</td>

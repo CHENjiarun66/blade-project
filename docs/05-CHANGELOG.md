@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-08-25 变更记录
+
+### [本地部署验证] - WhatsApp Mac Assistant 真实只读全量同步
+
+**变更内容**：
+- 在本机测试环境启动 Blade 后端 `18080` 和 Admin `5777`；Vite API 代理支持通过 `BLADE_API_TARGET` 切换后端，避免与本机既有 8080 网站冲突。
+- 创建并轮换本地 Collector Key，只把有效密钥保存到 macOS 钥匙串；启动 Mac Assistant 自动执行 doctor、快照、扫描和 ERP 同步。
+- 真实媒体验证发现 caption 被误作 original filename，导致文件扩展名超长；Collector 已改为只从安全相对路径取得 basename，并增加回归测试。
+- 记录 BE-578 媒体失败增量补传和 BA-1103 ERP 只读聊天归档浏览，明确当前页面只覆盖智能跟进、缺失媒体和客户绑定。
+
+**变更原因**：
+- 用户要求先在本机测试环境实际部署，并直观看到 WhatsApp 数据获取能力、启动方式和 ERP 查看入口。
+
+**影响范围**：
+- `blade-admin/vite.config.ts`
+- `/Users/chenjiarun/Documents/CodexWhatsapp/src/blade_whatsapp_collector/erp_client.py`
+- `/Users/chenjiarun/Documents/CodexWhatsapp/script/build_and_run.sh`
+- 本机 `blade_project` 测试数据库与本地文件中心；不涉及生产/NAS
+
+**验证结果**：
+- 真实只读 doctor：ChatStorage、Contacts、Labels、Biz 均可读且 schema compatible；未修改 WhatsApp 源库。
+- 成功批次：48,259 个源消息行去重为 32,050 条逻辑消息，合并 16,209 个重复源行；1,527 联系人、989 会话、17,132 媒体元数据。
+- 媒体：2,140 个已下载文件全部导入；14,992 个缺少 Mac 本地路径，ERP 汇总与分页 API 返回成功。
+- 内容覆盖：12,541 条含文本；10,063 条客户发来、21,987 条我方发出；时间范围 2024-03-29 至 2026-08-25。
+- Collector/Worker `unittest` 12 项通过；Mac release App 构建、ad-hoc 签名和进程验证通过；Admin 生产构建通过。
+- 真实正文/号码/媒体未写入 Git、日志、NAS、生产或模型；一枚诊断中暴露的测试 Key 已立即停用并轮换。
+
+**执行人**：Codex
+
+---
+
 ## 2026-08-24 变更记录
 
 ### [功能开发] - WhatsApp 混合 Agent 客户分析与跟进工作台 v1
