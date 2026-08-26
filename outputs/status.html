@@ -54,7 +54,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/8/25 14:38:43　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/8/26 17:59:15　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -70,18 +70,18 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">150 完成 · 0 进行中 · 15 待办 · 1 部分</span>
+          <span class="card-nums">151 完成 · 0 进行中 · 15 待办 · 1 部分</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:90%"></div></div>
-        <div class="bar-label">90% 完成（共 166 项）</div>
+        <div class="bar-label">90% 完成（共 167 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">79 完成 · 0 进行中 · 2 待办 · 0 部分</span>
+          <span class="card-nums">80 完成 · 0 进行中 · 2 待办 · 0 部分</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:98%"></div></div>
-        <div class="bar-label">98% 完成（共 81 项）</div>
+        <div class="bar-label">98% 完成（共 82 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -312,7 +312,7 @@
     </section>
   
     <section class="section done">
-      <h2>✅ 已完成（共 243 项） <span class="count">243</span></h2>
+      <h2>✅ 已完成（共 245 项） <span class="count">245</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1148,6 +1148,13 @@
         <td class="td-remark">Collector 仍生成只读一致性快照，但仅解析目标真实号码关联的全部 phone JID/LID 会话；其他客户消息、媒体和问题不处理 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-583</td>
+        <td class="td-name">WhatsApp 客户详情工作区接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">按租户/customerId 返回绑定、账号、真实号码、聊天与缺失媒体上下文；待确认/已绑定状态明确，禁止前端猜测号码 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BE-901</td>
         <td class="td-name">统一文件表与迁移脚本</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1916,6 +1923,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
         <td class="td-remark">展示待确认/已绑定客户及绑定用途；聊天默认定位最新消息，向上滚动无跳动加载更早记录 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1110</td>
+        <td class="td-name">客户详情 WhatsApp 工作台</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">客户详情新增 WhatsApp Tab，显示绑定/同步/缺失媒体状态，直接查看完整只读聊天、打开 WhatsApp 和仅扫描此客户 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">FE-001</td>

@@ -59,6 +59,9 @@ public class WhatsappAdminController {
     public R<List<BindingView>> bindings(){return R.ok(service.pendingBindings());}
     @GetMapping("/bindings/confirmed") @PreAuthorize("hasAuthority('menu:whatsapp')")
     public R<List<BindingView>> confirmedBindings(){return R.ok(service.confirmedBindings());}
+    @GetMapping("/customers/{customerId}/workspace") @PreAuthorize("hasAuthority('menu:whatsapp')")
+    public R<List<CustomerWorkspaceView>> customerWorkspace(@PathVariable Long customerId){
+        return R.ok(service.customerWorkspace(customerId));}
     @PostMapping("/bindings/refresh") @PreAuthorize("hasAuthority('menu:whatsapp')")
     public R<List<BindingView>> refreshBindings(){return R.ok(service.refreshBindingCandidates());}
     @PutMapping("/bindings/{id}") @PreAuthorize("hasAuthority('btn:whatsapp:collector')")

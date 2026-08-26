@@ -149,6 +149,16 @@ public final class WhatsappDtos {
                               Long customerId, String customerName, String matchMethod,
                               String status, LocalDateTime createTime, LocalDateTime confirmedAt) {}
 
+    public record CustomerWorkspaceView(
+            Long customerId, Long bindingId, String bindingStatus,
+            Long contactId, String contactName, String phoneNormalized,
+            Long accountId, String accountName, LocalDateTime lastSyncTime,
+            String identityKey, String conversationJid,
+            long messageCount, LocalDateTime lastMessageAt,
+            long openIssueCount, long imageIssueCount,
+            long videoIssueCount, long audioIssueCount,
+            LocalDateTime confirmedAt) {}
+
     public record BindingDecision(@NotBlank @Pattern(regexp="CONFIRMED|REJECTED") String status,
                                   @Size(max=500) String note) {}
 

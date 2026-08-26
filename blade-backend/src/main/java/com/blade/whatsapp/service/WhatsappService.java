@@ -453,6 +453,85 @@ public class WhatsappService {
                 local(rs,"confirmed_at")),tenant,status);
     }
 
+    public List<CustomerWorkspaceView> customerWorkspace(Long customerId) {
+        long tenant = requiredTenant();
+        if (customerId == null || !exists("SELECT COUNT(*) FROM crm_customer WHERE tenant_id=? AND id=? AND deleted=0", tenant, customerId)) {
+            throw new IllegalArgumentException("ERP客户不存在");
+        }
+        return jdbc.query("""
+                WITH linked AS (
+                  SELECT b.tenant_id,b.customer_id,b.id binding_id,b.status binding_status,
+                    b.wa_contact_id contact_id,
+                    COALESCE(NULLIF(wc.business_name,''),NULLIF(wc.display_name,''),NULLIF(wc.push_name,''),wc.phone_normalized) contact_name,
+                    wc.phone_normalized,wc.account_id,a.display_name account_name,a.last_sync_time,
+                    COALESCE(NULLIF(wc.phone_normalized,''),wc.contact_jid) identity_key,
+                    b.confirmed_at,b.create_time
+                  FROM wa_customer_binding b
+                  JOIN wa_contact wc ON wc.id=b.wa_contact_id AND wc.tenant_id=b.tenant_id AND wc.deleted=0
+                  JOIN wa_account a ON a.id=wc.account_id AND a.tenant_id=b.tenant_id AND a.deleted=0
+                  WHERE b.tenant_id=? AND b.customer_id=? AND b.status IN ('PENDING','CONFIRMED') AND b.deleted=0
+                )
+                SELECT l.*,
+                  (SELECT MAX(c.conversation_jid)
+                   FROM wa_conversation c
+                   LEFT JOIN wa_contact cc ON cc.id=c.contact_id AND cc.tenant_id=c.tenant_id AND cc.deleted=0
+                   WHERE c.tenant_id=l.tenant_id AND c.account_id=l.account_id AND c.deleted=0
+                     AND c.conversation_type='DIRECT'
+                     AND COALESCE(NULLIF(cc.phone_normalized,''),c.conversation_jid)=l.identity_key) conversation_jid,
+                  (SELECT COUNT(*)
+                   FROM wa_message m
+                   JOIN wa_conversation c ON c.id=m.conversation_id AND c.tenant_id=m.tenant_id AND c.deleted=0
+                   LEFT JOIN wa_contact cc ON cc.id=c.contact_id AND cc.tenant_id=c.tenant_id AND cc.deleted=0
+                   WHERE m.tenant_id=l.tenant_id AND m.account_id=l.account_id AND m.deleted=0
+                     AND c.conversation_type='DIRECT'
+                     AND COALESCE(NULLIF(cc.phone_normalized,''),c.conversation_jid)=l.identity_key) message_count,
+                  (SELECT MAX(m.sent_at)
+                   FROM wa_message m
+                   JOIN wa_conversation c ON c.id=m.conversation_id AND c.tenant_id=m.tenant_id AND c.deleted=0
+                   LEFT JOIN wa_contact cc ON cc.id=c.contact_id AND cc.tenant_id=c.tenant_id AND cc.deleted=0
+                   WHERE m.tenant_id=l.tenant_id AND m.account_id=l.account_id AND m.deleted=0
+                     AND c.conversation_type='DIRECT'
+                     AND COALESCE(NULLIF(cc.phone_normalized,''),c.conversation_jid)=l.identity_key) last_message_at,
+                  (SELECT COUNT(*)
+                   FROM wa_collection_issue i
+                   JOIN wa_conversation c ON c.id=i.conversation_id AND c.tenant_id=i.tenant_id AND c.deleted=0
+                   LEFT JOIN wa_contact cc ON cc.id=c.contact_id AND cc.tenant_id=c.tenant_id AND cc.deleted=0
+                   WHERE i.tenant_id=l.tenant_id AND i.account_id=l.account_id AND i.deleted=0 AND i.status='OPEN'
+                     AND COALESCE(NULLIF(cc.phone_normalized,''),c.conversation_jid)=l.identity_key) open_issue_count,
+                  (SELECT COUNT(*)
+                   FROM wa_collection_issue i
+                   JOIN wa_conversation c ON c.id=i.conversation_id AND c.tenant_id=i.tenant_id AND c.deleted=0
+                   LEFT JOIN wa_contact cc ON cc.id=c.contact_id AND cc.tenant_id=c.tenant_id AND cc.deleted=0
+                   WHERE i.tenant_id=l.tenant_id AND i.account_id=l.account_id AND i.deleted=0 AND i.status='OPEN'
+                     AND i.media_type='IMAGE'
+                     AND COALESCE(NULLIF(cc.phone_normalized,''),c.conversation_jid)=l.identity_key) image_issue_count,
+                  (SELECT COUNT(*)
+                   FROM wa_collection_issue i
+                   JOIN wa_conversation c ON c.id=i.conversation_id AND c.tenant_id=i.tenant_id AND c.deleted=0
+                   LEFT JOIN wa_contact cc ON cc.id=c.contact_id AND cc.tenant_id=c.tenant_id AND cc.deleted=0
+                   WHERE i.tenant_id=l.tenant_id AND i.account_id=l.account_id AND i.deleted=0 AND i.status='OPEN'
+                     AND i.media_type='VIDEO'
+                     AND COALESCE(NULLIF(cc.phone_normalized,''),c.conversation_jid)=l.identity_key) video_issue_count,
+                  (SELECT COUNT(*)
+                   FROM wa_collection_issue i
+                   JOIN wa_conversation c ON c.id=i.conversation_id AND c.tenant_id=i.tenant_id AND c.deleted=0
+                   LEFT JOIN wa_contact cc ON cc.id=c.contact_id AND cc.tenant_id=c.tenant_id AND cc.deleted=0
+                   WHERE i.tenant_id=l.tenant_id AND i.account_id=l.account_id AND i.deleted=0 AND i.status='OPEN'
+                     AND i.media_type IN ('AUDIO','VOICE')
+                     AND COALESCE(NULLIF(cc.phone_normalized,''),c.conversation_jid)=l.identity_key) audio_issue_count
+                FROM linked l
+                ORDER BY l.binding_status='CONFIRMED' DESC,COALESCE(l.confirmed_at,l.create_time) DESC,l.binding_id DESC
+                """, (rs,row) -> new CustomerWorkspaceView(
+                rs.getLong("customer_id"), rs.getLong("binding_id"), rs.getString("binding_status"),
+                rs.getLong("contact_id"), rs.getString("contact_name"), rs.getString("phone_normalized"),
+                rs.getLong("account_id"), rs.getString("account_name"), local(rs,"last_sync_time"),
+                rs.getString("identity_key"), rs.getString("conversation_jid"),
+                rs.getLong("message_count"), local(rs,"last_message_at"),
+                rs.getLong("open_issue_count"), rs.getLong("image_issue_count"),
+                rs.getLong("video_issue_count"), rs.getLong("audio_issue_count"),
+                local(rs,"confirmed_at")), tenant, customerId);
+    }
+
     @Transactional
     public void decideBinding(Long id, BindingDecision decision, Long userId) {
         long tenant=requiredTenant();

@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     CachedImage: typeof import('./src/components/CachedImage.vue')['default']
     CountryCodeSelect: typeof import('./src/components/CountryCodeSelect.vue')['default']
+    CustomerWhatsappWorkspace: typeof import('./src/components/whatsapp/CustomerWhatsappWorkspace.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAutocomplete: typeof import('element-plus/es')['ElAutocomplete']
     ElButton: typeof import('element-plus/es')['ElButton']
@@ -55,6 +56,7 @@ declare module 'vue' {
     ElTree: typeof import('element-plus/es')['ElTree']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    WhatsappConversation: typeof import('./src/components/whatsapp/WhatsappConversation.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']
