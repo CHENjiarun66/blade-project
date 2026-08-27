@@ -1,6 +1,6 @@
 # 项目状态总览（自动生成）
 
-> 生成时间：2026/8/27 16:04:23　|　数据源：[03-TASKS.md](./03-TASKS.md)　|　本文件由 `node scripts/gen-status.mjs` 自动生成，请勿手工编辑。
+> 生成时间：2026/8/27 16:47:39　|　数据源：[03-TASKS.md](./03-TASKS.md)　|　本文件由 `node scripts/gen-status.mjs` 自动生成，请勿手工编辑。
 > 可视化看板：`outputs/status.html`（浏览器打开）
 
 ## 模块进度
