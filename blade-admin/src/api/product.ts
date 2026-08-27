@@ -24,6 +24,8 @@ export interface ProductSize {
 export interface ProductSku {
   id: number
   skuCode: string
+  skuType: 'NORMAL' | 'DEFAULT' | 'PLACEHOLDER'
+  placeholder: boolean
   colorId: number
   colorName: string
   sizeId: number

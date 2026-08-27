@@ -6,6 +6,8 @@ export type MatchStatus = 'MATCHED' | 'AMBIGUOUS' | 'UNMATCHED'
 export interface DraftCandidate {
   skuId: number
   skuCode: string
+  skuType?: 'NORMAL' | 'DEFAULT' | 'PLACEHOLDER'
+  placeholder?: boolean
   productId: number
   productCode: string
   productName: string

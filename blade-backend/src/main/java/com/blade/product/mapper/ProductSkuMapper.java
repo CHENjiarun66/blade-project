@@ -12,7 +12,8 @@ import java.util.List;
 public interface ProductSkuMapper extends BaseMapper<ProductSku> {
 
     @Select("""
-        SELECT ps.id, ps.sku_code AS skuCode, p.name AS productName, p.id AS productId,
+        SELECT ps.id, ps.sku_code AS skuCode, ps.sku_type AS skuType,
+               p.name AS productName, p.id AS productId,
                pc.color_name AS colorName, ps.color_id AS colorId,
                psz.size_code AS sizeName, ps.size_id AS sizeId,
                ps.price, COALESCE(i.quantity, 0) AS stock

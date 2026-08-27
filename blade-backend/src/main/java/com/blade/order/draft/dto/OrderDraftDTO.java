@@ -144,6 +144,8 @@ public final class OrderDraftDTO {
     public static class CatalogCandidate {
         private Long skuId;
         private String skuCode;
+        private String skuType;
+        private boolean placeholder;
         private Long productId;
         private String productCode;
         private String productName;

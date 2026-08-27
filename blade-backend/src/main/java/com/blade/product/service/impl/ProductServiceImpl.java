@@ -1,6 +1,7 @@
 package com.blade.product.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -23,6 +24,7 @@ import com.blade.product.entity.ProductColorRel;
 import com.blade.product.entity.ProductSize;
 import com.blade.product.entity.ProductSizeRel;
 import com.blade.product.entity.ProductSku;
+import com.blade.product.enums.ProductSkuType;
 import com.blade.product.mapper.*;
 import com.blade.product.service.ProductService;
 import com.blade.system.user.entity.User;
@@ -46,6 +48,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class ProductServiceImpl implements ProductService {
+
+    private static final String COLOR_UNSPECIFIED = "UNSPECIFIED";
+    private static final String SIZE_UNSPECIFIED = "UNSPEC";
+    private static final String ATTRIBUTE_NOT_APPLICABLE = "NA";
 
     private final ProductMapper productMapper;
     private final ProductCategoryMapper categoryMapper;
@@ -161,10 +167,9 @@ public class ProductServiceImpl implements ProductService {
 
         if (dto.getSizeIds() != null && !dto.getSizeIds().isEmpty()) {
             saveSizeRelations(product.getId(), dto.getSizeIds());
-            if (dto.getColorIds() != null && !dto.getColorIds().isEmpty()) {
-                autoGenerateSkus(product.getId(), dto.getColorIds(), dto.getSizeIds(), dto.getWholesalePrice());
-            }
         }
+
+        syncProductSkus(product);
 
         return product.getId();
     }
@@ -225,7 +230,12 @@ public class ProductServiceImpl implements ProductService {
             saveSizeRelations(dto.getId(), dto.getSizeIds());
         }
 
-        if (dto.getColorIds() != null || dto.getSizeIds() != null) {
+        boolean clearedOnlyOneDimension = (dto.getColorIds() != null && dto.getColorIds().isEmpty() && dto.getSizeIds() == null)
+                || (dto.getSizeIds() != null && dto.getSizeIds().isEmpty() && dto.getColorIds() == null);
+        if (clearedOnlyOneDimension) {
+            disableActiveSkus(product.getId(), product.getTenantId());
+        } else if (dto.getColorIds() != null || dto.getSizeIds() != null
+                || dto.getWholesalePrice() != null || dto.getCostPrice() != null || dto.getStatus() != null) {
             syncProductSkus(product);
         }
     }
@@ -268,9 +278,9 @@ public class ProductServiceImpl implements ProductService {
         // 3. 检查库存记录（含租户过滤）
         if (!skuIds.isEmpty()) {
             Long inventoryCount = inventoryMapper.selectCount(
-                    new LambdaQueryWrapper<Inventory>()
-                            .in(Inventory::getSkuId, skuIds)
-                            .eq(Inventory::getTenantId, tenantId));
+                    new QueryWrapper<Inventory>()
+                            .in("sku_id", skuIds)
+                            .eq("tenant_id", tenantId));
             if (inventoryCount > 0) {
                 throw new RuntimeException("该商品下有 " + inventoryCount + " 条库存记录，无法删除。建议改为禁用。");
             }
@@ -825,44 +835,26 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
-    private void autoGenerateSkus(Long productId, List<Long> colorIds, List<Long> sizeIds, java.math.BigDecimal price) {
-        for (Long colorId : colorIds) {
-            for (Long sizeId : sizeIds) {
-                ProductColor color = colorMapper.selectById(colorId);
-                ProductSize size = sizeMapper.selectById(sizeId);
-                Product product = productMapper.selectById(productId);
-
-                ProductSku sku = new ProductSku();
-                sku.setProductId(productId);
-                sku.setColorId(colorId);
-                sku.setSizeId(sizeId);
-                sku.setSkuCode(generateSkuCode(product.getProductCode(), color.getColorCode(), size.getSizeCode()));
-                sku.setPrice(defaultAmount(price));
-                sku.setCostPrice(defaultAmount(product.getCostPrice()));
-                sku.setStatus(1);
-                sku.setTenantId(product.getTenantId());
-
-                skuMapper.insert(sku);
-            }
-        }
-    }
-
     private void syncProductSkus(Product product) {
         Long tenantId = product.getTenantId();
 
-        List<ProductColor> colors = colorRelMapper.selectByProductId(product.getId());
-        List<ProductSize> sizes = sizeRelMapper.selectByProductId(product.getId());
-        if (colors == null || colors.isEmpty() || sizes == null || sizes.isEmpty()) {
-            // 颜色或尺码被清空时，禁用所有活跃 SKU（不物理删除）
-            LambdaUpdateWrapper<ProductSku> disableAllWrapper = new LambdaUpdateWrapper<>();
-            disableAllWrapper.eq(ProductSku::getProductId, product.getId())
-                    .eq(ProductSku::getTenantId, tenantId)
-                    .eq(ProductSku::getDeleted, 0)
-                    .ne(ProductSku::getStatus, 0)
-                    .set(ProductSku::getStatus, 0);
-            skuMapper.update(null, disableAllWrapper);
+        List<ProductColor> selectedColors = colorRelMapper.selectByProductId(product.getId());
+        List<ProductSize> selectedSizes = sizeRelMapper.selectByProductId(product.getId());
+        boolean hasColors = selectedColors != null && !selectedColors.isEmpty();
+        boolean hasSizes = selectedSizes != null && !selectedSizes.isEmpty();
+        if (hasColors != hasSizes) {
+            disableActiveSkus(product.getId(), tenantId);
             return;
         }
+        List<ProductColor> colors = hasColors
+                ? selectedColors
+                : List.of(requireReservedColor(tenantId, ATTRIBUTE_NOT_APPLICABLE, "不分颜色"));
+        List<ProductSize> sizes = hasSizes
+                ? selectedSizes
+                : List.of(requireReservedSize(tenantId, ATTRIBUTE_NOT_APPLICABLE));
+        String generatedType = !hasColors && !hasSizes
+                ? ProductSkuType.DEFAULT.name()
+                : ProductSkuType.NORMAL.name();
 
         // 查询当前商品下未删除的 SKU（租户隔离 + 未删除）
         LambdaQueryWrapper<ProductSku> skuWrapper = new LambdaQueryWrapper<>();
@@ -898,6 +890,10 @@ public class ProductServiceImpl implements ProductService {
                         existingSku.setSizeId(size.getId());
                         changed = true;
                     }
+                    if (!Objects.equals(normalizeSkuType(existingSku), generatedType)) {
+                        existingSku.setSkuType(generatedType);
+                        changed = true;
+                    }
                     if (changed) {
                         skuMapper.updateById(existingSku);
                     }
@@ -905,13 +901,13 @@ public class ProductServiceImpl implements ProductService {
                 }
 
                 // 不存在的 SKU：新建或恢复
-                restoreOrCreateSku(product, color, size, skuCode, defaultPrice, defaultCostPrice);
+                restoreOrCreateSku(product, color, size, skuCode, generatedType, defaultPrice, defaultCostPrice);
             }
         }
 
         // 不在目标组合中的 SKU：禁用而非物理删除（租户+未删除过滤）
         for (ProductSku existingSku : existingSkus) {
-            if (!targetSkuCodes.contains(existingSku.getSkuCode())) {
+            if (!isPlaceholder(existingSku) && !targetSkuCodes.contains(existingSku.getSkuCode())) {
                 if (!Objects.equals(existingSku.getStatus(), 0)) {
                     LambdaUpdateWrapper<ProductSku> disableWrapper = new LambdaUpdateWrapper<>();
                     disableWrapper.eq(ProductSku::getId, existingSku.getId())
@@ -922,15 +918,29 @@ public class ProductServiceImpl implements ProductService {
                 }
             }
         }
+
+        maintainPlaceholderSku(product);
+    }
+
+    private void disableActiveSkus(Long productId, Long tenantId) {
+        LambdaUpdateWrapper<ProductSku> disableAllWrapper = new LambdaUpdateWrapper<>();
+        disableAllWrapper.eq(ProductSku::getProductId, productId)
+                .eq(ProductSku::getTenantId, tenantId)
+                .eq(ProductSku::getDeleted, 0)
+                .ne(ProductSku::getStatus, 0)
+                .set(ProductSku::getStatus, 0);
+        skuMapper.update(null, disableAllWrapper);
     }
 
     private void restoreOrCreateSku(Product product, ProductColor color, ProductSize size, String skuCode,
+                                    String skuType,
                                     BigDecimal price, BigDecimal costPrice) {
         String checkSql = "SELECT id FROM product_sku WHERE sku_code = ? AND tenant_id = ? AND deleted = 1";
         List<Long> deletedIds = jdbcTemplate.query(checkSql, (rs, rowNum) -> rs.getLong("id"), skuCode, product.getTenantId());
         if (!deletedIds.isEmpty()) {
-            String restoreSql = "UPDATE product_sku SET product_id = ?, color_id = ?, size_id = ?, price = ?, cost_price = ?, status = ?, deleted = 0 WHERE id = ?";
-            jdbcTemplate.update(restoreSql, product.getId(), color.getId(), size.getId(), price, costPrice, product.getStatus(), deletedIds.get(0));
+            String restoreSql = "UPDATE product_sku SET product_id = ?, color_id = ?, size_id = ?, sku_type = ?, price = ?, cost_price = ?, status = ?, deleted = 0 WHERE id = ?";
+            jdbcTemplate.update(restoreSql, product.getId(), color.getId(), size.getId(), skuType,
+                    price, costPrice, product.getStatus(), deletedIds.get(0));
             return;
         }
 
@@ -939,11 +949,93 @@ public class ProductServiceImpl implements ProductService {
         sku.setColorId(color.getId());
         sku.setSizeId(size.getId());
         sku.setSkuCode(skuCode);
+        sku.setSkuType(skuType);
         sku.setPrice(price);
         sku.setCostPrice(costPrice);
         sku.setStatus(product.getStatus());
         sku.setTenantId(product.getTenantId());
         skuMapper.insert(sku);
+    }
+
+    private void maintainPlaceholderSku(Product product) {
+        LambdaQueryWrapper<ProductSku> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ProductSku::getProductId, product.getId())
+                .eq(ProductSku::getTenantId, product.getTenantId())
+                .eq(ProductSku::getDeleted, 0);
+        List<ProductSku> skus = skuMapper.selectList(wrapper);
+        long activeRealSkuCount = skus.stream()
+                .filter(sku -> !isPlaceholder(sku))
+                .filter(sku -> Objects.equals(sku.getStatus(), 1))
+                .count();
+        ProductSku placeholder = skus.stream().filter(this::isPlaceholder).findFirst().orElse(null);
+
+        if (activeRealSkuCount <= 1) {
+            if (placeholder != null && !Objects.equals(placeholder.getStatus(), 0)) {
+                placeholder.setStatus(0);
+                skuMapper.updateById(placeholder);
+            }
+            return;
+        }
+
+        ProductColor color = requireReservedColor(product.getTenantId(), COLOR_UNSPECIFIED, "未指定颜色");
+        ProductSize size = requireReservedSize(product.getTenantId(), SIZE_UNSPECIFIED);
+        String skuCode = generateSkuCode(product.getProductCode(), COLOR_UNSPECIFIED, SIZE_UNSPECIFIED);
+        if (placeholder == null) {
+            restoreOrCreateSku(product, color, size, skuCode, ProductSkuType.PLACEHOLDER.name(),
+                    defaultAmount(product.getWholesalePrice()), defaultAmount(product.getCostPrice()));
+            return;
+        }
+
+        placeholder.setColorId(color.getId());
+        placeholder.setSizeId(size.getId());
+        placeholder.setSkuCode(skuCode);
+        placeholder.setSkuType(ProductSkuType.PLACEHOLDER.name());
+        placeholder.setPrice(defaultAmount(product.getWholesalePrice()));
+        placeholder.setCostPrice(defaultAmount(product.getCostPrice()));
+        placeholder.setStatus(product.getStatus());
+        skuMapper.updateById(placeholder);
+    }
+
+    private ProductColor requireReservedColor(Long tenantId, String code, String name) {
+        ProductColor color = colorMapper.selectOne(new LambdaQueryWrapper<ProductColor>()
+                .eq(ProductColor::getTenantId, tenantId)
+                .eq(ProductColor::getColorCode, code));
+        if (color == null) {
+            color = new ProductColor();
+            color.setColorCode(code);
+            color.setColorName(name);
+            color.setStatus(0);
+            color.setTenantId(tenantId);
+            color.setDeleted(0);
+            colorMapper.insert(color);
+        }
+        return color;
+    }
+
+    private ProductSize requireReservedSize(Long tenantId, String code) {
+        ProductSize size = sizeMapper.selectOne(new LambdaQueryWrapper<ProductSize>()
+                .eq(ProductSize::getTenantId, tenantId)
+                .eq(ProductSize::getSizeCode, code));
+        if (size == null) {
+            size = new ProductSize();
+            size.setSizeCode(code);
+            size.setSort(SIZE_UNSPECIFIED.equals(code) ? 9999 : 9998);
+            size.setStatus(0);
+            size.setTenantId(tenantId);
+            size.setDeleted(0);
+            sizeMapper.insert(size);
+        }
+        return size;
+    }
+
+    private String normalizeSkuType(ProductSku sku) {
+        return sku.getSkuType() == null || sku.getSkuType().isBlank()
+                ? ProductSkuType.NORMAL.name()
+                : sku.getSkuType();
+    }
+
+    private boolean isPlaceholder(ProductSku sku) {
+        return ProductSkuType.PLACEHOLDER.name().equals(normalizeSkuType(sku));
     }
 
     private String generateSkuCode(String productCode, String colorCode, String sizeCode) {
@@ -1017,6 +1109,8 @@ public class ProductServiceImpl implements ProductService {
                 ProductVO.SkuVO skuVO = new ProductVO.SkuVO();
                 skuVO.setId(sku.getId());
                 skuVO.setSkuCode(sku.getSkuCode());
+                skuVO.setSkuType(normalizeSkuType(sku));
+                skuVO.setPlaceholder(isPlaceholder(sku));
                 skuVO.setColorId(sku.getColorId());
                 skuVO.setSizeId(sku.getSizeId());
                 skuVO.setPrice(sku.getPrice());

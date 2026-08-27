@@ -46,6 +46,35 @@ class AgentSkuMixServiceTest {
         assertEquals("624-1#", analyticsService.productName);
     }
 
+    @Test
+    void getSkuMixSeparatesUnspecifiedSalesAndReportsCoverage() {
+        DashboardQueryDTO query = new DashboardQueryDTO();
+        AnalyticsProductDetailDTO detail = productDetail();
+        detail.setSkus(List.of(
+                ranking("624-1#-BLK-L", "624-1# / 黑 / L", "黑", "L", 50L, "3000.00"),
+                ranking("624-1#-UNSPEC-UNSPEC", "624-1# / 未指定颜色 / UNSPEC", "未指定颜色", "UNSPEC", 100L, "6000.00")
+        ));
+        detail.setColors(List.of(
+                ranking("黑", "黑", "黑", null, 50L, "3000.00"),
+                ranking("未指定颜色", "未指定颜色", "未指定颜色", null, 100L, "6000.00")
+        ));
+        detail.setSizes(List.of(
+                ranking("L", "L", null, "L", 50L, "3000.00"),
+                ranking("UNSPEC", "UNSPEC", null, "UNSPEC", 100L, "6000.00")
+        ));
+        analyticsService.detail = detail;
+
+        AgentSkuMixDTO result = service.getSkuMix(query, "624-1#", 10);
+
+        assertEquals(1, result.getSkus().size());
+        assertEquals(100L, result.getUnspecified().getSalesQuantity());
+        assertEquals(150L, result.getTotalSalesQuantity());
+        assertEquals(50L, result.getSpecifiedSalesQuantity());
+        assertEquals(new BigDecimal("0.3333"), result.getVariantCoverageRate());
+        assertEquals("LOW", result.getVariantDataQuality());
+        assertEquals(List.of("黑"), result.getColors().stream().map(AgentSkuMixDTO.MixRow::getLabel).toList());
+    }
+
     private AnalyticsProductDetailDTO productDetail() {
         AnalyticsProductDetailDTO detail = new AnalyticsProductDetailDTO();
         detail.setProductName("624-1#");

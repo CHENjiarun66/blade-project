@@ -15,6 +15,11 @@ public class AgentSkuMixDTO {
     private List<MixRow> skus;
     private List<MixRow> colors;
     private List<MixRow> sizes;
+    private MixRow unspecified;
+    private Long totalSalesQuantity;
+    private Long specifiedSalesQuantity;
+    private BigDecimal variantCoverageRate;
+    private String variantDataQuality;
     private List<String> reasons;
 
     @Data

@@ -6,6 +6,7 @@ import com.blade.product.entity.Product;
 import com.blade.product.entity.ProductColor;
 import com.blade.product.entity.ProductSize;
 import com.blade.product.entity.ProductSku;
+import com.blade.product.enums.ProductSkuType;
 import com.blade.product.mapper.ProductColorMapper;
 import com.blade.product.mapper.ProductMapper;
 import com.blade.product.mapper.ProductSizeMapper;
@@ -60,11 +61,17 @@ public class AgentCatalogService {
         String normalizedProductCode = normalize(productCode);
         String normalizedColor = normalize(colorName);
         String normalizedSize = normalize(sizeCode);
+        Map<Long, Long> activeRealSkuCounts = skus.stream()
+                .filter(sku -> !isPlaceholder(sku))
+                .filter(sku -> sku.getProductId() != null)
+                .collect(java.util.stream.Collectors.groupingBy(ProductSku::getProductId,
+                        java.util.stream.Collectors.counting()));
 
         return skus.stream()
                 .map(sku -> candidate(sku, products.get(sku.getProductId()),
                         colors.get(sku.getColorId()), sizes.get(sku.getSizeId()),
-                        normalizedKeyword, normalizedProductCode, normalizedColor, normalizedSize))
+                        normalizedKeyword, normalizedProductCode, normalizedColor, normalizedSize,
+                        activeRealSkuCounts.getOrDefault(sku.getProductId(), 0L)))
                 .filter(match -> match.score.compareTo(BigDecimal.ZERO) > 0)
                 .sorted((a, b) -> b.score.compareTo(a.score))
                 .limit(limit)
@@ -79,8 +86,14 @@ public class AgentCatalogService {
                             String keyword,
                             String productCode,
                             String colorName,
-                            String sizeCode) {
+                            String sizeCode,
+                            long activeRealSkuCount) {
         if (product == null || !Integer.valueOf(1).equals(product.getStatus())) {
+            return Match.none();
+        }
+        boolean placeholder = isPlaceholder(sku);
+        boolean hasSpecificVariant = !colorName.isBlank() || !sizeCode.isBlank();
+        if (placeholder && hasSpecificVariant) {
             return Match.none();
         }
         String candidateProductCode = normalize(product.getProductCode());
@@ -115,6 +128,14 @@ public class AgentCatalogService {
             score = new BigDecimal("0.40");
         }
 
+        if (placeholder && candidateProductCode.equals(primary) && !hasSpecificVariant) {
+            score = BigDecimal.ONE;
+            reasons.add("spu_placeholder");
+        } else if (!placeholder && activeRealSkuCount == 1 && candidateProductCode.equals(primary)) {
+            score = score.add(new BigDecimal("0.03"));
+            reasons.add("single_saleable_sku");
+        }
+
         if (!colorName.isBlank()) {
             if (candidateColor.isBlank()
                     || (!candidateColor.contains(colorName) && !colorName.contains(candidateColor))) {
@@ -134,6 +155,8 @@ public class AgentCatalogService {
         CatalogCandidate result = new CatalogCandidate();
         result.setSkuId(sku.getId());
         result.setSkuCode(sku.getSkuCode());
+        result.setSkuType(normalizeSkuType(sku));
+        result.setPlaceholder(placeholder);
         result.setProductId(product.getId());
         result.setProductCode(product.getProductCode());
         result.setProductName(product.getName());
@@ -151,6 +174,16 @@ public class AgentCatalogService {
         return value.toLowerCase(Locale.ROOT)
                 .replaceAll("[\\s#＃_\\-./\\\\]", "")
                 .trim();
+    }
+
+    private String normalizeSkuType(ProductSku sku) {
+        return sku.getSkuType() == null || sku.getSkuType().isBlank()
+                ? ProductSkuType.NORMAL.name()
+                : sku.getSkuType();
+    }
+
+    private boolean isPlaceholder(ProductSku sku) {
+        return ProductSkuType.PLACEHOLDER.name().equals(normalizeSkuType(sku));
     }
 
     private Map<Long, Product> indexById(List<Product> rows) {

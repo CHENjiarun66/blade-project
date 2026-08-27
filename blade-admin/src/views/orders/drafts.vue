@@ -354,6 +354,8 @@ interface SkuOption {
   productId: number
   productCode: string
   skuCode: string
+  skuType: 'NORMAL' | 'DEFAULT' | 'PLACEHOLDER'
+  placeholder: boolean
   productName: string
   colorName: string
   sizeName: string
@@ -449,12 +451,16 @@ async function loadProducts() {
         productCode: product.productCode,
         skuCode: sku.skuCode,
         productName: product.name,
+        skuType: sku.skuType || 'NORMAL',
+        placeholder: sku.placeholder || sku.skuType === 'PLACEHOLDER',
         colorName: sku.colorName || '',
         sizeName: sku.sizeName || '',
-        label: `${product.productCode} / ${product.name} · ${sku.colorName || '-'} · ${sku.sizeName || '-'}`,
+        label: sku.placeholder || sku.skuType === 'PLACEHOLDER'
+          ? `${product.productCode} / ${product.name} · 整款（未指定颜色/尺码）`
+          : `${product.productCode} / ${product.name} · ${sku.colorName || '-'} · ${sku.sizeName || '-'}`,
         price: Number(sku.price || product.wholesalePrice || 0),
       }))
-  )
+  ).sort((a, b) => Number(b.placeholder) - Number(a.placeholder))
   filteredSkuOptions.value = skuOptions.value.slice(0, 50)
 }
 

@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -277,7 +278,9 @@ class ProductControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.colors.length()").value(3))
-                .andExpect(jsonPath("$.data.skus.length()").value(3));
+                .andExpect(jsonPath("$.data.skus.length()").value(4))
+                .andExpect(jsonPath("$.data.skus[?(@.skuType == 'PLACEHOLDER')]").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.skus[?(@.placeholder == true)]").value(hasSize(1)));
     }
 
     @Test

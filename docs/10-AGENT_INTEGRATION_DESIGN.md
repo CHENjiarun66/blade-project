@@ -160,6 +160,15 @@ Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴
 
 数据优先级固定为：纸单数量、纸单销售价、纸单金额和总额优先；商品主档只负责识别 SKU 与提供参考价。未匹配 SKU、金额不一致和字段歧义以警告形式保留，不阻止草稿落库。
 
+#### SPU 款号与 SKU 颗粒度处理
+
+- `product_sku.sku_type` 使用 `NORMAL`、`DEFAULT`、`PLACEHOLDER`。
+- 多规格商品自动维护一个“未指定颜色 / 未指定尺码”的 `PLACEHOLDER`；无规格商品使用正常可售的 `DEFAULT`。
+- 只提供款号且没有颜色尺码时，候选接口优先返回 `PLACEHOLDER`，`matchReasons` 包含 `spu_placeholder`。
+- 提供任一颜色或尺码条件时，候选接口排除 `PLACEHOLDER`；只有一个真实/默认 SKU 时直接返回该 SKU，原因包含 `single_saleable_sku`。
+- 候选返回 `skuType` 与 `placeholder`，系统参考价仍不能覆盖纸单销售价。
+- 占位 SKU 不进入对外商品目录和库存可用性判断。经营分析将其计入款号总销量/销售额，但从真实颜色尺码排名中移出，单列 `unspecified` 并返回 `variantCoverageRate` 和 `variantDataQuality`。
+
 ---
 
 ## 四、第一期接口草案

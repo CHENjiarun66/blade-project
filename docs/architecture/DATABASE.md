@@ -195,7 +195,7 @@
 
 ### 2.1 product_category 商品分类表
 
-**来源迁移**：`V3__product_module.sql`
+**来源迁移**：`V3__product_module.sql`、`V49__product_sku_types_and_placeholder.sql`、`V50__correct_default_sku_classification.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -310,6 +310,7 @@
 | color_id | bigint | NOT NULL | 颜色ID |
 | size_id | bigint | NOT NULL | 尺码ID |
 | sku_code | varchar(50) | UNIQUE, NOT NULL | SKU编码（系统自动生成） |
+| sku_type | varchar(20) | NOT NULL, DEFAULT NORMAL | `NORMAL` 真实规格、`DEFAULT` 无规格默认、`PLACEHOLDER` 款号占位 |
 | price | decimal(12,2) | NOT NULL | 单价 |
 | cost_price | decimal(12,2) | DEFAULT 0 | 成本价 |
 | bar_code | varchar(50) | | 条形码 |
@@ -318,7 +319,9 @@
 | deleted | tinyint | DEFAULT 0 | 删除标记 |
 | create_time | datetime | DEFAULT | 创建时间 |
 
-**索引**：`uk_sku_code(sku_code, tenant_id)`, `idx_product_id(product_id)`, `idx_color_id(color_id)`, `idx_size_id(size_id)`, `idx_tenant_id(tenant_id)`
+**索引**：`uk_sku_code(sku_code, tenant_id)`, `idx_product_id(product_id)`, `idx_color_id(color_id)`, `idx_size_id(size_id)`, `idx_tenant_id(tenant_id)`, `idx_product_sku_type(tenant_id, product_id, sku_type, status, deleted)`
+
+系统保留属性 `UNSPECIFIED/UNSPEC` 用于 `PLACEHOLDER`，`NA/NA` 用于无规格 `DEFAULT`；它们状态为禁用且不写入商品颜色/尺码关联，因此不会出现在普通属性维护列表。多规格商品最多一个有效占位 SKU，编码为 `{product_code}-UNSPEC-UNSPEC`。
 
 ---
 

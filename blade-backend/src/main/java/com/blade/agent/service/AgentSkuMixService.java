@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
 
@@ -27,11 +29,57 @@ public class AgentSkuMixService {
         AgentSkuMixDTO dto = new AgentSkuMixDTO();
         dto.setProductName(detail.getProductName());
         dto.setPeriodType(effectiveQuery.getPeriodType() != null ? effectiveQuery.getPeriodType() : PeriodType.WEEK);
-        dto.setSkus(toRows(detail.getSkus(), maxRows));
-        dto.setColors(toRows(detail.getColors(), maxRows));
-        dto.setSizes(toRows(detail.getSizes(), maxRows));
+        List<AnalyticsRankingDTO> allSkus = detail.getSkus() != null ? detail.getSkus() : List.of();
+        List<AnalyticsRankingDTO> placeholderRows = allSkus.stream().filter(this::isPlaceholder).toList();
+        List<AnalyticsRankingDTO> specifiedSkus = allSkus.stream().filter(row -> !isPlaceholder(row)).toList();
+        dto.setSkus(toRows(specifiedSkus, maxRows));
+        dto.setColors(toRows(filterUnspecified(detail.getColors()), maxRows));
+        dto.setSizes(toRows(filterUnspecified(detail.getSizes()), maxRows));
+        dto.setUnspecified(aggregateUnspecified(placeholderRows));
+        long totalQuantity = allSkus.stream().mapToLong(this::safeQuantity).sum();
+        long specifiedQuantity = specifiedSkus.stream().mapToLong(this::safeQuantity).sum();
+        dto.setTotalSalesQuantity(totalQuantity);
+        dto.setSpecifiedSalesQuantity(specifiedQuantity);
+        BigDecimal coverage = totalQuantity > 0
+                ? BigDecimal.valueOf(specifiedQuantity)
+                        .divide(BigDecimal.valueOf(totalQuantity), 4, RoundingMode.HALF_UP)
+                : BigDecimal.ONE;
+        dto.setVariantCoverageRate(coverage);
+        dto.setVariantDataQuality(coverage.compareTo(new BigDecimal("0.80")) >= 0
+                ? "HIGH"
+                : coverage.compareTo(new BigDecimal("0.50")) >= 0 ? "MEDIUM" : "LOW");
         dto.setReasons(buildReasons(dto));
         return dto;
+    }
+
+    private List<AnalyticsRankingDTO> filterUnspecified(List<AnalyticsRankingDTO> rankings) {
+        return rankings == null ? List.of() : rankings.stream().filter(row -> !isUnspecifiedDimension(row)).toList();
+    }
+
+    private boolean isPlaceholder(AnalyticsRankingDTO row) {
+        String skuCode = row.getSkuCode() != null ? row.getSkuCode() : row.getKey();
+        return skuCode != null && skuCode.endsWith("-UNSPEC-UNSPEC");
+    }
+
+    private boolean isUnspecifiedDimension(AnalyticsRankingDTO row) {
+        return "未指定颜色".equals(row.getKey()) || "未指定颜色".equals(row.getLabel())
+                || "UNSPEC".equalsIgnoreCase(row.getKey()) || "UNSPEC".equalsIgnoreCase(row.getLabel());
+    }
+
+    private AgentSkuMixDTO.MixRow aggregateUnspecified(List<AnalyticsRankingDTO> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return null;
+        }
+        AnalyticsRankingDTO aggregate = new AnalyticsRankingDTO();
+        aggregate.setKey("UNSPECIFIED");
+        aggregate.setLabel("未指定颜色 / 未指定尺码");
+        aggregate.setSkuCode("SPU_PLACEHOLDER");
+        aggregate.setColorName("未指定颜色");
+        aggregate.setSizeName("未指定尺码");
+        aggregate.setOrderCount(rows.stream().map(this::safeOrderCount).reduce(0L, Long::sum));
+        aggregate.setSalesQuantity(rows.stream().map(this::safeQuantity).reduce(0L, Long::sum));
+        aggregate.setSalesAmount(rows.stream().map(this::safeAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+        return AgentSkuMixDTO.MixRow.from(aggregate, "UNSPECIFIED");
     }
 
     private List<AgentSkuMixDTO.MixRow> toRows(List<AnalyticsRankingDTO> rankings, int limit) {
@@ -74,10 +122,24 @@ public class AgentSkuMixService {
             AgentSkuMixDTO.MixRow topSize = dto.getSizes().get(0);
             reasons.add("尺码 " + topSize.getLabel() + " 销量最高，销售 " + topSize.getSalesQuantity() + " 件");
         }
+        if (dto.getUnspecified() != null && dto.getUnspecified().getSalesQuantity() > 0) {
+            reasons.add("有 " + dto.getUnspecified().getSalesQuantity()
+                    + " 件仅记录到款号，颜色/尺码分析覆盖率为 "
+                    + dto.getVariantCoverageRate().multiply(BigDecimal.valueOf(100)).setScale(1, RoundingMode.HALF_UP)
+                    + "%");
+        }
         return reasons;
     }
 
     private Long safeQuantity(AnalyticsRankingDTO ranking) {
         return ranking.getSalesQuantity() != null ? ranking.getSalesQuantity() : 0L;
+    }
+
+    private Long safeOrderCount(AnalyticsRankingDTO ranking) {
+        return ranking.getOrderCount() != null ? ranking.getOrderCount() : 0L;
+    }
+
+    private BigDecimal safeAmount(AnalyticsRankingDTO ranking) {
+        return ranking.getSalesAmount() != null ? ranking.getSalesAmount() : BigDecimal.ZERO;
     }
 }

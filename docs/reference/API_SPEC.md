@@ -1053,6 +1053,8 @@ X-Agent-Key: {agent_key}
 
 约束：`salePrice`、`quantity`、`paperAmount`、`paperTotalAmount` 和 `deposit` 来自纸单识别或人工修正；`systemReferencePrice` 仅用于对照，不能覆盖纸单售价。客户无法匹配时使用“散客”。草稿确认前不进入正式订单、库存、财务和经营统计。
 
+SKU 候选补充规则：候选返回 `skuType` 和 `placeholder`。只按款号查询多规格商品时，`PLACEHOLDER` 以 `matchScore=1.00` 优先返回；请求包含 `colorName` 或 `sizeCode` 时不返回占位 SKU。单真实 SKU 商品直接返回该 SKU。`GET /api/agent/analytics/sku-mix` 的款号总量包含占位销量，真实 `skus/colors/sizes` 排名排除占位量，并通过 `unspecified`、`variantCoverageRate`、`variantDataQuality` 描述未指定规格占比。
+
 ---
 
 ## 六、商品接口
