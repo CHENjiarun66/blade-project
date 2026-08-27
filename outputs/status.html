@@ -54,7 +54,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/8/26 17:59:15　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/8/27 16:04:23　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -70,18 +70,18 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">151 完成 · 0 进行中 · 15 待办 · 1 部分</span>
+          <span class="card-nums">154 完成 · 0 进行中 · 15 待办 · 1 部分</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:90%"></div></div>
-        <div class="bar-label">90% 完成（共 167 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
+        <div class="bar-label">91% 完成（共 170 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">80 完成 · 0 进行中 · 2 待办 · 0 部分</span>
+          <span class="card-nums">81 完成 · 0 进行中 · 2 待办 · 0 部分</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:98%"></div></div>
-        <div class="bar-label">98% 完成（共 82 项）</div>
+        <div class="bar-label">98% 完成（共 83 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -312,7 +312,7 @@
     </section>
   
     <section class="section done">
-      <h2>✅ 已完成（共 245 项） <span class="count">245</span></h2>
+      <h2>✅ 已完成（共 249 项） <span class="count">249</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1155,6 +1155,27 @@
         <td class="td-remark">按租户/customerId 返回绑定、账号、真实号码、聊天与缺失媒体上下文；待确认/已绑定状态明确，禁止前端猜测号码 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-606</td>
+        <td class="td-name">Agent 订单草稿数据模型与幂等写入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-remark">V48 独立草稿主表/明细表；租户 + externalRefNo 幂等，允许未匹配 SKU，保留纸单原值与警告 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-607</td>
+        <td class="td-name">Agent 商品候选与批量草稿 API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-remark">`agent:catalog:read` 查询候选，`agent:orders:write` 上传原图并批量建草稿；客户缺失默认散客 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-608</td>
+        <td class="td-name">草稿确认转正式订单</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-remark">JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BE-901</td>
         <td class="td-name">统一文件表与迁移脚本</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1692,6 +1713,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
         <td class="td-remark">修改密码、个人信息；头部下拉菜单新增个人中心入口 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-803</td>
+        <td class="td-name">快速录单草稿工作台</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
+        <td class="td-remark">`/orders/drafts` 支持草稿列表、原图/警告、SKU 候选、纸单价与系统参考价对照、编辑保存和确认正式订单 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-901</td>

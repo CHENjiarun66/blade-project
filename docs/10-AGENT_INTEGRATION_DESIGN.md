@@ -1,7 +1,7 @@
 # Agent 对接设计
 
 > 本文档定义 BladeProject 对接外部 AI Agent 的需求边界、接口分层、安全约束和实施顺序。
-> 当前决策：第一期先做只读 Agent Gateway，让 Agent 基于系统订单、客户、商品和库存数据做款式趋势判断、客户跟进提醒和周期经营分析，不直接访问数据库，不直接执行订单写操作。
+> 当前决策：Agent Gateway 默认只读；纸单识别流程已批准一个受 scope 约束的窄范围写入，只允许创建可人工复核的订单草稿，不允许 Agent 直接确认正式订单、调整库存或确认收款。
 
 ---
 
@@ -50,7 +50,8 @@ MySQL + Redis + File Storage
 | WhatsApp 数据接入 | 本地归档、客户绑定、完整性诊断和混合 Agent 人工跟进链路已完成；自动发送继续禁止 |
 | `/agent/query` 后端自然语言问答 | 暂缓，先由外部 Agent 选择结构化工具 |
 | `/agent/action` 泛化写操作 | 暂缓，避免 Agent 直接触发高风险业务写入 |
-| 创建/编辑订单、库存调整、收款确认 | 第一阶段禁止 |
+| 创建订单草稿 | 已开放窄范围能力；`agent:orders:write`，只写草稿，不产生库存/财务影响 |
+| 确认正式订单、库存调整、收款确认 | Agent 阶段禁止，必须由 JWT 登录用户人工执行 |
 | 增量变更订阅 `/agent/changes` | 待统一业务事件日志后再做 |
 
 ### 1.3 能力地图
@@ -144,6 +145,20 @@ Agent API 面向外部 Agent 的工作流，第一期路径统一放在 `/api/ag
 | `/api/agent/reports/periodic` | GET | 月度、季度、年度经营分析数据包 |
 
 Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴露实体内部字段和数据库实现细节。
+
+### 3.4 纸单订单草稿 API
+
+本机识别 Agent 使用绑定租户的 Agent Key 调用 NAS 生产环境：
+
+| 接口 | scope | 用途 |
+|------|-------|------|
+| `GET /api/agent/catalog/skus` | `agent:catalog:read` | 按款号、SKU、名称、颜色查询候选；系统售价仅作参考 |
+| `POST /api/agent/order-drafts/source-files` | `agent:orders:write` | 上传纸单原图并返回文件 ID |
+| `POST /api/agent/order-drafts/batch` | `agent:orders:write` | 批量创建草稿；每单隔离结果，按 externalRefNo 幂等 |
+
+管理端使用 JWT 调用 `/api/order-drafts` 读取、编辑和确认。确认动作不属于 Agent API；只有用户确认后才调用既有订单领域服务创建正式订单。
+
+数据优先级固定为：纸单数量、纸单销售价、纸单金额和总额优先；商品主档只负责识别 SKU 与提供参考价。未匹配 SKU、金额不一致和字段歧义以警告形式保留，不阻止草稿落库。
 
 ---
 

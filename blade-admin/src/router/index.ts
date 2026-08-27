@@ -54,6 +54,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '快速录单', permission: 'menu:order' },
       },
       {
+        path: 'orders/drafts',
+        name: 'OrderDrafts',
+        component: () => import('@/views/orders/drafts.vue'),
+        meta: { title: '订单草稿', permission: 'menu:order' },
+      },
+      {
         path: 'orders/:id',
         name: 'OrderDetail',
         component: () => import('@/views/orders/detail.vue'),

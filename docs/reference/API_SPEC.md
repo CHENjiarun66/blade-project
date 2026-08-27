@@ -1039,6 +1039,20 @@ X-Agent-Key: {agent_key}
 | WhatsApp 消息接入接口 | 暂缓 | 需先验证接入方式、客户映射、权限和消息保留策略 |
 | 订单异常/利润解释/经营记忆接口 | 后续路线 | 依赖事件日志、毛利权限和人工确认规则 |
 
+### Agent 纸单订单草稿
+
+| Method | Path | 鉴权 / scope | 说明 |
+|--------|------|--------------|------|
+| GET | `/api/agent/catalog/skus?keyword=...&limit=...` | `X-Agent-Key` / `agent:catalog:read` | 返回 SKU 候选与系统参考价，不返回成本价 |
+| POST | `/api/agent/order-drafts/source-files` | `X-Agent-Key` / `agent:orders:write` | multipart 上传纸单原图，`businessType=order_draft` |
+| POST | `/api/agent/order-drafts/batch` | `X-Agent-Key` / `agent:orders:write` | 批量创建草稿；按租户 + externalRefNo 幂等，每单返回 CREATED、CREATED_WITH_WARNINGS、DUPLICATE 或 ERROR |
+| GET | `/api/order-drafts` | JWT / `menu:order` | 草稿分页列表 |
+| GET | `/api/order-drafts/{id}` | JWT / `menu:order` | 草稿详情、纸单原值、警告和明细 |
+| PUT | `/api/order-drafts/{id}` | JWT / `menu:order` | 保存人工修改，未匹配 SKU 可继续保留 |
+| POST | `/api/order-drafts/{id}/confirm` | JWT / `menu:order` | 人工确认并幂等创建正式订单 |
+
+约束：`salePrice`、`quantity`、`paperAmount`、`paperTotalAmount` 和 `deposit` 来自纸单识别或人工修正；`systemReferencePrice` 仅用于对照，不能覆盖纸单售价。客户无法匹配时使用“散客”。草稿确认前不进入正式订单、库存、财务和经营统计。
+
 ---
 
 ## 六、商品接口

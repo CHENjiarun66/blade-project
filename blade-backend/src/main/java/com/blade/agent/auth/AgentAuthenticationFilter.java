@@ -35,6 +35,10 @@ public class AgentAuthenticationFilter extends OncePerRequestFilter {
         String rawKey = request.getHeader(AGENT_KEY_HEADER);
         AgentPrincipal principal = null;
         long start = System.currentTimeMillis();
+        if (rawKey == null || rawKey.isBlank()) {
+            writeUnauthorized(response);
+            return;
+        }
         if (rawKey != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 principal = authenticationService.authenticate(rawKey);
@@ -44,7 +48,7 @@ public class AgentAuthenticationFilter extends OncePerRequestFilter {
             } catch (AuthenticationException ex) {
                 SecurityContextHolder.clearContext();
                 TenantContext.clear();
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid agent key");
+                writeUnauthorized(response);
                 return;
             }
         }
@@ -60,6 +64,13 @@ public class AgentAuthenticationFilter extends OncePerRequestFilter {
                 TenantContext.clear();
             }
         }
+    }
+
+    private void writeUnauthorized(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json");
+        response.getWriter().write("{\"code\":401,\"message\":\"Agent Key无效\",\"data\":null}");
     }
 
     private AgentCallAuditEvent buildAuditEvent(HttpServletRequest request,

@@ -915,17 +915,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private Long getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        return 1L; // 默认管理员
+        User user = getCurrentUser();
+        return user != null ? user.getId() : 1L;
     }
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof User user) {
             return user;
+        }
+        if (authentication != null && authentication.isAuthenticated()
+                && authentication.getName() != null
+                && !"anonymousUser".equals(authentication.getName())) {
+            return userMapper.selectOne(new LambdaQueryWrapper<User>()
+                    .eq(User::getUsername, authentication.getName())
+                    .last("LIMIT 1"));
         }
         return null;
     }

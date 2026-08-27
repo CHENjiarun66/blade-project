@@ -205,6 +205,7 @@ const navItems = computed<NavItem[]>(() => {
     { name: '订单管理', path: '/orders', icon: 'shopping_bag', permission: 'menu:order', children: [
       { name: '订单列表', path: '/orders' },
       { name: '快速录单', path: '/orders/quick' },
+      { name: '订单草稿', path: '/orders/drafts' },
       { name: '新建订单', path: '/orders/new' },
     ]},
     { name: '库存', path: '/inventory', icon: 'inventory_2', permission: 'menu:inventory' },
@@ -240,6 +241,7 @@ const pageTitle = computed(() => {
     '/analytics': '数据分析',
     '/orders': '订单',
     '/orders/quick': '快速录单',
+    '/orders/drafts': '订单草稿',
     '/orders/new': '新建订单',
     '/inventory': '库存',
     '/products': '商品',
@@ -257,7 +259,7 @@ const pageTitle = computed(() => {
 })
 
 const contentClass = computed(() => {
-  return route.path === '/orders/quick'
+  return route.path === '/orders/quick' || route.path === '/orders/drafts'
     ? 'p-6 max-w-none mx-auto'
     : 'p-8 max-w-7xl mx-auto'
 })

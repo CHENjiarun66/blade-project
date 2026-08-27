@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentAuthenticationFilterTest {
 
@@ -63,6 +64,42 @@ class AgentAuthenticationFilterTest {
         assertEquals("10.0.0.8", auditRecorder.event.getIp());
         assertEquals("Hermes-Agent/1.0", auditRecorder.event.getUserAgent());
         assertNull(auditRecorder.event.getRawKey());
+    }
+
+    @Test
+    void filterReturnsJson401WhenAgentKeyIsMissing() throws Exception {
+        AgentAuthenticationFilter filter = new AgentAuthenticationFilter(
+                new AgentKeyAuthenticationService(fakeMapper(activeKey()), passwordEncoder),
+                new CapturingAuditRecorder());
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/api/agent/catalog/skus");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            throw new AssertionError("missing key must not enter the application");
+        });
+
+        assertEquals(401, response.getStatus());
+        assertTrue(response.getContentType().startsWith("application/json"));
+        assertTrue(response.getContentAsString().contains("\"code\":401"));
+    }
+
+    @Test
+    void filterReturnsJson401WhenAgentKeyIsInvalid() throws Exception {
+        AgentAuthenticationFilter filter = new AgentAuthenticationFilter(
+                new AgentKeyAuthenticationService(fakeMapper(activeKey()), passwordEncoder),
+                new CapturingAuditRecorder());
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/api/agent/catalog/skus");
+        request.addHeader(AgentAuthenticationFilter.AGENT_KEY_HEADER, "agent_demo.wrong-secret");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            throw new AssertionError("invalid key must not enter the application");
+        });
+
+        assertEquals(401, response.getStatus());
+        assertTrue(response.getContentAsString().contains("Agent Key无效"));
     }
 
     private AgentKey activeKey() {

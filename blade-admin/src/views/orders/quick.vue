@@ -6,6 +6,10 @@
         <p class="text-sm text-gray-500">按纸质单据逐张录入，保存后进入标准订单流程。</p>
       </div>
       <div class="flex flex-wrap gap-3">
+        <el-button type="warning" plain class="!rounded-xl !font-bold" @click="router.push('/orders/drafts')">
+          <span class="material-symbols-outlined text-sm mr-1">draft_orders</span>
+          Agent 草稿箱
+        </el-button>
         <el-button class="!rounded-xl !font-bold" @click="router.push('/orders')">
           <span class="material-symbols-outlined text-sm mr-1">arrow_back</span>
           返回订单
