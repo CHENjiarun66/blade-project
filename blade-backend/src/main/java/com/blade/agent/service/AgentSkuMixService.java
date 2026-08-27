@@ -35,17 +35,28 @@ public class AgentSkuMixService {
         dto.setSkus(toRows(specifiedSkus, maxRows));
         dto.setColors(toRows(filterUnspecified(detail.getColors()), maxRows));
         dto.setSizes(toRows(filterUnspecified(detail.getSizes()), maxRows));
-        dto.setUnspecified(aggregateUnspecified(placeholderRows));
-        long totalQuantity = allSkus.stream().mapToLong(this::safeQuantity).sum();
-        long specifiedQuantity = specifiedSkus.stream().mapToLong(this::safeQuantity).sum();
+        dto.setUnspecified(detail.getUnspecified() != null
+                ? AgentSkuMixDTO.MixRow.from(detail.getUnspecified(), "UNSPECIFIED")
+                : aggregateUnspecified(placeholderRows));
+        long fallbackUnspecified = dto.getUnspecified() != null ? dto.getUnspecified().getSalesQuantity() : 0L;
+        long specifiedQuantity = detail.getSpecifiedSalesQuantity() != null
+                ? detail.getSpecifiedSalesQuantity()
+                : specifiedSkus.stream().mapToLong(this::safeQuantity).sum();
+        long totalQuantity = detail.getTotalSalesQuantity() != null
+                ? detail.getTotalSalesQuantity()
+                : specifiedQuantity + fallbackUnspecified;
         dto.setTotalSalesQuantity(totalQuantity);
         dto.setSpecifiedSalesQuantity(specifiedQuantity);
-        BigDecimal coverage = totalQuantity > 0
+        BigDecimal coverage = detail.getVariantCoverageRate() != null
+                ? detail.getVariantCoverageRate()
+                : totalQuantity > 0
                 ? BigDecimal.valueOf(specifiedQuantity)
                         .divide(BigDecimal.valueOf(totalQuantity), 4, RoundingMode.HALF_UP)
                 : BigDecimal.ONE;
         dto.setVariantCoverageRate(coverage);
-        dto.setVariantDataQuality(coverage.compareTo(new BigDecimal("0.80")) >= 0
+        dto.setVariantDataQuality(detail.getVariantDataQuality() != null
+                ? detail.getVariantDataQuality()
+                : coverage.compareTo(new BigDecimal("0.80")) >= 0
                 ? "HIGH"
                 : coverage.compareTo(new BigDecimal("0.50")) >= 0 ? "MEDIUM" : "LOW");
         dto.setReasons(buildReasons(dto));

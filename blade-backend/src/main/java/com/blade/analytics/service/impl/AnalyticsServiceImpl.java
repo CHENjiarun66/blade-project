@@ -139,14 +139,35 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<OrderItem> items = selectItems(orders).stream()
                 .filter(item -> Objects.equals(safeText(item.getProductName(), "未知商品"), productName))
                 .collect(Collectors.toList());
+        List<OrderItem> unspecifiedItems = items.stream().filter(this::isPlaceholderItem).toList();
+        List<OrderItem> specifiedItems = items.stream().filter(item -> !isPlaceholderItem(item)).toList();
+        long totalQuantity = sumQuantity(items);
+        long specifiedQuantity = sumQuantity(specifiedItems);
+        BigDecimal coverage = totalQuantity > 0
+                ? BigDecimal.valueOf(specifiedQuantity)
+                        .divide(BigDecimal.valueOf(totalQuantity), 4, RoundingMode.HALF_UP)
+                : BigDecimal.ONE;
 
         AnalyticsProductDetailDTO dto = new AnalyticsProductDetailDTO();
         dto.setProductName(productName);
-        dto.setSkus(rankItems(items, AnalyticsDimension.SKU, AnalyticsSortBy.SALES, 50, profitVisible));
-        dto.setColors(rankItems(items, AnalyticsDimension.COLOR, AnalyticsSortBy.SALES, 50, profitVisible));
-        dto.setSizes(rankItems(items, AnalyticsDimension.SIZE, AnalyticsSortBy.SALES, 50, profitVisible));
+        dto.setSkus(rankItems(specifiedItems, AnalyticsDimension.SKU, AnalyticsSortBy.SALES, 50, profitVisible));
+        dto.setColors(rankItems(specifiedItems, AnalyticsDimension.COLOR, AnalyticsSortBy.SALES, 50, profitVisible));
+        dto.setSizes(rankItems(specifiedItems, AnalyticsDimension.SIZE, AnalyticsSortBy.SALES, 50, profitVisible));
+        List<AnalyticsRankingDTO> unspecified = rankItems(
+                unspecifiedItems, AnalyticsDimension.SKU, AnalyticsSortBy.SALES, 1, profitVisible);
+        dto.setUnspecified(unspecified.isEmpty() ? null : unspecified.get(0));
+        dto.setTotalSalesQuantity(totalQuantity);
+        dto.setSpecifiedSalesQuantity(specifiedQuantity);
+        dto.setVariantCoverageRate(coverage);
+        dto.setVariantDataQuality(coverage.compareTo(new BigDecimal("0.80")) >= 0
+                ? "HIGH"
+                : coverage.compareTo(new BigDecimal("0.50")) >= 0 ? "MEDIUM" : "LOW");
         dto.setProfitVisible(profitVisible);
         return dto;
+    }
+
+    private boolean isPlaceholderItem(OrderItem item) {
+        return item.getSkuCode() != null && item.getSkuCode().endsWith("-UNSPEC-UNSPEC");
     }
 
     private List<AnalyticsRankingDTO> rankItems(List<OrderItem> items,

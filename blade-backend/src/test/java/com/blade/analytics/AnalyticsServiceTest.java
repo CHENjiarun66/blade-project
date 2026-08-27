@@ -1,6 +1,7 @@
 package com.blade.analytics;
 
 import com.blade.analytics.dto.AnalyticsRankingDTO;
+import com.blade.analytics.dto.AnalyticsProductDetailDTO;
 import com.blade.analytics.dto.AnalyticsSummaryDTO;
 import com.blade.analytics.enums.AnalyticsDimension;
 import com.blade.analytics.enums.AnalyticsSortBy;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Queue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class AnalyticsServiceTest {
@@ -106,6 +108,28 @@ class AnalyticsServiceTest {
         assertEquals(2L, ranking.get(0).getSalesQuantity());
         assertEquals(new BigDecimal("80.00"), ranking.get(0).getGrossProfit());
         assertEquals(new BigDecimal("40.00"), ranking.get(0).getGrossProfitRate());
+    }
+
+    @Test
+    void getProductDetail_separatesPlaceholderAndReportsVariantCoverage() {
+        orderHandler.thenSelectList(List.of(order(1L, "9000.00", "0", "9000.00", "3000.00")));
+        itemHandler.thenSelectList(List.of(
+                item(1L, "624-1#", "624-1#-BLACK-L", "黑", "L", 50, "3000.00", "1000.00", "2000.00"),
+                item(1L, "624-1#", "624-1#-UNSPEC-UNSPEC", "未指定颜色", "UNSPEC", 100,
+                        "6000.00", "2000.00", "4000.00")
+        ));
+
+        AnalyticsProductDetailDTO detail = service.getProductDetail(weekQuery(), "624-1#");
+
+        assertEquals(1, detail.getSkus().size());
+        assertEquals("黑", detail.getColors().get(0).getLabel());
+        assertEquals("L", detail.getSizes().get(0).getLabel());
+        assertNotNull(detail.getUnspecified());
+        assertEquals(100L, detail.getUnspecified().getSalesQuantity());
+        assertEquals(150L, detail.getTotalSalesQuantity());
+        assertEquals(50L, detail.getSpecifiedSalesQuantity());
+        assertEquals(new BigDecimal("0.3333"), detail.getVariantCoverageRate());
+        assertEquals("LOW", detail.getVariantDataQuality());
     }
 
     private DashboardQueryDTO weekQuery() {

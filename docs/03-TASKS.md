@@ -273,7 +273,7 @@
 | BE-606 | Agent 订单草稿数据模型与幂等写入 | ✅ 完成 | V48 独立草稿主表/明细表；租户 + externalRefNo 幂等，允许未匹配 SKU，保留纸单原值与警告 |
 | BE-607 | Agent 商品候选与批量草稿 API | ✅ 完成 | `agent:catalog:read` 查询候选，`agent:orders:write` 上传原图并批量建草稿；客户缺失默认散客 |
 | BE-608 | 草稿确认转正式订单 | ✅ 完成 | JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计 |
-| BE-609 | SPU 纸单占位 SKU 与分析隔离 | ✅ 完成 | V49/V50 增加并校正 NORMAL/DEFAULT/PLACEHOLDER；多规格商品自动维护占位 SKU，Agent 按是否有规格信息选择候选，款号总量纳入占位销量而颜色尺码榜单列未指定与覆盖率 |
+| BE-609 | SPU 纸单占位 SKU 与分析隔离 | ✅ 完成 | V49/V50 增加并校正 NORMAL/DEFAULT/PLACEHOLDER；多规格商品自动维护占位 SKU，Agent 按规格信息选择候选；Agent/PC 分析计入款号总量并把未指定规格与覆盖率单列 |
 
 ### Phase 6.5: 统一文件存储（P1）
 

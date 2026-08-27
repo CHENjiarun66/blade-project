@@ -45,6 +45,11 @@ export interface AnalyticsProductDetail {
   skus: AnalyticsRanking[]
   colors: AnalyticsRanking[]
   sizes: AnalyticsRanking[]
+  unspecified?: AnalyticsRanking | null
+  totalSalesQuantity: number
+  specifiedSalesQuantity: number
+  variantCoverageRate: number
+  variantDataQuality: 'HIGH' | 'MEDIUM' | 'LOW'
   profitVisible: boolean
 }
 

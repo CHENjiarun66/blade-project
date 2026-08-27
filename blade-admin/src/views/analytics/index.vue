@@ -182,6 +182,24 @@
     </section>
 
     <el-drawer v-model="detailVisible" size="720px" :title="detailTitle">
+      <div v-if="productDetail" class="variant-quality">
+        <div>
+          <span>款号总销量</span>
+          <strong>{{ productDetail.totalSalesQuantity || 0 }} 件</strong>
+        </div>
+        <div>
+          <span>已明确规格</span>
+          <strong>{{ productDetail.specifiedSalesQuantity || 0 }} 件</strong>
+        </div>
+        <div>
+          <span>规格覆盖率</span>
+          <strong>{{ (Number(productDetail.variantCoverageRate || 0) * 100).toFixed(1) }}%</strong>
+        </div>
+        <div v-if="productDetail.unspecified" class="variant-unspecified">
+          <span>未指定颜色 / 尺码</span>
+          <strong>{{ productDetail.unspecified.salesQuantity }} 件</strong>
+        </div>
+      </div>
       <el-tabs v-model="detailTab">
         <el-tab-pane label="SKU" name="skus">
           <detail-table :rows="productDetail?.skus || []" :profit-visible="summary.profitVisible" />
@@ -471,6 +489,40 @@ onMounted(() => {
 
 .analysis-panel {
   padding: 18px;
+}
+
+.variant-quality {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.variant-quality > div {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.variant-quality span,
+.variant-quality strong {
+  display: block;
+}
+
+.variant-quality span {
+  color: #6b7280;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.variant-quality strong {
+  color: #111827;
+  font-size: 16px;
+}
+
+.variant-quality .variant-unspecified {
+  border-color: #fed7aa;
+  background: #fff7ed;
 }
 
 .panel-header {
