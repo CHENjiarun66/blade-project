@@ -4,7 +4,7 @@
 >
 > 来源代码基线：`codex/phase2-order-drafts` / `38c969b`，本计划与设计文档随交接基线提交
 >
-> 目标集成分支：`feature/order-lifecycle-finance-refactor`（Codex 已从文档基线 `5252339` 创建并推送）
+> 目标集成分支：`feature/order-lifecycle-finance-refactor`（Codex 已从文档基线 `5252339` 创建并推送，Z Code 负责实现）
 >
 > 生产边界：NAS 只部署已验收并合入 `master` 的 release，不部署本重构分支
 

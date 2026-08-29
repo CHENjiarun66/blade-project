@@ -4,7 +4,7 @@
 >
 > 内容类型：实施与审核清单
 >
-> 实现负责人：其他 Agent，认领时填写名称
+> 实现负责人：Z Code
 >
 > 架构与最终审核：Codex
 >
@@ -18,11 +18,11 @@
 
 | 角色 | 可以做 | 不可以做 |
 |------|------|------|
-| 实现 Agent | 只读审计、认领任务、编写测试和代码、更新任务记录、提交并推送自己的 feature 分支 | 修改已执行 migration、绕过审核进入下一阶段、合并 `master`、生产写操作、NAS 发布 |
+| Z Code | 只读审计、认领任务、编写测试和代码、更新任务记录、提交并推送自己的 feature 分支 | 修改已执行 migration、绕过审核进入下一阶段、合并 `master`、生产写操作、NAS 发布 |
 | Codex | 锁定契约、审查计划和 Diff、复跑测试、检查迁移与统计不变量、给出通过或整改结论 | 代替用户批准生产发布 |
 | 用户 | 确认业务例外、批准 release 合并和 NAS 维护窗口 | 无需处理实现细节 |
 
-实现 Agent 提交的“测试通过”只是交付说明。Codex 复核后，工作包才算通过。
+Z Code 提交的“测试通过”只是交付说明。Codex 复核后，工作包才算通过。
 
 ## 二、开工前置条件
 
@@ -31,8 +31,8 @@
 1. 当前设计文档已经提交并推送，工作区没有来源不明的未提交修改
 2. 拉取已由 Codex 从文档基线 `5252339` 创建的 `origin/feature/order-lifecycle-finance-refactor`
 3. 为实现 Agent 创建独立 worktree，在该 worktree 检出目标分支，不与 Codex 或其他 Agent 共用工作目录
-4. 实现 Agent完整阅读本文件、主 ROM/SOW、生命周期设计、财务设计、任务清单和协作规范
-5. 实现 Agent先完成 `ORDER-SOW-0` 只读审计，Codex 审核后才能修改代码
+4. Z Code 完整阅读本文件、主 ROM/SOW、生命周期设计、财务设计、任务清单和协作规范
+5. Z Code 先完成 `ORDER-SOW-0` 只读审计，Codex 审核后才能修改代码
 
 目标 feature 分支已经固定，不再从 `master` 重新创建。若开工前 `master` 发生变化，实现 Agent只在审计报告中记录差异，等待 Codex 决定是否同步，不得自行 rebase 或改写历史。
 
@@ -91,7 +91,7 @@ TODO → IMPLEMENTING → WAITING_CODEX_REVIEW
      → CODEX_APPROVED → MERGED_TO_INTEGRATION
 ```
 
-实现 Agent只能把任务改为 `WAITING_CODEX_REVIEW`，不能自行填写 `CODEX_APPROVED`。Codex 复核后更新审核结论。
+Z Code 只能把任务改为 `WAITING_CODEX_REVIEW`，不能自行填写 `CODEX_APPROVED`。Codex 复核后更新审核结论。
 
 ## 五、工作包与审核门禁
 
@@ -319,9 +319,9 @@ Codex 对每个门禁执行：
 
 最终审核额外执行后端全量测试、PC/移动端构建、E2E、生产副本迁移和恢复演练。Codex 不根据实现 Agent 的报告直接放行。
 
-## 八、实现 Agent 启动指令
+## 八、Z Code 启动指令
 
-把以下内容交给实现 Agent，先执行 `ORDER-SOW-0`：
+把以下内容交给 Z Code，先执行 `ORDER-SOW-0`：
 
 ```text
 你负责 BladeProject 订单大重构的实现，Codex 负责架构和最终审核。

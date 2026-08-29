@@ -19,7 +19,7 @@
 - WhatsApp 已完成本地真实数据验证，但 Mac → NAS 生产同步、生产凭证和回滚验收仍待执行。
 - 任务状态现在区分功能开发、本地验证、生产部署和真实业务验收，详见 [03-TASKS.md](./03-TASKS.md)。
 - 订单大重构的联动系统、SOW、Agent 文件边界、Git 分支和 NAS 发布门禁已整理到 [2026-08-30-order-lifecycle-finance-refactor-rom-sow.md](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。
-- 实施责任已锁定：其他 Agent 按[订单重构执行看板](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md)编码，Codex 负责 `CR-0`～`CR-8` 架构、Diff、测试、迁移和 release 审核，用户批准生产发布。实现 Agent 的第一步只能是 `ORDER-SOW-0` 只读审计。
+- 实施责任已锁定：Z Code 按[订单重构执行看板](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md)编码，Codex 负责 `CR-0`～`CR-8` 架构、Diff、测试、迁移和 release 审核，用户批准生产发布。Z Code 的第一步只能是 `ORDER-SOW-0` 只读审计。
 - 正式订单采用“两旧两新”：保留旧整数 `status`、`payment_status`；新增字符串 `fulfillment_status`、`collection_status`。`fulfillment_mode` 是履约选择，草稿状态仍在独立草稿表，不新增重复的 `order_lifecycle_status`。
 - 本轮整理前，GitHub `codex/phase2-order-drafts` 与本地代码基线同为 `38c969b`，相对 `master` 前进 27 个提交并同时包含 V43-V47 WhatsApp 与 V48-V50 Phase 2；本轮新增设计文档随交接基线提交。已推送功能分支不代表已合入主干或已部署生产。
 - 2026-08-30 只读复核 NAS：四个生产容器均运行，生产 Flyway 为 V42，V43-V50 尚未发布。本次核查未修改生产数据或容器。
@@ -38,7 +38,7 @@
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
 | 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；统一文件上传和文件中心底座已完成；WhatsApp 本地归档与客户工作区已完成；纸单识别 Agent 的 SKU 候选、批量订单草稿、占位 SKU、草稿工作台和人工确认正式订单 MVP 已于 2026-08-27 完成本地验证；移动端继续开发中 |
-| 下一步 | 文档基线 `5252339` 已推送，`feature/order-lifecycle-finance-refactor` 已从该基线创建并推送。实现 Agent应创建独立 worktree，先交付 `ORDER-SOW-0` 只读审计给 Codex 审核；未通过 `CR-8` 和用户生产批准前不部署 NAS。 |
+| 下一步 | 文档基线 `5252339` 已推送，`feature/order-lifecycle-finance-refactor` 已从该基线创建并推送。Z Code 应使用独立 worktree，先交付 `ORDER-SOW-0` 只读审计给 Codex 审核；未通过 `CR-8` 和用户生产批准前不部署 NAS。 |
 
 ---
 

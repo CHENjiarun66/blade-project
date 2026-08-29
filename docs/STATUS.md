@@ -1,6 +1,6 @@
 # 项目状态总览（自动生成）
 
-> 生成时间：2026/8/30 03:40:41　|　数据源：[03-TASKS.md](./03-TASKS.md)　|　本文件由 `node scripts/gen-status.mjs` 自动生成，请勿手工编辑。
+> 生成时间：2026/8/30 03:44:29　|　数据源：[03-TASKS.md](./03-TASKS.md)　|　本文件由 `node scripts/gen-status.mjs` 自动生成，请勿手工编辑。
 > 可视化看板：`outputs/status.html`（浏览器打开）
 > 进度百分比按活跃范围计算，不把“暂缓或由外部流程承担”计入分母。
 

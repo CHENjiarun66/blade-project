@@ -198,7 +198,7 @@
 
 > 业务方案见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) 和 [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)，实施分工见[订单大重构 ROM/SOW](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。本阶段尚未实施，不得把旧数字状态直接改成新含义。
 >
-> 本阶段由其他 Agent 实现，Codex 不认领编码任务，只负责 `CR-0`～`CR-8` 架构和代码审核。目标分支 `feature/order-lifecycle-finance-refactor` 已从 `5252339` 创建并推送。实现 Agent 必须按[执行看板](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md)先完成只读 `ORDER-SOW-0`，每个工作包提交 `WAITING_CODEX_REVIEW` 后暂停。
+> 本阶段由 Z Code 实现，Codex 不认领编码任务，只负责 `CR-0`～`CR-8` 架构和代码审核。目标分支 `feature/order-lifecycle-finance-refactor` 已从 `5252339` 创建并推送。Z Code 必须按[执行看板](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md)先完成只读 `ORDER-SOW-0`，每个工作包提交 `WAITING_CODEX_REVIEW` 后暂停。
 
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|

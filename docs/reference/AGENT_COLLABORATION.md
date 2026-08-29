@@ -40,6 +40,7 @@ Git = 唯一交付同步通道（代码与文档的最终一致来源）
 |-------|------|---------------------|
 | Codex | Codex | `[codex]` |
 | DeepSeek（DSH） | DeepSeek | `[dsh]` |
+| Z Code | Z Code | `[zcode]` |
 
 **所有 commit message 末尾必须带执行人标识**，例如：
 
