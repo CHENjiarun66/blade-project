@@ -6,7 +6,7 @@
 <title>BladeProject 项目状态看板</title>
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --line:#e5e7eb; --text:#1f2328; --muted:#6b7280;
-          --done:#16a34a; --doing:#f59e0b; --todo:#ef4444; --partial:#3b82f6; --other:#8b5cf6; }
+          --done:#16a34a; --doing:#f59e0b; --todo:#ef4444; --partial:#3b82f6; --deferred:#64748b; --other:#8b5cf6; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
   .wrap { max-width:1100px; margin:0 auto; padding:24px 20px 60px; }
@@ -30,6 +30,7 @@
   .section.doing { border-left:4px solid var(--doing); }
   .section.todo { border-left:4px solid var(--todo); }
   .section.partial { border-left:4px solid var(--partial); }
+  .section.deferred { border-left:4px solid var(--deferred); }
   .section.done { border-left:4px solid var(--done); }
   .task-table { width:100%; border-collapse:collapse; font-size:13px; }
   .task-table th, .task-table td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
@@ -42,6 +43,7 @@
   .pill-doing { background:#fef3c7; color:#b45309; }
   .pill-todo { background:#fee2e2; color:#b91c1c; }
   .pill-partial { background:#dbeafe; color:#1d4ed8; }
+  .pill-deferred { background:#e2e8f0; color:#475569; }
   .pill-other { background:#ede9fe; color:#6d28d9; }
   .tag { display:inline-block; margin-left:8px; background:#fef3c7; color:#b45309; border-radius:6px; padding:0 8px; font-size:12px; }
   .empty { color:var(--muted); font-size:13px; }
@@ -54,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/8/27 18:42:02　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/8/29 13:12:51　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -63,6 +65,7 @@
     <button data-filter="doing">🔴 进行中</button>
     <button data-filter="todo">🟡 待办</button>
     <button data-filter="partial">🔵 部分完成</button>
+    <button data-filter="deferred">⏸ 暂缓</button>
     <button data-filter="done">✅ 已完成</button>
   </div>
 
@@ -70,36 +73,36 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">155 完成 · 0 进行中 · 15 待办 · 1 部分</span>
+          <span class="card-nums">156 完成 · 0 进行中 · 19 待办 · 0 部分 · 5 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
-        <div class="bar-label">91% 完成（共 171 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:89%"></div></div>
+        <div class="bar-label">89% 完成（活跃 175 项，暂缓 5 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">82 完成 · 0 进行中 · 2 待办 · 0 部分</span>
+          <span class="card-nums">82 完成 · 0 进行中 · 2 待办 · 0 部分 · 2 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:98%"></div></div>
-        <div class="bar-label">98% 完成（共 84 项）</div>
+        <div class="bar-label">98% 完成（活跃 84 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">移动端</span>
-          <span class="card-nums">14 完成 · 0 进行中 · 11 待办 · 0 部分</span>
+          <span class="card-nums">14 完成 · 0 进行中 · 9 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:56%"></div></div>
-        <div class="bar-label">56% 完成（共 25 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:61%"></div></div>
+        <div class="bar-label">61% 完成（活跃 23 项，暂缓 2 项）</div>
       </div></div>
 
-  
+
     <section class="section doing">
       <h2>🔴 正在做 <span class="count">0</span></h2>
       <p class="empty">（无）</p>
     </section>
-  
+
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">28</span></h2>
+      <h2>🟡 还没做 <span class="count">30</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -107,6 +110,13 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
         <td class="td-remark">微信/钉钉（暂缓） |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-506</td>
+        <td class="td-name">仪表盘数据权限</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
+        <td class="td-remark">明确并实现销售员、主管和 Owner 的仪表盘数据范围；与客户归属、订单创建人和分析权限联动 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BE-556</td>
@@ -172,53 +182,74 @@
         <td class="td-remark">订单运营异常、利润解释、WhatsApp 反馈分析、经营记忆分阶段排序 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-601</td>
-        <td class="td-name">OCR 图片上传接入</td>
+        <td class="td-id">BE-585</td>
+        <td class="td-name">Agent 毛利 scope 与字段脱敏</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">复用统一文件接口上传原始单据图片 |</td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">增加并回归 `agent:analytics:profit`；未授权时所有 Agent 数据包禁止返回成本、毛利和毛利率 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-602</td>
-        <td class="td-name">OCR 识别服务</td>
+        <td class="td-id">BE-586</td>
+        <td class="td-name">Agent Key 安全签发与轮换</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">对接微信扫一扫/腾讯云 OCR |</td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">提供 Owner 管理 API 或受控运维命令；密钥只显示一次，数据库仅存哈希，支持 scope、有效期、停用、轮换和审计 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-603</td>
-        <td class="td-name">字段提取与表单填充</td>
+        <td class="td-id">TEST-WA-NAS-001</td>
+        <td class="td-name">WhatsApp Mac → NAS 生产联调</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">数量/单价/总金额/客户名/日期自动提取 |</td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">备份生产库后部署 V43-V47 和前后端；配置 Collector/Worker Key，验证增量同步、客户绑定、媒体预览、定向扫描和回滚 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-604</td>
-        <td class="td-name">AI 解析服务（方案B）</td>
+        <td class="td-id">BE-610</td>
+        <td class="td-name">占位数量拆分到真实 SKU</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">表格结构识别 + 款号模糊匹配 |</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">在草稿或正式订单中把一条 PLACEHOLDER 数量原子转移到多个真实 SKU；保持总数量、销售额、客户贡献和来源追溯不变 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-605</td>
-        <td class="td-name">置信度标注与候选推荐</td>
+        <td class="td-id">BE-611</td>
+        <td class="td-name">占位 SKU 履约保护</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">高/中/低置信度 + 款号候选列表 |</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">配货计划、出库和库存调整发现 PLACEHOLDER 时拒绝扣库存，并提示先完成规格拆分 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BA-801</td>
-        <td class="td-name">拍照录单页（方案A）</td>
+        <td class="td-id">BE-612</td>
+        <td class="td-name">占位拆分审计与分析回算</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
-        <td class="td-remark">上传图片 + 半自动表单（款号手动选） |</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">记录拆分前后明细、操作人和时间；分析只保留转移后的销量，禁止占位与真实规格重复计数 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BA-802</td>
-        <td class="td-name">拍照录单页（方案B）</td>
+        <td class="td-id">TEST-PHASE2-001</td>
+        <td class="td-name">真实纸单批次本地验收</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
-        <td class="td-remark">AI 识别 + 置信度标注 + 候选推荐 |</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">使用“单据收纳/42”的图片和 Excel 验证候选、原值、散客、幂等、编辑保存、占位拆分和确认链路 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">TEST-PHASE2-002</td>
+        <td class="td-name">NAS 生产发布与 30 单联调</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">备份后部署 V48-V50 和前后端，配置最小 scope Agent Key，通过 NAS API 导入 30 张纸单并核对库存、财务和统计隔离 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-805</td>
+        <td class="td-name">占位 SKU 拆分界面</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">在草稿和未履约正式订单中按真实颜色/尺码拆分数量；显示剩余未指定数量、合计校验和拆分历史 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-1111</td>
+        <td class="td-name">Agent Key 管理页面</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 13: Agent 凭证管理（P2）</td>
+        <td class="td-remark">Owner 创建、查看前缀、配置 scope/有效期、停用和轮换 Key；密钥正文只在创建时显示一次 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">FE-005</td>
@@ -282,37 +313,84 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">移动端 › Phase 5: 看板系统</td>
         <td class="td-remark">柱状图 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">FE-701</td>
-        <td class="td-name">拍照录单页（方案A）</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">移动端 › Phase 7: OCR 拍照录单（P2）</td>
-        <td class="td-remark">上传图片 + 半自动表单 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">FE-702</td>
-        <td class="td-name">拍照录单页（方案B）</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">移动端 › Phase 7: OCR 拍照录单（P2）</td>
-        <td class="td-remark">AI 识别 + 置信度标注 |</td>
       </tr></table>
     </section>
-  
+
     <section class="section partial">
-      <h2>🔵 部分完成 <span class="count">1</span></h2>
+      <h2>🔵 部分完成 <span class="count">0</span></h2>
+      <p class="empty">（无）</p>
+    </section>
+
+    <section class="section deferred">
+      <h2>⏸ 暂缓或由外部流程承担 <span class="count">9</span></h2>
       <table class="task-table">
-      <tr data-status="partial">
-        <td class="td-id">BE-552</td>
-        <td class="td-name">Agent 凭证与 scope 模型</td>
-        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
-        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">V33 落 Agent Key 哈希、租户绑定和 scope 映射；管理入口与毛利 scope 待补 |</td>
+      <tr data-status="deferred">
+        <td class="td-id">BE-601</td>
+        <td class="td-name">ERP 内置 OCR 图片上传</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">原图仍通过 BE-607 上传并绑定；ERP 不提供拍照识别入口 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BE-602</td>
+        <td class="td-name">ERP 内置 OCR 识别服务</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">图片识别由本机订单识别 Agent 承担 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BE-603</td>
+        <td class="td-name">ERP 内置字段提取</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">Agent 输出结构化 JSON 和 Excel；ERP 保留原值并校验 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BE-604</td>
+        <td class="td-name">ERP 内置 AI 表格解析</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">表格解析和初步款号识别由外部 Agent 承担 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BE-605</td>
+        <td class="td-name">ERP 内置识别置信度</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">外部 Agent 可提交候选和警告；ERP 继续显示待匹配与差异警告 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BA-801</td>
+        <td class="td-name">ERP 内置半自动拍照录单页</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">外部 Agent 负责识别和批量录入，PC 端统一在草稿工作台复核 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BA-802</td>
+        <td class="td-name">ERP 内置 AI 拍照录单页</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">不在 ERP 内重复建设识别页；候选、警告和人工修改由 BA-803 承接 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">FE-701</td>
+        <td class="td-name">移动端半自动拍照录单页</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">移动端 › Phase 7: 移动端拍照录单（暂缓）</td>
+        <td class="td-remark">当前纸单批量流程由本机 Agent + PC 草稿工作台承接 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">FE-702</td>
+        <td class="td-name">移动端 AI 拍照录单页</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">移动端 › Phase 7: 移动端拍照录单（暂缓）</td>
+        <td class="td-remark">等 PC 真实业务验收和移动端主流程完成后再评审 |</td>
       </tr></table>
     </section>
-  
+
     <section class="section done">
-      <h2>✅ 已完成（共 251 项） <span class="count">251</span></h2>
+      <h2>✅ 已完成（共 252 项） <span class="count">252</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1001,6 +1079,13 @@
         <td class="td-remark">`/api/customers/**` 移除公开放行，Agent 入口独立走 `/api/agent/**` 鉴权与租户上下文 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-552</td>
+        <td class="td-name">Agent 凭证与基础 scope 模型</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V33 已落 Agent Key 哈希、租户绑定、有效期、启停和 scope 鉴权；签发轮换、管理界面与毛利 scope 拆到 BE-586、BA-1111、BE-585 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BE-553</td>
         <td class="td-name">Agent 认证过滤器与调用审计</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1158,28 +1243,28 @@
         <td class="td-id">BE-606</td>
         <td class="td-name">Agent 订单草稿数据模型与幂等写入</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">V48 独立草稿主表/明细表；租户 + externalRefNo 幂等，允许未匹配 SKU，保留纸单原值与警告 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-607</td>
         <td class="td-name">Agent 商品候选与批量草稿 API</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">`agent:catalog:read` 查询候选，`agent:orders:write` 上传原图并批量建草稿；客户缺失默认散客 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-608</td>
         <td class="td-name">草稿确认转正式订单</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-609</td>
         <td class="td-name">SPU 纸单占位 SKU 与分析隔离</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">V49/V50 增加并校正 NORMAL/DEFAULT/PLACEHOLDER；多规格商品自动维护占位 SKU，Agent 按规格信息选择候选；Agent/PC 分析计入款号总量并把未指定规格与覆盖率单列 |</td>
       </tr>
       <tr data-status="done">
@@ -1725,14 +1810,14 @@
         <td class="td-id">BA-803</td>
         <td class="td-name">快速录单草稿工作台</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
         <td class="td-remark">`/orders/drafts` 已改为快速录单式全宽表单：顶部切换草稿、单据/客户分区、全宽商品编辑、金额汇总，原图按需从抽屉打开 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-804</td>
         <td class="td-name">草稿工作台占位 SKU 标识</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
         <td class="td-remark">商品选择器优先显示占位 SKU，并明确标记“整款（未指定颜色/尺码）”，避免与真实颜色尺码混淆 |</td>
       </tr>
       <tr data-status="done">

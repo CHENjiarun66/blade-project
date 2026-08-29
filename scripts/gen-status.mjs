@@ -36,6 +36,7 @@ const STATUS = {
   doing: 'doing',
   todo: 'todo',
   partial: 'partial',
+  deferred: 'deferred',
   other: 'other',
 }
 
@@ -44,6 +45,7 @@ const STATUS_LABEL = {
   doing: '⏳ 进行中',
   todo: '⏳ 待办',
   partial: '⏳ 部分完成',
+  deferred: '⏸ 暂缓/外部承担',
   other: '⚠️ 其他',
 }
 
@@ -51,6 +53,9 @@ const STATUS_LABEL = {
 function parseStatus(raw) {
   const s = raw
   if (s.includes('✅')) return { status: STATUS.done, executor: '' }
+  if (s.includes('⏸') || s.includes('暂缓') || s.includes('转外部')) {
+    return { status: STATUS.deferred, executor: '' }
+  }
   if (s.includes('⏳') || s.includes('待办')) {
     if (s.includes('TODO')) return { status: STATUS.todo, executor: '' }
     if (s.includes('进行中')) {
@@ -102,14 +107,14 @@ function summarize(tasks) {
   const phaseMap = {}
   for (const t of tasks) {
     if (!modules[t.module]) {
-      modules[t.module] = { name: t.module, total: 0, done: 0, doing: 0, todo: 0, partial: 0, other: 0, items: [] }
+      modules[t.module] = { name: t.module, total: 0, done: 0, doing: 0, todo: 0, partial: 0, deferred: 0, other: 0, items: [] }
     }
     const mod = modules[t.module]
     mod.total++
     mod[t.status]++
     mod.items.push(t)
     const key = `${t.module} › ${t.phase}`
-    if (t.phase && !phaseMap[key]) phaseMap[key] = { module: t.module, phase: t.phase, total: 0, done: 0, doing: 0, todo: 0, partial: 0, other: 0 }
+    if (t.phase && !phaseMap[key]) phaseMap[key] = { module: t.module, phase: t.phase, total: 0, done: 0, doing: 0, todo: 0, partial: 0, deferred: 0, other: 0 }
     if (t.phase) {
       const p = phaseMap[key]
       p.total++
@@ -141,6 +146,7 @@ function renderMarkdown(now, stats) {
   lines.push('')
   lines.push('> 生成时间：' + now + '　|　数据源：[03-TASKS.md](./03-TASKS.md)　|　本文件由 `node scripts/gen-status.mjs` 自动生成，请勿手工编辑。')
   lines.push('> 可视化看板：`outputs/status.html`（浏览器打开）')
+  lines.push('> 进度百分比按活跃范围计算，不把“暂缓或由外部流程承担”计入分母。')
   lines.push('')
   lines.push('## 模块进度')
   lines.push('')
@@ -148,13 +154,15 @@ function renderMarkdown(now, stats) {
   lines.push('|------|------|------|')
   const mods = Object.values(stats.modules).sort((a, b) => b.total - a.total)
   for (const m of mods) {
-    const ratio = m.total ? m.done / m.total : 0
+    const activeTotal = m.total - m.deferred
+    const ratio = activeTotal ? m.done / activeTotal : 0
     const pct = Math.round(ratio * 100)
-    lines.push(`| ${m.name} | \`${barText(ratio)} ${pct}%\` | ${m.done} 完成 / ${m.doing} 进行中 / ${m.todo} 待办 / ${m.partial} 部分 |`)
+    lines.push(`| ${m.name} | \`${barText(ratio)} ${pct}%\` | ${m.done} 完成 / ${m.doing} 进行中 / ${m.todo} 待办 / ${m.partial} 部分 / ${m.deferred} 暂缓 |`)
   }
   const total = stats.total
-  const totalRatio = total.total ? total.done / total.total : 0
-  lines.push(`| **合计** | \`${barText(totalRatio)} ${Math.round(totalRatio * 100)}%\` | ${total.done} 完成 / ${total.doing} 进行中 / ${total.todo} 待办 / ${total.partial} 部分 |`)
+  const activeTotal = total.total - total.deferred
+  const totalRatio = activeTotal ? total.done / activeTotal : 0
+  lines.push(`| **合计** | \`${barText(totalRatio)} ${Math.round(totalRatio * 100)}%\` | ${total.done} 完成 / ${total.doing} 进行中 / ${total.todo} 待办 / ${total.partial} 部分 / ${total.deferred} 暂缓 |`)
   lines.push('')
   lines.push('## 正在做（' + stats.doing.length + '）')
   lines.push('')
@@ -186,7 +194,17 @@ function renderMarkdown(now, stats) {
     lines.push('- （无）')
   }
   lines.push('')
-  lines.push('## 最近完成（按表格出现顺序取前 15）')
+  lines.push('## 暂缓或由外部流程承担（' + stats.deferred.length + '）')
+  lines.push('')
+  if (stats.deferred.length) {
+    for (const t of stats.deferred) {
+      lines.push(`- ${t.id} ${t.name} — ${t.module}${t.phase ? ` › ${t.phase}` : ''}`)
+    }
+  } else {
+    lines.push('- （无）')
+  }
+  lines.push('')
+  lines.push('## 已完成任务样本（按表格顺序取前 15）')
   lines.push('')
   for (const t of stats.done.slice(0, 15)) {
     lines.push(`- ${t.id} ${t.name}`)
@@ -202,16 +220,17 @@ function renderHtml(now, stats) {
   const modCards = Object.values(stats.modules)
     .sort((a, b) => b.total - a.total)
     .map((m) => {
-      const ratio = m.total ? m.done / m.total : 0
+      const activeTotal = m.total - m.deferred
+      const ratio = activeTotal ? m.done / activeTotal : 0
       const pct = Math.round(ratio * 100)
       return `
       <div class="card">
         <div class="card-head">
           <span class="card-title">${esc(m.name)}</span>
-          <span class="card-nums">${m.done} 完成 · ${m.doing} 进行中 · ${m.todo} 待办 · ${m.partial} 部分</span>
+          <span class="card-nums">${m.done} 完成 · ${m.doing} 进行中 · ${m.todo} 待办 · ${m.partial} 部分 · ${m.deferred} 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
-        <div class="bar-label">${pct}% 完成（共 ${m.total} 项）</div>
+        <div class="bar-label">${pct}% 完成（活跃 ${activeTotal} 项，暂缓 ${m.deferred} 项）</div>
       </div>`
     })
     .join('')
@@ -244,7 +263,7 @@ function renderHtml(now, stats) {
 <title>BladeProject 项目状态看板</title>
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --line:#e5e7eb; --text:#1f2328; --muted:#6b7280;
-          --done:#16a34a; --doing:#f59e0b; --todo:#ef4444; --partial:#3b82f6; --other:#8b5cf6; }
+          --done:#16a34a; --doing:#f59e0b; --todo:#ef4444; --partial:#3b82f6; --deferred:#64748b; --other:#8b5cf6; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
   .wrap { max-width:1100px; margin:0 auto; padding:24px 20px 60px; }
@@ -268,6 +287,7 @@ function renderHtml(now, stats) {
   .section.doing { border-left:4px solid var(--doing); }
   .section.todo { border-left:4px solid var(--todo); }
   .section.partial { border-left:4px solid var(--partial); }
+  .section.deferred { border-left:4px solid var(--deferred); }
   .section.done { border-left:4px solid var(--done); }
   .task-table { width:100%; border-collapse:collapse; font-size:13px; }
   .task-table th, .task-table td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
@@ -280,6 +300,7 @@ function renderHtml(now, stats) {
   .pill-doing { background:#fef3c7; color:#b45309; }
   .pill-todo { background:#fee2e2; color:#b91c1c; }
   .pill-partial { background:#dbeafe; color:#1d4ed8; }
+  .pill-deferred { background:#e2e8f0; color:#475569; }
   .pill-other { background:#ede9fe; color:#6d28d9; }
   .tag { display:inline-block; margin-left:8px; background:#fef3c7; color:#b45309; border-radius:6px; padding:0 8px; font-size:12px; }
   .empty { color:var(--muted); font-size:13px; }
@@ -301,6 +322,7 @@ function renderHtml(now, stats) {
     <button data-filter="doing">🔴 进行中</button>
     <button data-filter="todo">🟡 待办</button>
     <button data-filter="partial">🔵 部分完成</button>
+    <button data-filter="deferred">⏸ 暂缓</button>
     <button data-filter="done">✅ 已完成</button>
   </div>
 
@@ -309,6 +331,7 @@ function renderHtml(now, stats) {
   ${section('🔴 正在做', stats.doing, 'doing')}
   ${section('🟡 还没做', stats.todo, 'todo')}
   ${section('🔵 部分完成', stats.partial, 'partial')}
+  ${section('⏸ 暂缓或由外部流程承担', stats.deferred, 'deferred')}
   ${section('✅ 已完成（共 ' + stats.done.length + ' 项）', stats.done, 'done')}
 
   <footer>本页面由 <code>node scripts/gen-status.mjs</code> 自动生成，完整任务明细见 docs/03-TASKS.md</footer>
@@ -352,6 +375,7 @@ const done = tasks.filter((t) => t.status === STATUS.done)
 const doing = tasks.filter((t) => t.status === STATUS.doing)
 const todo = tasks.filter((t) => t.status === STATUS.todo)
 const partial = tasks.filter((t) => t.status === STATUS.partial)
+const deferred = tasks.filter((t) => t.status === STATUS.deferred)
 const other = tasks.filter((t) => t.status === STATUS.other)
 const total = {
   total: tasks.length,
@@ -359,16 +383,17 @@ const total = {
   doing: doing.length,
   todo: todo.length,
   partial: partial.length,
+  deferred: deferred.length,
   other: other.length,
 }
-const stats = { modules: byModule.modules, phases: byModule.phases, total, done, doing, todo, partial, other }
+const stats = { modules: byModule.modules, phases: byModule.phases, total, done, doing, todo, partial, deferred, other }
 const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
 
 mkdirSync(dirname(HTML_PATH), { recursive: true })
-writeFileSync(HTML_PATH, renderHtml(now, stats), 'utf8')
-writeFileSync(MD_PATH, renderMarkdown(now, stats), 'utf8')
+writeFileSync(HTML_PATH, renderHtml(now, stats).replace(/[ \t]+$/gm, ''), 'utf8')
+writeFileSync(MD_PATH, renderMarkdown(now, stats).replace(/[ \t]+$/gm, ''), 'utf8')
 
 console.log(`✅ 看板已生成：`)
 console.log(`  HTML  → ${HTML_PATH}`)
 console.log(`  MD    → ${MD_PATH}`)
-console.log(`  任务统计：${total.total} 项（${total.done} 完成 / ${total.doing} 进行中 / ${total.todo} 待办 / ${total.partial} 部分 / ${total.other} 其他）`)
+console.log(`  任务统计：${total.total} 项（${total.done} 完成 / ${total.doing} 进行中 / ${total.todo} 待办 / ${total.partial} 部分 / ${total.deferred} 暂缓 / ${total.other} 其他）`)
