@@ -38,7 +38,7 @@
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
 | 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；统一文件上传和文件中心底座已完成；WhatsApp 本地归档与客户工作区已完成；纸单识别 Agent 的 SKU 候选、批量订单草稿、占位 SKU、草稿工作台和人工确认正式订单 MVP 已于 2026-08-27 完成本地验证；移动端继续开发中 |
-| 下一步 | 先提交本轮设计文档并固化 Phase 2 基线，再由实现 Agent 从干净基线创建 `feature/order-lifecycle-finance-refactor` 和独立 worktree。实现 Agent先交付 `ORDER-SOW-0` 只读审计给 Codex 审核；未通过 `CR-8` 和用户生产批准前不部署 NAS。 |
+| 下一步 | 文档基线 `5252339` 已推送，`feature/order-lifecycle-finance-refactor` 已从该基线创建并推送。实现 Agent应创建独立 worktree，先交付 `ORDER-SOW-0` 只读审计给 Codex 审核；未通过 `CR-8` 和用户生产批准前不部署 NAS。 |
 
 ---
 

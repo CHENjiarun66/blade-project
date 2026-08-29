@@ -4,7 +4,7 @@
 >
 > 来源代码基线：`codex/phase2-order-drafts` / `38c969b`，本计划与设计文档随交接基线提交
 >
-> 目标集成分支：`feature/order-lifecycle-finance-refactor`（由实现 Agent 从确认后的干净基线创建）
+> 目标集成分支：`feature/order-lifecycle-finance-refactor`（Codex 已从文档基线 `5252339` 创建并推送）
 >
 > 生产边界：NAS 只部署已验收并合入 `master` 的 release，不部署本重构分支
 
@@ -204,7 +204,7 @@ feature/order-lifecycle-finance-refactor
 
 1. 提交并推送本轮设计文档，让 GitHub 分支成为可恢复的交接基线。
 2. 先决定 V43-V50 这组累计能力是否作为一个独立 release 完成验收；当前分支同时包含 WhatsApp 和 Phase 2，未验收前不合入 `master`、不部署 NAS。
-3. 由实现 Agent 从包含 V43-V50 的干净确认基线创建 `feature/order-lifecycle-finance-refactor`，新 migration 从 V51 以后连续编号。
+3. 实现 Agent 使用已从 `5252339` 创建并推送的 `feature/order-lifecycle-finance-refactor`，新 migration 从 V51 以后连续编号。
 4. 大重构在该集成分支和独立 worktree 子分支完成，NAS 继续运行 V42 稳定版本。
 5. 在 V42 生产副本验证“V42 → V43…V50 → 新迁移”的完整升级路径。
 6. 创建 release 并完成自动化、人工和迁移验收。

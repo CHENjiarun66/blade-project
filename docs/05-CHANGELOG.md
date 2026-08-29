@@ -39,6 +39,7 @@
 - 目标开发分支调整为 `feature/order-lifecycle-finance-refactor`，由实现 Agent 从确认后的干净 V50 基线创建，并使用独立 worktree。
 - 锁定正式订单“两旧两新”字段：旧整数 `status`、`payment_status` 保留兼容；新字符串 `fulfillment_status`、`collection_status` 承担业务事实。`fulfillment_mode` 为辅助维度，不新增重复的 `order_lifecycle_status`。
 - 明确生产权限：实现 Agent只能准备 release 和 dry run，Codex 给出审核结论，用户批准合入 `master` 和 NAS 维护窗口。
+- 文档交接基线已提交并推送为 `5252339`；Codex 从该 commit 创建并推送 `feature/order-lifecycle-finance-refactor`，实现 Agent不得重新从其他分支创建或改写历史。
 
 **执行看板**：[2026-08-30-order-refactor-agent-execution-board.md](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md)
 

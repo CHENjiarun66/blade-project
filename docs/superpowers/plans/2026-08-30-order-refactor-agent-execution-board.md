@@ -29,12 +29,12 @@
 开始编码前必须满足：
 
 1. 当前设计文档已经提交并推送，工作区没有来源不明的未提交修改
-2. 从确认后的 V50 基线创建 `feature/order-lifecycle-finance-refactor`
-3. 为实现 Agent 创建独立 worktree，不与 Codex 或其他 Agent 共用工作目录
+2. 拉取已由 Codex 从文档基线 `5252339` 创建的 `origin/feature/order-lifecycle-finance-refactor`
+3. 为实现 Agent 创建独立 worktree，在该 worktree 检出目标分支，不与 Codex 或其他 Agent 共用工作目录
 4. 实现 Agent完整阅读本文件、主 ROM/SOW、生命周期设计、财务设计、任务清单和协作规范
 5. 实现 Agent先完成 `ORDER-SOW-0` 只读审计，Codex 审核后才能修改代码
 
-如果 V43-V50 在开工前已经通过独立 release 合入 `master`，从最新 `master` 创建分支；否则从当前 V50 功能基线创建。Agent 必须在审计报告中记录实际基线 commit。
+目标 feature 分支已经固定，不再从 `master` 重新创建。若开工前 `master` 发生变化，实现 Agent只在审计报告中记录差异，等待 Codex 决定是否同步，不得自行 rebase 或改写历史。
 
 ## 三、字段与兼容契约
 
