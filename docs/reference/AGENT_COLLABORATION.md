@@ -1,34 +1,35 @@
-# 双 Agent 联合开发协作规范
+# 多 Agent 联合开发协作规范
 
-> 本文件规定 **Codex（主力）** 与 **DeepSeek（DSH 协同）** 在同一台 Mac、同一工作目录下联合开发时的信息同步协议。
-> 两个 Agent 开工前都必须阅读本文档，并遵守根目录 `AGENTS.md` 中对应的强制规则。
-> 规则以 `AGENTS.md` 为唯一强制入口，本文档是详细说明和操作手册。
+> 本文件规定 Codex、DeepSeek 和其他 Agent 工具在同一仓库协作时的信息同步协议。
+> 所有 Agent 开工前必须阅读本文档、`SESSION_CONTEXT.md`、`03-TASKS.md` 和当前任务的设计/SOW。
+> 当前仓库没有根目录 `AGENTS.md`，因此本文件和 Git 工作流是现行协作规则；如后续新增统一入口，必须同步更新本文档。
 
 ---
 
 ## 一、协作模型
 
 ```
-同一工作目录共享
+同一仓库、独立 worktree/分支
    ↓
-Git = 唯一事实同步通道（代码与文档的最终一致来源）
+Git = 唯一交付同步通道（代码与文档的最终一致来源）
    ↓
 文档 = 状态板（SESSION_CONTEXT / TASKS / CHANGELOG）
    ↓
-AGENTS.md = 规则源（两个 Agent 都会自动读取）
+协作规范 + Git 工作流 = 当前规则源
 ```
 
 ### 信息流三层结构
 
 | 层 | 载体 | 作用 |
 |----|------|------|
-| 规则层 | 根目录 `AGENTS.md` | 两个 Agent 启动时自动读取，规定"必须做什么" |
+| 规则层 | `docs/reference/AGENT_COLLABORATION.md` + `GIT_BRANCH_WORKFLOW.md` | 规定必须做什么及如何合并发布 |
 | 状态层 | `docs/SESSION_CONTEXT.md`、`docs/03-TASKS.md`、`docs/05-CHANGELOG.md` | 记录"现在是什么状态、谁在做" |
 | 事实层 | Git（同一工作区） | 代码、文档、历史的最终一致来源 |
 
 **核心原则**：
-- 同一目录共享，**Git 状态天然一致**，不需要跨设备同步。
-- 冲突主要来自"信息没写进文档"或"没及时 commit"，而不是文件本身。
+- 同一仓库不等于共享同一工作目录；并发修改必须使用独立 worktree 和分支。
+- GitHub 保存可交接提交，NAS 只承载已发布的 `master`，两者不能互相替代。
+- 冲突主要来自任务未认领、契约未锁定、修改了同一文件或没有及时形成可回滚提交。
 - 任何一方开工前必须能回答三个问题：**现在在哪个分支？谁在做什么任务？上一次交接状态是什么？**
 
 ---
@@ -67,22 +68,23 @@ docs(collab): add dual-agent protocol [dsh]
 **开工（必做）**：
 
 ```bash
-git fetch origin && git pull          # 1. 确认与远程一致
-git status --short --branch           # 2. 确认工作区状态（干净或有明确未提交内容）
-# 3. 读 docs/SESSION_CONTEXT.md 确认最新状态
-# 4. 确认目标任务未被认领，然后认领
+git status --short --branch           # 1. 先确认工作区和当前分支
+git fetch origin                      # 2. 只更新远端引用，不覆盖本地工作
+git branch -vv                        # 3. 核对 ahead/behind 和 upstream
+# 4. 工作区干净时，才按目标分支执行 fast-forward 或 rebase
+# 5. 读 SESSION_CONTEXT、TASKS 和当前 SOW，然后认领任务
 ```
 
 **收工（任务完成或会话结束，必做）**：
 
-0. 运行 `node scripts/gen-status.mjs` 刷新状态看板（更新 `docs/STATUS.md`，见 AGENTS.md 规则 8）
+0. 运行 `node scripts/gen-status.mjs` 刷新状态看板（更新 `docs/STATUS.md`）
 1. 更新 `docs/03-TASKS.md`：任务状态 + 执行记录
 2. 更新 `docs/05-CHANGELOG.md`：变更内容 + 原因 + 影响范围 + **验证结果** + 执行人
 3. 更新 `docs/SESSION_CONTEXT.md`：当前摘要、下一步、未完成事项
 4. `git add` + `git commit`（message 带 `[codex]` / `[dsh]` 后缀）
 5. `git push`
 
-> 即使任务没做完，会话结束前也要 commit 一个可回滚节点并 push，避免对方接手时拿到半个工作区。
+> 任务没做完时也应形成可回滚节点并 push；如果因测试失败等原因不能提交，必须在交接中列出未提交文件、原因和恢复方法，不能让另一 Agent 猜测工作区归属。
 
 ### 协议 3：会话快照维护
 
@@ -95,10 +97,12 @@ git status --short --branch           # 2. 确认工作区状态（干净或有�
 ### 协议 4：提交与分支纪律
 
 - 分支规范沿用 `docs/reference/GIT_BRANCH_WORKFLOW.md`（`feature/*` → `develop` → `release/*` → `master`）。
+- 跨模块大重构使用一个集成分支和多个独立 worktree/子分支；不得让多个 Agent 并发写同一工作区。
 - 每个可回滚节点一个 commit，按功能边界拆分，message 带执行人后缀。
 - **多个无关功能禁止混在一个 commit。**
 - 禁止 `git reset --hard` / `git checkout -- .` 清理工作区。
 - 合并前先 `git fetch`，确认对方是否已推进；不要在对方未 push 的情况下基于旧状态大改。
+- NAS 不用于同步开发中代码。只有 release 验收、合入并推送 `master` 后，才按生产手册部署。
 
 ### 协议 5：验证结果必填
 

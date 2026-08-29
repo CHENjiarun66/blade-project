@@ -6,7 +6,71 @@
 
 ---
 
+## 2026-08-30 变更记录
+
+### [实施规划] - 订单大重构联动范围、Git 基线与 NAS 门禁
+
+- 新增订单生命周期、财务与统计大重构 ROM/SOW，覆盖数据库、订单核心、草稿、收款、库存履约、PC、移动端、共享类型、权限、仪表盘、客户、Agent、WhatsApp、导出、测试和 NAS 迁移。
+- 将实施拆为只读审计、加法迁移、状态机与财务事实、库存履约、PC/权限/契约、统一统计消费者、移动端兼容、历史迁移和兼容下线九个工作包。
+- 新增 `BE-1049`～`BE-1052`，补齐细粒度权限、统一事实与缓存、公共契约/导出兼容、V42 至新版本迁移和 NAS 发布门禁。
+- 整理前只读核对确认 `codex/phase2-order-drafts` 与远端同为 `38c969b`，相对 `master` 前进 27 个提交并同时包含 V43-V47 WhatsApp 与 V48-V50 Phase 2；`master/develop` 同为 `0335c51`。本轮设计文档随交接基线提交。
+- NAS 只读核对确认四个生产容器运行正常、Flyway 最新为 V42；修正文档中 V39 的过期记录。V43-V50 尚未部署，本次未修改生产数据、容器、镜像或配置。
+- 决定先固化当前 Phase 2 基线，再创建 `codex/order-lifecycle-finance-refactor`；未完成生产副本迁移预演和 release 验收前，不把重构分支或未验收 Phase 2 直接部署 NAS。
+- 长期 Git 与多 Agent 协作规范补充“大重构集成分支 + 独立 worktree/子分支”模式，并修正原文中“并发共享同一工作目录”和依赖不存在根目录 `AGENTS.md` 的过期描述。
+
+**实施文档**：[2026-08-30-order-lifecycle-finance-refactor-rom-sow.md](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)
+
+**影响范围**：订单重构任务、Agent 协作、Git 分支、生产版本识别、数据库迁移与 NAS 发布流程。
+
+### [发布设计] - 大重构生产备份与无损切换
+
+- 核对现有脚本：普通发布只生成 NAS 内单份 `mysqldump` 并检查非空，镜像复用 `prod` 标签；尚无哈希、NAS 外副本、恢复演练、uploads 一致性清单和不可变 release 镜像。
+- 大重构备份升级为 release 备份集：数据库逻辑/结构、Flyway、业务基线、uploads、私密配置、compose、Git commit、镜像 digest 和恢复说明共同归档。
+- 锁定“兼容底座 → V42 生产副本预演 → 短暂停写最终切换 → 观察期延迟清理”四阶段发布，不承诺当前单实例架构完全零停机。
+- 明确回滚边界：开放写入前可以恢复最终备份；开放写入后优先切回兼容应用或前向修复，禁止直接覆盖发布前 SQL 导致新订单丢失。
+- 将脚本升级、隔离库恢复演练、SHA-256、NAS 外副本和不可变镜像纳入 `BE-1052` 发布门禁。
+
+**影响范围**：NAS 备份、数据库迁移、uploads、发布脚本、镜像版本、维护窗口和灾难恢复。
+
+### [协作决策] - 实现 Agent 开发、Codex 分阶段审核
+
+- 新增订单重构实现 Agent 执行看板，将工作拆为 `ORDER-SOW-0`～`ORDER-SOW-10`，并设置 `CR-0`～`CR-8` Codex 审核门禁。
+- 实现 Agent 一次只领取一个工作包，提交 `WAITING_CODEX_REVIEW` 后必须暂停。Codex 负责架构契约、Diff、测试、租户、权限、金额、库存、迁移和 release 审核，不承担本轮业务编码。
+- 目标开发分支调整为 `feature/order-lifecycle-finance-refactor`，由实现 Agent 从确认后的干净 V50 基线创建，并使用独立 worktree。
+- 锁定正式订单“两旧两新”字段：旧整数 `status`、`payment_status` 保留兼容；新字符串 `fulfillment_status`、`collection_status` 承担业务事实。`fulfillment_mode` 为辅助维度，不新增重复的 `order_lifecycle_status`。
+- 明确生产权限：实现 Agent只能准备 release 和 dry run，Codex 给出审核结论，用户批准合入 `master` 和 NAS 维护窗口。
+
+**执行看板**：[2026-08-30-order-refactor-agent-execution-board.md](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md)
+
+**影响范围**：订单任务认领、分支与 worktree、Agent 交付格式、Codex 审核、release 和生产发布。
+
 ## 2026-08-29 变更记录
+
+### [产品决策] - 订单状态、收款与履约重构方案
+
+- 将草稿状态、收款状态、履约方式和履约状态拆为四个维度，避免“已付款”继续占用履约状态。
+- 正式订单保留未收款、部分收款和已结清；短款通过明确核销动作结清，不计入客户实收。
+- 新增 `UNDECIDED`、`STOCK_LINKED` 和 `RECORD_ONLY` 履约方式。已结清订单选择仅记录后直接完成，选择关联库存后进入配货和出库流程。
+- 确认旧 `sale_order.status` 不原地重解释。实施采用新增履约字段、收款流水、状态日志、并发版本和一个发布周期的兼容读取。
+- 只读核对旧生产备份：81 张订单全部为旧 `status=0`，其中 74 张已结清、6 张部分收款、1 张未收款，没有配货计划。历史迁移必须结合金额、配货和出库证据生成预览与异常清单。
+- 全面扫描确认影响后端订单、草稿、配货、出库、仪表盘、分析、客户、导出、PC、移动端、共享类型、测试和文档。新增 Phase 3.4 联动任务，尚未修改代码或生产数据。
+
+**主设计**：[14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md)
+
+**影响范围**：订单数据库、状态机、收款流水、Agent 草稿、库存履约、跨端界面、统计、客户、导出、测试和生产迁移。
+
+### [产品决策] - 订单金额、结清与经营统计口径
+
+- 明确“已结清”不等于客户足额付款。客户少付但业务确认不再追收时，差额记入短款核销，客户实收保持真实金额，尾款归零。
+- 将订单价值和现金流拆开：订单原始金额、销售退回、累计实收、现金退款、净实收、短款核销和尾款分别计算。
+- 将原计划的 `order_payment_record` 调整为 `order_financial_record`，统一记录收款、核销、退款、冲销和迁移期初流水。
+- 统计拆为订单、销售、现金、结清、履约、库存和商品规格七类。订单日期、财务发生时间、结清时间和出库时间分别归属对应指标。
+- `RECORD_ONLY` 和 `STOCK_LINKED` 都计入订单与销售；只有实际出库的 `STOCK_LINKED` 订单计入库存周转。
+- 现有 `refund_amount` 同时承担销售减少和现金退款语义，实施迁移时必须结合退货、库存和现金证据核对，不能自动复制到两个新字段。
+
+**主设计**：[15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)
+
+**影响范围**：订单金额字段、财务流水、短款结清、退款、仪表盘、数据分析、客户统计、导出、Agent 数据接口和迁移对账。
 
 ### [文档校准] - 最近工作、剩余闭环和联动优先级
 
@@ -812,7 +876,7 @@
 
 **变更内容**：
 - 新增 [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md)：定义 Codex 与 DeepSeek（DSH）在同一工作区联合开发的信息同步协议。包含五条协议：任务认领防撞车、commit message 执行人后缀（`[codex]` / `[dsh]`）、开工/收工仪式、会话快照维护、验证结果必填；以及冲突处理与交接检查清单。
-- 根目录 [AGENTS.md](../AGENTS.md) 快速开始新增第 6 项必读文档，核心规则新增「规则 7：双 Agent 联合开发必须同步」；[CLAUDE.md](../CLAUDE.md) 同步补齐规则 6、规则 7 与快速开始第 4 项。
+- 当时的根目录 `AGENTS.md` 快速开始新增第 6 项必读文档，核心规则新增「规则 7：双 Agent 联合开发必须同步」；`CLAUDE.md` 同步补齐规则 6、规则 7 与快速开始第 4 项。当前仓库已无这两个入口，现行规则见 `docs/reference/AGENT_COLLABORATION.md`。
 - [03-TASKS.md](./03-TASKS.md) 任务领取规则新增第 5 条「认领防撞车」：认领时把任务改为 `⏳ 进行中（执行人：Codex / DeepSeek）`，一个任务同一时刻只允许一个 Agent 认领。
 - [01-README.md](./01-README.md) 与 [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) 快捷索引新增协作规范入口。
 

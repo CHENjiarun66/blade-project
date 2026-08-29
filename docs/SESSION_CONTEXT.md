@@ -5,14 +5,24 @@
 
 ---
 
-## 2026-08-29 项目状态核对结论
+## 2026-08-30 项目状态核对结论
 
+- 订单状态、收款与履约重构方案已确认，详见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md)。本次只完成设计和影响面扫描，代码、数据库和生产数据尚未修改。
+- 订单金额与统计口径已补充，详见 [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)。客户实收、现金退款、销售退回和短款核销分开记录；订单、现金、结清和库存指标使用各自业务时间。
+- 目标模型把草稿状态、收款状态、履约方式和履约状态拆开。正式订单结清后选择 `STOCK_LINKED` 进入库存履约，或选择 `RECORD_ONLY` 直接完成且不影响库存。
+- 旧 `sale_order.status` 不原地重解释。实施时新增字符串履约字段、收款流水、状态日志和并发版本，并保留一个发布周期的兼容读取。
+- 旧生产备份中的 81 张订单全部为 `status=0`，其中 74 张已结清、6 张部分收款、1 张未收款，且没有配货计划。正式迁移必须按金额和履约证据分流，不能按旧状态数字批量映射。
 - 最近两条已完成的本地主线是 WhatsApp 只读归档/客户工作区，以及纸单 Agent 批量草稿/SPU 占位 SKU。
 - 纸单草稿的 V48-V50、候选匹配、快速录单式工作台、人工确认和分析隔离已通过本地测试，但尚未部署 NAS 生产，也未完成 30 张真实纸单验收。
 - 占位 SKU 的创建、匹配、展示和分析已完成；占位数量拆到真实 SKU、拆分审计、配货与出库保护尚未实现。正式履约前必须补齐这组联动能力。
 - 旧 OCR 任务已转由本机订单识别 Agent 承担。BladeProject 不再重复建设图片识别和表格解析，只接收原图与结构化结果。
 - WhatsApp 已完成本地真实数据验证，但 Mac → NAS 生产同步、生产凭证和回滚验收仍待执行。
 - 任务状态现在区分功能开发、本地验证、生产部署和真实业务验收，详见 [03-TASKS.md](./03-TASKS.md)。
+- 订单大重构的联动系统、SOW、Agent 文件边界、Git 分支和 NAS 发布门禁已整理到 [2026-08-30-order-lifecycle-finance-refactor-rom-sow.md](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。
+- 实施责任已锁定：其他 Agent 按[订单重构执行看板](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md)编码，Codex 负责 `CR-0`～`CR-8` 架构、Diff、测试、迁移和 release 审核，用户批准生产发布。实现 Agent 的第一步只能是 `ORDER-SOW-0` 只读审计。
+- 正式订单采用“两旧两新”：保留旧整数 `status`、`payment_status`；新增字符串 `fulfillment_status`、`collection_status`。`fulfillment_mode` 是履约选择，草稿状态仍在独立草稿表，不新增重复的 `order_lifecycle_status`。
+- 本轮整理前，GitHub `codex/phase2-order-drafts` 与本地代码基线同为 `38c969b`，相对 `master` 前进 27 个提交并同时包含 V43-V47 WhatsApp 与 V48-V50 Phase 2；本轮新增设计文档随交接基线提交。已推送功能分支不代表已合入主干或已部署生产。
+- 2026-08-30 只读复核 NAS：四个生产容器均运行，生产 Flyway 为 V42，V43-V50 尚未发布。本次核查未修改生产数据或容器。
 
 ## 2026-08-27 Phase 2 SPU/SKU 颗粒度补充
 
@@ -28,7 +38,7 @@
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
 | 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；统一文件上传和文件中心底座已完成；WhatsApp 本地归档与客户工作区已完成；纸单识别 Agent 的 SKU 候选、批量订单草稿、占位 SKU、草稿工作台和人工确认正式订单 MVP 已于 2026-08-27 完成本地验证；移动端继续开发中 |
-| 下一步 | P0 先完成占位 SKU 拆分、审计和履约保护，再用“单据收纳/42”完成真实批次本地验收；通过后备份 NAS 生产库，配置最小 scope Agent Key，部署 V48-V50 和前后端并完成 30 单联调。WhatsApp 生产联调、仪表盘数据权限和 Agent Gateway 经营接口排在其后；移动端暂不抢占当前主线。 |
+| 下一步 | 先提交本轮设计文档并固化 Phase 2 基线，再由实现 Agent 从干净基线创建 `feature/order-lifecycle-finance-refactor` 和独立 worktree。实现 Agent先交付 `ORDER-SOW-0` 只读审计给 Codex 审核；未通过 `CR-8` 和用户生产批准前不部署 NAS。 |
 
 ---
 
@@ -67,6 +77,10 @@
 | 信息类型 | 以此文档为准 |
 |-----------|--------------|
 | 技术栈与业务规则 | [02-PRD.md](./02-PRD.md) |
+| 订单状态、收款与履约重构 | [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) |
+| 订单金额、结清与经营统计 | [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md) |
+| 订单大重构实施分工、Git 与 NAS 门禁 | [2026-08-30-order-lifecycle-finance-refactor-rom-sow.md](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md) |
+| 实现 Agent 任务与 Codex 审核门禁 | [2026-08-30-order-refactor-agent-execution-board.md](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md) |
 | 当前任务进度 | [03-TASKS.md](./03-TASKS.md) |
 | 最近变更历史 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
 | 分支开发与生产发布 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
@@ -238,6 +252,8 @@
 | 查看最近变更 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
 | 看项目目录结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
 | 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
+| 查订单状态、收款和历史迁移方案 | [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) |
+| 查订单金额、结清和统计口径 | [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md) |
 | 查客户模块优化计划 | [08-CUSTOMER_OPTIMIZATION.md](./08-CUSTOMER_OPTIMIZATION.md) |
 | 查图片/附件上传与存储设计 | [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md) |
 | 查文件中心/数字资产/客户展示页设计 | [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md) |
