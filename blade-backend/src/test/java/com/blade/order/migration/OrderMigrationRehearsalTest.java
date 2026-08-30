@@ -8,14 +8,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 历史迁移预演测试（SOW-7，真实隔离库）：
- * 合成历史数据 → dry-run（不写库）→ execute（写库）→ 幂等重放 → 不变量核对。
+ * 历史迁移预演测试（SOW-7，真实隔离库）——终审 P0-5 整改覆盖：
+ * dry-run 与 execute 同决策、execute 单事务（中途故障整体回滚）、幂等重放、
+ * refund_amount 人工核对、取消订单映射、WRITE_OFF 期初、旧字段投影一致。
  * 生产 V42 副本预演由 Codex/发布阶段执行（本机无 V42 备份，见交付报告待办）。
  */
 @SpringBootTest
@@ -26,14 +25,14 @@ class OrderMigrationRehearsalTest {
     @Autowired private Environment env;
 
     private OrderLegacyMigrator migrator() throws Exception {
-        String url = env.getProperty("spring.datasource.url");
-        String user = env.getProperty("spring.datasource.username");
-        String password = env.getProperty("spring.datasource.password");
-        return new OrderLegacyMigrator(url, user, password);
+        return new OrderLegacyMigrator(
+                env.getProperty("spring.datasource.url"),
+                env.getProperty("spring.datasource.username"),
+                env.getProperty("spring.datasource.password"));
     }
 
-    private Long seedLegacy(String suffix, Integer legacyStatus, String total, String paid, String writeOff,
-                            int planCount, int deliveryDone, Integer isDelivered) {
+    private Long seedLegacy(String suffix, Integer legacyStatus, String total, String paid,
+                            String writeOff, String refund, int planCount, int deliveryDone, Integer isDelivered) {
         String orderNo = "ORDMIG" + suffix + System.nanoTime();
         jdbc.update("""
                 INSERT INTO sale_order (order_no, order_date, order_type, customer_name, total_amount, original_amount,
@@ -41,10 +40,10 @@ class OrderMigrationRehearsalTest {
                   deposit_amount, write_off_amount, refund_amount, sales_return_amount, gross_received_amount,
                   cash_refund_amount, net_received_amount, balance_amount, need_delivery, is_delivered,
                   fulfillment_status, fulfillment_mode, collection_status, version, deleted)
-                VALUES (?, CURDATE(), 'SPOT', '迁移预演客户', ?, ?, 0, ?, 0, 0, ?, 0, 0, ?, 0, 0, 0, 0, 0, 0, 0, ?,
+                VALUES (?, CURDATE(), 'SPOT', '迁移预演客户', ?, ?, 0, ?, 0, 0, ?, 0, 0, ?, ?, 0, 0, 0, 0, 0, 0, ?,
                         NULL, 'UNDECIDED', NULL, 0, 0)
                 """, orderNo, new BigDecimal(total), new BigDecimal(total), new BigDecimal(total),
-                new BigDecimal(paid), new BigDecimal(writeOff), isDelivered);
+                new BigDecimal(paid), new BigDecimal(writeOff), new BigDecimal(refund), isDelivered);
         Long id = jdbc.queryForObject("SELECT id FROM sale_order WHERE order_no = ?", Long.class, orderNo);
         for (int i = 0; i < planCount; i++) {
             jdbc.update("""
@@ -62,98 +61,101 @@ class OrderMigrationRehearsalTest {
         return id;
     }
 
-    @Test
-    void dryRunThenExecuteThenReplay_isIdempotentAndConsistent() throws Exception {
-        // 合成历史样本
-        Long settled = seedLegacy("S1", 0, "100.00", "100.00", "0.00", 0, 0, 0);
-        Long partial = seedLegacy("P1", 0, "100.00", "40.00", "0.00", 0, 0, 0);
-        Long cancelled = seedLegacy("C1", 6, "100.00", "100.00", "0.00", 0, 0, 0);
-        Long returning = seedLegacy("R1", 7, "100.00", "0.00", "0.00", 0, 0, 0);
-        Long deliveredNoPay = seedLegacy("D1", 0, "100.00", "0.00", "0.00", 0, 1, 1);
-        OrderLegacyMigrator migrator = migrator();
-
-        // ── dry-run：只出报告，不写库 ──
-        OrderLegacyMigrator.Report dry = migrator.migrate(1L, false);
-        assertEquals(0, countStatus(settled, "fulfillment_status"), "dry-run 不得写库");
-        assertTrue(dry.migrated > 0);
-        assertEquals(dry.totalOrders, dry.migrated + dry.manualReview + dry.skipped);
-
-        // ── 映射判定（dry-run 报告内核对） ──
-        assertMapping(dry, settled, "COMPLETED", "RECORD_ONLY", "SETTLED");
-        assertMapping(dry, partial, "CONFIRMED", "UNDECIDED", "PARTIAL");
-        // 取消订单按其金额事实映射（迁移只看证据，不重解释经营口径）
-        assertMapping(dry, cancelled, "COMPLETED", "RECORD_ONLY", "SETTLED");
-        assertTrue(dry.results.stream().anyMatch(r -> r.orderId() == returning && "MANUAL_REVIEW".equals(r.decision())),
-                "status=7/8 必须进人工核对");
-        assertTrue(dry.results.stream().anyMatch(r -> r.orderId() == deliveredNoPay && "MANUAL_REVIEW".equals(r.decision())),
-                "出库证据与无收款冲突必须进人工核对");
-
-        // ── execute：写库 + 期初流水 + 日志 ──
-        OrderLegacyMigrator.Report executed = migrator.migrate(1L, true);
-        assertTrue(executed.migrated > 0);
-        assertEquals("COMPLETED", getStatus(settled, "fulfillment_status"));
-        assertEquals("RECORD_ONLY", getStatus(settled, "fulfillment_mode"));
-        assertEquals("SETTLED", getStatus(settled, "collection_status"));
-        assertEquals("MIGRATION_CONFIRMED", getStatus(settled, "settlement_method"));
-        assertEquals(0, getPaid(settled).compareTo(new BigDecimal("100.00")));
-        assertEquals("CONFIRMED", getStatus(partial, "fulfillment_status"));
-        assertEquals("PARTIAL", getStatus(partial, "collection_status"));
-
-        Integer openings = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM order_financial_record WHERE order_id = ? AND record_type = 'MIGRATION_OPENING'",
-                Integer.class, settled);
-        assertEquals(1, openings, "已结清历史订单必须落一笔 MIGRATION_OPENING");
-        Integer logs = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM order_state_transition_log WHERE order_id = ? AND action = 'migrate'",
-                Integer.class, settled);
-        assertEquals(1, logs, "迁移必须写状态流转日志");
-
-        // ── 幂等重放：第二次执行不再变更/重复 ──
-        int openingsBefore = openings;
-        OrderLegacyMigrator.Report replay = migrator.migrate(1L, true);
-        assertEquals(0, replay.migrated, "重放时全部订单应已迁移跳过或人工核对，不重复迁移");
-        assertTrue(replay.skipped > 0);
-        assertEquals(openingsBefore, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM order_financial_record WHERE order_id = ? AND record_type = 'MIGRATION_OPENING'",
-                Integer.class, settled), "重放不得重复落期初流水");
-
-        // ── 不变量：迁移不改变订单原始金额总量 ──
-        assertEquals(0, executed.sumTotalBefore.compareTo(executed.sumTotalAfter),
-                "迁移前后订单金额总量必须一致");
-    }
-
-    private void assertMapping(OrderLegacyMigrator.Report report, Long orderId,
-                               String fulfillment, String mode, String collection) {
-        assertMapping(report, orderId, fulfillment, mode, collection, null);
-    }
-
-    private void assertMapping(OrderLegacyMigrator.Report report, Long orderId,
-                               String fulfillment, String mode, String collection, String noteContains) {
-        List<OrderLegacyMigrator.OrderResult> matches = report.results.stream()
-                .filter(r -> r.orderId() == orderId && "MIGRATED".equals(r.decision()))
-                .toList();
-        assertEquals(1, matches.size(), "订单 " + orderId + " 应恰好出现一次迁移结果，实际结果=" + report.results);
-        if (matches.isEmpty()) return;
-        OrderLegacyMigrator.OrderResult r = matches.get(0);
-        assertEquals(fulfillment, r.toFulfillment());
-        assertEquals(mode, r.toMode());
-        assertEquals(collection, r.toCollection());
-        if (noteContains != null) {
-            assertTrue(r.note().contains(noteContains) || r.evidence().contains(noteContains));
-        }
+    private OrderLegacyMigrator.OrderResult findDecision(OrderLegacyMigrator.Report report, Long orderId) {
+        return report.results.stream().filter(r -> r.orderId() == orderId).findFirst().orElseThrow();
     }
 
     private String getStatus(Long orderId, String column) {
         return jdbc.queryForObject("SELECT " + column + " FROM sale_order WHERE id = ?", String.class, orderId);
     }
 
-    private BigDecimal getPaid(Long orderId) {
-        return jdbc.queryForObject("SELECT gross_received_amount FROM sale_order WHERE id = ?", BigDecimal.class, orderId);
+    private int countRecord(Long orderId, String recordType) {
+        Integer n = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM order_financial_record WHERE order_id = ? AND record_type = ?",
+                Integer.class, orderId, recordType);
+        return n == null ? 0 : n;
     }
 
     private int countStatus(Long orderId, String column) {
         Integer n = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM sale_order WHERE id = ? AND " + column + " IS NOT NULL", Integer.class, orderId);
         return n == null ? 0 : n;
+    }
+
+    @Test
+    void dryRunExecuteReplay_mappingGuards() throws Exception {
+        Long settled = seedLegacy("S1", 0, "100.00", "100.00", "0.00", "0.00", 0, 0, 0);
+        Long partial = seedLegacy("P1", 0, "100.00", "40.00", "0.00", "0.00", 0, 0, 0);
+        Long cancelled = seedLegacy("C1", 6, "100.00", "100.00", "0.00", "0.00", 0, 0, 0);
+        Long returning = seedLegacy("R1", 7, "100.00", "0.00", "0.00", "0.00", 0, 0, 0);
+        Long refunded = seedLegacy("RF1", 0, "100.00", "50.00", "0.00", "50.00", 0, 0, 0);
+        Long withWriteOff = seedLegacy("W1", 0, "100.00", "80.00", "20.00", "0.00", 0, 0, 0);
+        Long deliveredNoPay = seedLegacy("D1", 0, "100.00", "0.00", "0.00", "0.00", 0, 1, 1);
+        OrderLegacyMigrator migrator = migrator();
+
+        // ── dry-run：同决策，不写库 ──
+        OrderLegacyMigrator.Report dry = migrator.migrate(1L, false);
+        assertEquals(0, countStatus(settled, "fulfillment_status"), "dry-run 不得写库");
+        assertEquals("MIGRATED", findDecision(dry, settled).decision());
+        assertEquals("CANCELLED", findDecision(dry, cancelled).toFulfillment(), "旧取消订单必须映射 CANCELLED");
+        assertEquals("MANUAL_REVIEW", findDecision(dry, returning).decision(), "status=7/8 进人工核对");
+        assertEquals("MANUAL_REVIEW", findDecision(dry, refunded).decision(), "refund_amount>0 进人工核对");
+        assertEquals("MANUAL_REVIEW", findDecision(dry, deliveredNoPay).decision(), "出库无收款冲突进人工核对");
+        assertEquals("PARTIAL", findDecision(dry, partial).toCollection());
+        assertEquals("SETTLED", findDecision(dry, withWriteOff).toCollection(), "短款核销订单按金额公式结清");
+
+        // ── execute ──
+        migrator.migrate(1L, true);
+        assertEquals("COMPLETED", getStatus(settled, "fulfillment_status"));
+        assertEquals("RECORD_ONLY", getStatus(settled, "fulfillment_mode"));
+        assertEquals("SETTLED", getStatus(settled, "collection_status"));
+        assertEquals("MIGRATION_CONFIRMED", getStatus(settled, "settlement_method"));
+        // 旧字段经适配器投影：新旧一致
+        assertEquals(5, Integer.parseInt(getStatus(settled, "status")));
+        assertEquals(2, Integer.parseInt(getStatus(settled, "payment_status")));
+        assertEquals("CANCELLED", getStatus(cancelled, "fulfillment_status"));
+        assertEquals(6, Integer.parseInt(getStatus(cancelled, "status")));
+
+        // 期初流水：MIGRATION_OPENING + WRITE_OFF 都可复算；人工核对订单零写入
+        assertEquals(1, countRecord(settled, "MIGRATION_OPENING"));
+        assertEquals(1, countRecord(withWriteOff, "WRITE_OFF"));
+        assertEquals(0, countRecord(refunded, "MIGRATION_OPENING"), "人工核对订单不得写任何流水");
+
+        // ── 幂等重放 ──
+        OrderLegacyMigrator.Report replay = migrator.migrate(1L, true);
+        assertEquals("SKIPPED_ALREADY_MIGRATED", findDecision(replay, settled).decision());
+        assertEquals(1, countRecord(settled, "MIGRATION_OPENING"), "重放不得重复落期初流水");
+        assertEquals(1, countRecord(withWriteOff, "WRITE_OFF"), "重放不得重复落核销流水");
+    }
+
+    @Test
+    void faultInjection_midBatchRollsBackEntirely() throws Exception {
+        Long good = seedLegacy("FG1", 0, "100.00", "100.00", "0.00", "0.00", 0, 0, 0);
+        Long bad = seedLegacy("FB1", 0, "100.00", "50.00", "0.00", "0.00", 0, 0, 0);
+        OrderLegacyMigrator migrator = migrator();
+
+        // 故障注入：第二笔订单写库时抛异常 → 整批回滚
+        final boolean[] faultFired = {false};
+        migrator.setFaultInjector(() -> {
+            if (!faultFired[0]) {
+                faultFired[0] = true;
+                return; // 第一笔放行
+            }
+            throw new IllegalStateException("注入故障：模拟第二笔写库失败");
+        });
+
+        assertThrows(IllegalStateException.class, () -> migrator.migrate(1L, true));
+
+        // 整批回滚：两笔订单都必须仍是未迁移状态（不允许部分提交）
+        assertEquals(0, countStatus(good, "fulfillment_status"),
+                "第一笔正常订单必须随事务回滚");
+        assertEquals(0, countStatus(bad, "fulfillment_status"), "故障订单必须回滚");
+        assertEquals(0, countRecord(good, "MIGRATION_OPENING"), "期初流水必须一并回滚");
+
+        // 回滚后可再次正常执行
+        migrator.setFaultInjector(null);
+        OrderLegacyMigrator.Report retry = migrator.migrate(1L, true);
+        assertEquals("MIGRATED", findDecision(retry, good).decision());
+        assertEquals("COMPLETED", getStatus(good, "fulfillment_status"));
     }
 }

@@ -1,9 +1,13 @@
 package com.blade.order.migration;
 
+import com.blade.order.service.OrderCompatAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,40 +20,47 @@ import java.util.Map;
 /**
  * 历史订单迁移工具（SOW-7 / BE-1047）——离线、受控、默认 dry-run。
  * <p>
- * 边界（ROM/SOW 与执行看板锁定）：
+ * 终审 P0-5 整改要点：
  * <ul>
- *   <li>不进入常驻应用，不提供任何 Web 端点，不进 Flyway；由维护窗口以命令行执行</li>
- *   <li>默认 dry-run 只输出审计报告；真实写回必须显式传 {@code --execute}</li>
- *   <li>租户必填（空租户拒绝）；数据源通过参数显式指定</li>
- *   <li>不根据旧 status=7/8（退货语义）自动决定，进入人工核对清单</li>
- *   <li>不伪造收款时间/操作人：MIGRATION_OPENING 以 pay_time/create_time 为业务时间，operator 为空</li>
- *   <li>幂等重放：已有 fulfillment_status 的订单跳过；已有 MIGRATION_OPENING 的订单不重复落流水</li>
- *   <li>证据冲突（状态/计划/出库/金额互相矛盾）进入人工核对清单，不自动变更</li>
+ *   <li>execute 使用 TransactionTemplate 单事务：任一订单写失败整体回滚，不允许部分提交</li>
+ *   <li>dry-run 与 execute 走同一套决策（decideOne），报告与写库结果一致</li>
+   * <li>refund_amount &gt; 0：语义不可拆分（销售退回 vs 现金退款），进入人工核对，不自动决定</li>
+   * <li>write_off_amount &gt; 0：生成可复算的 WRITE_OFF 期初流水（金额+订单+来源 MIGRATION）</li>
+   * <li>paid_amount &gt; 0：生成 MIGRATION_OPENING 期初流水</li>
+   * <li>写库后经 OrderCompatAdapter 投影旧 status/payment_status，新旧字段始终一致</li>
+   * <li>旧取消订单（status=6）映射为 CANCELLED，不再被当成已完成</li>
+   * <li>出库证据订单的收款状态按金额公式推导，不盲目标记 SETTLED</li>
  * </ul>
- * 映射规则（14 号文档 §7.2）：已结清且无配货/出库证据 → COMPLETED + RECORD_ONLY +
- * SETTLED(MIGRATION_CONFIRMED)；存在实际出库证据 → SHIPPED + STOCK_LINKED；
- * 存在配货计划 → 按计划状态推导并复核；部分收款/未收款 → CONFIRMED + UNDECIDED；
- * 证据冲突 → 人工核对。
- * <p>
- * SQL 语句集中存放于 {@code resources/migration/order-legacy-migrator-sql.json}（便于 DBA 审核），
- * 经 JdbcTemplate 全部参数绑定执行，事务由 DataSourceTransactionManager 语义保证
- * （单连接单事务：迁移成功整体提交，任一异常整体回滚）。
+ * 全部 SQL 集中在 {@code resources/migration/order-legacy-migrator-sql.json}，JdbcTemplate 参数绑定。
  */
 public class OrderLegacyMigrator {
 
+    private final DriverManagerDataSource dataSource;
     private final JdbcTemplate jdbc;
+    private final TransactionTemplate txTemplate;
+    private final OrderCompatAdapter compatAdapter = new OrderCompatAdapter();
     private final Map<String, String> sql;
 
+    /** 故障注入点（仅供测试）：在事务内第 N 次写操作前抛异常，验证回滚 */
+    private Runnable faultInjector;
+
     public OrderLegacyMigrator(String jdbcUrl, String user, String password) throws Exception {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource(jdbcUrl, user, password);
+        this.dataSource = new DriverManagerDataSource(jdbcUrl, user, password);
         this.jdbc = new JdbcTemplate(dataSource);
-        try (var in = OrderLegacyMigrator.class.getResourceAsStream("/migration/order-legacy-migrator-sql.json")) {
+        DataSourceTransactionManager txManager = new DataSourceTransactionManager(dataSource);
+        this.txTemplate = new TransactionTemplate(txManager);
+        try (InputStream in = OrderLegacyMigrator.class.getResourceAsStream("/migration/order-legacy-migrator-sql.json")) {
             if (in == null) {
                 throw new IllegalStateException("缺少 SQL 语句资源文件 order-legacy-migrator-sql.json");
             }
             this.sql = new ObjectMapper().readValue(in, new com.fasterxml.jackson.core.type.TypeReference<>() {
             });
         }
+    }
+
+    /** 仅供测试注入故障 */
+    void setFaultInjector(Runnable faultInjector) {
+        this.faultInjector = faultInjector;
     }
 
     /** 逐单迁移结果 */
@@ -65,6 +76,11 @@ public class OrderLegacyMigrator {
             String evidence,
             String note
     ) {
+    }
+
+    /** 迁移决策（dry-run 与 execute 共用） */
+    record Decision(String decision, String toFulfillment, String toMode, String toCollection,
+                    String settlementMethod, String evidence, String note) {
     }
 
     /** 迁移报告 + 不变量 */
@@ -113,7 +129,7 @@ public class OrderLegacyMigrator {
      * 执行迁移。
      *
      * @param tenantId 租户（必填，空拒绝）
-     * @param execute  false = dry-run（只算不写）；true = 真实写回
+     * @param execute  false = dry-run（只算不写）；true = 真实写回（单事务，任一失败整体回滚）
      */
     public Report migrate(Long tenantId, boolean execute) {
         if (tenantId == null) {
@@ -122,27 +138,51 @@ public class OrderLegacyMigrator {
         Report report = new Report();
         List<LegacyOrder> orders = loadOrders(tenantId);
         report.totalOrders = orders.size();
+
+        // dry-run 与 execute 使用同一决策
+        List<LegacyOrder> toMigrate = new ArrayList<>();
         for (LegacyOrder o : orders) {
-            migrateOne(jdbc, o, execute, report);
+            Decision d = decideOne(o);
+            applyDecisionToReport(o, d, report);
+            if ("MIGRATED".equals(d.decision()) && execute) {
+                toMigrate.add(o);
+            }
         }
-        computeInvariants(tenantId, report);
+
+        if (execute && !toMigrate.isEmpty()) {
+            // 单事务：任一订单写失败整体回滚，无部分提交
+            txTemplate.executeWithoutResult(status -> {
+                for (LegacyOrder o : toMigrate) {
+                    if (faultInjector != null) {
+                        faultInjector.run();
+                    }
+                    Decision d = decideOne(o);
+                    writeOne(o);
+                }
+                // 事务内重算不变量；不平则抛异常触发回滚
+                computeInvariants(tenantId, report);
+                if (report.sumTotalAfter.compareTo(report.sumTotalBefore) != 0) {
+                    throw new IllegalStateException("金额不变量被破坏（total_amount 总量变化），整体回滚");
+                }
+            });
+        } else {
+            computeInvariants(tenantId, report);
+        }
         return report;
     }
 
-    // ==================== 核心：逐单映射（包级可见，供预演测试复用） ====================
+    // ==================== 决策（dry-run 与 execute 共用） ====================
 
-    void migrateOne(JdbcTemplate jdbc, LegacyOrder o, boolean execute, Report report) {
+    Decision decideOne(LegacyOrder o) {
         if (notBlank(o.fulfillmentStatus)) {
-            OrderResult skippedResult = new OrderResult(o.id, o.orderNo, "SKIPPED_ALREADY_MIGRATED",
-                    str(o.status), o.fulfillmentStatus, o.fulfillmentMode, o.collectionStatus, "", "已迁移", "");
-            report.results.add(skippedResult);
-            report.skipped++;
-            return;
+            return new Decision("SKIPPED_ALREADY_MIGRATED", o.fulfillmentStatus, o.fulfillmentMode,
+                    o.collectionStatus, "", "已迁移", "");
         }
 
         String evidence = "status=" + o.status
                 + ",paid=" + o.paidAmount
                 + ",writeOff=" + o.writeOffAmount
+                + ",refund=" + o.refundAmount
                 + ",total=" + o.totalAmount
                 + ",plans=" + o.planCount
                 + ",delivered=" + o.hasDelivery
@@ -150,106 +190,139 @@ public class OrderLegacyMigrator {
 
         // 旧退货语义：不自动决定
         if (o.status != null && (o.status == 7 || o.status == 8)) {
-            report.results.add(new OrderResult(o.id, o.orderNo, "MANUAL_REVIEW",
-                    str(o.status), "", "", "", "", evidence, "旧退货语义(status=7/8)不自动映射"));
-            report.manualReview++;
-            return;
+            return new Decision("MANUAL_REVIEW", "", "", "", "", evidence, "旧退货语义(status=7/8)不自动映射");
+        }
+
+        // refund_amount 语义不可拆分（销售退回 vs 现金退款）：进人工核对
+        if (o.refundAmount != null && o.refundAmount.signum() > 0) {
+            return new Decision("MANUAL_REVIEW", "", "", "", "", evidence,
+                    "refund_amount>0 且无法拆分销售退回/现金退款，需人工核对");
         }
 
         boolean hasDeliveryEvidence = o.hasDelivery || (o.isDelivered != null && o.isDelivered == 1);
         boolean hasPlans = o.planCount > 0;
         boolean paidPositive = o.paidAmount != null && o.paidAmount.signum() > 0;
 
-        // 证据冲突：存在出库事实但无收款证据 → 人工核对
+        // 证据冲突：存在出库事实但无收款证据
         if (hasDeliveryEvidence && !paidPositive) {
-            report.results.add(new OrderResult(o.id, o.orderNo, "MANUAL_REVIEW",
-                    str(o.status), "", "", "", "", evidence, "存在出库证据但无收款证据，冲突"));
-            report.manualReview++;
-            return;
+            return new Decision("MANUAL_REVIEW", "", "", "", "", evidence, "存在出库证据但无收款证据，冲突");
         }
 
-        String toFulfillment;
-        String toMode;
-        String toCollection;
-        String settlementMethod;
-        String note;
+        // 收款状态按金额公式推导（不盲目标记 SETTLED）
+        BigDecimal netReceivable = nz(o.totalAmount).subtract(nz(o.refundAmount)).subtract(nz(o.writeOffAmount)).max(BigDecimal.ZERO);
+        boolean settled = (o.paymentStatus != null && o.paymentStatus == 2)
+                || (paidPositive && netReceivable.compareTo(nz(o.paidAmount)) <= 0);
+        String toCollection = settled ? "SETTLED" : (paidPositive ? "PARTIAL" : "UNPAID");
+
+        // 旧取消订单：明确映射 CANCELLED
+        if (o.status != null && o.status == 6) {
+            return new Decision("MIGRATED", "CANCELLED", "UNDECIDED", toCollection, "", evidence,
+                    "旧取消订单映射 CANCELLED，收款状态按金额公式推导");
+        }
 
         if (hasDeliveryEvidence) {
-            toFulfillment = "SHIPPED";
-            toMode = "STOCK_LINKED";
-            toCollection = "SETTLED";
-            settlementMethod = "MIGRATION_CONFIRMED";
-            note = "按实际出库证据推导，建议复核";
-        } else if (hasPlans) {
-            toFulfillment = "ALLOCATING";
-            toMode = "STOCK_LINKED";
-            toCollection = paidPositive ? "SETTLED" : "PARTIAL";
-            settlementMethod = "MIGRATION_CONFIRMED";
-            note = "存在配货计划，按计划状态推导，建议复核";
-        } else {
-            BigDecimal netReceivable = nz(o.totalAmount).subtract(nz(o.refundAmount)).subtract(nz(o.writeOffAmount)).max(BigDecimal.ZERO);
-            boolean settled = (o.paymentStatus != null && o.paymentStatus == 2)
-                    || (paidPositive && netReceivable.compareTo(nz(o.paidAmount)) <= 0);
-            if (settled) {
-                toFulfillment = "COMPLETED";
-                toMode = "RECORD_ONLY";
-                toCollection = "SETTLED";
-                settlementMethod = "MIGRATION_CONFIRMED";
-                note = "已结清且无配货/出库证据 → 仅记录完成";
-            } else {
-                toFulfillment = "CONFIRMED";
-                toMode = "UNDECIDED";
-                toCollection = paidPositive ? "PARTIAL" : "UNPAID";
-                settlementMethod = "";
-                note = paidPositive ? "保留尾款，等待后续收款" : "保留未收款状态";
-            }
+            return new Decision("MIGRATED", "SHIPPED", "STOCK_LINKED", toCollection,
+                    settled ? "MIGRATION_CONFIRMED" : "", evidence,
+                    "按实际出库证据推导，收款状态按金额公式推导");
         }
+        if (hasPlans) {
+            return new Decision("MIGRATED", "ALLOCATING", "STOCK_LINKED", toCollection,
+                    settled ? "MIGRATION_CONFIRMED" : "", evidence, "存在配货计划，按计划状态推导");
+        }
+        if (settled) {
+            return new Decision("MIGRATED", "COMPLETED", "RECORD_ONLY", "SETTLED", "MIGRATION_CONFIRMED",
+                    evidence, "已结清且无配货/出库证据 → 仅记录完成");
+        }
+        return new Decision("MIGRATED", "CONFIRMED", "UNDECIDED", toCollection, "", evidence,
+                paidPositive ? "保留尾款，等待后续收款" : "保留未收款状态");
+    }
 
-        if (execute) {
-            BigDecimal gross = nz(o.paidAmount);
-            BigDecimal netReceivable = nz(o.totalAmount).subtract(nz(o.refundAmount)).subtract(nz(o.writeOffAmount)).max(BigDecimal.ZERO);
-            BigDecimal balance = netReceivable.subtract(gross).max(BigDecimal.ZERO);
-            Timestamp settledAt = "SETTLED".equals(toCollection)
-                    ? Timestamp.valueOf(o.payTime != null ? o.payTime : o.createTime)
-                    : null;
+    private void applyDecisionToReport(LegacyOrder o, Decision d, Report report) {
+        report.results.add(new OrderResult(o.id, o.orderNo, d.decision(),
+                str(o.status), d.toFulfillment(), d.toMode(), d.toCollection(), d.settlementMethod(),
+                d.evidence(), d.note()));
+        switch (d.decision()) {
+            case "MIGRATED" -> report.migrated++;
+            case "MANUAL_REVIEW" -> report.manualReview++;
+            case "SKIPPED_ALREADY_MIGRATED" -> report.skipped++;
+            default -> throw new IllegalStateException("未知决策: " + d.decision());
+        }
+    }
 
-            jdbc.update(sql.get("migrateOrder"), ps -> {
-                ps.setString(1, toFulfillment);
-                ps.setString(2, toMode);
-                ps.setString(3, toCollection);
-                ps.setString(4, settlementMethod.isBlank() ? null : settlementMethod);
-                ps.setTimestamp(5, settledAt);
-                ps.setBigDecimal(6, gross);
-                ps.setBigDecimal(7, gross);
-                ps.setBigDecimal(8, balance);
-                ps.setLong(9, o.id);
-                ps.setLong(10, o.tenantId);
-            });
+    // ==================== 事务内写库（经适配器投影旧字段） ====================
 
-            // 期初收款流水（幂等：已有 MIGRATION_OPENING 不重复）
-            if (paidPositive && countMigrationOpening(o.id, o.tenantId) == 0) {
-                Timestamp occurredAt = Timestamp.valueOf(o.payTime != null ? o.payTime : o.createTime);
-                jdbc.update(sql.get("insertMigrationOpening"), ps -> {
-                    ps.setLong(1, o.tenantId);
-                    ps.setLong(2, o.id);
-                    ps.setBigDecimal(3, o.paidAmount);
-                    ps.setTimestamp(4, occurredAt);
-                });
-            }
-            // 状态迁移日志（迁移动作，不伪造操作人）
-            jdbc.update(sql.get("insertTransitionLog"), ps -> {
+    private void writeOne(LegacyOrder o) {
+        Decision d = decideOne(o);
+        if (!"MIGRATED".equals(d.decision())) {
+            return; // 人工核对/跳过不写库
+        }
+        BigDecimal gross = nz(o.paidAmount);
+        BigDecimal netReceivable = nz(o.totalAmount).subtract(nz(o.refundAmount)).subtract(nz(o.writeOffAmount)).max(BigDecimal.ZERO);
+        BigDecimal balance = netReceivable.subtract(gross).max(BigDecimal.ZERO);
+        Timestamp settledAt = "SETTLED".equals(d.toCollection())
+                ? Timestamp.valueOf(o.payTime != null ? o.payTime : o.createTime)
+                : null;
+
+        // 1. 写新字段
+        jdbc.update(sql.get("migrateOrder"), ps -> {
+            ps.setString(1, d.toFulfillment());
+            ps.setString(2, d.toMode());
+            ps.setString(3, d.toCollection());
+            ps.setString(4, d.settlementMethod().isBlank() ? null : d.settlementMethod());
+            ps.setTimestamp(5, settledAt);
+            ps.setBigDecimal(6, gross);
+            ps.setBigDecimal(7, gross);
+            ps.setBigDecimal(8, balance);
+            ps.setLong(9, o.id);
+            ps.setLong(10, o.tenantId);
+        });
+
+        // 2. 期初流水：MIGRATION_OPENING（实收）+ WRITE_OFF（短款核销），幂等不重复
+        if (gross.signum() > 0 && countRecord(o.id, o.tenantId, "MIGRATION_OPENING") == 0) {
+            Timestamp occurredAt = Timestamp.valueOf(o.payTime != null ? o.payTime : o.createTime);
+            jdbc.update(sql.get("insertMigrationOpening"), ps -> {
                 ps.setLong(1, o.tenantId);
                 ps.setLong(2, o.id);
-                ps.setString(3, toFulfillment);
-                ps.setString(4, toCollection);
-                ps.setString(5, toMode);
-                ps.setTimestamp(6, Timestamp.valueOf(LocalDateTime.now()));
+                ps.setBigDecimal(3, o.paidAmount);
+                ps.setTimestamp(4, occurredAt);
+            });
+        }
+        if (nz(o.writeOffAmount).signum() > 0 && countRecord(o.id, o.tenantId, "WRITE_OFF") == 0) {
+            Timestamp occurredAt = Timestamp.valueOf(o.payTime != null ? o.payTime : o.createTime);
+            jdbc.update(sql.get("insertWriteOffOpening"), ps -> {
+                ps.setLong(1, o.tenantId);
+                ps.setLong(2, o.id);
+                ps.setBigDecimal(3, o.writeOffAmount);
+                ps.setTimestamp(4, occurredAt);
             });
         }
 
-        report.results.add(new OrderResult(o.id, o.orderNo, "MIGRATED",
-                str(o.status), toFulfillment, toMode, toCollection, settlementMethod, evidence, note));
-        report.migrated++;
+        // 3. 状态迁移日志
+        jdbc.update(sql.get("insertTransitionLog"), ps -> {
+            ps.setLong(1, o.tenantId);
+            ps.setLong(2, o.id);
+            ps.setString(3, d.toFulfillment());
+            ps.setString(4, d.toCollection());
+            ps.setString(5, d.toMode());
+            ps.setTimestamp(6, Timestamp.valueOf(LocalDateTime.now()));
+        });
+
+        // 4. 旧字段投影：经唯一适配器，新旧一致
+        Integer legacyStatus = compatAdapter.projectLegacyStatus(
+                com.blade.order.enums.FulfillmentStatus.valueOf(d.toFulfillment()));
+        Integer legacyPayment = compatAdapter.projectLegacyPaymentStatus(
+                com.blade.order.enums.CollectionStatus.valueOf(d.toCollection()));
+        jdbc.update(sql.get("projectLegacy"), ps -> {
+            ps.setInt(1, legacyStatus);
+            ps.setInt(2, legacyPayment);
+            ps.setLong(3, o.id);
+            ps.setLong(4, o.tenantId);
+        });
+    }
+
+    private int countRecord(long orderId, long tenantId, String recordType) {
+        Integer n = jdbc.queryForObject(sql.get("countRecord"), Integer.class, orderId, tenantId, recordType);
+        return n == null ? 0 : n;
     }
 
     // ==================== 数据访问 ====================
@@ -278,15 +351,8 @@ public class OrderLegacyMigrator {
                     o.collectionStatus = rs.getString("collection_status");
                     o.planCount = rs.getInt("plan_count");
                     o.hasDelivery = rs.getInt("delivery_done") > 0;
-                    o.migrationOpenings = rs.getInt("migration_openings");
                     return o;
                 });
-    }
-
-    private int countMigrationOpening(long orderId, long tenantId) {
-        Integer count = jdbc.queryForObject(sql.get("countMigrationOpening"),
-                Integer.class, orderId, tenantId);
-        return count == null ? 0 : count;
     }
 
     private void computeInvariants(Long tenantId, Report report) {
@@ -331,7 +397,6 @@ public class OrderLegacyMigrator {
         String collectionStatus;
         int planCount;
         boolean hasDelivery;
-        int migrationOpenings;
     }
 
     // ==================== 命令行入口（离线执行） ====================
