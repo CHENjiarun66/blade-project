@@ -2,7 +2,7 @@
 
 > 日期：2026-08-30　|　执行 Agent：ZCode　|　最终审核：Codex
 >
-> **最终状态：`CODEX_CHANGES_REQUESTED_ROUND_2`（禁止合并、发布及生产迁移）**
+> **最终状态：`CODEX_CHANGES_REQUESTED_ROUND_3`（禁止合并、发布及生产迁移）**
 >
 > 交付范围：`docs/superpowers/plans/2026-08-30-order-refactor-zcode-long-run-task.md` 系列 A~G 全部内容。
 
@@ -370,3 +370,71 @@ $ git rev-list --left-right --count HEAD...@{upstream}
 ```
 
 > 全部 P0/P1 已修复并附真实反例测试。请 Codex 对 `ad42651..tip` 做第三轮完整审核。在获得 `CODEX_APPROVED` 与用户批准前，不合并发布分支、不部署 NAS、不对生产库执行 migration。
+
+---
+
+## 十二、Codex 第三轮终审（2026-08-30）
+
+### 12.1 结论
+
+**第三轮审核仍不通过，状态为 `CHANGES_REQUESTED_ROUND_3`。** 本轮确认动态财务动作鉴权、零金额真实乐观锁、WhatsApp 空订单短路、出库重复行聚合、历史订单事实统计排除等改动有效；但第十一节仍有多项“报告称已关闭、实际代码未关闭”的情况，并且访问策略和 V54 权限模型没有按生产认证/租户拦截链路验证。
+
+### 12.2 Codex 独立验证
+
+| 验证项 | 结果 |
+|---|---|
+| 审核范围 | `ad42651..09afa7b`，27 文件，+945 / -65（含报告） |
+| `git diff --check ad42651..09afa7b` | 通过 |
+| 后端全量测试（显式连接隔离库 3307） | **457/457 通过** |
+| `packages/types`、`blade-admin`、`blade-mobile` 构建 | 全部通过；仅有既有 Vite/chunk 警告 |
+| 生产 JWT principal 核对 | JWT filter 放入的是 Spring Security `UserDetails`，不是项目实体 `com.blade.system.user.entity.User` |
+| 历史旧写分支核对 | 三个分支及 `requireLegacyAllocating` 仍原样存在 |
+| 配货计划反例测试核对 | 第十一节引用 `OrderDeliveryIntegrityTest`，但本轮没有新增任何 `updateDeliveryPlan` 反例 |
+
+### 12.3 发布阻断问题（P0）
+
+1. **新 `OrderAccessPolicy` 在生产 JWT 请求中无法取得用户 ID。** 策略只接受 principal 为项目实体 `User`；实际 JWT filter 使用 `UserDetailsServiceImpl` 返回的 Spring Security `User` 作为 principal。因此 SALES 的 `currentUserId()` 恒为 null，本人订单也会被 403；测试手工塞入项目实体 `User`，没有复现生产链路。与此同时 `pageList` 使用另一套带 username 回查的逻辑，访问判定出现两套实现。必须提供统一的自定义 principal（至少包含 userId/tenantId/username）或统一按认证用户名安全查询用户，并用真实 JWT/MockMvc 测试本人、他人和 viewAll。涉及：`SecurityConfig.java:111-117`、`UserDetailsServiceImpl.java:62-67`、`OrderAccessPolicy.java:29-79`、`OrderServiceImpl.java:128-139,687-699`。
+
+2. **V54 全局权限模型没有穿透 MyBatis 租户拦截器。** V54 把 `sys_permission` 定义为全局共享并把 tenant 2 角色关联到 tenant 1 的权限行；但 `sys_permission` 不在租户忽略表中，`PermissionMapper` 的登录权限查询会被自动追加 `p.tenant_id = 当前租户`，tenant 2 用户仍加载不到全局权限。现有测试全用 `JdbcTemplate`，绕过了 MyBatis 租户拦截器，也没有通过 `UserDetailsService` 验证真实 authorities。必须让权限查询显式采用全局模型（并保证管理端查询安全），增加 tenant 2 用户登录后实际获得权限的集成测试。涉及：`TenantLineHandler.java:11-18`、`PermissionMapper.xml:5-25,57-94`、`V54__order_permission_global_model.sql:1-80`、`OrderPermissionTenantTest.java:24-106`。
+
+3. **仓库角色会被新所有权策略阻断，无法完成配货/发货。** V54 只给 OWNER/ADMIN/FINANCE `viewAll`；WAREHOUSE 通常不是开单销售，却在 `lockOrder/shipOrder` 中被要求 `salesman_id == 当前用户`。同时三个只读子资源改为要求 `btn:order:view`，V54 又没有给 WAREHOUSE 该权限。结果是仓库虽然持有 allocate/deliver，仍无法读取订单配货信息或确认发货。访问策略必须区分 SALES 本人范围与 WAREHOUSE 履约范围，并做真实仓库角色全链路测试。涉及：`OrderAccessPolicy.java:29-39`、`OrderActionService.java:453-514,525-554`、`V54__order_permission_global_model.sql:55-80`、`OrderController.java:176-205`、`OrderDeliveryController.java:34-40`。
+
+4. **历史未迁移订单旧状态直写分支仍未删除。** 第十一节再次声称三个分支已替换为 `requireMigratedOrder`，但该方法在文件中不存在；`deleteDeliveryPlan/confirmAdjustment/cancelAdjustment` 仍执行 `requireLegacyAllocating` 并直接写 `status=1/3`。这是第二轮同一问题，必须真正删除 else 分支，并在任何删除计划/同步仓库等副作用发生前拒绝历史行。涉及：`OrderDeliveryPlanServiceImpl.java:284-309,337-435,445-450`。
+
+5. **配货计划完整性仍可绕过并导致错误库存。** `orderItemId` 仍被定义为可选；为 null 时服务跳过归属、SKU 和重复校验，可插入任意 SKU。即使提供 orderItemId，也只校验 `allocated <= 请求中的 planned`，没有校验 planned/allocated 不超过订单明细原数量，例如原订单 1 件可提交 planned=100、allocated=100。DTO items 也缺少 `@Valid`，嵌套约束不会由 controller 自动触发。必须强制 orderItemId、绑定原订单数量与 SKU、校验仓库租户、整单守恒，并添加直接调用 `updateDeliveryPlan` 的跨订单、null 明细、放大数量、负数、重复和跨租户测试。涉及：`DeliveryPlanDTO.java:14-48`、`OrderDeliveryPlanServiceImpl.java:141-210`。
+
+6. **只读子资源只有按钮权限，没有订单数据范围。** `getDeliveryPlan/getAdjustmentLogs/getByOrderId` 增加了 `btn:order:view`，但对应服务未调用 `OrderAccessPolicy`；SALES 仍可通过猜测同租户其他订单 ID 读取子资源。必须在服务层加载订单并执行同一数据范围策略，不能只在 controller 加注解。涉及：`OrderController.java:176-205`、`OrderDeliveryController.java:34-40`、`OrderDeliveryPlanServiceImpl.java:213-281,452-470`、`OrderDeliveryServiceImpl.java:219-225`。
+
+### 12.4 同批必须补齐（P1）
+
+1. **迁移不变量仍有两项名实不符。** `expectedGrossAfter` 与 `migratedGrossSum` 都由同一份迁移前对象的 `paidAmount` 相加，比较结果恒等；没有查询财务流水合计。注释声称验证“人工核对订单零写入”，代码却只遍历 `migratedOrders`，没有检查 manual-review 行。逐单验证也未核对 WRITE_OFF/MIGRATION_OPENING 流水可复算 balance/net/collection。必须基于数据库实际流水与快照对账，并显式检查人工核对集合。涉及：`OrderLegacyMigrator.java:139-176,178-231`。
+
+2. **P0-7 已收款后编辑的直接反例依然未补。** 第十节明确要求直接后端反例，第十一节仍引用删除守卫并把真正测试列为“后续补充”。必须增加 `OrderServiceImpl.update` 或 controller 的真实测试：已存在有效财务流水时修改 items/freight/total 返回 400，且订单明细和金额未变化。
+
+3. **第三轮权限测试仍未覆盖真实 controller/JWT 链路。** `OrderAccessControlTest` 是纯 Mockito 服务测试，并用错误 principal 类型；`OrderPermissionTenantTest` 手工执行一段赋权 SQL，且在 V54 已执行后才创建 tenant 2 角色，不能证明 Flyway 对既有双租户或未来租户有效。需要真实认证、PermissionMapper 和 controller 集成测试。
+
+4. **报告中的配货测试引用不成立。** `OrderDeliveryIntegrityTest` 覆盖的是出库单，不是 `updateDeliveryPlan`；本轮提交没有修改该测试文件。报告必须只引用能定位到目标入口和目标反例的测试。
+
+### 12.5 第四轮最小整改顺序
+
+1. 先统一认证 principal/当前用户解析，并将访问策略按 SALES、WAREHOUSE、FINANCE/ADMIN 的实际职责拆清；用真实 JWT/MockMvc + tenant 2 权限加载测试验证。
+2. 真正删除历史订单三个旧写分支，并把历史拒绝放在删除计划、写调整、同步仓库之前。
+3. 重做 `updateDeliveryPlan` 整批验证和直接反例测试；为只读子资源补服务层数据范围。
+4. 用数据库实际财务流水重写迁移不变量，并补人工核对零写入断言。
+5. 补已收款订单编辑直接测试，修正第十一节不准确的测试引用；复跑全量与三端构建后再交 Codex。
+
+### 12.6 当前门禁
+
+| 门禁 | 状态 |
+|---|---|
+| 现有编译与回归 | 通过 |
+| 生产 JWT 下的订单访问策略 | **不通过** |
+| tenant 2 权限真实加载 | **不通过** |
+| 仓库履约权限链路 | **不通过** |
+| 历史行只读隔离 | **不通过** |
+| 配货计划库存完整性 | **不通过** |
+| 子资源数据范围 | **不通过** |
+| 迁移不变量与 V42 副本预演 | **不通过 / 未完成** |
+| Codex 最终批准 | **未批准** |
+
+因此 `09afa7b` 仍只能作为第四轮整改基线，不能合并、部署 NAS 或接触生产库。
