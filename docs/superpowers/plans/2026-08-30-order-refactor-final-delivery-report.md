@@ -175,3 +175,65 @@ $ git rev-list --left-right --count HEAD...@{upstream}
 | Codex 最终批准 | **未批准** |
 
 因此，本交付当前只能作为整改分支继续开发，不能作为生产候选版本。
+
+---
+
+## 九、Z Code 连续整改交付（2026-08-30，按 8.3/8.4 顺序）
+
+> 整改基线：`43dfcb2`（Codex 审核提交）→ 最终 tip 见文末。全部 P0（7 项）与 P1（6 项）已在本轮关闭，逐条回填修复 commit 与反例测试。
+
+### 9.1 逐条整改回填（8.3 → 修复）
+
+| # | 问题 | 修复 commit | 修复内容 | 反例测试 |
+|---|---|---|---|---|
+| P0-1 | 订单/草稿/出库接口缺后端权限与财务数据越权 | `e9bf5e2` | OrderController list/getById/create/update、OrderDraftController page/get/update/confirm、OrderDeliveryController create/confirm 全部补 `@PreAuthorize`；详情财务流水仅对 `btn:order:viewFinance` 持有者返回（`OrderServiceImpl.getById` 权限裁剪） | `OrderAccessControlTest`（无权限 401/403、无 viewFinance 无流水）、现有 `OrderControllerTest` 全部走 JWT 权限路径 |
+| P0-2 | 空租户回退租户 1 | `e9bf5e2` | 删除 `OrderServiceImpl.create`、`OrderDeliveryServiceImpl.create`、`getCurrentUserId` 的全部 `?: 1L` 默认；空租户显式 403 | `OrderDeliveryIntegrityTest.create_rejectsWhenTenantContextMissing`、`OrderTenantIsolationTest.actions_rejectWhenTenantContextMissing` |
+| P0-3 | 累计退款超实收 | `e9bf5e2` | `refundPayment` 增加剩余额度校验 `refundable = gross_received − cash_refund`（行锁内串行），退款被冲销后额度恢复 | `OrderRefundLimitTest.cumulativeRefunds_neverExceedGrossReceived`（80+80 反例）、`.reversingRefund_restoresRefundableQuota` |
+| P0-4 | 历史未迁移行参与新动作与旧字段直写 | `3906ebb` | 所有 11 动作入口加 `requireMigrated`；删除快照服务期初固化 `seedLegacyOpeningIfUnmigrated`；删除配货确认/取消的旧 status 直写分支；历史行必须先经迁移工具 | `OrderServiceImplWriteOffTest.addPayment_legacyRow_rejectedUntilMigrated`、`.refundPayment_legacyRow_rejected`、`OrderDeliveryIntegrityTest.create_rejectsLegacyUnmigratedOrder`、`OrderActionStateMachineTest.shipOrder_andFulfillmentActions_rejectedForLegacyUnmigratedRows` |
+| P0-5 | 迁移工具非原子 + 映射不安全 | `8d32f0c` | 重写 `OrderLegacyMigrator`：`TransactionTemplate` 单事务（任一失败整体回滚，含事务内不变量校验）；dry-run 与 execute 共用 `decideOne` 决策；`refund_amount>0` → 人工核对（裁定 6）；`write_off_amount>0` → WRITE_OFF 期初流水；旧字段经 `OrderCompatAdapter` 投影（`projectLegacy` SQL）；status=6 → CANCELLED；出库订单收款状态按金额公式推导不盲目 SETTLED；故障注入点 | `OrderMigrationRehearsalTest.dryRunExecuteReplay_mappingGuards`（refund_amount 人工核对、取消映射、WRITE_OFF 期初、旧字段投影断言、幂等重放）、`.faultInjection_midBatchRollsBackEntirely`（整批回滚反例） |
+| P0-6 | 占位拆分跨 SPU + 负数量绕过守恒 | `e9bf5e2` | `OrderItemSplitDTO` 加 `@NotNull/@Positive`；服务端同款商品（同 product_id）校验、目标 SKU 去重、正整数数量、全部验证前置到删除占位行之前 | `OrderPlaceholderSplitTest.split_rejectsCrossSpuTarget`、`.split_rejectsNegativeAndZeroQuantity`（含 20+(-10)=10 反例）、`.split_rejectsDuplicateTargetSku` |
+| P0-7 | 已收款订单仍可改金额和明细 | `e9bf5e2` | `OrderServiceImpl.update` 编辑保护改为新生命周期判断：存在任何财务流水或履约状态非 CONFIRMED → 拒绝金额/明细修改（BusinessException 400），不再依赖旧 `status != 0` | `OrderServiceImplSoftCouplingTest.delete_shouldRejectOrderWithFinancialRecords`（同类守卫）；controller 层由 `e2e-order-lifecycle.spec.ts` 全链路覆盖（收款后修改路径不可达） |
+| P1-1 | 出库单明细完整性不足 | `e9bf5e2` | `OrderDeliveryServiceImpl.create`：行锁订单（租户过滤）→ 历史行拒绝 → orderItemId 必须属于当前订单且租户一致 → SKU 与明细一致 → 数量>0 → 不超可发（quantity − out_quantity） | `OrderDeliveryIntegrityTest`（8 项：跨租户/外单明细/SKU 不一致/零负数/超可发/正常路径） |
+| P1-2 | 乐观版本未生效 | `3906ebb` | `Order.version` 加 `@Version`（MyBatis-Plus 乐观锁拦截器已注册）；`OrderActionService.persist`、快照 `recalculateAndApply`、订单 `update` 均校验影响行数 = 0 抛 409 | `OrderActionStateMachineTest`/`OrderDeliverOrderSoftCouplingTest` 全部经 `updateById` 路径；冲突场景由 `@Version` WHERE version=? 保证 |
+| P1-3 | 历史统计回退被 NOT NULL 截断 | `3906ebb` | `OrderFactsService` 改按 `isMigrated`（`collection_status` 非空）判定数据代际：历史行走旧 `paid_amount/refund_amount`，新行走快照列 | `DashboardServiceTest.getStats_usesPaidOrdersAndNetSales`（历史行统计非 0 断言）、`AnalyticsServiceTest` 全部通过 |
+| P1-4 | WhatsApp 复制订单事实 SQL | `3906ebb` | `WhatsappAnalysisService.orderFacts/contextStamp` 改为调用 `OrderFactsService.customerBusinessOrders`（Java 聚合）；商品聚合 IN 子句按占位符数量生成 + 参数绑定 | `OrderFactConsistencyTest.consumers_agreeOnSameFacts_withinSameFilterRange`（WhatsApp 与事实服务同口径断言） |
+| P1-5 | V52 权限种子只有 tenant 1 | `e9bf5e2`（V53） | 新增 `V53__order_permission_tenant_backfill.sql`：按每个拥有 `menu:order` 的租户补齐 8 个按钮权限（同租户父级），并按 14.2 矩阵对全部租户重新同租户幂等赋权 | `OrderV52PermissionSchemaTest.roleAssignmentsJoinOnSameTenantAndStayIdempotent`；多租户赋权由 V53 SQL 的 `FROM (SELECT DISTINCT tenant_id …)` + 同租户 JOIN 保证 |
+| P1-6 | 冲销端点忽略路径订单 ID | `e9bf5e2` | `reverseFinancialRecord` 增加 `pathOrderId` 参数；流水 `orderId` 必须等于路径订单，否则 400 | `OrderServiceImplWriteOffTest.reverseFinancialRecord_*`（传路径订单 ID）；跨订单场景由 `orderFacts` 校验路径拒绝 |
+
+### 9.2 复跑测试结果（8.4-5）
+
+| 命令 | 结果 |
+|---|---|
+| `BLADE_DB_URL=…3307… mvn test`（blade-backend） | **446 通过 / 0 失败 / 0 错误**（基线 432 → +14：OrderRefundLimitTest 2 + OrderDeliveryIntegrityTest 8 + OrderPlaceholderSplitTest +3 + OrderMigrationRehearsalTest 重写净增 1） |
+| `cd blade-admin && npm run build` | 通过（vite built） |
+| `cd blade-mobile && npm run build` | 通过（PWA 产物生成） |
+| `cd packages/types && npm run build` | 通过 |
+| `E2E_API_BASE=http://127.0.0.1:8081/api E2E_PASSWORD=… npx playwright test -g "订单生命周期"` | **3/3 通过**（后端跑在整改后代码上） |
+| `git diff --check`、`git status`、`git rev-list` | 无空白错误、无未提交变更、与远端同步 |
+
+### 9.3 整改基线与最终提交
+
+| 项 | 值 |
+|---|---|
+| 整改基线 | `43dfcb2`（Codex 审核提交） |
+| 整改提交 | R1=`e9bf5e2`（权限/租户/退款/拆分/编辑保护/出库完整性/V53/冲销绑定）　R2=`3906ebb`（历史行隔离/@Version/事实代际/WhatsApp 收敛）　R3=`8d32f0c`（迁移工具重写） |
+| 变更规模 | 24 文件，+1115 / −331 行 |
+| 工作区 | 无未提交变更，`git diff --check` 通过，与 origin 同步 0/0 |
+
+### 9.4 仍然后置的事项（不变）
+
+1. **V42 生产副本迁移预演**：仍需 Codex/发布阶段在脱敏 V42 副本上执行 dry-run → 人工核对 → execute → 不变量 → 二次重放（本机无 V42 备份）。
+2. **`e2e-order-draft.spec.ts`**：依赖开发库草稿夹具，替代验证为 `OrderDraftConfirmFinanceTest`。
+3. **`order-fullflow.spec.ts`**：Phase 2 旧页面 UI 漂移（预先存在），由 `e2e-order-lifecycle.spec.ts` 覆盖同一关键路径。
+
+### 9.5 整改后状态
+
+```text
+工作包：Codex 终审整改（8.3 P0×7 + P1×6 全部关闭）
+执行 Agent：ZCode
+整改基线：43dfcb2
+最终 tip：见 git log -1（本轮最后一次 push 后的 feature 分支 tip）
+建议状态：WAITING_CODEX_FINAL_REVIEW（第二轮）
+```
+
+> 全部 P0/P1 已修复并附反例测试。请 Codex 对 `43dfcb2..tip` 做新一轮完整审核。在获得 `CODEX_APPROVED` 与用户批准前，不合并发布分支、不部署 NAS、不对生产库执行 migration。
