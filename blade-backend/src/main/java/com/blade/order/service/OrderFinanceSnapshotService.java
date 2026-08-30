@@ -52,7 +52,7 @@ public class OrderFinanceSnapshotService {
      */
     @Transactional
     public void recalculate(Order order) {
-        seedLegacyOpeningIfUnmigrated(order);
+        // 终审 P0-4：历史未迁移行不得参与新财务动作，本服务只处理已迁移行（调用方已校验）
         List<OrderFinancialRecord> records = effectiveRecords(order.getId(), order.getTenantId());
 
         BigDecimal gross = sum(records, FinancialRecordType.RECEIPT)
@@ -112,8 +112,11 @@ public class OrderFinanceSnapshotService {
     @Transactional
     public void recalculateAndApply(Order order) {
         recalculate(order);
-        order.setVersion(order.getVersion() == null ? 1 : order.getVersion() + 1);
-        orderMapper.updateById(order);
+        // @Version 自动携带 WHERE version=? 并自增；影响行数为 0 即并发冲突
+        int rows = orderMapper.updateById(order);
+        if (rows == 0) {
+            throw com.blade.common.exception.BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
+        }
     }
 
     /**
@@ -149,32 +152,10 @@ public class OrderFinanceSnapshotService {
         order.setSettledAt(LocalDateTime.now());
         order.setSettlementMethod(SettlementMethod.FULL_RECEIPT.name());
         order.setPaymentStatus(compatAdapter.projectLegacyPaymentStatus(CollectionStatus.SETTLED));
-        bumpVersion(order);
-        orderMapper.updateById(order);
-    }
-
-    /**
-     * 历史未迁移行首次财务动作：把旧 paid_amount / write_off_amount 固化为期初流水。
-     * refund_amount 语义不可拆分，不落流水（人工核对通道处理）。
-     */
-    private void seedLegacyOpeningIfUnmigrated(Order order) {
-        if (order.getCollectionStatus() != null) {
-            return;
-        }
-        LocalDateTime occurredAt = order.getPayTime() != null ? order.getPayTime()
-                : (order.getCreateTime() != null ? order.getCreateTime() : LocalDateTime.now());
-        BigDecimal legacyPaid = safe(order.getPaidAmount());
-        if (legacyPaid.compareTo(BigDecimal.ZERO) > 0) {
-            insertRecord(order, FinancialRecordType.MIGRATION_OPENING, legacyPaid, occurredAt,
-                    "历史实收期初（旧 paid_amount 快照）", null);
-        }
-        BigDecimal legacyWriteOff = safe(order.getWriteOffAmount());
-        if (legacyWriteOff.compareTo(BigDecimal.ZERO) > 0) {
-            insertRecord(order, FinancialRecordType.WRITE_OFF, legacyWriteOff, occurredAt,
-                    "历史短款核销期初（旧 write_off_amount 快照）", null);
-        }
-        if (legacyPaid.compareTo(BigDecimal.ZERO) > 0 || legacyWriteOff.compareTo(BigDecimal.ZERO) > 0) {
-            order.setCollectionStatus(CollectionStatus.UNPAID.name()); // 占位，随后由快照公式重算覆盖
+        order.setVersion((order.getVersion() == null ? 0 : order.getVersion()) + 1);
+        int rows = orderMapper.updateById(order);
+        if (rows == 0) {
+            throw com.blade.common.exception.BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
         }
     }
 
@@ -223,10 +204,6 @@ public class OrderFinanceSnapshotService {
                 .map(OrderFinancialRecord::getAmount)
                 .map(this::safe)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private void bumpVersion(Order order) {
-        order.setVersion(order.getVersion() == null ? 1 : order.getVersion() + 1);
     }
 
     private BigDecimal safe(BigDecimal value) {

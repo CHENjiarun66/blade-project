@@ -106,6 +106,7 @@ public class OrderActionService {
         }
         Order order = lockForFinancialAction(orderId, idempotencyKey);
         if (order == null) return; // 幂等重放
+        requireMigrated(order);
         requireMutableCollection(order);
         BigDecimal balance = balanceForValidation(order);
         if (balance.compareTo(BigDecimal.ZERO) > 0 && amount.compareTo(balance) > 0) {
@@ -133,6 +134,7 @@ public class OrderActionService {
         }
         Order order = lockForFinancialAction(orderId, idempotencyKey);
         if (order == null) return; // 幂等重放
+        requireMigrated(order);
         if (CollectionStatus.SETTLED.name().equals(order.getCollectionStatus())) {
             throw BusinessException.of(400, "订单已结清，无需核销");
         }
@@ -173,6 +175,7 @@ public class OrderActionService {
         }
         Order order = lockForFinancialAction(orderId, idempotencyKey);
         if (order == null) return; // 幂等重放
+        requireMigrated(order);
         // 终审 P0-3：额度 = 有效累计实收 − 有效累计现金退款；连续多次退款不得超过剩余额度
         BigDecimal refundable = refundableForValidation(order);
         if (refundable.compareTo(amount) < 0) {
@@ -344,11 +347,11 @@ public class OrderActionService {
         if (order == null) {
             throw BusinessException.of(404, "订单不存在");
         }
+        requireMigrated(order);
         FulfillmentStatus current = currentStatus(order);
         if (current == FulfillmentStatus.SHIPPED || current == FulfillmentStatus.COMPLETED) {
             return; // 幂等成功
         }
-        requireMigrated(order);
         requireStatus(order, FulfillmentStatus.READY_TO_SHIP);
         // 占位履约保护（纵深防御）：出库前再次确认没有占位明细
         if (placeholderSplitService.hasPlaceholderItems(orderId, tenantId)) {
@@ -601,7 +604,10 @@ public class OrderActionService {
      */
     private void persist(Order order) {
         order.setUpdateTime(LocalDateTime.now());
-        orderMapper.updateById(order);
+        int rows = orderMapper.updateById(order);
+        if (rows == 0) {
+            throw BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
+        }
         customerStatsCacheService.evictPreferenceCache(order.getCustomerId());
     }
 

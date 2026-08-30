@@ -71,9 +71,9 @@ public class OrderFactsService {
         return legacy != null && (legacy == 4 || legacy == 5);
     }
 
-    /** 已产生收款：新行按累计实收/结清状态；历史行按旧字段 */
+    /** 已产生收款：新行按累计实收/结清状态；历史行按旧字段（代际判定） */
     public boolean hasReceivedMoney(Order order) {
-        if (order.getCollectionStatus() != null) {
+        if (isMigrated(order)) {
             return gross(order).compareTo(BigDecimal.ZERO) > 0
                     || CollectionStatus.SETTLED.name().equals(order.getCollectionStatus());
         }
@@ -81,9 +81,9 @@ public class OrderFactsService {
                 || order.getPaymentStatus() != null && (order.getPaymentStatus() == 1 || order.getPaymentStatus() == 2);
     }
 
-    /** 已结清 */
+    /** 已结清（按代际判定取新旧字段） */
     public boolean isSettled(Order order) {
-        if (order.getCollectionStatus() != null) {
+        if (isMigrated(order)) {
             return CollectionStatus.SETTLED.name().equals(order.getCollectionStatus());
         }
         return order.getPaymentStatus() != null && order.getPaymentStatus() == 2;
@@ -108,10 +108,21 @@ public class OrderFactsService {
                 .max(BigDecimal.ZERO);
     }
 
-    /** 累计实收（新行快照；历史行 paid_amount） */
+    /**
+     * 累计实收。数据代际按 collection_status 判定（终审 P1-3）：
+     * V51 中新快照列 NOT NULL DEFAULT 0，不能用非空判断区分代际；
+     * 历史未迁移行回退旧 paid_amount，避免迁移前统计成 0。
+     */
     public BigDecimal gross(Order order) {
-        return order.getGrossReceivedAmount() != null ? order.getGrossReceivedAmount()
-                : nz(order.getPaidAmount());
+        if (isMigrated(order)) {
+            return nz(order.getGrossReceivedAmount());
+        }
+        return nz(order.getPaidAmount());
+    }
+
+    /** 已迁移（新模型行）：collection_status 非空即代表已进入新状态机 */
+    public boolean isMigrated(Order order) {
+        return order.getCollectionStatus() != null;
     }
 
     private BigDecimal total(Order order) {
@@ -119,15 +130,12 @@ public class OrderFactsService {
     }
 
     private BigDecimal salesReturn(Order order) {
-        if (order.getSalesReturnAmount() != null) {
-            return order.getSalesReturnAmount();
-        }
-        // 历史未迁移行：refund_amount 语义不可拆分，销售口径保守按"价值减少"处理，
-        // 与旧行为保持一致（15 号文档 §5.3，人工核对通道负责最终拆分）
-        if (order.getCollectionStatus() == null) {
+        if (!isMigrated(order)) {
+            // 历史未迁移行：refund_amount 语义不可拆分，销售口径保守按"价值减少"处理，
+            // 与旧行为保持一致（15 号文档 §5.3，人工核对通道负责最终拆分）
             return nz(order.getRefundAmount());
         }
-        return BigDecimal.ZERO;
+        return nz(order.getSalesReturnAmount());
     }
 
     private BigDecimal writeOff(Order order) {

@@ -77,6 +77,7 @@ class OrderRefundLimitTest {
                 .thenAnswer(inv -> { records.add(inv.getArgument(0)); return 1; });
         lenient().when(financialRecordMapper.selectList(any()))
                 .thenAnswer(inv -> new ArrayList<>(records));
+        lenient().when(orderMapper.updateById(any(Order.class))).thenReturn(1);
 
         snapshotService = new OrderFinanceSnapshotService(orderMapper, financialRecordMapper,
                 new OrderCompatAdapter());

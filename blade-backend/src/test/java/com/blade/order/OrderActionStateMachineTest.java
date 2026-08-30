@@ -82,6 +82,7 @@ class OrderActionStateMachineTest {
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(TENANT_ID);
+        lenient().when(orderMapper.updateById(any(Order.class))).thenReturn(1);
         User principal = new User();
         principal.setId(9L);
         SecurityContext securityContext = mock(SecurityContext.class);

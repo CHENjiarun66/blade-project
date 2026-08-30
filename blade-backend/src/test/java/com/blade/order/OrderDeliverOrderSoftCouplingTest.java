@@ -87,6 +87,7 @@ class OrderDeliverOrderSoftCouplingTest {
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(1L);
+        lenient().when(orderMapper.updateById(any(Order.class))).thenReturn(1);
 
         User principal = new User();
         principal.setId(1L);

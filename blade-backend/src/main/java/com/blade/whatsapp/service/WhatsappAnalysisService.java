@@ -2,6 +2,8 @@ package com.blade.whatsapp.service;
 
 import com.blade.agent.auth.AgentPrincipal;
 import com.blade.common.result.PageResult;
+import com.blade.order.entity.Order;
+import com.blade.order.service.OrderFactsService;
 import com.blade.common.tenant.TenantContext;
 import com.blade.whatsapp.dto.WhatsappAnalysisDtos.*;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -36,6 +38,7 @@ public class WhatsappAnalysisService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final PasswordEncoder passwordEncoder;
+    private final OrderFactsService orderFactsService;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     @Transactional
@@ -284,24 +287,28 @@ public class WhatsappAnalysisService {
     }
 
     private OrderFacts orderFacts(long tenant,long customerId) {
-        // 系列 E：统一经营订单口径（排除取消订单），不再让消费者自行决定状态范围
-        String businessCondition="""
-                AND (o.fulfillment_status IS NOT NULL AND o.fulfillment_status<>'CANCELLED'
-                     OR (o.fulfillment_status IS NULL AND (o.status IS NULL OR o.status NOT IN (6,8))))
-                """;
-        Map<String,Object> aggregate=jdbc.queryForMap("""
-                SELECT COUNT(*) order_count,MAX(create_time) last_order_at,COALESCE(SUM(total_amount),0) total_amount
-                FROM sale_order o WHERE o.tenant_id=? AND o.customer_id=? AND o.deleted=0
-                """+businessCondition,tenant,customerId);
-        List<ProductFact> products=jdbc.query("""
-                SELECT oi.product_name,oi.color_name,oi.size_name,SUM(oi.quantity) qty
-                FROM sale_order_item oi JOIN sale_order o ON o.id=oi.order_id AND o.tenant_id=oi.tenant_id
-                WHERE o.tenant_id=? AND o.customer_id=? AND o.deleted=0
-                """+businessCondition+"""
-                GROUP BY oi.product_name,oi.color_name,oi.size_name ORDER BY qty DESC LIMIT 20
-                """,(rs,row)->new ProductFact(rs.getString(1),rs.getString(2),rs.getString(3),rs.getLong(4)),tenant,customerId);
-        return new OrderFacts(((Number)aggregate.get("order_count")).longValue(),timestamp(aggregate.get("last_order_at")),
-                amountRange((BigDecimal)aggregate.get("total_amount")),products);
+        // 终审 P1-4：不再复制订单事实 SQL，统一走版本化 OrderFactsService
+        List<Order> business=orderFactsService.customerBusinessOrders(tenant,customerId);
+        long count=business.size();
+        java.time.LocalDateTime lastAt=business.stream()
+                .map(Order::getCreateTime).filter(java.util.Objects::nonNull)
+                .max(java.time.LocalDateTime::compareTo).orElse(null);
+        BigDecimal total=business.stream()
+                .map(o -> o.getTotalAmount()==null?BigDecimal.ZERO:o.getTotalAmount())
+                .reduce(BigDecimal.ZERO,BigDecimal::add);
+        List<Long> orderIds=business.stream().map(Order::getId).toList();
+        // IN 子句按占位符数量动态生成，取值仍走参数绑定（不拼接值）
+        String placeholders=String.join(",",java.util.Collections.nCopies(orderIds.size(),"?"));
+        List<Object> args=new ArrayList<>(List.of(tenant));
+        args.addAll(orderIds);
+        String productSql="SELECT oi.product_name,oi.color_name,oi.size_name,SUM(oi.quantity) qty"
+                +" FROM sale_order_item oi"
+                +" WHERE oi.tenant_id=? AND oi.order_id IN ("+placeholders+")"
+                +" GROUP BY oi.product_name,oi.color_name,oi.size_name ORDER BY qty DESC LIMIT 20";
+        List<ProductFact> products=jdbc.query(productSql,
+                (rs,row)->new ProductFact(rs.getString(1),rs.getString(2),rs.getString(3),rs.getLong(4)),args.toArray());
+        return new OrderFacts(count,timestamp(lastAt==null?null:java.sql.Timestamp.valueOf(lastAt)),
+                amountRange(total),products);
     }
 
     private ContextStamp contextStamp(long tenant,long customerId,long contactId) {
@@ -312,14 +319,14 @@ public class WhatsappAnalysisService {
                 WHERE m.tenant_id=? AND c.contact_id=? AND m.text_content IS NOT NULL AND m.text_content<>''
                   AND m.sent_at>=DATE_SUB(NOW(3),INTERVAL 90 DAY) AND m.deleted=0 AND m.source_deleted=0
                 """,tenant,contactId);
-        Map<String,Object> orders=jdbc.queryForMap("""
-                SELECT COUNT(*) order_count,MAX(update_time) last_update FROM sale_order o
-                WHERE o.tenant_id=? AND o.customer_id=? AND o.deleted=0
-                  AND (o.fulfillment_status IS NOT NULL AND o.fulfillment_status<>'CANCELLED'
-                       OR (o.fulfillment_status IS NULL AND (o.status IS NULL OR o.status NOT IN (6,8))))
-                """,tenant,customerId);
+        // 终审 P1-4：订单计数同样复用统一事实服务
+        List<Order> businessOrders=orderFactsService.customerBusinessOrders(tenant,customerId);
+        long orderCount=businessOrders.size();
+        LocalDateTime lastUpdate=businessOrders.stream()
+                .map(Order::getUpdateTime).filter(java.util.Objects::nonNull)
+                .max(java.time.LocalDateTime::compareTo).orElse(null);
         return new ContextStamp(((Number)messages.get("last_id")).longValue(),timestamp(messages.get("last_at")),timestamp(messages.get("last_update")),
-                ((Number)messages.get("message_count")).longValue(),((Number)orders.get("order_count")).longValue(),timestamp(orders.get("last_update")));
+                ((Number)messages.get("message_count")).longValue(),orderCount,lastUpdate);
     }
 
     private static String excerpt(String value){return limit(value,500);}

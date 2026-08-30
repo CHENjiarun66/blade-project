@@ -84,6 +84,7 @@ class OrderServiceImplWriteOffTest {
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(TENANT_ID);
+        lenient().when(orderMapper.updateById(any(Order.class))).thenReturn(1);
         User principal = new User();
         principal.setId(9L);
         principal.setNickname("测试员");
@@ -213,26 +214,25 @@ class OrderServiceImplWriteOffTest {
     // ── 历史未迁移行（旧公式余额兜底） ──────────────────────────────
 
     @Test
-    void addPayment_legacyRow_shouldRejectOverLegacyBalance() {
+    void addPayment_legacyRow_rejectedUntilMigrated() {
+        // 终审 P0-4：历史未迁移行不得参与任何新财务动作（含期初固化），必须先走迁移工具
         Order order = legacyOrder(33L, 1, new BigDecimal("90.00"));
         when(orderMapper.selectByIdForUpdate(33L, TENANT_ID)).thenReturn(order);
 
         RuntimeException ex = assertThrows(RuntimeException.class, () ->
                 actionService.addPaymentCompat(33L, dto(new BigDecimal("20.00"), false, null)));
-        assertTrue(ex.getMessage().contains("10"));
+        assertTrue(ex.getMessage().contains("迁移"));
+        assertTrue(records.isEmpty(), "历史行不得产生任何流水");
     }
 
     @Test
-    void addPayment_legacyRow_shouldSeedMigrationOpeningAndAccumulate() {
+    void refundPayment_legacyRow_rejected() {
         Order order = legacyOrder(34L, 1, new BigDecimal("10.00"));
         when(orderMapper.selectByIdForUpdate(34L, TENANT_ID)).thenReturn(order);
 
-        actionService.addPaymentCompat(34L, dto(new BigDecimal("40.00"), false, null));
-
-        assertEquals(0, new BigDecimal("50.00").compareTo(order.getPaidAmount()));
-        // MIGRATION_OPENING(10) + RECEIPT(40)
-        assertTrue(records.stream().anyMatch(r -> FinancialRecordType.MIGRATION_OPENING.name().equals(r.getRecordType())));
-        assertEquals(CollectionStatus.PARTIAL.name(), order.getCollectionStatus());
+        assertThrows(RuntimeException.class, () ->
+                actionService.refundPayment(34L, new BigDecimal("5.00"), "退款", null, "PC"));
+        assertTrue(records.isEmpty(), "历史行不得产生任何流水");
     }
 
     // ── 标记结清（短款核销） ────────────────────────────────────────

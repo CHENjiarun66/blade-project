@@ -114,6 +114,7 @@ class OrderTenantIsolationTest {
     @Test
     void sameTenantLookup_resolvesOrderAndAppliesActions() {
         TenantContext.setTenantId(1L);
+        lenient().when(orderMapper.updateById(any(Order.class))).thenReturn(1);
         Order order = new Order();
         order.setId(1L);
         order.setTenantId(1L);

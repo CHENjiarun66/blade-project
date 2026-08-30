@@ -1,6 +1,7 @@
 package com.blade.order.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.Version;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -146,8 +147,9 @@ public class Order {
     private BigDecimal balanceAmount;
 
     /**
-     * 乐观并发版本
+     * 乐观并发版本（MyBatis-Plus @Version：updateById 自动携带 WHERE version=? 并自增）
      */
+    @Version
     @TableField("version")
     private Integer version;
 
