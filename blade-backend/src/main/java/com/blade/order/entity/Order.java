@@ -74,9 +74,82 @@ public class Order {
     @TableField("write_off_reason")
     private String writeOffReason;
 
-    // 支付状态: 0未付款 1部分收款 2已结清
+    // 支付状态: 0未付款 1部分收款 2已结清（兼容期旧字段，仅由 OrderCompatAdapter 投影）
     @TableField("payment_status")
     private Integer paymentStatus;
+
+    /**
+     * 新履约状态: CONFIRMED/WAITING_ALLOCATION/ALLOCATING/READY_TO_SHIP/SHIPPED/COMPLETED/CANCELLED
+     * 历史未迁移行为 NULL，仅允许 VO 展示回退
+     */
+    @TableField("fulfillment_status")
+    private String fulfillmentStatus;
+
+    /**
+     * 新收款状态: UNPAID/PARTIAL/SETTLED，由财务快照服务计算
+     */
+    @TableField("collection_status")
+    private String collectionStatus;
+
+    /**
+     * 履约方式: UNDECIDED/STOCK_LINKED/RECORD_ONLY
+     */
+    @TableField("fulfillment_mode")
+    private String fulfillmentMode;
+
+    @TableField("fulfillment_decided_at")
+    private LocalDateTime fulfillmentDecidedAt;
+
+    @TableField("fulfillment_decided_by")
+    private Long fulfillmentDecidedBy;
+
+    /**
+     * 首次达到已结清的时间
+     */
+    @TableField("settled_at")
+    private LocalDateTime settledAt;
+
+    /**
+     * 结清方式: FULL_RECEIPT/WRITE_OFF/MIGRATION_CONFIRMED
+     */
+    @TableField("settlement_method")
+    private String settlementMethod;
+
+    /**
+     * 累计实收（Σ 有效 RECEIPT + MIGRATION_OPENING）
+     */
+    @TableField("gross_received_amount")
+    private BigDecimal grossReceivedAmount;
+
+    /**
+     * 累计现金退款（Σ 有效 REFUND）
+     */
+    @TableField("cash_refund_amount")
+    private BigDecimal cashRefundAmount;
+
+    /**
+     * 销售退回（价值减少，非现金）
+     */
+    @TableField("sales_return_amount")
+    private BigDecimal salesReturnAmount;
+
+    /**
+     * 净实收快照 = max(累计实收 - 现金退款, 0)
+     */
+    @TableField("net_received_amount")
+    private BigDecimal netReceivedAmount;
+
+    /**
+     * 当前尾款快照
+     */
+    @TableField("balance_amount")
+    private BigDecimal balanceAmount;
+
+    /**
+     * 乐观并发版本
+     */
+    @TableField("version")
+    private Integer version;
 
     // 定金金额
     @TableField("deposit_amount")
@@ -181,6 +254,32 @@ public class Order {
     public void setWriteOffReason(String writeOffReason) { this.writeOffReason = writeOffReason; }
     public Integer getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(Integer paymentStatus) { this.paymentStatus = paymentStatus; }
+    public String getFulfillmentStatus() { return fulfillmentStatus; }
+    public void setFulfillmentStatus(String fulfillmentStatus) { this.fulfillmentStatus = fulfillmentStatus; }
+    public String getCollectionStatus() { return collectionStatus; }
+    public void setCollectionStatus(String collectionStatus) { this.collectionStatus = collectionStatus; }
+    public String getFulfillmentMode() { return fulfillmentMode; }
+    public void setFulfillmentMode(String fulfillmentMode) { this.fulfillmentMode = fulfillmentMode; }
+    public LocalDateTime getFulfillmentDecidedAt() { return fulfillmentDecidedAt; }
+    public void setFulfillmentDecidedAt(LocalDateTime fulfillmentDecidedAt) { this.fulfillmentDecidedAt = fulfillmentDecidedAt; }
+    public Long getFulfillmentDecidedBy() { return fulfillmentDecidedBy; }
+    public void setFulfillmentDecidedBy(Long fulfillmentDecidedBy) { this.fulfillmentDecidedBy = fulfillmentDecidedBy; }
+    public LocalDateTime getSettledAt() { return settledAt; }
+    public void setSettledAt(LocalDateTime settledAt) { this.settledAt = settledAt; }
+    public String getSettlementMethod() { return settlementMethod; }
+    public void setSettlementMethod(String settlementMethod) { this.settlementMethod = settlementMethod; }
+    public BigDecimal getGrossReceivedAmount() { return grossReceivedAmount; }
+    public void setGrossReceivedAmount(BigDecimal grossReceivedAmount) { this.grossReceivedAmount = grossReceivedAmount; }
+    public BigDecimal getCashRefundAmount() { return cashRefundAmount; }
+    public void setCashRefundAmount(BigDecimal cashRefundAmount) { this.cashRefundAmount = cashRefundAmount; }
+    public BigDecimal getSalesReturnAmount() { return salesReturnAmount; }
+    public void setSalesReturnAmount(BigDecimal salesReturnAmount) { this.salesReturnAmount = salesReturnAmount; }
+    public BigDecimal getNetReceivedAmount() { return netReceivedAmount; }
+    public void setNetReceivedAmount(BigDecimal netReceivedAmount) { this.netReceivedAmount = netReceivedAmount; }
+    public BigDecimal getBalanceAmount() { return balanceAmount; }
+    public void setBalanceAmount(BigDecimal balanceAmount) { this.balanceAmount = balanceAmount; }
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
     public BigDecimal getDepositAmount() { return depositAmount; }
     public void setDepositAmount(BigDecimal depositAmount) { this.depositAmount = depositAmount; }
     public BigDecimal getFreightAmount() { return freightAmount; }
