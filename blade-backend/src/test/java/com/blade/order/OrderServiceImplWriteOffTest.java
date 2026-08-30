@@ -63,6 +63,7 @@ class OrderServiceImplWriteOffTest {
     @Mock private OrderDeliveryPlanMapper deliveryPlanMapper;
     @Mock private OrderAdjustmentLogMapper adjustmentLogMapper;
     @Mock private InventoryService inventoryService;
+    @Mock private com.blade.order.service.OrderPlaceholderSplitService placeholderSplitService;
 
     private OrderActionService actionService;
     private OrderFinanceSnapshotService snapshotService;
@@ -104,7 +105,7 @@ class OrderServiceImplWriteOffTest {
                 new OrderCompatAdapter());
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
-                inventoryService);
+                inventoryService, placeholderSplitService);
     }
 
     @AfterEach

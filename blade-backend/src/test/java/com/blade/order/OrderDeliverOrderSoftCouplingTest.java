@@ -72,6 +72,7 @@ class OrderDeliverOrderSoftCouplingTest {
     @Mock private OrderAdjustmentLogMapper adjustmentLogMapper;
     @Mock private OrderFinanceSnapshotService snapshotService;
     @Mock private InventoryService inventoryService;
+    @Mock private com.blade.order.service.OrderPlaceholderSplitService placeholderSplitService;
 
     private OrderActionService actionService;
 
@@ -97,14 +98,16 @@ class OrderDeliverOrderSoftCouplingTest {
 
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
-                inventoryService);
+                inventoryService, placeholderSplitService);
         deliveryService = new OrderDeliveryServiceImpl(deliveryMapper, deliveryItemMapper,
                 orderMapper, mock(com.blade.order.mapper.OrderItemMapper.class),
                 mock(WarehouseMapper.class), mock(com.blade.product.mapper.ProductSkuMapper.class),
                 mock(com.blade.product.mapper.ProductColorMapper.class),
                 mock(com.blade.product.mapper.ProductSizeMapper.class),
-                mock(com.blade.product.mapper.ProductMapper.class), orderServiceMockForDelivery);
+                mock(com.blade.product.mapper.ProductMapper.class), orderServiceMockForDelivery,
+                mock(org.redisson.api.RedissonClient.class));
     }
+
 
     @AfterEach
     void tearDown() {

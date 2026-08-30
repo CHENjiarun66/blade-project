@@ -37,10 +37,29 @@ public class OrderController {
     @Autowired
     private OrderActionService actionService;
 
+    @Autowired
+    private com.blade.order.service.OrderPlaceholderSplitService placeholderSplitService;
+
     @GetMapping
     @Operation(summary = "订单列表（分页）")
     public R<PageResult<OrderVO>> list(@Valid OrderPageDTO dto) {
         return R.ok(orderService.pageList(dto));
+    }
+
+    @PostMapping("/{id}/items/{itemId}/split")
+    @PreAuthorize("hasAuthority('btn:order:allocate')")
+    @Operation(summary = "占位明细拆分到真实SKU（数量/销售额/成本守恒）")
+    public R<List<com.blade.order.entity.OrderItem>> splitPlaceholderItem(
+            @PathVariable Long id, @PathVariable Long itemId, @RequestBody @Valid OrderItemSplitDTO dto) {
+        List<com.blade.order.service.OrderPlaceholderSplitService.SplitTarget> targets =
+                dto.getTargets().stream().map(t -> {
+                    com.blade.order.service.OrderPlaceholderSplitService.SplitTarget target =
+                            new com.blade.order.service.OrderPlaceholderSplitService.SplitTarget();
+                    target.setSkuId(t.getSkuId());
+                    target.setQuantity(t.getQuantity());
+                    return target;
+                }).toList();
+        return R.ok(placeholderSplitService.splitPlaceholderItem(id, itemId, targets, dto.getReason()));
     }
 
     @GetMapping("/{id}")

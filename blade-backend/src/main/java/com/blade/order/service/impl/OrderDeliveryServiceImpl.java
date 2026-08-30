@@ -24,6 +24,8 @@ import com.blade.product.mapper.ProductSkuMapper;
 import com.blade.inventory.entity.Warehouse;
 import com.blade.inventory.mapper.WarehouseMapper;
 import com.blade.order.service.OrderService;
+import org.redisson.api.RAtomicLong;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,6 +50,7 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
     private final ProductSizeMapper productSizeMapper;
     private final ProductMapper productMapper;
     private final OrderService orderService;
+    private final org.redisson.api.RedissonClient redissonClient;
 
     @Autowired
     public OrderDeliveryServiceImpl(OrderDeliveryMapper deliveryMapper,
@@ -58,7 +62,8 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
                                    ProductColorMapper productColorMapper,
                                    ProductSizeMapper productSizeMapper,
                                    ProductMapper productMapper,
-                                   OrderService orderService) {
+                                   OrderService orderService,
+                                   org.redisson.api.RedissonClient redissonClient) {
         this.deliveryMapper = deliveryMapper;
         this.deliveryItemMapper = deliveryItemMapper;
         this.orderMapper = orderMapper;
@@ -69,6 +74,7 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         this.productSizeMapper = productSizeMapper;
         this.productMapper = productMapper;
         this.orderService = orderService;
+        this.redissonClient = redissonClient;
     }
 
     @Override
@@ -80,6 +86,16 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         Order order = orderMapper.selectById(dto.getOrderId());
         if (order == null) {
             throw new RuntimeException("订单不存在");
+        }
+        // 履约边界：仅关联库存订单可以创建出库单，且必须处于配货中/待发货阶段
+        if (order.getFulfillmentStatus() != null) {
+            if (!"STOCK_LINKED".equals(order.getFulfillmentMode())) {
+                throw new RuntimeException("仅记录订单不能创建出库单");
+            }
+            String status = order.getFulfillmentStatus();
+            if (!"ALLOCATING".equals(status) && !"READY_TO_SHIP".equals(status)) {
+                throw new RuntimeException("订单当前状态不能创建出库单");
+            }
         }
 
         // 查询仓库
@@ -200,9 +216,19 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
     }
 
     private String generateDeliveryNo() {
+        // Redis 计数器生成连续单号，避免 Math.random 碰撞；跨天自动过期清零
         String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String seq = String.format("%04d", (int) (Math.random() * 10000));
-        return "OUT" + date + seq;
+        String prefix = "OUT" + date;
+        RAtomicLong counter = redissonClient.getAtomicLong("delivery:no:" + TenantContext.getTenantId() + ":" + date);
+        Long dbMax = deliveryMapper.selectMaxDeliveryNoSeq(prefix, TenantContext.getTenantId());
+        if (dbMax != null && counter.get() < dbMax) {
+            counter.set(dbMax);
+        }
+        if (counter.get() == 0) {
+            counter.expire(2, TimeUnit.DAYS);
+        }
+        long seq = counter.incrementAndGet();
+        return prefix + String.format("%04d", seq);
     }
 
     private OrderDeliveryVO convertToVO(OrderDelivery delivery) {

@@ -62,6 +62,7 @@ class OrderActionStateMachineTest {
     @Mock private OrderDeliveryPlanMapper deliveryPlanMapper;
     @Mock private OrderAdjustmentLogMapper adjustmentLogMapper;
     @Mock private InventoryService inventoryService;
+    @Mock private com.blade.order.service.OrderPlaceholderSplitService placeholderSplitService;
 
     private OrderActionService actionService;
     private OrderFinanceSnapshotService snapshotService;
@@ -98,7 +99,7 @@ class OrderActionStateMachineTest {
                 new OrderCompatAdapter());
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
-                inventoryService);
+                inventoryService, placeholderSplitService);
     }
 
     @AfterEach
@@ -276,6 +277,33 @@ class OrderActionStateMachineTest {
         assertThrows(BusinessException.class, () -> actionService.chooseFulfillmentMode(13L, FulfillmentMode.RECORD_ONLY, "PC"));
         assertThrows(BusinessException.class, () -> actionService.startAllocation(13L, "PC"));
         assertThrows(BusinessException.class, () -> actionService.cancelOrder(13L, "取消", "PC"));
+    }
+
+    @Test
+    void startAllocation_blockedByPlaceholderItems() {
+        Order order = settledConfirmedOrder(15L);
+        order.setFulfillmentStatus(FulfillmentStatus.WAITING_ALLOCATION.name());
+        order.setStatus(1);
+        order.setFulfillmentMode(FulfillmentMode.STOCK_LINKED.name());
+        lenient().when(placeholderSplitService.hasPlaceholderItems(15L, TENANT_ID)).thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> actionService.startAllocation(15L, "PC"));
+        assertTrue(ex.getMessage().contains("拆分"));
+    }
+
+    @Test
+    void shipOrder_blockedByPlaceholderItems() {
+        Order order = settledConfirmedOrder(16L);
+        order.setFulfillmentStatus(FulfillmentStatus.READY_TO_SHIP.name());
+        order.setStatus(3);
+        order.setFulfillmentMode(FulfillmentMode.STOCK_LINKED.name());
+        lenient().when(placeholderSplitService.hasPlaceholderItems(16L, TENANT_ID)).thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> actionService.shipOrder(16L, "PC"));
+        assertTrue(ex.getMessage().contains("拆分"));
+        verifyNoInventoryTouch();
     }
 
     @Test

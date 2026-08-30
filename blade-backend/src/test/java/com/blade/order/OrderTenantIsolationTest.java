@@ -51,6 +51,7 @@ class OrderTenantIsolationTest {
     @Mock private OrderDeliveryPlanMapper deliveryPlanMapper;
     @Mock private OrderAdjustmentLogMapper adjustmentLogMapper;
     @Mock private InventoryService inventoryService;
+    @Mock private com.blade.order.service.OrderPlaceholderSplitService placeholderSplitService;
 
     private OrderActionService actionService;
 
@@ -65,7 +66,7 @@ class OrderTenantIsolationTest {
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper,
                 new OrderFinanceSnapshotService(orderMapper, financialRecordMapper, new OrderCompatAdapter()),
-                new OrderCompatAdapter(), inventoryService);
+                new OrderCompatAdapter(), inventoryService, placeholderSplitService);
     }
 
     @AfterEach

@@ -445,7 +445,8 @@ class InventoryOutByPlanSoftCouplingTest {
 
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> controller.outByPlan(dto));
-        assertTrue(ex.getMessage().contains("请通过订单确认发货操作出库"));
+        // 系列C收口：明确业务拒绝（BusinessException 410），不再以 RuntimeException 500 暴露
+        assertTrue(ex.getMessage().contains("按计划直接出库已关闭"));
 
         // InventoryService.outByPlan must NOT be called
         verifyNoInteractions(noopService);

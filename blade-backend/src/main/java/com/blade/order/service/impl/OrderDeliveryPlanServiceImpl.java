@@ -109,13 +109,10 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         itemWrapper.eq(OrderItem::getOrderId, orderId);
         List<OrderItem> orderItems = orderItemMapper.selectList(itemWrapper);
 
-        // 获取SKU信息Map
-        Map<Long, ProductSku> skuMap = productSkuMapper.selectList(null).stream()
-                .collect(Collectors.toMap(ProductSku::getId, sku -> sku));
-
-        // 获取仓库Map
-        Map<Long, Warehouse> warehouseMap = warehouseMapper.selectList(null).stream()
-                .collect(Collectors.toMap(Warehouse::getId, w -> w));
+        // 获取SKU/仓库信息（按需批量查询，避免全表加载）
+        Map<Long, ProductSku> skuMap = loadSkuMap(orderItems.stream().map(OrderItem::getSkuId).toList());
+        Map<Long, Warehouse> warehouseMap = loadWarehouseMap(
+                orderItems.stream().map(OrderItem::getWarehouseId).collect(Collectors.toList()));
 
         List<OrderDeliveryPlan> plans = new ArrayList<>();
         for (OrderItem item : orderItems) {
@@ -156,13 +153,8 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         wrapper.eq(OrderDeliveryPlan::getOrderId, orderId);
         deliveryPlanMapper.delete(wrapper);
 
-        // 获取SKU信息Map
-        Map<Long, ProductSku> skuMap = productSkuMapper.selectList(null).stream()
-                .collect(Collectors.toMap(ProductSku::getId, sku -> sku));
-
-        // 获取仓库Map
-        Map<Long, Warehouse> warehouseMap = warehouseMapper.selectList(null).stream()
-                .collect(Collectors.toMap(Warehouse::getId, w -> w));
+        Map<Long, ProductSku> skuMap = loadSkuMap(dto.getItems().stream().map(DeliveryPlanDTO.PlanItemDTO::getSkuId).toList());
+        Map<Long, Warehouse> warehouseMap = loadWarehouseMap(dto.getItems().stream().map(DeliveryPlanDTO.PlanItemDTO::getWarehouseId).collect(Collectors.toList()));
 
         // 创建新的配货计划
         List<OrderDeliveryPlan> plans = new ArrayList<>();
@@ -195,25 +187,16 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         wrapper.eq(OrderDeliveryPlan::getOrderId, orderId);
         List<OrderDeliveryPlan> plans = deliveryPlanMapper.selectList(wrapper);
 
-        // 获取SKU信息
-        Map<Long, ProductSku> skuMap = productSkuMapper.selectList(null).stream()
-                .collect(Collectors.toMap(ProductSku::getId, sku -> sku));
-
-        // 获取商品信息Map
-        Map<Long, com.blade.product.entity.Product> productMap = productMapper.selectList(null).stream()
-                .collect(Collectors.toMap(com.blade.product.entity.Product::getId, p -> p));
-
-        // 获取颜色信息Map
-        Map<Long, ProductColor> colorMap = colorMapper.selectList(null).stream()
-                .collect(Collectors.toMap(ProductColor::getId, c -> c));
-
-        // 获取尺码信息Map
-        Map<Long, ProductSize> sizeMap = sizeMapper.selectList(null).stream()
-                .collect(Collectors.toMap(ProductSize::getId, s -> s));
-
-        // 获取仓库Map
-        Map<Long, Warehouse> warehouseMap = warehouseMapper.selectList(null).stream()
-                .collect(Collectors.toMap(Warehouse::getId, w -> w));
+        // 按需批量查询，避免全表加载
+        Map<Long, ProductSku> skuMap = loadSkuMap(plans.stream().map(OrderDeliveryPlan::getSkuId).toList());
+        Map<Long, com.blade.product.entity.Product> productMap = loadProductMap(
+                skuMap.values().stream().map(ProductSku::getProductId).filter(java.util.Objects::nonNull).toList());
+        Map<Long, ProductColor> colorMap = loadColorMap(
+                skuMap.values().stream().map(ProductSku::getColorId).filter(java.util.Objects::nonNull).toList());
+        Map<Long, ProductSize> sizeMap = loadSizeMap(
+                skuMap.values().stream().map(ProductSku::getSizeId).filter(java.util.Objects::nonNull).toList());
+        Map<Long, Warehouse> warehouseMap = loadWarehouseMap(
+                plans.stream().map(OrderDeliveryPlan::getWarehouseId).collect(Collectors.toList()));
 
         // 获取订单信息
         Order order = orderMapper.selectById(orderId);
@@ -455,6 +438,41 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
             dto.setReason(log.getReason());
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    private Map<Long, ProductSku> loadSkuMap(List<Long> ids) {
+        List<Long> distinct = ids.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        return distinct.isEmpty() ? Map.of()
+                : productSkuMapper.selectBatchIds(distinct).stream()
+                        .collect(Collectors.toMap(ProductSku::getId, sku -> sku));
+    }
+
+    private Map<Long, com.blade.product.entity.Product> loadProductMap(List<Long> ids) {
+        List<Long> distinct = ids.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        return distinct.isEmpty() ? Map.of()
+                : productMapper.selectBatchIds(distinct).stream()
+                        .collect(Collectors.toMap(com.blade.product.entity.Product::getId, p -> p));
+    }
+
+    private Map<Long, ProductColor> loadColorMap(List<Long> ids) {
+        List<Long> distinct = ids.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        return distinct.isEmpty() ? Map.of()
+                : colorMapper.selectBatchIds(distinct).stream()
+                        .collect(Collectors.toMap(ProductColor::getId, c -> c));
+    }
+
+    private Map<Long, ProductSize> loadSizeMap(List<Long> ids) {
+        List<Long> distinct = ids.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        return distinct.isEmpty() ? Map.of()
+                : sizeMapper.selectBatchIds(distinct).stream()
+                        .collect(Collectors.toMap(ProductSize::getId, s -> s));
+    }
+
+    private Map<Long, Warehouse> loadWarehouseMap(List<Long> ids) {
+        List<Long> distinct = ids.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        return distinct.isEmpty() ? Map.of()
+                : warehouseMapper.selectBatchIds(distinct).stream()
+                        .collect(Collectors.toMap(Warehouse::getId, w -> w));
     }
 
     /**

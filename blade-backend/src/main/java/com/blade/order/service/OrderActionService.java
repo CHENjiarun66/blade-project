@@ -67,6 +67,7 @@ public class OrderActionService {
     private final OrderFinanceSnapshotService snapshotService;
     private final OrderCompatAdapter compatAdapter;
     private final InventoryService inventoryService;
+    private final OrderPlaceholderSplitService placeholderSplitService;
 
     public OrderActionService(OrderMapper orderMapper,
                               OrderFinancialRecordMapper recordMapper,
@@ -75,7 +76,8 @@ public class OrderActionService {
                               OrderAdjustmentLogMapper adjustmentLogMapper,
                               OrderFinanceSnapshotService snapshotService,
                               OrderCompatAdapter compatAdapter,
-                              InventoryService inventoryService) {
+                              InventoryService inventoryService,
+                              OrderPlaceholderSplitService placeholderSplitService) {
         this.orderMapper = orderMapper;
         this.recordMapper = recordMapper;
         this.transitionLogMapper = transitionLogMapper;
@@ -84,6 +86,7 @@ public class OrderActionService {
         this.snapshotService = snapshotService;
         this.compatAdapter = compatAdapter;
         this.inventoryService = inventoryService;
+        this.placeholderSplitService = placeholderSplitService;
     }
 
     // ==================== 财务动作 ====================
@@ -278,6 +281,10 @@ public class OrderActionService {
             throw BusinessException.of(400, "仅记录订单或未选择履约方式的订单不能配货");
         }
         requireStatus(order, FulfillmentStatus.WAITING_ALLOCATION);
+        // 占位履约保护：含占位明细的订单必须先拆分到真实 SKU
+        if (placeholderSplitService.hasPlaceholderItems(orderId, currentTenant())) {
+            throw BusinessException.of(400, "订单仍包含未指定颜色/尺码的占位明细，请先完成拆分");
+        }
         transition(order, FulfillmentStatus.ALLOCATING);
         order.setAdjustmentStatus(Order.AdjustmentStatus.PENDING);
         writeTransitionLog(order, START_ALLOCATION, FulfillmentStatus.WAITING_ALLOCATION.name(),
@@ -333,6 +340,10 @@ public class OrderActionService {
         }
         requireMigrated(order);
         requireStatus(order, FulfillmentStatus.READY_TO_SHIP);
+        // 占位履约保护（纵深防御）：出库前再次确认没有占位明细
+        if (placeholderSplitService.hasPlaceholderItems(orderId, tenantId)) {
+            throw BusinessException.of(400, "订单仍包含未指定颜色/尺码的占位明细，请先完成拆分");
+        }
 
         List<OrderDeliveryPlan> plans = deliveryPlanMapper.selectList(new LambdaQueryWrapper<OrderDeliveryPlan>()
                 .eq(OrderDeliveryPlan::getOrderId, orderId)
