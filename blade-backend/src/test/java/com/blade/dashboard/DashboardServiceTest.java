@@ -157,11 +157,24 @@ class DashboardServiceTest {
         Order order = new Order();
         order.setId(id);
         order.setTotalAmount(new BigDecimal(totalAmount));
-        order.setRefundAmount(new BigDecimal(refundAmount));
-        order.setPaidAmount(new BigDecimal(paidAmount));
-        order.setGrossProfit(new BigDecimal(grossProfit));
+        order.setRefundAmount(BigDecimal.ZERO);
+        order.setSalesReturnAmount(new BigDecimal(refundAmount));
+        order.setPaidAmount(BigDecimal.ZERO);
         order.setPaymentStatus(paymentStatus);
         order.setStatus(status);
+        order.setGrossProfit(new BigDecimal(grossProfit));
+        order.setWriteOffAmount(BigDecimal.ZERO);
+        // 终审三轮 P0-3：历史行排除出事实统计，测试用已迁移行
+        order.setCollectionStatus(status <= 6 ? "SETTLED" : null);
+        order.setFulfillmentStatus(switch (status) {
+            case 0 -> "CONFIRMED"; case 1 -> "WAITING_ALLOCATION"; case 2 -> "ALLOCATING";
+            case 3 -> "READY_TO_SHIP"; case 4 -> "SHIPPED"; case 5 -> "COMPLETED"; case 6 -> "CANCELLED";
+            default -> null; // 7/8 legacy
+        });
+        order.setFulfillmentMode("RECORD_ONLY");
+        order.setGrossReceivedAmount(new BigDecimal(paidAmount));
+        order.setNetReceivedAmount(new BigDecimal(paidAmount));
+        order.setBalanceAmount(new BigDecimal(totalAmount).subtract(new BigDecimal(refundAmount)).subtract(new BigDecimal(paidAmount)).max(BigDecimal.ZERO));
         return order;
     }
 

@@ -152,10 +152,10 @@ public class OrderFinanceSnapshotService {
         order.setSettledAt(LocalDateTime.now());
         order.setSettlementMethod(SettlementMethod.FULL_RECEIPT.name());
         order.setPaymentStatus(compatAdapter.projectLegacyPaymentStatus(CollectionStatus.SETTLED));
-        order.setVersion((order.getVersion() == null ? 0 : order.getVersion()) + 1);
+        // @Version 自动携带 WHERE version=? 并自增；不手工递增（终审三轮 P0-4）
         int rows = orderMapper.updateById(order);
         if (rows == 0) {
-            throw com.blade.common.exception.BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
+            throw BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
         }
     }
 

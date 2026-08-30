@@ -62,12 +62,20 @@ class OrderTenantIsolationTest {
         Authentication authentication = mock(Authentication.class);
         lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
         lenient().when(authentication.getPrincipal()).thenReturn(null);
+        lenient().when(authentication.getAuthorities()).thenReturn((java.util.Collection) java.util.List.of(
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:viewAll"),
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:recordPayment"),
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:writeOff"),
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:refund"),
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:reverse"),
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:cancel"),
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:view")));
         SecurityContextHolder.setContext(securityContext);
 
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper,
                 new OrderFinanceSnapshotService(orderMapper, financialRecordMapper, new OrderCompatAdapter()),
-                new OrderCompatAdapter(), inventoryService, placeholderSplitService, customerStatsCacheService);
+                new OrderCompatAdapter(), inventoryService, placeholderSplitService, customerStatsCacheService, new com.blade.order.service.OrderAccessPolicy());
     }
 
     @AfterEach

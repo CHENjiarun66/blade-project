@@ -34,6 +34,7 @@ public class OrderDeliveryController {
     }
 
     @GetMapping("/order/{orderId}")
+    @PreAuthorize("hasAuthority('btn:order:view')")
     @Operation(summary = "根据订单ID查询出库单列表")
     public R<List<OrderDeliveryVO>> getByOrderId(@PathVariable Long orderId) {
         List<OrderDeliveryVO> list = deliveryService.getByOrderId(orderId);

@@ -125,11 +125,36 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         int totalQuantity = 0;
         List<OrderDeliveryItem> items = new ArrayList<>();
 
+        // 终审三轮 P1-1：按 orderItemId 聚合后校验，重复行合并数量，不绕过可发校验
+        java.util.Map<Long, Integer> aggregatedQty = new java.util.LinkedHashMap<>();
+        java.util.Map<Long, OrderDeliveryDTO.OrderDeliveryItemDTO> aggregatedDto = new java.util.LinkedHashMap<>();
         for (OrderDeliveryDTO.OrderDeliveryItemDTO itemDTO : dto.getItems()) {
-            // 终审 P1-1：明细完整性（归属、SKU 一致、正数量、不超可发）
             if (itemDTO.getQuantity() == null || itemDTO.getQuantity() <= 0) {
                 throw BusinessException.of(400, "出库数量必须大于0");
             }
+            aggregatedQty.merge(itemDTO.getOrderItemId(), itemDTO.getQuantity(), Integer::sum);
+            aggregatedDto.putIfAbsent(itemDTO.getOrderItemId(), itemDTO);
+        }
+        for (var entry : aggregatedQty.entrySet()) {
+            OrderDeliveryDTO.OrderDeliveryItemDTO itemDTO = aggregatedDto.get(entry.getKey());
+            // 终审 P1-1：明细完整性（归属、SKU 一致、不超可发）
+            OrderItem orderItem = orderItemMapper.selectOne(
+                    new LambdaQueryWrapper<OrderItem>()
+                            .eq(OrderItem::getId, itemDTO.getOrderItemId())
+                            .eq(OrderItem::getOrderId, dto.getOrderId())
+                            .eq(OrderItem::getTenantId, tenantId));
+            if (orderItem == null) {
+                throw BusinessException.of(400, "出库明细不属于当前订单: " + itemDTO.getOrderItemId());
+            }
+            if (orderItem.getSkuId() != null && !orderItem.getSkuId().equals(itemDTO.getSkuId())) {
+                throw BusinessException.of(400, "出库 SKU 与订单明细不一致");
+            }
+            int shippable = orderItem.getQuantity() - (orderItem.getOutQuantity() == null ? 0 : orderItem.getOutQuantity());
+            if (entry.getValue() > shippable) {
+                throw BusinessException.of(400, "出库数量超过可发数量（剩余 " + shippable + "）");
+            }
+        }
+        for (OrderDeliveryDTO.OrderDeliveryItemDTO itemDTO : dto.getItems()) {
             OrderItem orderItem = orderItemMapper.selectOne(
                     new LambdaQueryWrapper<OrderItem>()
                             .eq(OrderItem::getId, itemDTO.getOrderItemId())

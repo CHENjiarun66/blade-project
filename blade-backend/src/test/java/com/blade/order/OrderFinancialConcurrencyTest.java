@@ -93,7 +93,15 @@ class OrderFinancialConcurrencyTest {
         principal.setId(1L);
         principal.setUsername("admin");
         Authentication authentication = new org.springframework.security.authentication.TestingAuthenticationToken(
-                principal, null, java.util.List.of());
+                principal, null, java.util.List.of(
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:viewAll"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:recordPayment"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:writeOff"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:refund"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:reverse"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:deliver"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:cancel"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:view")));
         SecurityContextHolder.setContext(
                 new org.springframework.security.core.context.SecurityContextImpl(authentication));
     }

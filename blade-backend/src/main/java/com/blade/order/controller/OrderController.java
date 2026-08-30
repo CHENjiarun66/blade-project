@@ -176,6 +176,7 @@ public class OrderController {
     }
 
     @GetMapping("/{id}/delivery-plan")
+    @PreAuthorize("hasAuthority('btn:order:view')")
     @Operation(summary = "获取配货计划")
     public R<List<DeliveryPlanVO>> getDeliveryPlan(@PathVariable Long id) {
         return R.ok(deliveryPlanService.getDeliveryPlanByOrderId(id));
@@ -199,6 +200,7 @@ public class OrderController {
     }
 
     @GetMapping("/{id}/adjustment")
+    @PreAuthorize("hasAuthority('btn:order:view')")
     @Operation(summary = "获取订单调整记录")
     public R<List<AdjustmentLogDTO>> getAdjustmentLogs(@PathVariable Long id) {
         return R.ok(deliveryPlanService.getAdjustmentLogs(id));

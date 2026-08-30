@@ -63,6 +63,7 @@ class OrderServiceImplSoftCouplingTest {
     @Mock private FileService fileService;
     @Mock private OrderFinanceSnapshotService snapshotService;
     @Mock private OrderActionService actionService;
+    @Mock private com.blade.order.service.OrderAccessPolicy accessPolicy;
 
     @InjectMocks
     private OrderServiceImpl orderService;
@@ -70,11 +71,17 @@ class OrderServiceImplSoftCouplingTest {
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(1L);
+        lenient().when(accessPolicy.canAccess(any(Order.class))).thenReturn(true);
+        lenient().when(accessPolicy.hasViewAllScope()).thenReturn(true);
         // Stub security context so getCurrentUserId() returns 1L without tripping NPE
         SecurityContext securityContext = mock(SecurityContext.class);
         Authentication authentication = mock(Authentication.class);
         lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
         lenient().when(authentication.getPrincipal()).thenReturn(null); // triggers default 1L path
+        lenient().when(authentication.getAuthorities()).thenReturn((java.util.Collection) java.util.List.of(
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:viewAll"),
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:viewFinance"),
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:view")));
         SecurityContextHolder.setContext(securityContext);
     }
 

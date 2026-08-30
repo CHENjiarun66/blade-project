@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.blade.common.exception.BusinessException;
 import com.blade.common.tenant.TenantContext;
 import com.blade.customer.service.CustomerStatsCacheService;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.inventory.service.InventoryService;
 import com.blade.order.dto.AddPaymentDTO;
 import com.blade.order.entity.Order;
@@ -70,6 +71,7 @@ public class OrderActionService {
     private final InventoryService inventoryService;
     private final OrderPlaceholderSplitService placeholderSplitService;
     private final CustomerStatsCacheService customerStatsCacheService;
+    private final OrderAccessPolicy accessPolicy;
 
     public OrderActionService(OrderMapper orderMapper,
                               OrderFinancialRecordMapper recordMapper,
@@ -80,7 +82,8 @@ public class OrderActionService {
                               OrderCompatAdapter compatAdapter,
                               InventoryService inventoryService,
                               OrderPlaceholderSplitService placeholderSplitService,
-                              CustomerStatsCacheService customerStatsCacheService) {
+                              CustomerStatsCacheService customerStatsCacheService,
+                              OrderAccessPolicy accessPolicy) {
         this.orderMapper = orderMapper;
         this.recordMapper = recordMapper;
         this.transitionLogMapper = transitionLogMapper;
@@ -91,6 +94,7 @@ public class OrderActionService {
         this.inventoryService = inventoryService;
         this.placeholderSplitService = placeholderSplitService;
         this.customerStatsCacheService = customerStatsCacheService;
+        this.accessPolicy = accessPolicy;
     }
 
     // ==================== 财务动作 ====================
@@ -101,6 +105,7 @@ public class OrderActionService {
     @Transactional
     public void recordPayment(Long orderId, BigDecimal amount, String paymentMethod,
                               String idempotencyKey, String source) {
+        requireAuthority("btn:order:recordPayment");
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw BusinessException.of(400, "收款金额必须大于0");
         }
@@ -126,6 +131,7 @@ public class OrderActionService {
     @Transactional
     public void settleWithWriteOff(Long orderId, BigDecimal receiptAmount, String reason,
                                    String idempotencyKey, String source) {
+        requireAuthority("btn:order:writeOff");
         if (reason == null || reason.isBlank()) {
             throw BusinessException.of(400, "标记结清必须填写原因");
         }
@@ -167,6 +173,7 @@ public class OrderActionService {
     @Transactional
     public void refundPayment(Long orderId, BigDecimal amount, String reason,
                               String idempotencyKey, String source) {
+        requireAuthority("btn:order:refund");
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw BusinessException.of(400, "退款金额必须大于0");
         }
@@ -195,6 +202,7 @@ public class OrderActionService {
      */
     @Transactional
     public void reverseFinancialRecord(Long pathOrderId, Long recordId, String reason, String idempotencyKey, String source) {
+        requireAuthority("btn:order:reverse");
         if (reason == null || reason.isBlank()) {
             throw BusinessException.of(400, "冲销必须填写原因");
         }
@@ -222,6 +230,7 @@ public class OrderActionService {
         if (order == null) {
             throw BusinessException.of(404, "订单不存在");
         }
+        accessPolicy.requireAccess(order);
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             OrderFinancialRecord replay = recordMapper.selectOne(new LambdaQueryWrapper<OrderFinancialRecord>()
                     .eq(OrderFinancialRecord::getTenantId, tenantId)
@@ -444,6 +453,9 @@ public class OrderActionService {
      * 按当前状态与登录用户权限计算可用动作。历史未迁移行只开放财务动作。
      */
     public List<String> computeAllowedActions(Order order) {
+        if (!accessPolicy.canAccess(order)) {
+            return List.of();
+        }
         List<String> actions = new ArrayList<>();
         Set<String> authorities = currentAuthorities();
         boolean migrated = order.getFulfillmentStatus() != null;
@@ -529,6 +541,7 @@ public class OrderActionService {
         if (order == null) {
             throw BusinessException.of(404, "订单不存在");
         }
+        accessPolicy.requireAccess(order);
         return order;
     }
 
@@ -537,7 +550,16 @@ public class OrderActionService {
         if (order == null) {
             throw BusinessException.of(404, "订单不存在");
         }
+        accessPolicy.requireAccess(order);
         return order;
+    }
+
+    /** 服务层动作鉴权（终审三轮 P0-1）：endpoint 注解之上按动作再次校验，防止复用端点绕过 */
+    private void requireAuthority(String authority) {
+        Set<String> authorities = currentAuthorities();
+        if (!authorities.contains(authority)) {
+            throw BusinessException.of(403, "缺少操作权限：" + authority);
+        }
     }
 
     private void requireTenant() {
@@ -733,13 +755,15 @@ public class OrderActionService {
         return value != null ? value : BigDecimal.ZERO;
     }
 
-    /** 旧接口 DTO 适配：markAsSettled 分流到核销动作。 */
+    /** 旧接口 DTO 适配：markAsSettled 分流到核销动作。分流前按目标动作鉴权（终审三轮 P0-1）。 */
     @Transactional
     public void addPaymentCompat(Long orderId, AddPaymentDTO dto) {
         requireTenant();
         if (Boolean.TRUE.equals(dto.getMarkAsSettled())) {
+            requireAuthority("btn:order:writeOff");
             settleWithWriteOff(orderId, safe(dto.getAdditionalAmount()), dto.getWriteOffReason(), null, "PC");
         } else {
+            requireAuthority("btn:order:recordPayment");
             recordPayment(orderId, dto.getAdditionalAmount(), null, null, "PC");
         }
     }

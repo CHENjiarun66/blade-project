@@ -7,5 +7,6 @@
   "projectLegacy": "UPDATE sale_order SET status = ?, payment_status = ? WHERE id = ? AND tenant_id = ? AND deleted = 0",
   "countRecord": "SELECT COUNT(*) FROM order_financial_record WHERE order_id = ? AND tenant_id = ? AND record_type = ? AND deleted = 0",
   "sumLegacy": "SELECT COALESCE(SUM(total_amount), 0), COALESCE(SUM(paid_amount), 0) FROM sale_order WHERE tenant_id = ? AND deleted = 0",
-  "sumNew": "SELECT COALESCE(SUM(total_amount), 0), COALESCE(SUM(gross_received_amount), 0) FROM sale_order WHERE tenant_id = ? AND deleted = 0"
+  "sumNew": "SELECT COALESCE(SUM(total_amount), 0), COALESCE(SUM(gross_received_amount), 0) FROM sale_order WHERE tenant_id = ? AND deleted = 0",
+  "verifyOrder": "SELECT fulfillment_status, collection_status, status, payment_status, gross_received_amount FROM sale_order WHERE id = ? AND tenant_id = ? AND deleted = 0"
 }

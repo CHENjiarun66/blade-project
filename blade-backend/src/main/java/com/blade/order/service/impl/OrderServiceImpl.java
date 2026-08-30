@@ -27,6 +27,7 @@ import com.blade.order.mapper.OrderFinancialRecordMapper;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.customer.service.CustomerStatsCacheService;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.order.service.OrderActionService;
 import com.blade.order.service.OrderCompatAdapter;
 import com.blade.order.service.OrderFinanceSnapshotService;
@@ -78,6 +79,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderFinanceSnapshotService snapshotService;
     private final OrderCompatAdapter compatAdapter;
     private final CustomerStatsCacheService customerStatsCacheService;
+    private final OrderAccessPolicy accessPolicy;
 
     private static final String ORDER_TYPE_SPOT = "SPOT";
     private static final String ORDER_TYPE_PREORDER = "PREORDER";
@@ -101,7 +103,8 @@ public class OrderServiceImpl implements OrderService {
                             OrderActionService actionService,
                             OrderFinanceSnapshotService snapshotService,
                             OrderCompatAdapter compatAdapter,
-                            CustomerStatsCacheService customerStatsCacheService) {
+                            CustomerStatsCacheService customerStatsCacheService,
+                            OrderAccessPolicy accessPolicy) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.deliveryPlanMapper = deliveryPlanMapper;
@@ -118,6 +121,7 @@ public class OrderServiceImpl implements OrderService {
         this.snapshotService = snapshotService;
         this.compatAdapter = compatAdapter;
         this.customerStatsCacheService = customerStatsCacheService;
+        this.accessPolicy = accessPolicy;
     }
 
     @Override
@@ -126,6 +130,13 @@ public class OrderServiceImpl implements OrderService {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getTenantId, TenantContext.getTenantId());
         wrapper.eq(Order::getDeleted, 0);
+        // 数据范围：无 viewAll 的用户只能看到本人开单
+        if (!accessPolicy.hasViewAllScope()) {
+            User user = getCurrentUser();
+            if (user != null) {
+                wrapper.eq(Order::getSalesmanId, user.getId());
+            }
+        }
         applyOrderPageFilters(wrapper, dto);
 
         wrapper.orderByDesc(Order::getCreateTime);
@@ -201,6 +212,8 @@ public class OrderServiceImpl implements OrderService {
         if (order == null || Integer.valueOf(1).equals(order.getDeleted())) {
             throw new RuntimeException("订单不存在");
         }
+        // 订单所有权/数据范围（终审三轮 P0-2）
+        accessPolicy.requireAccess(order);
         OrderVO vo = convertToVO(order);
         // 详情页财务流水仅对持有财务查看权限的用户返回（终审 P0-1：前端隐藏不等于权限控制）
         if (!currentAuthorities().contains("btn:order:viewFinance")) {

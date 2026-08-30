@@ -148,6 +148,35 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         // 状态前置：只有配货中的订单可以调整方案
         requireAllocating(order);
 
+        // 终审三轮 P0-6：整批验证前置到删除旧计划之前——明细归属、SKU 一致、数量守恒、目标去重
+        java.util.Set<Long> orderItemIds = orderItemMapper.selectList(
+                new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId))
+                .stream().collect(Collectors.toMap(OrderItem::getId, java.util.function.Function.identity()))
+                .keySet();
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
+        for (DeliveryPlanDTO.PlanItemDTO itemDto : dto.getItems()) {
+            if (itemDto.getAllocatedQty() == null || itemDto.getAllocatedQty() <= 0
+                    || itemDto.getPlannedQty() == null || itemDto.getPlannedQty() <= 0) {
+                throw new RuntimeException("配货数量和计划数量必须为正数");
+            }
+            if (itemDto.getAllocatedQty() > itemDto.getPlannedQty()) {
+                throw new RuntimeException("配货数量不能超过计划数量");
+            }
+            if (itemDto.getOrderItemId() != null) {
+                if (!orderItemIds.contains(itemDto.getOrderItemId())) {
+                    throw new RuntimeException("配货明细不属于当前订单: " + itemDto.getOrderItemId());
+                }
+                OrderItem oi = orderItemMapper.selectById(itemDto.getOrderItemId());
+                if (oi != null && oi.getSkuId() != null && !oi.getSkuId().equals(itemDto.getSkuId())) {
+                    throw new RuntimeException("配货 SKU 与订单明细不一致: " + itemDto.getSkuId());
+                }
+                String key = itemDto.getOrderItemId() + ":" + itemDto.getSkuId();
+                if (!seenKeys.add(key)) {
+                    throw new RuntimeException("配货明细重复: " + key);
+                }
+            }
+        }
+
         // 删除旧的配货计划
         LambdaQueryWrapper<OrderDeliveryPlan> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderDeliveryPlan::getOrderId, orderId);

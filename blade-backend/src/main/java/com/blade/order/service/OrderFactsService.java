@@ -40,53 +40,44 @@ public class OrderFactsService {
 
     // ==================== 口径判定 ====================
 
-    /** 经营订单：非取消的正式订单（历史行按旧 status 判断；新行按 fulfillment_status） */
+    /**
+     * 经营订单：非取消的已迁移正式订单。
+     * 终审三轮 P0-3：历史未迁移行不得参与新事实统计（只允许 VO 展示回退），
+     * 迁移完成后再进入新统计。
+     */
     public boolean isBusinessOrder(Order order) {
         if (order.getDeleted() != null && order.getDeleted() == 1) {
             return false;
         }
-        if (order.getFulfillmentStatus() != null) {
-            return !FulfillmentStatus.CANCELLED.name().equals(order.getFulfillmentStatus());
+        if (order.getCollectionStatus() == null) {
+            return false; // 历史未迁移行排除
         }
-        Integer legacy = order.getStatus();
-        return legacy == null || (legacy != 6 && legacy != 8);
+        return !FulfillmentStatus.CANCELLED.name().equals(order.getFulfillmentStatus());
     }
 
-    /** 已完成（履约完成） */
+    /** 已完成（履约完成，仅已迁移行） */
     public boolean isFulfilled(Order order) {
-        if (order.getFulfillmentStatus() != null) {
-            return FulfillmentStatus.COMPLETED.name().equals(order.getFulfillmentStatus());
-        }
-        Integer legacy = order.getStatus();
-        return legacy != null && legacy == 5;
+        if (!isMigrated(order)) return false;
+        return FulfillmentStatus.COMPLETED.name().equals(order.getFulfillmentStatus());
     }
 
-    /** 已发货或更晚（完成/发货履约事实） */
+    /** 已发货或更晚（仅已迁移行） */
     public boolean isShippedOrBeyond(Order order) {
-        if (order.getFulfillmentStatus() != null) {
-            return FulfillmentStatus.SHIPPED.name().equals(order.getFulfillmentStatus())
-                    || FulfillmentStatus.COMPLETED.name().equals(order.getFulfillmentStatus());
-        }
-        Integer legacy = order.getStatus();
-        return legacy != null && (legacy == 4 || legacy == 5);
+        if (!isMigrated(order)) return false;
+        return FulfillmentStatus.SHIPPED.name().equals(order.getFulfillmentStatus())
+                || FulfillmentStatus.COMPLETED.name().equals(order.getFulfillmentStatus());
     }
 
-    /** 已产生收款：新行按累计实收/结清状态；历史行按旧字段（代际判定） */
+    /** 已产生收款（仅已迁移行，按快照） */
     public boolean hasReceivedMoney(Order order) {
-        if (isMigrated(order)) {
-            return gross(order).compareTo(BigDecimal.ZERO) > 0
-                    || CollectionStatus.SETTLED.name().equals(order.getCollectionStatus());
-        }
-        return nz(order.getPaidAmount()).compareTo(BigDecimal.ZERO) > 0
-                || order.getPaymentStatus() != null && (order.getPaymentStatus() == 1 || order.getPaymentStatus() == 2);
+        if (!isMigrated(order)) return false;
+        return gross(order).compareTo(BigDecimal.ZERO) > 0
+                || CollectionStatus.SETTLED.name().equals(order.getCollectionStatus());
     }
 
-    /** 已结清（按代际判定取新旧字段） */
+    /** 已结清（仅已迁移行） */
     public boolean isSettled(Order order) {
-        if (isMigrated(order)) {
-            return CollectionStatus.SETTLED.name().equals(order.getCollectionStatus());
-        }
-        return order.getPaymentStatus() != null && order.getPaymentStatus() == 2;
+        return isMigrated(order) && CollectionStatus.SETTLED.name().equals(order.getCollectionStatus());
     }
 
     // ==================== 金额公式 ====================
@@ -114,10 +105,7 @@ public class OrderFactsService {
      * 历史未迁移行回退旧 paid_amount，避免迁移前统计成 0。
      */
     public BigDecimal gross(Order order) {
-        if (isMigrated(order)) {
-            return nz(order.getGrossReceivedAmount());
-        }
-        return nz(order.getPaidAmount());
+        return nz(order.getGrossReceivedAmount());
     }
 
     /** 已迁移（新模型行）：collection_status 非空即代表已进入新状态机 */
@@ -130,11 +118,6 @@ public class OrderFactsService {
     }
 
     private BigDecimal salesReturn(Order order) {
-        if (!isMigrated(order)) {
-            // 历史未迁移行：refund_amount 语义不可拆分，销售口径保守按"价值减少"处理，
-            // 与旧行为保持一致（15 号文档 §5.3，人工核对通道负责最终拆分）
-            return nz(order.getRefundAmount());
-        }
         return nz(order.getSalesReturnAmount());
     }
 

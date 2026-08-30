@@ -139,6 +139,10 @@ public class OrderLegacyMigrator {
         List<LegacyOrder> orders = loadOrders(tenantId);
         report.totalOrders = orders.size();
 
+        // 终审三轮 P1-4：写库前记录真实基线（迁移前快照）
+        computeInvariants(tenantId, report);
+        BigDecimal totalBefore = report.sumTotalBefore;
+
         // dry-run 与 execute 使用同一决策
         List<LegacyOrder> toMigrate = new ArrayList<>();
         for (LegacyOrder o : orders) {
@@ -149,6 +153,11 @@ public class OrderLegacyMigrator {
             }
         }
 
+        // 实收基线只统计将迁移的订单（人工核对/跳过订单的 paid_amount 不参与对账）
+        BigDecimal expectedGrossAfter = toMigrate.stream()
+                .map(o -> nz(o.paidAmount))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         if (execute && !toMigrate.isEmpty()) {
             // 单事务：任一订单写失败整体回滚，无部分提交
             txTemplate.executeWithoutResult(status -> {
@@ -156,19 +165,71 @@ public class OrderLegacyMigrator {
                     if (faultInjector != null) {
                         faultInjector.run();
                     }
-                    Decision d = decideOne(o);
                     writeOne(o);
                 }
-                // 事务内重算不变量；不平则抛异常触发回滚
-                computeInvariants(tenantId, report);
-                if (report.sumTotalAfter.compareTo(report.sumTotalBefore) != 0) {
-                    throw new IllegalStateException("金额不变量被破坏（total_amount 总量变化），整体回滚");
-                }
+                // 事务内逐单验证 + 总量校验；任何不平则抛异常触发回滚
+                verifyInvariants(tenantId, toMigrate, totalBefore, expectedGrossAfter, report);
             });
         } else {
             computeInvariants(tenantId, report);
         }
         return report;
+    }
+
+    /**
+     * 事务内不变量验证（终审三轮 P1-4）：
+     * 1. total_amount 总量不变
+     * 2. 实收迁移对账：迁移前 paid_amount 合计 = 迁移后 gross_received_amount 合计
+     * 3. 逐单：MIGRATED 订单的 gross_received == 原 paid_amount、旧 status/payment_status 经适配器投影
+     * 4. 人工核对订单零写入（新字段仍为 NULL）
+     */
+    private void verifyInvariants(Long tenantId, List<LegacyOrder> migratedOrders,
+                                  BigDecimal totalBefore,
+                                  BigDecimal expectedGrossAfter, Report report) {
+        // 1+2: 总量
+        computeInvariants(tenantId, report);
+        if (report.sumTotalAfter.compareTo(totalBefore) != 0) {
+            throw new IllegalStateException("金额不变量被破坏（total_amount 总量变化），整体回滚");
+        }
+        // 3+4: 逐单验证（每单 gross==paid、旧字段投影一致、非空新字段）
+        // 总量对账通过逐单验证累加覆盖（sumGross 可能包含此前已迁移的订单，不能直接与本轮 expected 比较）
+        BigDecimal migratedGrossSum = BigDecimal.ZERO;
+        for (LegacyOrder o : migratedOrders) {
+            verifyOne(o);
+            migratedGrossSum = migratedGrossSum.add(nz(o.paidAmount));
+        }
+        if (migratedGrossSum.compareTo(expectedGrossAfter) != 0) {
+            throw new IllegalStateException("实收迁移对账不平（本轮迁移订单实收合计 != 原 paid 合计），整体回滚");
+        }
+    }
+
+    private void verifyOne(LegacyOrder o) {
+        Map<String, Object> row = jdbc.queryForMap(sql.get("verifyOrder"), o.id, o.tenantId);
+        String fs = (String) row.get("fulfillment_status");
+        String cs = (String) row.get("collection_status");
+        Integer legacyStatus = (Integer) row.get("status");
+        Integer legacyPayment = (Integer) row.get("payment_status");
+        BigDecimal gross = (BigDecimal) row.get("gross_received_amount");
+        BigDecimal originalPaid = nz(o.paidAmount);
+
+        // 新字段必须已写入
+        if (fs == null || cs == null) {
+            throw new IllegalStateException("订单 " + o.id + " 迁移后新字段为空");
+        }
+        // 旧字段经适配器投影一致
+        Integer expectedStatus = compatAdapter.projectLegacyStatus(
+                com.blade.order.enums.FulfillmentStatus.valueOf(fs));
+        Integer expectedPayment = compatAdapter.projectLegacyPaymentStatus(
+                com.blade.order.enums.CollectionStatus.valueOf(cs));
+        if (!expectedStatus.equals(legacyStatus) || !expectedPayment.equals(legacyPayment)) {
+            throw new IllegalStateException("订单 " + o.id + " 旧字段投影不一致 status="
+                    + legacyStatus + "/" + expectedStatus + " payment=" + legacyPayment + "/" + expectedPayment);
+        }
+        // 实收快照 = 原 paid_amount
+        if (gross.compareTo(originalPaid) != 0) {
+            throw new IllegalStateException("订单 " + o.id + " 实收快照不一致 gross="
+                    + gross + " paid=" + originalPaid);
+        }
     }
 
     // ==================== 决策（dry-run 与 execute 共用） ====================

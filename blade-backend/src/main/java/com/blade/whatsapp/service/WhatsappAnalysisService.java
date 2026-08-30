@@ -297,6 +297,10 @@ public class WhatsappAnalysisService {
                 .map(o -> o.getTotalAmount()==null?BigDecimal.ZERO:o.getTotalAmount())
                 .reduce(BigDecimal.ZERO,BigDecimal::add);
         List<Long> orderIds=business.stream().map(Order::getId).toList();
+        if (orderIds.isEmpty()) {
+            return new OrderFacts(count,timestamp(lastAt==null?null:java.sql.Timestamp.valueOf(lastAt)),
+                amountRange(total),List.of());
+        }
         // IN 子句按占位符数量动态生成，取值仍走参数绑定（不拼接值）
         String placeholders=String.join(",",java.util.Collections.nCopies(orderIds.size(),"?"));
         List<Object> args=new ArrayList<>(List.of(tenant));
