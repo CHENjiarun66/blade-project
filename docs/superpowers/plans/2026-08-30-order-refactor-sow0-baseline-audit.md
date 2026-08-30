@@ -2,19 +2,19 @@
 
 > 日期：2026-08-30
 >
-> 工作包：ORDER-SOW-0（CR-0 整改补交）　|　执行 Agent：ZCode（实现 Agent）　|　审核：Codex CR-0
+> 工作包：ORDER-SOW-0（CR-0 二轮整改）　|　执行 Agent：ZCode（实现 Agent）　|　审核：Codex CR-0
 >
 > 本报告为只读审计产出。补交过程未修改任何源文件、未运行任何 migration、未连接 NAS/生产。
 >
-> **本文档是 ZCode 与 Codex 的沟通媒介（CR-0 循环）**：ZCode 的整改说明、设计与待确认事项写入第十二至十七节；Codex 的审核结论以新增章节追加（参考第十一节格式）。
+> **本文档是 ZCode 与 Codex 的沟通媒介（CR-0 循环）**：ZCode 的整改说明、设计与待确认事项写入第十二至十七节；Codex 的审核结论以新增章节追加（参考第十一、十八节格式）。
 
 ## 交付头（按执行看板第六节格式，P2 矛盾已修正）
 
 ```text
-工作包：ORDER-SOW-0（CR-0 整改补交）
+工作包：ORDER-SOW-0（CR-0 二轮整改，按 18.1/18.2 修正 §13~§15 与第十七节）
 执行 Agent：ZCode
-基线 commit：47d0aa588b6eb9035443e3f0cd9905b28dea49cb（feature/order-lifecycle-finance-refactor，与 origin 同名分支同步 0/0）
-工作目录：/Users/chenjiarun/Documents/BladeProject-worktrees/order-lifecycle-finance-refactor（独立 worktree，补交前干净）
+基线 commit：4cfdb7c（feature/order-lifecycle-finance-refactor 二轮复审基线 9282013 之上的 Codex 复审提交，与 origin 同步）
+工作目录：/Users/chenjiarun/Documents/BladeProject-worktrees/order-lifecycle-finance-refactor（独立 worktree，整改前干净）
 交付 commit：见第十六节提交记录（报告先提交，交付 commit 以推送后 feature 分支 tip 为准）
 阅读文档：执行看板、ROM/SOW、14/15 设计文档、03-TASKS Phase 3.4、AGENT_COLLABORATION、GIT_BRANCH_WORKFLOW、SESSION_CONTEXT、06-ORDER_INVENTORY_DESIGN
 修改文件：仅本报告文档（源代码零修改）
@@ -196,12 +196,12 @@ Agent读取: AgentAnalyticsController → AgentStyleTrendService/AgentSkuMixServ
 | SOW | 文件（含本轮新增项 ⭐） |
 |---|---|
 | SOW-1 | 新增 `V51__order_lifecycle_finance.sql`、`V52__order_action_permission.sql`；改 `order/entity/Order.java`；新增 `OrderFinancialRecord`/`OrderStateTransitionLog` 实体+Mapper+枚举；schema 测试 |
-| SOW-2 | 重构 `OrderServiceImpl`（拆统一状态机 `OrderActionService` + 财务快照服务）、`OrderDraftService.confirm`（首笔 RECEIPT）、`OrderController`/draft controller 加动作权限、删除 `updateStatus`；`order/**` 测试适配 |
-| SOW-3 | `OrderDeliveryPlanServiceImpl`（状态前置+收敛）、`OrderDeliveryServiceImpl`、`InventoryServiceImpl.outByPlan` 对接、⭐ `InventoryController.out-by-plan` 收口（403 或移除路由）、占位拆分服务（BE-610~612）、测试 |
-| SOW-4 | `blade-admin/views/orders/{index,detail,quick,drafts}.vue`、⭐ `new.vue`（数字 paymentStatus 提交改造）、`api/order.ts`、`api/orderDraft.ts`、⭐ `api/customer.ts` + `views/customers/detail.vue`（数字状态消费改造）、`packages/types/src/order.ts`、`OrderExportDTO` 扩列、Playwright |
-| SOW-5 | `DashboardServiceImpl`、`AnalyticsServiceImpl`、`CustomerServiceImpl`、⭐ `WhatsappAnalysisService.orderFacts/contextStamp`（已锁定归 SOW-5）、Agent 事实消费、新增统一版本化订单事实服务、偏好缓存失效钩子 |
-| SOW-6 | `blade-mobile/views/order/*`、`blade-mobile/src/types/order.ts`（`@blade/types` 转出已确认单一来源） |
-| SOW-7 | 只读审计/受控迁移工具包（不进 Flyway）、V42 副本预演脚本、逐单映射快照 |
+| SOW-2 | 重构 `OrderServiceImpl`（拆统一状态机 `OrderActionService` + 财务快照服务，**含 `refundPayment`/`reverseFinancialRecord` 真实动作**）、`OrderCompatAdapter`、`OrderDraftService.confirm`（首笔 RECEIPT）、`OrderController`/draft controller 加动作权限、删除 `updateStatus`；`order/**` 测试适配 |
+| SOW-3 | `OrderDeliveryPlanServiceImpl`（状态前置+收敛）、`OrderDeliveryServiceImpl`、`InventoryServiceImpl.outByPlan` 对接、⭐ `InventoryController.out-by-plan` 收口（403 或移除路由）、占位拆分服务（BE-610~612）、出库单号生成与配货查询全表加载优化（18.2-7）、测试 |
+| SOW-4 | `blade-admin/views/orders/{index,detail,quick,drafts}.vue`、⭐ `new.vue`（数字 paymentStatus 提交改造）、`api/order.ts`、`api/orderDraft.ts`、⭐ `api/customer.ts` + `views/customers/detail.vue`（数字状态消费改造）、`packages/types/src/order.ts`、`OrderExportDTO` 扩列（含导出上限优化，18.2-7）、Playwright |
+| SOW-5 | `DashboardServiceImpl`、`AnalyticsServiceImpl`、`CustomerServiceImpl`、⭐ `WhatsappAnalysisService.orderFacts/contextStamp`（已锁定归 SOW-5）、Agent 事实消费、新增统一版本化订单事实服务、偏好缓存失效钩子、SALES 数据范围过滤与字段裁剪后端强制（18.2-5） |
+| SOW-6 | `blade-mobile/views/order/*`、`blade-mobile/src/types/order.ts`（`@blade/types` 转出已确认单一来源）；不引入新测试框架，兼容与动作拒绝由后端契约测试覆盖（18.2-6） |
+| SOW-7 | 只读审计 + **离线受控迁移工具**（默认 dry-run、维护窗口命令执行、输出审计文件、不设应用端点、不进 Flyway，见 14.4）、V42 副本预演脚本、逐单映射快照 |
 
 ## 八、风险与事实差异
 
@@ -217,7 +217,7 @@ Agent读取: AgentAnalyticsController → AgentStyleTrendService/AgentSkuMixServ
 | R8 | 租户 null 回退 1 | 已锁定：新服务显式拒绝 | SOW-1/2 落地 |
 | R9 | 客户偏好缓存无失效钩子 | 1h 内统计过期 | SOW-5 |
 | R10 | 全部订单/配货/出库/库存端点无动作级权限（§六） | 仅前端展示过滤 | SOW-2（订单动作）+ SOW-4（V52 配套） |
-| R11 | 出库单号 `Math.random()` 碰撞；导出 10000 截断；配货全表加载 | **按已锁定决策 8 不入 SOW-1/SOW-2**；建议归属：单号与全表加载→SOW-3，导出上限→SOW-4（见第十七节确认项） | SOW-3 / SOW-4 |
+| R11 | 出库单号 `Math.random()` 碰撞；导出 10000 截断；配货全表加载 | **归属已裁定（18.2-7）**：单号与全表加载→SOW-3，导出上限→SOW-4；不入 SOW-1/SOW-2 | SOW-3 / SOW-4 |
 | R12 | 旧 status=7/8 退货语义 | 已锁定：不自动迁移，进人工核对 | SOW-7 |
 | R13 | `out-by-plan` 关闭桩质量问题 | 端点仍公开、解析 DTO、RuntimeException 落 500、无 @PreAuthorize | SOW-3 收口（§2.1 方案） |
 
@@ -323,8 +323,14 @@ Z Code 下一轮仍只执行 `ORDER-SOW-0`，不得开始 SOW-1。补交时必�
 ALTER TABLE sale_order
   ADD INDEX idx_so_tenant_fulfillment (tenant_id, fulfillment_status),
   ADD INDEX idx_so_tenant_collection (tenant_id, collection_status),
-  ADD INDEX idx_so_tenant_settled    (tenant_id, settled_at);
+  ADD INDEX idx_so_tenant_settled    (tenant_id, settled_at),
+  ADD CONSTRAINT chk_so_snapshots_nonnegative CHECK (
+    gross_received_amount >= 0 AND cash_refund_amount >= 0 AND sales_return_amount >= 0
+    AND net_received_amount >= 0 AND balance_amount >= 0 AND write_off_amount >= 0
+  );
 ```
+
+快照非负采用**数据库 CHECK 约束 + 领域服务单语句更新**双保险（MySQL 8.0.16+ 强制执行；NAS 为 MySQL 8，可用）：统一财务快照服务每次重算必须在**单条 UPDATE** 内同时写出全部快照列，避免中间态触发约束回滚；任何绕过快照服务的局部更新都会被 CHECK 拒绝，这正是期望的防线。
 
 ### 13.2 新表 `order_financial_record`（只追加，不修改不物理删除）
 
@@ -341,18 +347,30 @@ CREATE TABLE order_financial_record (
   operator_name      VARCHAR(64)  NULL,
   reason             VARCHAR(255) NULL COMMENT '核销/退款/冲销原因',
   source             VARCHAR(24)  NOT NULL COMMENT 'PC/MOBILE/AGENT/MIGRATION',
-  idempotency_key    VARCHAR(64)  NULL COMMENT '外部请求幂等键',
-  reversed_record_id BIGINT UNSIGNED NULL COMMENT 'REVERSAL 指向被冲销流水',
-  deleted            TINYINT      NOT NULL DEFAULT 0,
+  idempotency_key    VARCHAR(64)  NULL COMMENT '外部请求幂等键（按租户全局唯一）',
+  reversed_record_id BIGINT UNSIGNED NULL COMMENT '仅 REVERSAL 可填写，指向被冲销流水',
+  deleted            TINYINT      NOT NULL DEFAULT 0 COMMENT '仅满足项目字段规范；实体与服务不提供更新/软删/物理删除能力（18.2-9）',
   create_time        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   update_time        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   KEY idx_ofr_tenant_order     (tenant_id, order_id, occurred_at),
   KEY idx_ofr_tenant_type_time (tenant_id, record_type, occurred_at),
-  UNIQUE KEY uk_ofr_idempotency (tenant_id, idempotency_key)
+  UNIQUE KEY uk_ofr_idempotency (tenant_id, idempotency_key),
+  UNIQUE KEY uk_ofr_reversal    (tenant_id, reversed_record_id),
+  CONSTRAINT chk_ofr_amount_positive CHECK (amount > 0),
+  CONSTRAINT chk_ofr_reversal_shape CHECK (
+    (record_type = 'REVERSAL' AND reversed_record_id IS NOT NULL)
+    OR (record_type <> 'REVERSAL' AND reversed_record_id IS NULL)
+  )
 ) COMMENT='订单财务流水';
 ```
 
-约束说明：`amount > 0`（CHECK 与服务层双重）；`uk_ofr_idempotency` 依赖 MySQL 唯一索引多 NULL 特性——无幂等键的本地请求不冲突，携带键的 Agent/外部请求天然幂等；`REVERSAL` 冲销约束 = 服务层事务内 `SELECT ... FOR UPDATE` 原流水 + 校验 `amount` 相等 + "同一原流水只能被冲销一次"（原流水存在有效 REVERSAL 指向即拒绝），不建 DB 触发器。
+约束说明（对应 18.1 P0-1/P0-2 与 18.2-9/10）：
+
+- **并发冲销数据库级防护**：`uk_ofr_reversal (tenant_id, reversed_record_id)` 使同一原流水在数据库层最多被一条 `REVERSAL` 指向，两个并发事务同时冲销同一流水时后者必然唯一键冲突回滚；服务层仍保留事务内 `SELECT ... FOR UPDATE` + `amount` 相等校验 + 拒绝冲销 `REVERSAL` 类型流水，测试矩阵含并发双冲销用例。
+- **列形态约束**：`chk_ofr_reversal_shape` 保证仅 `REVERSAL` 填写 `reversed_record_id`，其余类型必须为 NULL。
+- **金额约束**：`chk_ofr_amount_positive` 落库执行 `amount > 0`，与服务层校验双重。
+- **幂等**：`uk_ofr_idempotency (tenant_id, idempotency_key)` 承接幂等键（MySQL 唯一索引多 NULL 特性：无键的本地请求不冲突）；调用方必须使用不可复用的请求标识（18.2-10）。
+- **不可变**：`deleted`/`update_time` 仅为项目字段规范保留；实体与服务不提供更新、软删或物理删除能力，查询不得通过 `deleted` 隐藏历史流水，纠错只能追加 `REVERSAL`（18.2-9）。
 
 ### 13.3 新表 `order_state_transition_log`（只追加）
 
@@ -361,7 +379,7 @@ CREATE TABLE order_state_transition_log (
   id                     BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id              BIGINT      NOT NULL,
   order_id               BIGINT      NOT NULL,
-  action                 VARCHAR(48) NOT NULL COMMENT 'confirmDraft/recordPayment/settleWithWriteOff/chooseFulfillmentMode/startAllocation/confirmAllocation/shipOrder/completeOrder/cancelOrder/migrate',
+  action                 VARCHAR(48) NOT NULL COMMENT 'confirmDraft/recordPayment/settleWithWriteOff/refundPayment/reverseFinancialRecord/chooseFulfillmentMode/startAllocation/confirmAllocation/shipOrder/completeOrder/cancelOrder/migrate',
   from_fulfillment_status VARCHAR(32) NULL,
   to_fulfillment_status   VARCHAR(32) NULL,
   from_collection_status  VARCHAR(16) NULL,
@@ -372,12 +390,15 @@ CREATE TABLE order_state_transition_log (
   operator_name          VARCHAR(64) NULL,
   source                 VARCHAR(24) NOT NULL,
   reason                 VARCHAR(255) NULL,
-  idempotency_key        VARCHAR(64) NULL,
+  idempotency_key        VARCHAR(64) NULL COMMENT '按租户全局唯一（18.2-10）',
   occurred_at            DATETIME(3) NOT NULL,
   create_time            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  KEY idx_ostl_tenant_order (tenant_id, order_id, occurred_at)
+  KEY idx_ostl_tenant_order (tenant_id, order_id, occurred_at),
+  UNIQUE KEY uk_ostl_idempotency (tenant_id, idempotency_key)
 ) COMMENT='订单状态流转日志';
 ```
+
+状态动作幂等由 `uk_ostl_idempotency` 数据库唯一约束承接（18.2-10）：动作服务先查后写的乐观路径之外，并发重复请求由唯一键兜底回滚；无幂等键的本地 JWT 请求不冲突。
 
 ### 13.4 外键与租户策略
 
@@ -393,39 +414,60 @@ CREATE TABLE order_state_transition_log (
 |---|---|---|
 | `btn:order:recordPayment` | 确认收款 | `POST /orders/confirm-payment`、`POST /orders/{id}/add-payment`（普通收款分支） |
 | `btn:order:writeOff` | 短款核销/标记结清 | `add-payment`（markAsSettled 分支，与收款权限分离校验） |
-| `btn:order:refund` | 现金退款 | 退款端点（首发预留：权限与端点上线，业务无退款流水时不可触发） |
-| `btn:order:reverse` | 冲销财务流水 | 冲销端点 |
+| `btn:order:refund` | 现金退款 | 退款端点（SOW-2 实现真实可用的 `refundPayment` 动作；`REFUND` 仅表示现金流出，与销售退货/售后严格分离，销售退货仍后置） |
+| `btn:order:reverse` | 冲销财务流水 | 冲销端点（SOW-2 实现真实可用的 `reverseFinancialRecord` 动作） |
 | `btn:order:chooseFulfillment` | 履约方式选择 | `POST /orders/{id}/fulfillment-mode`（新端点） |
+| `btn:order:allocate` | **配货计划管理（新增，独立于 edit）** | `/orders/{id}/delivery-plan` 四端点 + confirm/cancel-adjustment；仓管因此获得配货能力而不获得订单通用编辑权 |
 | `btn:order:deliver` | 确认发货（**沿用现有 code，不新增 ship**） | `POST /orders/{id}/deliver`、`/api/order-deliveries/{id}/confirm` |
 | `btn:order:export` | 订单导出 | `GET /orders/export` |
-| `btn:order:viewFinance` | 财务流水与金额明细查看 | 订单详情财务区/流水查询接口读取过滤 |
-| `order:migration:execute` | 历史迁移执行（type=1 独立菜单权限，非按钮） | 迁移工具端点（SOW-7 才接线） |
+| `btn:order:viewFinance` | 财务流水与金额明细查看 | 订单详情财务区/流水查询接口读取过滤（SALES 需叠加数据范围过滤 + 字段裁剪，见 14.2） |
 
-同时给存量端点补动作级校验（对齐 R10）：编辑=`btn:order:edit`、删除=`btn:order:delete`、取消=`btn:order:cancel`（code 已存在，仅补后端 `@PreAuthorize`）；配货四端点挂 `btn:order:edit` 或新增 `btn:order:allocate`（见第十七节确认项）。
+同时给存量端点补动作级校验（对齐 R10）：编辑=`btn:order:edit`、删除=`btn:order:delete`、取消=`btn:order:cancel`（code 已存在，仅补后端 `@PreAuthorize`）。**不新增任何迁移权限或迁移端点**：历史迁移工具不进入 V52、不进入常驻应用（见 14.4）。
 
-### 14.2 角色赋权矩阵（V52 内以 `SELECT ... WHERE role_code IN (...)` 幂等补齐）
+### 14.2 角色赋权矩阵（对应 18.1 P0-4 与 18.2-4/5）
 
-| 权限 | OWNER | FINANCE | SALES | WAREHOUSE | ADMIN |
+| 权限 | OWNER | ADMIN | FINANCE | SALES | WAREHOUSE |
 |---|---|---|---|---|---|
-| recordPayment | ✅ | ✅ | ✅ | — | — |
-| writeOff | ✅ | ✅ | — | — | — |
-| refund | ✅ | ✅ | — | — | — |
-| reverse | ✅ | ✅ | — | — | — |
-| chooseFulfillment | ✅ | — | — | ✅ | — |
-| deliver（存量） | ✅ | — | — | ✅ | — |
-| export | ✅ | ✅ | ✅ | — | — |
-| viewFinance | ✅ | ✅ | ✅（自见口径，待确认） | — | — |
-| migration:execute | ✅ | — | — | — | ✅ |
+| recordPayment | ✅ | ✅ | ✅ | ✅ | — |
+| writeOff | ✅ | ✅ | ✅ | — | — |
+| refund | ✅ | ✅ | ✅ | — | — |
+| reverse | ✅ | ✅ | ✅ | — | — |
+| chooseFulfillment | ✅ | ✅ | — | — | ✅ |
+| allocate（新增） | ✅ | ✅ | — | — | ✅ |
+| deliver（存量） | ✅ | ✅ | — | — | ✅ |
+| export | ✅ | ✅ | ✅ | ✅ | — |
+| viewFinance | ✅ | ✅ | ✅ | ✅（本人数据范围） | — |
 
-说明：SALES 的 `viewFinance` 若与 `field:paid_amount` 字段权限冲突，以字段权限为准做响应裁剪（现状已有 field 机制）；该行赋权与否见第十七节确认项。PURCHASE 不涉订单动作，不赋权。
+赋权 SQL 模板（V52 内执行，规避 V41 曾发生的跨租户关联问题，参照 V42 修复模式）：
 
-### 14.3 兼容适配器（唯一映射点，对应锁定决策 4）
+```sql
+INSERT INTO sys_role_permission (role_id, permission_id, tenant_id, deleted, create_time)
+SELECT r.id, p.id, r.tenant_id, 0, NOW(3)
+FROM sys_role r
+JOIN sys_permission p ON p.code IN ('btn:order:recordPayment', 'btn:order:writeOff', ...)
+WHERE r.role_code IN ('ROLE_OWNER', 'ROLE_ADMIN', ...)  -- 按 14.2 矩阵逐组执行
+  AND r.tenant_id = p.tenant_id          -- 强制同租户 JOIN
+  AND r.deleted = 0 AND p.deleted = 0
+ON DUPLICATE KEY UPDATE role_id = role_id;   -- 幂等
+```
 
-- **类**：`com.blade.order.service.OrderCompatAdapter`（SOW-2 新建，唯一允许出现新旧映射的类；任何其他模块自建映射 = 审核阻断项）。
+- `ROLE_ADMIN` 与 `ROLE_OWNER` 获得全部正常订单动作权限（迁移权限已按 14.4 移除，不存在"超级迁移角色"）。
+- SALES 的 `viewFinance` 按 18.2-5 执行：仅可查看**本人数据范围内**订单的必要收款信息，必须同时通过订单所有权/数据范围过滤（服务端查询条件）与 `field:paid_amount` 等字段权限裁剪；任一条件未实现时后端直接拒绝（403），不允许只靠前端隐藏。SOW-2/SOW-5 需实现并测试这两个过滤条件，二者都落地前该权限不赋给 SALES（V52 中暂不写入该关联，随对应 SOW 的权限迁移补上）。
+- PURCHASE 不涉订单动作，不赋权。
+
+### 14.3 兼容适配器（唯一映射点，对应锁定决策 4 与 18.2-1）
+
+- **类**：`com.blade.order.service.OrderCompatAdapter`（**SOW-2 新建**，唯一允许出现新旧映射的类；任何其他模块自建映射 = 审核阻断项）。
 - **方法**：`Integer legacyStatus(FulfillmentStatus)`、`Integer legacyPaymentStatus(CollectionStatus)`，按执行板 §三固定投影表实现（UNPAID→0/PARTIAL→1/SETTLED→2；CONFIRMED→0/…/CANCELLED→6；`status=7/8` 不参与映射）。
-- **事务接入点**：SOW-2 统一动作服务 `OrderActionService` 的 9 个动作（confirmDraft/recordPayment/settleWithWriteOff/chooseFulfillmentMode/startAllocation/confirmAllocation/shipOrder/completeOrder/cancelOrder）——每个动作先写新字段（`fulfillment_status`/`collection_status`/快照），**同一事务内**调用适配器生成旧投影（`status`/`payment_status`），随后单次 `updateById`；任一步失败整体回滚。
+- **事务接入点**：SOW-2 统一动作服务 `OrderActionService` 的 **11 个动作**（confirmDraft / recordPayment / settleWithWriteOff / **refundPayment** / **reverseFinancialRecord** / chooseFulfillmentMode / startAllocation / confirmAllocation / shipOrder / completeOrder / cancelOrder）——每个动作先写新字段（`fulfillment_status`/`collection_status`/财务流水/快照），**同一事务内**调用适配器生成旧投影（`status`/`payment_status`），随后单次 `updateById`；任一步失败整体回滚。退款与冲销为 SOW-2 首发真实动作：`refundPayment` 增加现金退款流水并重算快照（不动 `sales_return_amount`）；`reverseFinancialRecord` 追加 `REVERSAL` 流水并重算快照；两者同样写状态/财务日志并受幂等约束（18.1 P0-3、18.2-3）。
 - **失败回滚方式**：适配器为纯函数式投影，无独立副作用；事务回滚即新旧字段同时回退，无需补偿动作。旧投影生成失败视为动作失败。
-- **兼容读取**：历史行新字段为 NULL 时，VO 组装允许"仅展示用途"的旧→新反推（同样只存在于适配器，不回写数据库）——见第十七节确认项 1。
+- **兼容读取边界（18.1 P1-6 / 18.2-1）**：历史行新字段为 NULL 时，仅允许 **VO 展示层**做旧→新反推，且响应必须携带显式标记（如 `legacyUnmigrated=true`）。反推结果**严禁**进入：`allowedActions` 计算、统计事实、写入校验、状态机判定、迁移写回。历史行的新字段值只能由 SOW-7 带证据的迁移工具写入。
+
+### 14.4 历史迁移工具形态（对应 18.1 P0-5）
+
+- **不进入 V52，不设任何应用 Controller 端点，不进入常驻应用**。SOW-7 只提供离线、受控、**默认 dry-run** 的迁移工具（独立命令行程序/脚本，与后端应用分离构建）。
+- 执行方式：维护窗口内停写后由运维命令执行；真实写回必须显式传 `--execute` 且仅在 dry-run 审计文件人工确认后；工具输出逐单映射、证据与异常清单审计文件。
+- 工具对空租户上下文显式拒绝（18.2-8），租户由命令参数显式指定。
 
 ## 十五、测试矩阵（P0-3，按 SOW × 场景 × 文件 × 命令）
 
@@ -433,15 +475,18 @@ CREATE TABLE order_state_transition_log (
 
 | SOW | 场景 | 测试文件 | 命令 |
 |---|---|---|---|
-| SOW-1 | V51 列/表/索引/默认值存在且可重复执行 | ⭐ `order/OrderV51SchemaTest` | `mvn -Dtest=OrderV51SchemaTest` + B |
-| SOW-1 | 兼容投影 11 组映射全枚举、非法输入拒绝 | ⭐ `order/OrderCompatAdapterTest` | `mvn -Dtest=OrderCompatAdapterTest` |
-| SOW-1 | 旧应用兼容：实体仅映射新字段，旧字段仍可读写 | ⭐（并入 SchemaTest） | B |
-| SOW-2 | 9 动作状态机：合法转移白名单 + 非法转移拒绝 | ⭐ `order/OrderActionStateMachineTest` | `mvn -Dtest=OrderActionStateMachineTest` |
-| SOW-2 | 金额不变量：快照公式复算、超收拒绝、零金额订单、F10 订单价值三字段 | ⭐ `order/OrderFinanceSnapshotTest` | 定向 + B |
+| SOW-1 | Flyway 连续升级语义：空库 V1→最新 全量成功；既有库 **V50→V51/V52 连续升级**成功（不做"重跑同一版本"的伪验收） | ⭐ `order/OrderV51SchemaTest`（含列/表/索引/默认值/CHECK/唯一键存在性断言） | `mvn -Dtest=OrderV51SchemaTest` + B |
+| SOW-1 | V52 权限种子：新 code 存在、同租户 JOIN 关联正确、无跨租户行（对齐 18.1 P0-4） | ⭐ `order/OrderV52PermissionSchemaTest` | 定向 + B |
+| SOW-2 | 兼容投影 11 组映射全枚举、非法输入拒绝 | ⭐ `order/OrderCompatAdapterTest`（**自 SOW-1 移入**，与 §14.3 SOW-2 边界一致） | `mvn -Dtest=OrderCompatAdapterTest` |
+| SOW-2 | **11 动作**状态机：合法转移白名单 + 非法转移拒绝（含 refundPayment/reverseFinancialRecord） | ⭐ `order/OrderActionStateMachineTest` | `mvn -Dtest=OrderActionStateMachineTest` |
+| SOW-2 | 金额不变量：快照公式复算、超收拒绝、零金额订单、F10 订单价值三字段、退款/冲销后快照重算 | ⭐ `order/OrderFinanceSnapshotTest` | 定向 + B |
+| SOW-2 | 现金退款真实动作：REFUND 流水 → 净实收下降 → 尾款回升；与销售退回语义隔离（18.2-3） | ⭐ 并入 OrderFinanceSnapshotTest + StateMachineTest | 定向 |
 | SOW-2 | 草稿定金 0/部分/足额 → 首笔 RECEIPT + 幂等确认 | ⭐ `order/draft/OrderDraftConfirmFinanceTest`（✏ V48SchemaTest 保留） | 定向 |
-| SOW-2 | 并发收款、重复请求幂等（行锁/版本冲突） | ⭐ `order/OrderPaymentConcurrencyTest` | 定向 |
-| SOW-2 | 跨租户读写拒绝 + null 租户显式拒绝（决策 2） | ⭐ `order/OrderTenantIsolationTest` | 定向 |
-| SOW-2 | `allowedActions` 按状态×权限计算 | ⭐ `order/OrderAllowedActionsTest` | 定向 |
+| SOW-2 | 并发收款、重复请求幂等（行锁/版本/唯一键兜底） | ⭐ `order/OrderPaymentConcurrencyTest` | 定向 |
+| SOW-2 | **并发双冲销**：两事务同时冲销同一流水，仅一条 REVERSAL 成功（对应 18.1 P0-1） | ⭐ `order/OrderReversalConcurrencyTest` | 定向 |
+| SOW-2 | 跨租户读写拒绝 + null 租户显式拒绝（决策 2/18.2-8） | ⭐ `order/OrderTenantIsolationTest` | 定向 |
+| SOW-2 | `allowedActions` 按状态×权限计算；兼容反推值不得参与动作判定（18.2-1） | ⭐ `order/OrderAllowedActionsTest` | 定向 |
+| SOW-2 | 兼容读取标记：历史行 VO 携带 `legacyUnmigrated=true` 且新字段不受污染 | ⭐ 并入 AllowedActions/FinanceSnapshot 测试 | 定向 |
 | SOW-2 | 现有写回测试适配新服务（行为保持） | ✏ `OrderServiceImplWriteOffTest`、`OrderControllerWriteOffTest`、`OrderServiceImplSoftCouplingTest`、`OrderDeliverOrderSoftCouplingTest`、`OrderControllerTest`、`OrderDeliveryPlanServiceImplTest` | B |
 | SOW-3 | 占位 SKU 履约阻断（配货/出库/调整） | ⭐ `order/OrderPlaceholderFulfillmentBlockTest` | 定向 + B |
 | SOW-3 | `RECORD_ONLY` 完成 → 零库存流水 | ⭐ `order/OrderRecordOnlyNoInventoryTest` | 定向 |
@@ -449,9 +494,9 @@ CREATE TABLE order_state_transition_log (
 | SOW-3 | out-by-plan 持续关闭（403/移除） | ✏ `InventoryOutByPlanSoftCouplingTest` | 定向 |
 | SOW-4 | 新状态展示、收款流水 UI、履约选择、allowedActions 按钮矩阵（含 new.vue 数字提交改造） | ⭐ `e2e-order-lifecycle.spec.ts`；✏ `e2e-order-draft.spec.ts`、`order-fullflow.spec.ts` | P + A |
 | SOW-5 | 六消费者（Dashboard/Analytics/Customer/Agent/WhatsApp/导出）同筛选范围一致；9 类样本订单集 | ⭐ `order/OrderFactConsistencyTest`；✏ `DashboardServiceTest`、`AnalyticsServiceTest` | B |
-| SOW-5 | 财务/状态变化后偏好缓存失效 | 并入 FactConsistencyTest | B |
-| SOW-6 | 移动端旧版本读取兼容（新增字段不崩溃）+ 构建通过 | 移动端无测试基建（已核实 package.json 仅 dev/build/preview）；SOW-6 以 `npm run build` + 手动冒烟清单交付，是否补 vitest 见第十七节确认项 6 | `cd blade-mobile && npm run build` |
-| SOW-7 | V42 副本 V42→V50→V51/V52 连续预演、81 单逐单映射、金额/库存不变量、幂等重放 | ⭐ 迁移工具集成测试 `migration/OrderMigrationRehearsalTest`（工具包在 SOW-7 建包） | 定向 + B |
+| SOW-5 | 财务/状态变化后偏好缓存失效；SALES 数据范围过滤 + 字段裁剪后端强制（18.2-5） | 并入 FactConsistencyTest + ⭐ 权限服务测试 | B |
+| SOW-6 | 旧/新 API 兼容与动作拒绝由**后端契约测试**自动覆盖（18.2-6）；移动端仅构建+手工冒烟 | ⭐ 后端契约测试（并入 AllowedActions/StateMachine）；移动端 `npm run build` + 手工冒烟清单 | 定向 + `cd blade-mobile && npm run build` |
+| SOW-7 | 离线迁移工具（默认 dry-run）：V42 副本 V42→V50→V51/V52 连续预演、81 单逐单映射、金额/库存不变量、幂等重放；工具不设应用端点（14.4） | ⭐ 迁移工具集成测试 `migration/OrderMigrationRehearsalTest`（工具包在 SOW-7 独立建包） | 定向 + B |
 
 ## 十六、提交与推送记录（11.3-3/4/5 执行证据）
 
@@ -473,20 +518,44 @@ $ git diff --check
 
 > 提交说明：报告正文与提交元数据无法写入自身 commit 的 SHA，采用两个 [zcode] 提交：① 本报告；② 在第十六节回填报告 commit SHA 与推送确认。Codex 复审以 `git log -1` 的 tip 为交付 commit。
 
-## 十七、复审待确认事项（ZCode → Codex，均不阻塞 CR-0 结论，只需在批准时一并裁定）
+### 16.1 第二轮整改提交记录（对应 18.3-2/3）
 
-1. **兼容读取反推**：历史行新字段 NULL 时，允许"仅展示"的旧→新反推（逻辑限定在 `OrderCompatAdapter`，不回写 DB）是否可行？若不允许，PC/移动端过渡期只能旧字段渲染，新状态列对历史行显示空。
-2. **物理外键**：两张新表按项目惯例不建 FK（§13.4），确认接受。
-3. **`btn:order:refund` 首发形态**：权限+端点上线但无业务触发（无退款流水）是否符合预期；或退款端点推迟到 SOW-2 之外。
-4. **配货端点权限**：`/delivery-plan` 四端点挂存量 `btn:order:edit`，还是新增 `btn:order:allocate`（仓管需要但不应有订单编辑权时需后者）。
-5. **SALES `viewFinance`**：销售查看自己订单的财务明细是否赋权（§14.2 表中标待确认行）；或一律由 `field:paid_amount` 字段权限裁剪。
-6. **移动端测试形态**：blade-mobile 无任何测试基建，SOW-6 交付形态为"构建 + 手动冒烟清单"还是补 vitest 最小基建。
-7. **R11 三小项归属确认**：出库单号生成 + 配货全表加载→SOW-3，导出 10000 上限→SOW-4。
-8. **存量 `TenantLineHandler` null 回退**：新服务显式拒绝已锁定；存量拦截器回退行为是否在本重构内同步收紧（影响所有模块的后台任务路径），还是仅新服务收紧、存量行为另行评估。
+```text
+$ git status --short --branch        # 二轮整改提交前
+## feature/order-lifecycle-finance-refactor...origin/feature/order-lifecycle-finance-refactor
+（仅本报告文档改动）
+
+$ git rev-list --left-right --count HEAD...@{upstream}
+0	0
+
+$ git diff --check
+（无输出，通过）
+
+二轮整改基线：4cfdb7c（Codex 第二轮复审提交）
+报告 commit：<回填于下一提交>
+交付 commit：推送后 feature 分支 tip（Codex 复审以 `git log -1` 为准）
+```
+
+## 十七、原复审待确认事项 —— 已全部由 18.2 裁定关闭
+
+第一版第十七节 8 项确认请求不再待定，按 18.2 逐项闭合如下（正文 §13~§15 已按裁定同步修正，无残留冲突表述）：
+
+| 原 # | 事项 | 裁定（18.2） | 正文落点 |
+|---|---|---|---|
+| 1 | 兼容读取反推 | 允许仅展示回退 + `legacyUnmigrated=true` 标记；严禁进入动作判定/统计/写回/状态机 | §14.3 兼容读取边界 |
+| 2 | 物理外键 | 接受不建 FK | §13.4 |
+| 3 | refund 首发形态 | SOW-2 实现真实可用的退款与冲销动作；REFUND ≠ 销售退货 | §14.1/14.3/§15 |
+| 4 | 配货权限 | 新增独立 `btn:order:allocate`，不借用 edit | §14.1/14.2 |
+| 5 | SALES viewFinance | 本人数据范围 + 所有权过滤 + 字段裁剪，任一缺失后端拒绝；两条件落地前 V52 暂不赋权 | §14.2 |
+| 6 | 移动端测试形态 | 构建 + 手工冒烟清单；兼容与动作拒绝由后端契约测试自动覆盖 | §15 SOW-6 行 |
+| 7 | R11 归属 | 单号+全表加载→SOW-3；导出上限→SOW-4 | §7/§8 R11 |
+| 8 | 存量租户回退 | 仅新订单动作服务、财务服务和迁移工具显式拒绝；存量 `TenantLineHandler` 另立安全任务 | §14.4/§15 |
+
+无新增待确认事项。
 
 ---
 
-> 本报告为 CR-0 整改补交，交付 commit 见第十六节。在 Codex 将结论改为 `CODEX_APPROVED` 前，实现 Agent 不开始 SOW-1，不创建任何 migration 文件，不编写业务代码。
+> 本报告为 CR-0 二轮整改补交（按 18.1/18.2 修正 §13~§15 与第十七节），交付 commit 见第十六节 16.1。在 Codex 将结论改为 `CODEX_APPROVED` 前，实现 Agent 不开始 SOW-1，不创建任何 migration 文件，不编写业务代码。
 
 ---
 
