@@ -13,6 +13,7 @@ import com.blade.order.draft.mapper.OrderDraftMapper;
 import com.blade.order.dto.OrderCreateDTO;
 import com.blade.order.entity.Order;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.service.OrderFinanceSnapshotService;
 import com.blade.order.service.OrderService;
 import com.blade.system.user.entity.User;
 import com.blade.system.user.mapper.UserMapper;
@@ -37,6 +38,7 @@ public class OrderDraftService {
     private final OrderDraftItemMapper itemMapper;
     private final OrderDraftWriter writer;
     private final OrderService orderService;
+    private final OrderFinanceSnapshotService snapshotService;
     private final OrderMapper orderMapper;
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
@@ -104,8 +106,9 @@ public class OrderDraftService {
         }
 
         OrderCreateDTO create = toOrderCreate(draft, items);
+        create.setPaidAmount(zero(draft.getDeposit()));
         Long orderId = orderService.create(create);
-        applyPaperFinancialSnapshot(orderId, draft);
+        applyPaperTotalOverride(orderId, draft);
 
         draft.setStatus("CONFIRMED");
         draft.setConfirmedOrderId(orderId);
@@ -114,6 +117,22 @@ public class OrderDraftService {
         draft.setWarningAcknowledged(request.isAcknowledgeWarnings() ? 1 : 0);
         draftMapper.updateById(draft);
         return confirmedResponse(draft, false);
+    }
+
+    /**
+     * 纸单金额为准：草稿确认后以人工识别/确认的纸单总额覆盖订单价值三字段，
+     * 再由统一快照服务重算收款快照（定金已在 create 内写为首笔 RECEIPT）。
+     */
+    private void applyPaperTotalOverride(Long orderId, OrderDraft draft) {
+        if (draft.getPaperTotalAmount() == null) {
+            return;
+        }
+        Order order = orderMapper.selectById(orderId);
+        if (order == null) throw BusinessException.of(500, "正式订单创建后无法读取");
+        order.setOriginalAmount(draft.getPaperTotalAmount());
+        order.setTotalAmount(draft.getPaperTotalAmount());
+        order.setGrossProfit(draft.getPaperTotalAmount().subtract(zero(order.getTotalCostAmount())));
+        snapshotService.recalculateAndApply(order);
     }
 
     private OrderCreateDTO toOrderCreate(OrderDraft draft, List<OrderDraftItem> items) {
@@ -144,31 +163,6 @@ public class OrderDraftService {
         }
         dto.setItems(orderItems);
         return dto;
-    }
-
-    private void applyPaperFinancialSnapshot(Long orderId, OrderDraft draft) {
-        Order order = orderMapper.selectById(orderId);
-        if (order == null) throw BusinessException.of(500, "正式订单创建后无法读取");
-        BigDecimal paperTotal = draft.getPaperTotalAmount();
-        if (paperTotal != null) {
-            order.setOriginalAmount(paperTotal);
-            order.setTotalAmount(paperTotal);
-            order.setGrossProfit(paperTotal.subtract(zero(order.getTotalCostAmount())));
-        }
-        BigDecimal receivable = zero(order.getTotalAmount());
-        BigDecimal paid = zero(draft.getDeposit());
-        order.setPaidAmount(paid);
-        if (paid.compareTo(BigDecimal.ZERO) <= 0) {
-            order.setPaymentStatus(0);
-            order.setDepositAmount(BigDecimal.ZERO);
-        } else if (paid.compareTo(receivable) >= 0 && receivable.compareTo(BigDecimal.ZERO) > 0) {
-            order.setPaymentStatus(2);
-            order.setDepositAmount(BigDecimal.ZERO);
-        } else {
-            order.setPaymentStatus(1);
-            order.setDepositAmount(paid);
-        }
-        orderMapper.updateById(order);
     }
 
     private OrderDraftDTO.Summary toSummary(OrderDraft draft) {

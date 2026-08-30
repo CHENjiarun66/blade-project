@@ -16,6 +16,8 @@ import com.blade.order.mapper.OrderAdjustmentLogMapper;
 import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.enums.FulfillmentStatus;
+import com.blade.order.service.OrderActionService;
 import com.blade.order.service.OrderDeliveryPlanService;
 import com.blade.product.entity.ProductColor;
 import com.blade.product.entity.ProductSku;
@@ -49,6 +51,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
     private final OrderItemMapper orderItemMapper;
     private final OrderDeliveryPlanMapper deliveryPlanMapper;
     private final OrderAdjustmentLogMapper adjustmentLogMapper;
+    private final OrderActionService actionService;
     private final ProductSkuMapper productSkuMapper;
     private final ProductMapper productMapper;
     private final ProductColorMapper colorMapper;
@@ -58,19 +61,21 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
 
     @Autowired
     public OrderDeliveryPlanServiceImpl(OrderMapper orderMapper,
-                                        OrderItemMapper orderItemMapper,
-                                        OrderDeliveryPlanMapper deliveryPlanMapper,
-                                        OrderAdjustmentLogMapper adjustmentLogMapper,
-                                        ProductSkuMapper productSkuMapper,
-                                        ProductMapper productMapper,
-                                        ProductColorMapper colorMapper,
-                                        ProductSizeMapper sizeMapper,
-                                        WarehouseMapper warehouseMapper,
-                                        UserMapper userMapper) {
+                                       OrderItemMapper orderItemMapper,
+                                       OrderDeliveryPlanMapper deliveryPlanMapper,
+                                       OrderAdjustmentLogMapper adjustmentLogMapper,
+                                       OrderActionService actionService,
+                                       ProductSkuMapper productSkuMapper,
+                                       ProductMapper productMapper,
+                                       ProductColorMapper colorMapper,
+                                       ProductSizeMapper sizeMapper,
+                                       WarehouseMapper warehouseMapper,
+                                       UserMapper userMapper) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.deliveryPlanMapper = deliveryPlanMapper;
         this.adjustmentLogMapper = adjustmentLogMapper;
+        this.actionService = actionService;
         this.productSkuMapper = productSkuMapper;
         this.productMapper = productMapper;
         this.colorMapper = colorMapper;
@@ -86,6 +91,10 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+
+        // 状态前置：经统一动作服务校验（STOCK_LINKED + 待配货）并进入配货中；
+        // 失败（含历史未迁移订单）整体回滚
+        actionService.startAllocation(orderId, "PC");
 
         // 检查是否已有配货计划
         LambdaQueryWrapper<OrderDeliveryPlan> existingWrapper = new LambdaQueryWrapper<>();
@@ -127,12 +136,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
             deliveryPlanMapper.insert(plan);
         }
 
-        // 更新订单状态为 ADJUSTMENT_PENDING (2) 和调整状态为 PENDING
-        LambdaUpdateWrapper<Order> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.eq(Order::getId, orderId)
-                .set(Order::getStatus, 2)  // ADJUSTMENT_PENDING
-                .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.PENDING);
-        orderMapper.update(null, updateWrapper);
+        // 订单状态已由 startAllocation 动作推进到 ALLOCATING（调整状态由动作维护）
 
         return getDeliveryPlanByOrderId(orderId);
     }
@@ -144,6 +148,8 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+        // 状态前置：只有配货中的订单可以调整方案
+        requireAllocating(order);
 
         // 删除旧的配货计划
         LambdaQueryWrapper<OrderDeliveryPlan> wrapper = new LambdaQueryWrapper<>();
@@ -266,17 +272,28 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
     @Override
     @Transactional
     public void deleteDeliveryPlan(Long orderId) {
+        Order order = orderMapper.selectById(orderId);
+        if (order == null) {
+            throw new RuntimeException("订单不存在");
+        }
         // 删除配货计划
         LambdaQueryWrapper<OrderDeliveryPlan> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderDeliveryPlan::getOrderId, orderId);
         deliveryPlanMapper.delete(wrapper);
 
-        // 重置订单状态为 PAID (1) 和调整状态为 NONE
-        LambdaUpdateWrapper<Order> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.eq(Order::getId, orderId)
-                .set(Order::getStatus, 1)  // PAID
-                .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.NONE);
-        orderMapper.update(null, updateWrapper);
+        // 新行：只有配货中的订单可以删除计划，经动作服务回到待配货；
+        // 不会把已发货/已完成订单拉回旧状态
+        if (order.getFulfillmentStatus() != null) {
+            actionService.revertAllocationToWaiting(orderId, "PC");
+        } else {
+            // 历史未迁移行保持旧语义（带前置校验）
+            requireLegacyAllocating(order);
+            LambdaUpdateWrapper<Order> updateWrapper = new LambdaUpdateWrapper<>();
+            updateWrapper.eq(Order::getId, orderId)
+                    .set(Order::getStatus, 1)  // PAID
+                    .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.NONE);
+            orderMapper.update(null, updateWrapper);
+        }
     }
 
     @Override
@@ -355,12 +372,17 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
             }
         }
 
-        // 更新订单状态为 READY_TO_SHIP (3) 和调整状态为 APPROVED
-        LambdaUpdateWrapper<Order> wrapper = new LambdaUpdateWrapper<>();
-        wrapper.eq(Order::getId, orderId)
-                .set(Order::getStatus, 3)  // READY_TO_SHIP
-                .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.APPROVED);
-        orderMapper.update(null, wrapper);
+        // 新行：经统一动作服务推进 配货中 → 待发货；历史行带前置校验保持旧语义
+        if (order.getFulfillmentStatus() != null) {
+            actionService.confirmAllocation(orderId, "PC");
+        } else {
+            requireLegacyAllocating(order);
+            LambdaUpdateWrapper<Order> wrapper = new LambdaUpdateWrapper<>();
+            wrapper.eq(Order::getId, orderId)
+                    .set(Order::getStatus, 3)  // READY_TO_SHIP
+                    .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.APPROVED);
+            orderMapper.update(null, wrapper);
+        }
 
         // 更新配货计划状态为 ALLOCATED
         LambdaUpdateWrapper<OrderDeliveryPlan> planWrapper = new LambdaUpdateWrapper<>();
@@ -387,12 +409,32 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         logWrapper.eq(OrderAdjustmentLog::getOrderId, orderId);
         adjustmentLogMapper.delete(logWrapper);
 
-        // 重置订单状态为 PAID (1) 和调整状态为 NONE
-        LambdaUpdateWrapper<Order> orderUpdateWrapper = new LambdaUpdateWrapper<>();
-        orderUpdateWrapper.eq(Order::getId, orderId)
-                .set(Order::getStatus, 1)  // PAID
-                .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.NONE);
-        orderMapper.update(null, orderUpdateWrapper);
+        // 新行：经动作服务回到待配货；历史行带前置校验保持旧语义
+        if (order.getFulfillmentStatus() != null) {
+            actionService.revertAllocationToWaiting(orderId, "PC");
+        } else {
+            requireLegacyAllocating(order);
+            LambdaUpdateWrapper<Order> orderUpdateWrapper = new LambdaUpdateWrapper<>();
+            orderUpdateWrapper.eq(Order::getId, orderId)
+                    .set(Order::getStatus, 1)  // PAID
+                    .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.NONE);
+            orderMapper.update(null, orderUpdateWrapper);
+        }
+    }
+
+    /** 新行状态前置：只有配货中的订单可以调整/删除方案。 */
+    private void requireAllocating(Order order) {
+        if (order.getFulfillmentStatus() == null
+                || !FulfillmentStatus.ALLOCATING.name().equals(order.getFulfillmentStatus())) {
+            throw new RuntimeException("只有配货中的订单可以调整配货方案");
+        }
+    }
+
+    /** 历史行旧语义前置：只有配货中（status=2）的订单可以确认/取消调整。 */
+    private void requireLegacyAllocating(Order order) {
+        if (order.getStatus() == null || order.getStatus() != 2) {
+            throw new RuntimeException("只有配货中的订单可以执行该操作");
+        }
     }
 
     @Override

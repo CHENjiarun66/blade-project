@@ -104,9 +104,17 @@ class OrderControllerTest {
     }
 
     /**
-     * 当前订单状态机要求：已付款订单先生成配货计划，确认调整后进入待发货，才能执行发货。
+     * 当前订单状态机要求：已结清订单先选择"关联库存"履约方式，再生成配货计划，
+     * 确认调整后进入待发货，才能执行发货。
      */
     private void prepareOrderForDelivery(Long orderId) throws Exception {
+        mockMvc.perform(post("/api/orders/" + orderId + "/fulfillment-mode")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"mode\": \"STOCK_LINKED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
         mockMvc.perform(post("/api/orders/" + orderId + "/delivery-plan")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
@@ -417,11 +425,11 @@ class OrderControllerTest {
 
     @Test
     void testDeleteNonexistentOrder() throws Exception {
-        // 删除不存在的订单返回200（幂等操作）
+        // 删除不存在的订单返回业务错误（新语义：严格校验订单存在性）
         mockMvc.perform(delete("/api/orders/99999")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     // ========== 订单状态流转测试 ==========
@@ -484,12 +492,13 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // 验证订单状态已更新（状态=1）
+        // 验证收款已入账（新模型：履约状态保持已确认，收款状态变为已结清）
         mockMvc.perform(get("/api/orders/" + orderId)
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value(1))
-                .andExpect(jsonPath("$.data.statusName").value("已付款"))
+                .andExpect(jsonPath("$.data.status").value(0))
+                .andExpect(jsonPath("$.data.paymentStatus").value(2))
+                .andExpect(jsonPath("$.data.collectionStatus").value("SETTLED"))
                 .andExpect(jsonPath("$.data.paidAmount").value(199.00))
                 .andExpect(jsonPath("$.data.payTime").isString());
 
@@ -578,11 +587,13 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        // 验证订单已锁定（状态=1）
+        // 验证收款已入账（新模型：收款状态驱动，履约状态保持已确认）
         mockMvc.perform(get("/api/orders/" + orderId)
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value(1));
+                .andExpect(jsonPath("$.data.status").value(0))
+                .andExpect(jsonPath("$.data.paymentStatus").value(2))
+                .andExpect(jsonPath("$.data.collectionStatus").value("SETTLED"));
 
         // 3. 取消订单（应释放库存）
         String cancelJson = """
@@ -690,7 +701,7 @@ class OrderControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(paymentJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(400));
+                .andExpect(jsonPath("$.code").value(404));
     }
 
     /**
@@ -701,7 +712,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders/99999/deliver")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(400));
+                .andExpect(jsonPath("$.code").value(404));
     }
 
     /**
@@ -712,7 +723,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders/99999/complete")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(400));
+                .andExpect(jsonPath("$.code").value(404));
     }
 
     /**
@@ -731,7 +742,7 @@ class OrderControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(cancelJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(400));
+                .andExpect(jsonPath("$.code").value(404));
     }
 
     /**

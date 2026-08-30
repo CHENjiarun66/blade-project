@@ -1,76 +1,74 @@
 package com.blade.order;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.core.toolkit.GlobalConfigUtils;
 import com.blade.common.tenant.TenantContext;
-import com.blade.file.service.FileService;
-import com.blade.inventory.mapper.WarehouseMapper;
 import com.blade.inventory.service.InventoryService;
 import com.blade.order.dto.AddPaymentDTO;
-import com.blade.order.dto.OrderExportDTO;
-import com.blade.order.dto.OrderVO;
 import com.blade.order.entity.Order;
+import com.blade.order.entity.OrderFinancialRecord;
+import com.blade.order.enums.CollectionStatus;
+import com.blade.order.enums.FulfillmentStatus;
+import com.blade.order.enums.FinancialRecordType;
+import com.blade.order.mapper.OrderAdjustmentLogMapper;
 import com.blade.order.mapper.OrderDeliveryPlanMapper;
-import com.blade.order.mapper.OrderItemMapper;
+import com.blade.order.mapper.OrderFinancialRecordMapper;
 import com.blade.order.mapper.OrderMapper;
-import com.blade.order.service.impl.OrderServiceImpl;
-import com.blade.product.mapper.ProductColorMapper;
-import com.blade.product.mapper.ProductMapper;
-import com.blade.product.mapper.ProductSizeMapper;
-import com.blade.product.mapper.ProductSkuMapper;
-import com.blade.system.user.mapper.UserMapper;
+import com.blade.order.mapper.OrderStateTransitionLogMapper;
+import com.blade.order.service.OrderActionService;
+import com.blade.order.service.OrderCompatAdapter;
+import com.blade.order.service.OrderFinanceSnapshotService;
+import com.blade.system.user.entity.User;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.redisson.api.RedissonClient;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
- * SOW-3 / BE-124 &amp; BE-140: Write-off settlement and unified financial formulas.
+ * 短款核销结清、统一金额快照与冲销守卫——针对统一动作服务与真实快照服务的
+ * 金额不变量单测（原 OrderServiceImpl 写回测试迁移至新架构，语义保持）。
+ * 流水存储用内存列表模拟，快照公式按真实实现复算。
  * Runs without Spring context, MySQL, Redis, or Docker.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class OrderServiceImplWriteOffTest {
 
-    @Mock private OrderMapper orderMapper;
-    @Mock private OrderItemMapper orderItemMapper;
-    @Mock private OrderDeliveryPlanMapper deliveryPlanMapper;
-    @Mock private ProductSkuMapper productSkuMapper;
-    @Mock private ProductColorMapper productColorMapper;
-    @Mock private ProductSizeMapper productSizeMapper;
-    @Mock private ProductMapper productMapper;
-    @Mock private InventoryService inventoryService;
-    @Mock private UserMapper userMapper;
-    @Mock private WarehouseMapper warehouseMapper;
-    @Mock private RedissonClient redissonClient;
-    @Mock private FileService fileService;
-
-    @InjectMocks
-    private OrderServiceImpl orderService;
-
     private static final Long TENANT_ID = 1L;
+
+    @Mock private OrderMapper orderMapper;
+    @Mock private OrderFinancialRecordMapper financialRecordMapper;
+    @Mock private OrderStateTransitionLogMapper transitionLogMapper;
+    @Mock private OrderDeliveryPlanMapper deliveryPlanMapper;
+    @Mock private OrderAdjustmentLogMapper adjustmentLogMapper;
+    @Mock private InventoryService inventoryService;
+
+    private OrderActionService actionService;
+    private OrderFinanceSnapshotService snapshotService;
+
+    /** 内存流水存储，真实快照服务从中聚合 */
+    private List<OrderFinancialRecord> records;
 
     @BeforeAll
     static void initMyBatisPlusMetadata() {
@@ -78,16 +76,35 @@ class OrderServiceImplWriteOffTest {
         GlobalConfigUtils.setGlobalConfig(configuration, GlobalConfigUtils.defaults());
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
         TableInfoHelper.initTableInfo(assistant, Order.class);
+        TableInfoHelper.initTableInfo(assistant, OrderFinancialRecord.class);
     }
 
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(TENANT_ID);
+        User principal = new User();
+        principal.setId(9L);
+        principal.setNickname("测试员");
         SecurityContext securityContext = mock(SecurityContext.class);
         Authentication authentication = mock(Authentication.class);
         lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
-        lenient().when(authentication.getPrincipal()).thenReturn(null);
+        lenient().when(authentication.getPrincipal()).thenReturn(principal);
         SecurityContextHolder.setContext(securityContext);
+
+        records = new ArrayList<>();
+        lenient().when(financialRecordMapper.insert(any(OrderFinancialRecord.class)))
+                .thenAnswer(inv -> {
+                    records.add(inv.getArgument(0));
+                    return 1;
+                });
+        lenient().when(financialRecordMapper.selectList(any()))
+                .thenAnswer(inv -> new ArrayList<>(records));
+
+        snapshotService = new OrderFinanceSnapshotService(orderMapper, financialRecordMapper,
+                new OrderCompatAdapter());
+        actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
+                deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
+                inventoryService);
     }
 
     @AfterEach
@@ -96,535 +113,325 @@ class OrderServiceImplWriteOffTest {
         SecurityContextHolder.clearContext();
     }
 
-    /** Creates a basic order with default financial fields. */
-    private Order stubOrder(Long id, int status) {
+    /** 已迁移订单 + 一笔期初收款，快照字段与流水一致。 */
+    private Order migratedOrder(Long id, BigDecimal total, BigDecimal initialReceipt) {
         Order order = new Order();
         order.setId(id);
-        order.setStatus(status);
-        order.setTotalAmount(new BigDecimal("100.00"));
-        order.setPaidAmount(BigDecimal.ZERO);
-        order.setRefundAmount(BigDecimal.ZERO);
-        order.setWriteOffAmount(BigDecimal.ZERO);
-        order.setPaymentStatus(0);
         order.setTenantId(TENANT_ID);
-        order.setWarehouseId(1L);
+        order.setStatus(0);
+        order.setFulfillmentStatus(FulfillmentStatus.CONFIRMED.name());
+        order.setFulfillmentMode("UNDECIDED");
+        order.setTotalAmount(total);
+        order.setSalesReturnAmount(BigDecimal.ZERO);
+        order.setRefundAmount(BigDecimal.ZERO);
+        order.setVersion(0);
+        OrderFinancialRecord opening = new OrderFinancialRecord();
+        opening.setId(1000L + id);
+        opening.setTenantId(TENANT_ID);
+        opening.setOrderId(id);
+        opening.setRecordType(FinancialRecordType.RECEIPT.name());
+        opening.setAmount(initialReceipt);
+        opening.setOccurredAt(java.time.LocalDateTime.now());
+        opening.setDeleted(0);
+        records.add(opening);
+        snapshotService.recalculate(order);
         return order;
     }
 
-    /** Captures the Order passed to orderMapper.updateById for assertion. */
-    private Order captureUpdatedOrder() {
-        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
-        verify(orderMapper).updateById(captor.capture());
-        return captor.getValue();
+    /** 历史未迁移行：只有旧字段。 */
+    private Order legacyOrder(Long id, int legacyStatus, BigDecimal paid) {
+        Order order = new Order();
+        order.setId(id);
+        order.setTenantId(TENANT_ID);
+        order.setStatus(legacyStatus);
+        order.setTotalAmount(new BigDecimal("100.00"));
+        order.setRefundAmount(BigDecimal.ZERO);
+        order.setWriteOffAmount(BigDecimal.ZERO);
+        order.setPaidAmount(paid);
+        order.setPaymentStatus(paid.signum() > 0 ? 1 : 0);
+        return order;
     }
 
-    /** Builds a DTO for the new addPayment(Long, AddPaymentDTO) path. */
     private AddPaymentDTO dto(BigDecimal amount, Boolean markAsSettled, String reason) {
-        AddPaymentDTO dto = new AddPaymentDTO();
-        dto.setAdditionalAmount(amount);
-        dto.setMarkAsSettled(markAsSettled);
-        dto.setWriteOffReason(reason);
-        return dto;
+        AddPaymentDTO d = new AddPaymentDTO();
+        d.setAdditionalAmount(amount);
+        d.setMarkAsSettled(markAsSettled);
+        d.setWriteOffReason(reason);
+        return d;
     }
 
-    // ── Normal addPayment via DTO ────────────────────────────────────────
+    // ── 正常收款 ─────────────────────────────────────────────────────
 
     @Test
-    void addPaymentDto_shouldAcceptPositiveAmount() {
-        Order order = stubOrder(1L, 1); // STATUS_PAID
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setPaymentStatus(1);
+    void addPaymentDto_shouldAcceptPositiveAmountAndAccumulate() {
+        Order order = migratedOrder(1L, new BigDecimal("100.00"), new BigDecimal("30.00"));
         when(orderMapper.selectByIdForUpdate(1L, TENANT_ID)).thenReturn(order);
 
-        orderService.addPayment(1L, dto(new BigDecimal("20.00"), false, null));
+        actionService.addPaymentCompat(1L, dto(new BigDecimal("20.00"), false, null));
 
-        Order updated = captureUpdatedOrder();
-        assertEquals(0, new BigDecimal("50.00").compareTo(updated.getPaidAmount()));
-        verifyNoInteractions(inventoryService);
+        assertEquals(0, new BigDecimal("50.00").compareTo(order.getPaidAmount()));
+        assertEquals(CollectionStatus.PARTIAL.name(), order.getCollectionStatus());
+        assertEquals(1, order.getPaymentStatus());
+        verifyNoInventoryTouch();
     }
 
     @Test
     void addPaymentDto_shouldRejectZeroAmountWithoutMarkSettled() {
-        Order order = stubOrder(2L, 1);
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setPaymentStatus(1);
+        Order order = migratedOrder(2L, new BigDecimal("100.00"), new BigDecimal("30.00"));
         when(orderMapper.selectByIdForUpdate(2L, TENANT_ID)).thenReturn(order);
 
         assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(2L, dto(BigDecimal.ZERO, false, null)));
+                actionService.addPaymentCompat(2L, dto(BigDecimal.ZERO, false, null)));
     }
 
     @Test
-    void addPaymentDto_shouldRejectOverNetReceivable() {
-        Order order = stubOrder(3L, 1);
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setPaymentStatus(1);
-        // netReceivable = 100 - 0 - 0 = 100, balance = 70
+    void addPaymentDto_shouldRejectOverBalance() {
+        Order order = migratedOrder(3L, new BigDecimal("100.00"), new BigDecimal("30.00"));
         when(orderMapper.selectByIdForUpdate(3L, TENANT_ID)).thenReturn(order);
 
-        assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(3L, dto(new BigDecimal("80.00"), false, null)));
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                actionService.addPaymentCompat(3L, dto(new BigDecimal("80.00"), false, null)));
+        assertTrue(ex.getMessage().contains("70"));
     }
 
     @Test
-    void addPaymentDto_overNetShouldReportCurrentBalance() {
-        Order order = stubOrder(33L, 1);
-        order.setPaidAmount(new BigDecimal("90.00"));
-        order.setPaymentStatus(1);
-        // balance = 10
+    void addPayment_fullReceipt_reachesSettled() {
+        Order order = migratedOrder(31L, new BigDecimal("100.00"), new BigDecimal("30.00"));
+        when(orderMapper.selectByIdForUpdate(31L, TENANT_ID)).thenReturn(order);
+
+        actionService.recordPayment(31L, new BigDecimal("70.00"), null, null, "PC");
+
+        assertEquals(CollectionStatus.SETTLED.name(), order.getCollectionStatus());
+        assertEquals(2, order.getPaymentStatus());
+        assertEquals(0, order.getBalanceAmount().compareTo(BigDecimal.ZERO));
+        assertEquals("FULL_RECEIPT", order.getSettlementMethod());
+        assertNotNull(order.getSettledAt());
+    }
+
+    // ── 历史未迁移行（旧公式余额兜底） ──────────────────────────────
+
+    @Test
+    void addPayment_legacyRow_shouldRejectOverLegacyBalance() {
+        Order order = legacyOrder(33L, 1, new BigDecimal("90.00"));
         when(orderMapper.selectByIdForUpdate(33L, TENANT_ID)).thenReturn(order);
 
         RuntimeException ex = assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(33L, dto(new BigDecimal("20.00"), false, null)));
+                actionService.addPaymentCompat(33L, dto(new BigDecimal("20.00"), false, null)));
         assertTrue(ex.getMessage().contains("10"));
     }
 
-    // ── BigDecimal overload delegation ───────────────────────────────────
-
     @Test
-    void addPaymentBigDecimal_shouldDelegateToDtoOverload() {
-        Order order = stubOrder(4L, 1);
-        order.setPaidAmount(new BigDecimal("10.00"));
-        order.setPaymentStatus(1);
-        when(orderMapper.selectByIdForUpdate(4L, TENANT_ID)).thenReturn(order);
+    void addPayment_legacyRow_shouldSeedMigrationOpeningAndAccumulate() {
+        Order order = legacyOrder(34L, 1, new BigDecimal("10.00"));
+        when(orderMapper.selectByIdForUpdate(34L, TENANT_ID)).thenReturn(order);
 
-        orderService.addPayment(4L, new BigDecimal("40.00"));
+        actionService.addPaymentCompat(34L, dto(new BigDecimal("40.00"), false, null));
 
-        Order updated = captureUpdatedOrder();
-        assertEquals(0, new BigDecimal("50.00").compareTo(updated.getPaidAmount()));
-        // Must use FOR UPDATE
-        verify(orderMapper).selectByIdForUpdate(eq(4L), eq(TENANT_ID));
+        assertEquals(0, new BigDecimal("50.00").compareTo(order.getPaidAmount()));
+        // MIGRATION_OPENING(10) + RECEIPT(40)
+        assertTrue(records.stream().anyMatch(r -> FinancialRecordType.MIGRATION_OPENING.name().equals(r.getRecordType())));
+        assertEquals(CollectionStatus.PARTIAL.name(), order.getCollectionStatus());
     }
 
-    // ── Mark-as-settled ──────────────────────────────────────────────────
+    // ── 标记结清（短款核销） ────────────────────────────────────────
 
     @Test
     void markAsSettled_withZeroPayment_shouldWriteOffRemainingBalance() {
-        Order order = stubOrder(5L, 1);
-        order.setPaidAmount(new BigDecimal("80.00"));
-        order.setPaymentStatus(1);
-        // netReceivable = 100, balance = 20
+        Order order = migratedOrder(5L, new BigDecimal("100.00"), new BigDecimal("80.00"));
         when(orderMapper.selectByIdForUpdate(5L, TENANT_ID)).thenReturn(order);
 
-        orderService.addPayment(5L, dto(BigDecimal.ZERO, true, "客户少付20元"));
+        actionService.addPaymentCompat(5L, dto(BigDecimal.ZERO, true, "客户少付20元"));
 
-        Order updated = captureUpdatedOrder();
-        assertEquals(0, updated.getPaidAmount().compareTo(new BigDecimal("80.00"))); // unchanged
-        assertEquals(0, updated.getWriteOffAmount().compareTo(new BigDecimal("20.00")));
-        assertEquals("客户少付20元", updated.getWriteOffReason());
-        assertEquals(2, updated.getPaymentStatus()); // PAYMENT_FULL
-        verifyNoInteractions(inventoryService);
+        assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("80.00"))); // 实收不变
+        assertEquals(0, order.getWriteOffAmount().compareTo(new BigDecimal("20.00")));
+        assertEquals("客户少付20元", order.getWriteOffReason());
+        assertEquals(2, order.getPaymentStatus());
+        assertEquals(CollectionStatus.SETTLED.name(), order.getCollectionStatus());
+        assertEquals("WRITE_OFF", order.getSettlementMethod());
+        verifyNoInventoryTouch();
     }
 
     @Test
     void markAsSettled_withPositivePayment_shouldAccumulatePaymentAndWriteOff() {
-        Order order = stubOrder(6L, 1);
-        order.setPaidAmount(new BigDecimal("70.00"));
-        order.setPaymentStatus(1);
-        // netReceivable = 100, pay 10 more, remaining = 20 → write_off
+        Order order = migratedOrder(6L, new BigDecimal("100.00"), new BigDecimal("70.00"));
         when(orderMapper.selectByIdForUpdate(6L, TENANT_ID)).thenReturn(order);
 
-        orderService.addPayment(6L, dto(new BigDecimal("10.00"), true, "尾款抹零"));
+        actionService.addPaymentCompat(6L, dto(new BigDecimal("10.00"), true, "尾款抹零"));
 
-        Order updated = captureUpdatedOrder();
-        assertEquals(0, updated.getPaidAmount().compareTo(new BigDecimal("80.00")));
-        assertEquals(0, updated.getWriteOffAmount().compareTo(new BigDecimal("20.00")));
-        assertEquals("尾款抹零", updated.getWriteOffReason());
-        assertEquals(2, updated.getPaymentStatus());
+        assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("80.00")));
+        assertEquals(0, order.getWriteOffAmount().compareTo(new BigDecimal("20.00")));
+        assertEquals("尾款抹零", order.getWriteOffReason());
+        assertEquals(2, order.getPaymentStatus());
     }
 
     @Test
-    void markAsSettled_shouldPreserveExistingWriteOffAndAddNewRemainder() {
-        Order order = stubOrder(7L, 1);
-        order.setPaidAmount(new BigDecimal("80.00"));
-        order.setWriteOffAmount(new BigDecimal("5.00"));
-        order.setWriteOffReason("之前抹零5元");
-        order.setPaymentStatus(1);
-        // netReceivable = 100-0-5 = 95, paid=80, balance=15
+    void markAsSettled_settlesExactlyRemainingAndRejectsRepeat() {
+        Order order = migratedOrder(7L, new BigDecimal("100.00"), new BigDecimal("85.00"));
         when(orderMapper.selectByIdForUpdate(7L, TENANT_ID)).thenReturn(order);
+        // 尾款 15 → 一次核销全部剩余，结清
+        actionService.settleWithWriteOff(7L, BigDecimal.ZERO, "尾款核销", null, "PC");
+        assertEquals(0, order.getBalanceAmount().compareTo(BigDecimal.ZERO));
+        assertEquals(0, order.getWriteOffAmount().compareTo(new BigDecimal("15.00")));
+        assertEquals(CollectionStatus.SETTLED.name(), order.getCollectionStatus());
 
-        orderService.addPayment(7L, dto(BigDecimal.ZERO, true, "再抹15元"));
-
-        Order updated = captureUpdatedOrder();
-        // Existing writeOff=5 + newRemainder=15 = 20
-        assertEquals(0, updated.getWriteOffAmount().compareTo(new BigDecimal("20.00")));
-        assertEquals("再抹15元", updated.getWriteOffReason());
-        assertEquals(2, updated.getPaymentStatus());
+        // 第二次核销拒绝
+        assertThrows(RuntimeException.class, () ->
+                actionService.settleWithWriteOff(7L, BigDecimal.ZERO, "重复核销", null, "PC"));
     }
 
     @Test
-    void markAsSettled_shouldRequireNonblankReason() {
-        Order order = stubOrder(8L, 1);
-        order.setPaidAmount(new BigDecimal("80.00"));
-        order.setPaymentStatus(1);
+    void markAsSettled_requiresReason() {
+        Order order = migratedOrder(71L, new BigDecimal("100.00"), new BigDecimal("80.00"));
+        when(orderMapper.selectByIdForUpdate(71L, TENANT_ID)).thenReturn(order);
+
+        AddPaymentDTO d = dto(BigDecimal.ZERO, true, " ");
+        assertThrows(RuntimeException.class, () -> actionService.addPaymentCompat(71L, d));
+    }
+
+    @Test
+    void markAsSettled_rejectsZeroReceiptOrder() {
+        Order order = migratedOrder(72L, new BigDecimal("100.00"), BigDecimal.ZERO);
+        when(orderMapper.selectByIdForUpdate(72L, TENANT_ID)).thenReturn(order);
+
+        assertThrows(RuntimeException.class, () ->
+                actionService.settleWithWriteOff(72L, BigDecimal.ZERO, "整单核销", null, "PC"));
+    }
+
+    @Test
+    void alreadySettledOrder_rejectsMorePayment() {
+        Order order = migratedOrder(8L, new BigDecimal("100.00"), new BigDecimal("100.00"));
         when(orderMapper.selectByIdForUpdate(8L, TENANT_ID)).thenReturn(order);
+        assertEquals(CollectionStatus.SETTLED.name(), order.getCollectionStatus());
 
         assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(8L, dto(BigDecimal.ZERO, true, "")));
-        assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(8L, dto(BigDecimal.ZERO, true, null)));
-        assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(8L, dto(BigDecimal.ZERO, true, "   ")));
+                actionService.addPaymentCompat(8L, dto(new BigDecimal("10.00"), false, null)));
     }
 
+    // ── 现金退款与冲销 ──────────────────────────────────────────────
+
     @Test
-    void markAsSettled_shouldRejectWhenBalanceAlreadyZero() {
-        Order order = stubOrder(9L, 1);
-        order.setPaidAmount(new BigDecimal("100.00"));
-        order.setPaymentStatus(2); // already full
+    void refundPayment_shouldReduceNetReceivedAndReopenBalance() {
+        Order order = migratedOrder(9L, new BigDecimal("100.00"), new BigDecimal("100.00"));
         when(orderMapper.selectByIdForUpdate(9L, TENANT_ID)).thenReturn(order);
+        assertEquals(CollectionStatus.SETTLED.name(), order.getCollectionStatus());
+
+        actionService.refundPayment(9L, new BigDecimal("30.00"), "少件退款", null, "PC");
+
+        assertEquals(0, order.getCashRefundAmount().compareTo(new BigDecimal("30.00")));
+        assertEquals(0, order.getNetReceivedAmount().compareTo(new BigDecimal("70.00")));
+        assertEquals(0, order.getBalanceAmount().compareTo(new BigDecimal("30.00")));
+        assertEquals(CollectionStatus.PARTIAL.name(), order.getCollectionStatus());
+        assertEquals(1, order.getPaymentStatus());
+    }
+
+    @Test
+    void refundPayment_rejectsOverGrossReceived() {
+        Order order = migratedOrder(91L, new BigDecimal("100.00"), new BigDecimal("50.00"));
+        when(orderMapper.selectByIdForUpdate(91L, TENANT_ID)).thenReturn(order);
 
         assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(9L, dto(BigDecimal.ZERO, true, "不需要")));
+                actionService.refundPayment(91L, new BigDecimal("60.00"), "多退", null, "PC"));
     }
 
     @Test
-    void markAsSettled_shouldRejectOnAlreadySettledOrder() {
-        Order order = stubOrder(99L, 1);
-        order.setPaidAmount(new BigDecimal("100.00"));
-        order.setPaymentStatus(2); // PAYMENT_FULL
-        when(orderMapper.selectByIdForUpdate(99L, TENANT_ID)).thenReturn(order);
-
-        RuntimeException ex = assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(99L, dto(BigDecimal.ZERO, true, "冗余结清")));
-        assertTrue(ex.getMessage().contains("已结清"));
-    }
-
-    @Test
-    void markAsSettled_shouldRejectWhenFullPaymentLeavesNoBalance() {
-        // If additional payment alone brings paid to netReceivable, balance=0 → reject settlement
-        Order order = stubOrder(10L, 1);
-        order.setPaidAmount(new BigDecimal("50.00"));
-        order.setPaymentStatus(1);
-        // netReceivable = 100, pay 50 more → balance = 0
+    void reverseFinancialRecord_shouldAppendReversalOnlyOnce() {
+        Order order = migratedOrder(10L, new BigDecimal("100.00"), new BigDecimal("100.00"));
         when(orderMapper.selectByIdForUpdate(10L, TENANT_ID)).thenReturn(order);
+        OrderFinancialRecord target = records.get(0);
+        when(financialRecordMapper.selectOne(any())).thenReturn(target);
+        // 第一次无已有冲销，第二次已有冲销（数据库唯一键并发兜底由 schema/集成测试验证）
+        when(financialRecordMapper.selectCount(any())).thenReturn(0L, 1L);
 
+        actionService.reverseFinancialRecord(target.getId(), "录错金额", null, "PC");
+
+        // 被冲销的收款不再计入快照
+        assertEquals(0, order.getGrossReceivedAmount().compareTo(BigDecimal.ZERO));
+        assertEquals(CollectionStatus.UNPAID.name(), order.getCollectionStatus());
+
+        // 第二次冲销同一流水：服务层守卫拒绝
         assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(10L, dto(new BigDecimal("50.00"), true, "no need")));
+                actionService.reverseFinancialRecord(target.getId(), "重复冲销", null, "PC"));
     }
 
-    // ── State and inventory isolation ─────────────────────────────────────
-
     @Test
-    void addPayment_shouldNotChangeOrderStatus() {
-        Order order = stubOrder(11L, 1); // STATUS_PAID
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setPaymentStatus(1);
+    void reverseFinancialRecord_rejectsReversingReversal() {
+        Order order = migratedOrder(11L, new BigDecimal("100.00"), new BigDecimal("50.00"));
         when(orderMapper.selectByIdForUpdate(11L, TENANT_ID)).thenReturn(order);
+        OrderFinancialRecord reversal = new OrderFinancialRecord();
+        reversal.setId(2000L);
+        reversal.setRecordType(FinancialRecordType.REVERSAL.name());
+        reversal.setOrderId(11L);
+        reversal.setAmount(new BigDecimal("10.00"));
+        when(financialRecordMapper.selectOne(any())).thenReturn(reversal);
 
-        orderService.addPayment(11L, dto(new BigDecimal("20.00"), false, null));
-
-        Order updated = captureUpdatedOrder();
-        assertEquals(1, updated.getStatus()); // unchanged
-        verifyNoInteractions(inventoryService);
+        assertThrows(RuntimeException.class, () ->
+                actionService.reverseFinancialRecord(2000L, "冲销冲销", null, "PC"));
     }
 
+    // ── 幂等键 ──────────────────────────────────────────────────────
+
     @Test
-    void addPayment_shouldNotTouchInventory() {
-        Order order = stubOrder(12L, 1);
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setPaymentStatus(1);
+    void recordPayment_withSameIdempotencyKey_replaysSilently() {
+        Order order = migratedOrder(12L, new BigDecimal("100.00"), new BigDecimal("30.00"));
         when(orderMapper.selectByIdForUpdate(12L, TENANT_ID)).thenReturn(order);
+        when(financialRecordMapper.selectOne(any())).thenAnswer(inv -> records.stream()
+                .filter(r -> "REQ-001".equals(r.getIdempotencyKey()))
+                .findFirst().orElse(null));
 
-        orderService.addPayment(12L, dto(new BigDecimal("20.00"), false, null));
+        actionService.recordPayment(12L, new BigDecimal("10.00"), null, "REQ-001", "PC");
+        int recordCountAfterFirst = records.size();
 
-        // No inventory interaction
-        verifyNoInteractions(inventoryService);
+        actionService.recordPayment(12L, new BigDecimal("10.00"), null, "REQ-001", "PC");
+        assertEquals(recordCountAfterFirst, records.size(), "幂等重放不得新增流水");
+        assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("40.00")));
     }
 
-    // ── Tenant-scoped FOR UPDATE ─────────────────────────────────────────
-
     @Test
-    void addPaymentDto_shouldUseSelectByIdForUpdateWithTenant() {
-        Order order = stubOrder(13L, 1);
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setPaymentStatus(1);
+    void recordPayment_withForeignIdempotencyKey_rejected() {
+        Order order = migratedOrder(13L, new BigDecimal("100.00"), new BigDecimal("30.00"));
         when(orderMapper.selectByIdForUpdate(13L, TENANT_ID)).thenReturn(order);
+        OrderFinancialRecord foreign = new OrderFinancialRecord();
+        foreign.setId(9999L);
+        foreign.setOrderId(8888L);
+        foreign.setIdempotencyKey("REQ-OTHER");
+        when(financialRecordMapper.selectOne(any())).thenReturn(foreign);
 
-        orderService.addPayment(13L, dto(new BigDecimal("10.00"), false, null));
-
-        verify(orderMapper).selectByIdForUpdate(eq(13L), eq(TENANT_ID));
-        verify(orderMapper, never()).selectById(any());
-    }
-
-    @Test
-    void addPaymentDto_shouldRejectWhenNoTenant() {
-        TenantContext.clear();
-        Order order = stubOrder(14L, 1);
-        order.setTenantId(null);
-        when(orderMapper.selectByIdForUpdate(14L, null)).thenReturn(order);
-
-        // TenantContext.getTenantId() returns null → exception before mapper call
         assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(14L, dto(new BigDecimal("10.00"), false, null)));
+                actionService.recordPayment(13L, new BigDecimal("10.00"), null, "REQ-OTHER", "PC"));
     }
 
-    // ── Payment status transitions ───────────────────────────────────────
+    // ── 零金额订单人工结清 ──────────────────────────────────────────
 
     @Test
-    void addPayment_shouldSetPaymentStatusToFullWhenPaidReachesNetReceivable() {
-        Order order = stubOrder(15L, 1);
-        order.setPaidAmount(new BigDecimal("50.00"));
-        order.setPaymentStatus(1);
+    void zeroAmountOrder_requiresManualConfirmationToSettle() {
+        Order order = migratedOrder(14L, BigDecimal.ZERO, BigDecimal.ZERO);
+        when(orderMapper.selectByIdForUpdate(14L, TENANT_ID)).thenReturn(order);
+        assertEquals(CollectionStatus.UNPAID.name(), order.getCollectionStatus());
+
+        // 任何重算都不得自动结清
+        snapshotService.recalculateAndApply(order);
+        assertEquals(CollectionStatus.UNPAID.name(), order.getCollectionStatus());
+
+        snapshotService.markZeroAmountSettled(order, 9L, "测试员");
+        assertEquals(CollectionStatus.SETTLED.name(), order.getCollectionStatus());
+    }
+
+    // ── 事务回滚契约：金额校验失败不得写库 ──────────────────────────
+
+    @Test
+    void failedValidation_mustNotPersistAnything() {
+        Order order = migratedOrder(15L, new BigDecimal("100.00"), new BigDecimal("90.00"));
         when(orderMapper.selectByIdForUpdate(15L, TENANT_ID)).thenReturn(order);
+        int recordsBefore = records.size();
 
-        orderService.addPayment(15L, dto(new BigDecimal("50.00"), false, null));
-
-        Order updated = captureUpdatedOrder();
-        assertEquals(2, updated.getPaymentStatus()); // PAYMENT_FULL
-    }
-
-    @Test
-    void addPayment_shouldKeepPaymentStatusDepositWhenPartial() {
-        Order order = stubOrder(16L, 1);
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setPaymentStatus(1);
-        when(orderMapper.selectByIdForUpdate(16L, TENANT_ID)).thenReturn(order);
-
-        orderService.addPayment(16L, dto(new BigDecimal("20.00"), false, null));
-
-        Order updated = captureUpdatedOrder();
-        assertEquals(1, updated.getPaymentStatus()); // PAYMENT_DEPOSIT
-    }
-
-    // ── NetReceivable formula with refund and writeOff ────────────────────
-
-    @Test
-    void addPayment_shouldRespectNetReceivableWithRefund() {
-        Order order = stubOrder(17L, 1);
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setRefundAmount(new BigDecimal("10.00"));
-        order.setWriteOffAmount(BigDecimal.ZERO);
-        order.setPaymentStatus(1);
-        // netReceivable = 100 - 10 - 0 = 90, balance = 60
-        when(orderMapper.selectByIdForUpdate(17L, TENANT_ID)).thenReturn(order);
-
-        // 70 would exceed netReceivable (30 + 70 = 100 > 90)
         assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(17L, dto(new BigDecimal("70.00"), false, null)));
+                actionService.addPaymentCompat(15L, dto(new BigDecimal("50.00"), false, null)));
 
-        // 60 should be OK (30 + 60 = 90 ≤ 90)
+        assertEquals(recordsBefore, records.size(), "校验失败不得插入流水");
+        assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("90.00")));
     }
 
-    @Test
-    void addPayment_shouldAllowFullPaymentEqualToNetReceivable() {
-        Order order = stubOrder(171L, 1);
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setRefundAmount(new BigDecimal("10.00"));
-        order.setPaymentStatus(1);
-        // netReceivable = 90, balance = 60
-        when(orderMapper.selectByIdForUpdate(171L, TENANT_ID)).thenReturn(order);
-
-        orderService.addPayment(171L, dto(new BigDecimal("60.00"), false, null));
-
-        Order updated = captureUpdatedOrder();
-        assertEquals(0, updated.getPaidAmount().compareTo(new BigDecimal("90.00")));
-        assertEquals(2, updated.getPaymentStatus());
-    }
-
-    @Test
-    void addPayment_shouldRespectNetReceivableWithWriteOff() {
-        Order order = stubOrder(18L, 1);
-        order.setPaidAmount(new BigDecimal("50.00"));
-        order.setWriteOffAmount(new BigDecimal("20.00"));
-        order.setPaymentStatus(1);
-        // netReceivable = 100 - 0 - 20 = 80, balance = 30
-        when(orderMapper.selectByIdForUpdate(18L, TENANT_ID)).thenReturn(order);
-
-        // 40 would exceed netReceivable (50 + 40 = 90 > 80)
-        assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(18L, dto(new BigDecimal("40.00"), false, null)));
-    }
-
-    @Test
-    void addPayment_netReceivableFloorAtZero() {
-        Order order = stubOrder(19L, 1);
-        order.setTotalAmount(new BigDecimal("50.00"));
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setRefundAmount(new BigDecimal("60.00")); // refund > total → netReceivable = 0
-        order.setPaymentStatus(1);
-        when(orderMapper.selectByIdForUpdate(19L, TENANT_ID)).thenReturn(order);
-
-        // netReceivable = max(50-60-0, 0) = 0, so even 0.01 should be rejected
-        assertThrows(RuntimeException.class, () ->
-                orderService.addPayment(19L, dto(new BigDecimal("0.01"), false, null)));
-    }
-
-    // ── VO balance formula ───────────────────────────────────────────────
-
-    @Test
-    void convertToVO_balanceShouldUseUnifiedFormula() {
-        Order order = stubOrder(20L, 1);
-        order.setTotalAmount(new BigDecimal("100.00"));
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setRefundAmount(new BigDecimal("10.00"));
-        order.setWriteOffAmount(new BigDecimal("5.00"));
-        // balance = max(100-10-5-30, 0) = 55
-        order.setOrderNo("ORD-TEST");
-        order.setOrderType("SPOT");
-        order.setPaymentStatus(1);
-
-        // For convertToVO we need orderItemMapper to return empty
-        when(orderItemMapper.selectList(any())).thenReturn(java.util.List.of());
-
-        OrderVO vo = callConvertToVO(order);
-
-        assertEquals(0, vo.getBalanceAmount().compareTo(new BigDecimal("55.00")));
-        assertEquals(0, vo.getWriteOffAmount().compareTo(new BigDecimal("5.00")));
-    }
-
-    @Test
-    void convertToVO_balanceShouldFloorAtZero() {
-        Order order = stubOrder(21L, 1);
-        order.setTotalAmount(new BigDecimal("100.00"));
-        order.setPaidAmount(new BigDecimal("100.00"));
-        order.setRefundAmount(BigDecimal.ZERO);
-        order.setWriteOffAmount(BigDecimal.ZERO);
-        order.setOrderNo("ORD-TEST");
-        order.setOrderType("SPOT");
-        order.setPaymentStatus(2);
-
-        when(orderItemMapper.selectList(any())).thenReturn(java.util.List.of());
-
-        OrderVO vo = callConvertToVO(order);
-
-        assertEquals(0, vo.getBalanceAmount().compareTo(BigDecimal.ZERO));
-        assertEquals(0, vo.getWriteOffAmount().compareTo(BigDecimal.ZERO));
-    }
-
-    // ── Export formula ───────────────────────────────────────────────────
-
-    @Test
-    void export_balanceShouldUseUnifiedFormula() {
-        Order order = stubOrder(22L, 1);
-        order.setTotalAmount(new BigDecimal("100.00"));
-        order.setPaidAmount(new BigDecimal("30.00"));
-        order.setRefundAmount(new BigDecimal("10.00"));
-        order.setWriteOffAmount(new BigDecimal("5.00"));
-        // balance = max(100-10-5-30, 0) = 55
-        order.setOrderNo("ORD-E1");
-        order.setOrderType("SPOT");
-        order.setPaymentStatus(1);
-        order.setOrderDate(java.time.LocalDate.now());
-        order.setCreateTime(java.time.LocalDateTime.now());
-        order.setSalesmanName("tester");
-
-        when(orderItemMapper.selectList(any())).thenReturn(java.util.List.of());
-
-        // Trigger export
-        com.blade.order.dto.OrderPageDTO pageDto = new com.blade.order.dto.OrderPageDTO();
-        pageDto.setCurrent(1L);
-        pageDto.setSize(1L);
-        // Mock the export query
-        com.baomidou.mybatisplus.core.metadata.IPage<Order> mockPage =
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, 1);
-        mockPage.setRecords(java.util.List.of(order));
-        mockPage.setTotal(1);
-        when(orderMapper.selectPage(any(com.baomidou.mybatisplus.core.metadata.IPage.class), any())).thenReturn(mockPage);
-
-        java.util.List<OrderExportDTO> exports = orderService.exportOrders(pageDto);
-
-        assertEquals(1, exports.size());
-        OrderExportDTO export = exports.get(0);
-        assertEquals(0, export.getBalanceAmount().compareTo(new BigDecimal("55.00")));
-        assertEquals(0, export.getWriteOffAmount().compareTo(new BigDecimal("5.00")));
-    }
-
-    // ── Payment status name labels ───────────────────────────────────────
-
-    @Test
-    void getById_paymentStatusNameLabelsShouldBeUpdated() {
-        // Test via convertToVO which calls getPaymentStatusName
-        Order order = stubOrder(23L, 1);
-        order.setOrderNo("ORD-LBL");
-        order.setOrderType("SPOT");
-        order.setPaymentStatus(1); // 部分收款
-        when(orderItemMapper.selectList(any())).thenReturn(java.util.List.of());
-
-        OrderVO vo = callConvertToVO(order);
-        assertEquals("部分收款", vo.getPaymentStatusName());
-    }
-
-    @Test
-    void getById_settledLabelShouldBeUsed() {
-        Order order = stubOrder(24L, 1);
-        order.setOrderNo("ORD-LBL2");
-        order.setOrderType("SPOT");
-        order.setPaymentStatus(2); // 已结清
-        when(orderItemMapper.selectList(any())).thenReturn(java.util.List.of());
-
-        OrderVO vo = callConvertToVO(order);
-        assertEquals("已结清", vo.getPaymentStatusName());
-    }
-
-    @Test
-    void getById_unpaidLabelShouldRemain() {
-        Order order = stubOrder(25L, 1);
-        order.setOrderNo("ORD-LBL3");
-        order.setOrderType("SPOT");
-        order.setPaymentStatus(0); // 未付款
-        when(orderItemMapper.selectList(any())).thenReturn(java.util.List.of());
-
-        OrderVO vo = callConvertToVO(order);
-        assertEquals("未付款", vo.getPaymentStatusName());
-    }
-
-    // ── hasBalance SQL ───────────────────────────────────────────────────
-
-    @Test
-    void pageList_hasBalanceTrue_shouldUseUnifiedFormula() {
-        com.blade.order.dto.OrderPageDTO dto = new com.blade.order.dto.OrderPageDTO();
-        dto.setCurrent(1L);
-        dto.setSize(20L);
-        dto.setHasBalance(true);
-
-        com.baomidou.mybatisplus.core.metadata.IPage<Order> mockPage =
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, 20);
-        mockPage.setRecords(java.util.List.of());
-        mockPage.setTotal(0);
-
-        when(orderMapper.selectPage(any(com.baomidou.mybatisplus.core.metadata.IPage.class), any()))
-                .thenReturn(mockPage);
-
-        orderService.pageList(dto);
-
-        ArgumentCaptor<Wrapper<Order>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
-        verify(orderMapper).selectPage(any(com.baomidou.mybatisplus.core.metadata.IPage.class), wrapperCaptor.capture());
-        String sql = wrapperCaptor.getValue().getSqlSegment();
-        assertTrue(sql.contains("COALESCE(paid_amount, 0) < GREATEST"));
-        assertTrue(sql.contains("COALESCE(refund_amount, 0)"));
-        assertTrue(sql.contains("COALESCE(write_off_amount, 0)"));
-    }
-
-    @Test
-    void pageList_hasBalanceFalse_shouldUseUnifiedFormula() {
-        com.blade.order.dto.OrderPageDTO dto = new com.blade.order.dto.OrderPageDTO();
-        dto.setCurrent(1L);
-        dto.setSize(20L);
-        dto.setHasBalance(false);
-
-        com.baomidou.mybatisplus.core.metadata.IPage<Order> mockPage =
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, 20);
-        mockPage.setRecords(java.util.List.of());
-        mockPage.setTotal(0);
-
-        when(orderMapper.selectPage(any(com.baomidou.mybatisplus.core.metadata.IPage.class), any()))
-                .thenReturn(mockPage);
-
-        orderService.pageList(dto);
-
-        ArgumentCaptor<Wrapper<Order>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
-        verify(orderMapper).selectPage(any(com.baomidou.mybatisplus.core.metadata.IPage.class), wrapperCaptor.capture());
-        String sql = wrapperCaptor.getValue().getSqlSegment();
-        assertTrue(sql.contains("COALESCE(paid_amount, 0) >= GREATEST"));
-        assertTrue(sql.contains("COALESCE(refund_amount, 0)"));
-        assertTrue(sql.contains("COALESCE(write_off_amount, 0)"));
-    }
-
-    // ── Helper: invoke private convertToVO via getById ───────────────────
-
-    private OrderVO callConvertToVO(Order order) {
-        when(orderMapper.selectById(order.getId())).thenReturn(order);
-        return orderService.getById(order.getId());
+    private void verifyNoInventoryTouch() {
+        org.mockito.Mockito.verifyNoInteractions(inventoryService);
     }
 }

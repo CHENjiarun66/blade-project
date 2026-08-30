@@ -19,8 +19,6 @@ public interface OrderService {
 
     void update(OrderUpdateDTO dto);
 
-    void updateStatus(Long id, Integer status);
-
     void delete(Long id);
 
     /**

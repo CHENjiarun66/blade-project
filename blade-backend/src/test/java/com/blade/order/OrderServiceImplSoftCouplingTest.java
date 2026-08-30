@@ -3,10 +3,15 @@ package com.blade.order;
 import com.blade.common.tenant.TenantContext;
 import com.blade.file.service.FileService;
 import com.blade.inventory.service.InventoryService;
+import com.blade.order.dto.AddPaymentDTO;
 import com.blade.order.entity.Order;
 import com.blade.order.mapper.OrderDeliveryPlanMapper;
+import com.blade.order.mapper.OrderFinancialRecordMapper;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.service.OrderActionService;
+import com.blade.order.service.OrderCompatAdapter;
+import com.blade.order.service.OrderFinanceSnapshotService;
 import com.blade.order.service.impl.OrderServiceImpl;
 import com.blade.product.mapper.ProductColorMapper;
 import com.blade.product.mapper.ProductMapper;
@@ -35,7 +40,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
- * SOW-1 / BE-138: Soft-coupling order from inventory — focused unit tests.
+ * Soft-coupling order from inventory — focused unit tests.
+ * 订单写路径已收敛到统一动作服务：本测试验证旧接口委托与"绝不触碰库存"的软解耦契约。
  * Runs without Spring context, MySQL, Redis, or Docker.
  */
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +51,7 @@ class OrderServiceImplSoftCouplingTest {
     @Mock private OrderMapper orderMapper;
     @Mock private OrderItemMapper orderItemMapper;
     @Mock private OrderDeliveryPlanMapper deliveryPlanMapper;
+    @Mock private OrderFinancialRecordMapper financialRecordMapper;
     @Mock private ProductSkuMapper productSkuMapper;
     @Mock private ProductColorMapper productColorMapper;
     @Mock private ProductSizeMapper productSizeMapper;
@@ -54,6 +61,8 @@ class OrderServiceImplSoftCouplingTest {
     @Mock private WarehouseMapper warehouseMapper;
     @Mock private RedissonClient redissonClient;
     @Mock private FileService fileService;
+    @Mock private OrderFinanceSnapshotService snapshotService;
+    @Mock private OrderActionService actionService;
 
     @InjectMocks
     private OrderServiceImpl orderService;
@@ -87,169 +96,109 @@ class OrderServiceImplSoftCouplingTest {
         return order;
     }
 
-    /** Captures the Order passed to orderMapper.updateById for assertion. */
-    private Order captureUpdatedOrder() {
-        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
-        verify(orderMapper).updateById(captor.capture());
-        return captor.getValue();
-    }
-
-    // ── confirmPayment ───────────────────────────────────────────────
+    // ── confirmPayment 委托统一收款动作 ───────────────────────────────
 
     @Test
-    void confirmPayment_shouldUpdateOrderStatusWithoutInventoryInteraction() {
-        Order order = stubOrder(1L, 0); // STATUS_CREATED
-        when(orderMapper.selectByIdForUpdate(1L, 1L)).thenReturn(order);
-
+    void confirmPayment_shouldDelegateToActionServiceWithoutInventoryInteraction() {
         orderService.confirmPayment(1L, new BigDecimal("100.00"));
 
-        Order updated = captureUpdatedOrder();
-        assertEquals(1, updated.getStatus());
-        assertEquals(0, new BigDecimal("100.00").compareTo(updated.getPaidAmount()));
-
+        verify(actionService).recordPayment(1L, new BigDecimal("100.00"), null, null, "PC");
         // Inventory must NOT be touched
         verifyNoInteractions(inventoryService);
-        verify(orderMapper).selectByIdForUpdate(1L, 1L);
-        verify(orderMapper, never()).selectById(1L);
+        verifyNoInteractions(orderMapper);
+    }
+
+    // ── addPayment 委托统一动作服务 ──────────────────────────────────
+
+    @Test
+    void addPayment_shouldDelegateCompatWithoutInventoryInteraction() {
+        AddPaymentDTO dto = new AddPaymentDTO();
+        dto.setAdditionalAmount(new BigDecimal("30.00"));
+
+        orderService.addPayment(5L, dto);
+
+        verify(actionService).addPaymentCompat(5L, dto);
+        verifyNoInteractions(inventoryService);
+        verifyNoInteractions(orderMapper);
     }
 
     @Test
-    void confirmPayment_shouldSyncPaymentStatusToFull() {
-        Order order = stubOrder(2L, 0);
-        when(orderMapper.selectByIdForUpdate(2L, 1L)).thenReturn(order);
+    void addPaymentBigDecimal_shouldDelegateThroughDtoOverload() {
+        orderService.addPayment(4L, new BigDecimal("40.00"));
 
-        orderService.confirmPayment(2L, new BigDecimal("100.00"));
-
-        Order updated = captureUpdatedOrder();
-        assertEquals(2, updated.getPaymentStatus()); // PAYMENT_FULL
+        ArgumentCaptor<AddPaymentDTO> captor = ArgumentCaptor.forClass(AddPaymentDTO.class);
+        verify(actionService).addPaymentCompat(eq(4L), captor.capture());
+        assertEquals(0, new BigDecimal("40.00").compareTo(captor.getValue().getAdditionalAmount()));
         verifyNoInteractions(inventoryService);
     }
 
-    @Test
-    void confirmPayment_shouldSyncPaymentStatusToDeposit() {
-        Order order = stubOrder(3L, 0);
-        when(orderMapper.selectByIdForUpdate(3L, 1L)).thenReturn(order);
-
-        orderService.confirmPayment(3L, new BigDecimal("50.00"));
-
-        Order updated = captureUpdatedOrder();
-        assertEquals(1, updated.getPaymentStatus()); // PAYMENT_DEPOSIT
-        verifyNoInteractions(inventoryService);
-    }
+    // ── cancelOrder 委托统一取消动作 ─────────────────────────────────
 
     @Test
-    void confirmPayment_shouldSetPayTime() {
-        Order order = stubOrder(4L, 0);
-        when(orderMapper.selectByIdForUpdate(4L, 1L)).thenReturn(order);
-
-        orderService.confirmPayment(4L, new BigDecimal("100.00"));
-
-        Order updated = captureUpdatedOrder();
-        assertNotNull(updated.getPayTime());
-        verifyNoInteractions(inventoryService);
-    }
-
-    // ── addPayment ───────────────────────────────────────────────────
-
-    @Test
-    void addPayment_shouldNotTouchInventory() {
-        // After SOW-3: addPayment uses FOR UPDATE row-lock with tenant
-        com.blade.common.tenant.TenantContext.setTenantId(1L);
-        try {
-            Order order = stubOrder(5L, 1); // STATUS_PAID
-            order.setPaidAmount(new BigDecimal("50.00"));
-            order.setPaymentStatus(1);
-            when(orderMapper.selectByIdForUpdate(5L, 1L)).thenReturn(order);
-
-            orderService.addPayment(5L, new BigDecimal("30.00"));
-
-            Order updated = captureUpdatedOrder();
-            assertEquals(0, new BigDecimal("80.00").compareTo(updated.getPaidAmount()));
-            verifyNoInteractions(inventoryService);
-        } finally {
-            com.blade.common.tenant.TenantContext.clear();
-        }
-    }
-
-    // ── cancelOrder ──────────────────────────────────────────────────
-
-    @Test
-    void cancelOrder_shouldCancelWithoutInventoryRelease() {
-        Order order = stubOrder(6L, 1); // STATUS_PAID
-        order.setPaymentStatus(1);
-        when(orderMapper.selectById(6L)).thenReturn(order);
-
+    void cancelOrder_shouldDelegateWithoutInventoryRelease() {
         orderService.cancelOrder(6L, "客户要求取消");
 
-        Order updated = captureUpdatedOrder();
-        assertEquals(6, updated.getStatus()); // STATUS_CANCELLED
-        // After SOW-1: cancelOrder must NOT release inventory
+        verify(actionService).cancelOrder(6L, "客户要求取消", "PC");
+        // 取消不释放库存（软解耦契约）
         verifyNoInteractions(inventoryService);
+        verifyNoInteractions(orderMapper);
     }
 
     @Test
     void cancelOrder_createdStatus_shouldSucceedWithoutInventoryRelease() {
-        Order order = stubOrder(7L, 0); // STATUS_CREATED
-        when(orderMapper.selectById(7L)).thenReturn(order);
-
         orderService.cancelOrder(7L, "测试取消");
 
-        Order updated = captureUpdatedOrder();
-        assertEquals(6, updated.getStatus());
+        verify(actionService).cancelOrder(7L, "测试取消", "PC");
+        verifyNoInteractions(inventoryService);
+    }
+
+    // ── deliverOrder 委托统一发货事务 ────────────────────────────────
+
+    @Test
+    void deliverOrder_shouldDelegateToActionService() {
+        orderService.deliverOrder(11L);
+
+        verify(actionService).shipOrder(11L, "PC");
+    }
+
+    // ── delete 只允许删除无事实订单，软删除 ─────────────────────────
+
+    @Test
+    void delete_shouldSoftDeleteFactFreeConfirmedOrder() {
+        Order order = stubOrder(20L, 0);
+        order.setFulfillmentStatus("CONFIRMED");
+        order.setCollectionStatus("UNPAID");
+        when(orderMapper.selectById(20L)).thenReturn(order);
+        when(financialRecordMapper.selectCount(any())).thenReturn(0L);
+        when(deliveryPlanMapper.selectCount(any())).thenReturn(0L);
+
+        orderService.delete(20L);
+
+        // 全局逻辑删除配置：deleteById 即软删除（UPDATE deleted=1）
+        verify(orderMapper).deleteById(20L);
         verifyNoInteractions(inventoryService);
     }
 
     @Test
-    void cancelOrder_shouldAppendReasonToRemark() {
-        Order order = stubOrder(8L, 0);
-        order.setRemark("旧备注");
-        when(orderMapper.selectById(8L)).thenReturn(order);
+    void delete_shouldRejectOrderWithFinancialRecords() {
+        Order order = stubOrder(21L, 0);
+        order.setFulfillmentStatus("CONFIRMED");
+        order.setCollectionStatus("PARTIAL");
+        when(orderMapper.selectById(21L)).thenReturn(order);
+        when(financialRecordMapper.selectCount(any())).thenReturn(2L);
 
-        orderService.cancelOrder(8L, "取消原因测试");
-
-        Order updated = captureUpdatedOrder();
-        assertNotNull(updated.getRemark());
-        assertTrue(updated.getRemark().contains("取消原因测试"));
-    }
-
-    // ── updateStatus → STATUS_CANCELLED ──────────────────────────────
-
-    @Test
-    void updateStatus_toCancelled_shouldNotReleaseInventory() {
-        Order order = stubOrder(9L, 1); // STATUS_PAID
-        when(orderMapper.selectById(9L)).thenReturn(order);
-
-        orderService.updateStatus(9L, 6); // STATUS_CANCELLED
-
-        Order updated = captureUpdatedOrder();
-        assertEquals(6, updated.getStatus());
-        // After SOW-1: updateStatus(…, CANCELLED) must NOT call releaseInventory
-        verifyNoInteractions(inventoryService);
-    }
-
-    // ── Guard: other status transitions still work ───────────────────
-
-    @Test
-    void updateStatus_toPaid_shouldSetConfirmTime() {
-        Order order = stubOrder(10L, 0);
-        when(orderMapper.selectById(10L)).thenReturn(order);
-
-        orderService.updateStatus(10L, 1); // STATUS_PAID
-
-        Order updated = captureUpdatedOrder();
-        assertEquals(1, updated.getStatus());
-        assertNotNull(updated.getConfirmTime());
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> orderService.delete(21L));
+        assertTrue(ex.getMessage().contains("财务流水"));
+        verify(orderMapper, never()).updateById(any(Order.class));
     }
 
     @Test
-    void updateStatus_toDelivered_shouldSetDeliverTime() {
-        Order order = stubOrder(11L, 3); // READY_TO_SHIP
-        when(orderMapper.selectById(11L)).thenReturn(order);
+    void delete_shouldRejectShippedOrder() {
+        Order order = stubOrder(22L, 4);
+        when(orderMapper.selectById(22L)).thenReturn(order);
 
-        orderService.updateStatus(11L, 4); // STATUS_DELIVERED
-
-        Order updated = captureUpdatedOrder();
-        assertEquals(4, updated.getStatus());
-        assertNotNull(updated.getDeliverTime());
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> orderService.delete(22L));
+        assertTrue(ex.getMessage().contains("待处理"));
+        verify(orderMapper, never()).updateById(any(Order.class));
     }
 }

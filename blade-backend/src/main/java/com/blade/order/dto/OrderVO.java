@@ -62,6 +62,44 @@ public class OrderVO {
     private LocalDateTime completeTime;
     private List<OrderItemVO> items;
 
+    // ==== 新订单生命周期与财务事实（兼容期与旧字段并存） ====
+    private String fulfillmentStatus;
+    private String collectionStatus;
+    private String fulfillmentMode;
+    private LocalDateTime settledAt;
+    private String settlementMethod;
+    private BigDecimal grossReceivedAmount;
+    private BigDecimal cashRefundAmount;
+    private BigDecimal salesReturnAmount;
+    private BigDecimal netReceivedAmount;
+    /** 历史未迁移行标记：新状态字段为空，展示值来自旧字段回退，不得参与动作与统计 */
+    private Boolean legacyUnmigrated;
+    /** 后端按状态+权限计算的可用动作白名单 */
+    private List<String> allowedActions;
+
+    public String getFulfillmentStatus() { return fulfillmentStatus; }
+    public void setFulfillmentStatus(String fulfillmentStatus) { this.fulfillmentStatus = fulfillmentStatus; }
+    public String getCollectionStatus() { return collectionStatus; }
+    public void setCollectionStatus(String collectionStatus) { this.collectionStatus = collectionStatus; }
+    public String getFulfillmentMode() { return fulfillmentMode; }
+    public void setFulfillmentMode(String fulfillmentMode) { this.fulfillmentMode = fulfillmentMode; }
+    public LocalDateTime getSettledAt() { return settledAt; }
+    public void setSettledAt(LocalDateTime settledAt) { this.settledAt = settledAt; }
+    public String getSettlementMethod() { return settlementMethod; }
+    public void setSettlementMethod(String settlementMethod) { this.settlementMethod = settlementMethod; }
+    public BigDecimal getGrossReceivedAmount() { return grossReceivedAmount; }
+    public void setGrossReceivedAmount(BigDecimal grossReceivedAmount) { this.grossReceivedAmount = grossReceivedAmount; }
+    public BigDecimal getCashRefundAmount() { return cashRefundAmount; }
+    public void setCashRefundAmount(BigDecimal cashRefundAmount) { this.cashRefundAmount = cashRefundAmount; }
+    public BigDecimal getSalesReturnAmount() { return salesReturnAmount; }
+    public void setSalesReturnAmount(BigDecimal salesReturnAmount) { this.salesReturnAmount = salesReturnAmount; }
+    public BigDecimal getNetReceivedAmount() { return netReceivedAmount; }
+    public void setNetReceivedAmount(BigDecimal netReceivedAmount) { this.netReceivedAmount = netReceivedAmount; }
+    public Boolean getLegacyUnmigrated() { return legacyUnmigrated; }
+    public void setLegacyUnmigrated(Boolean legacyUnmigrated) { this.legacyUnmigrated = legacyUnmigrated; }
+    public List<String> getAllowedActions() { return allowedActions; }
+    public void setAllowedActions(List<String> allowedActions) { this.allowedActions = allowedActions; }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getOrderNo() { return orderNo; }
