@@ -88,6 +88,8 @@ export interface OrderVO {
   legacyUnmigrated?: boolean
   /** 后端按状态+权限计算的可用动作白名单 */
   allowedActions?: OrderAction[]
+  /** 旧收款状态兼容字段（0未付款 1部分收款 2已结清），新行请读 collectionStatus */
+  paymentStatus?: number
   financialRecords?: FinancialRecordVO[]
 }
 

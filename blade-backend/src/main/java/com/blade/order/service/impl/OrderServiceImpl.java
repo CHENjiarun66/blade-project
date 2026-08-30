@@ -164,6 +164,12 @@ public class OrderServiceImpl implements OrderService {
         if (dto.getPaymentStatus() != null) {
             wrapper.eq(Order::getPaymentStatus, dto.getPaymentStatus());
         }
+        if (trimToNull(dto.getFulfillmentStatus()) != null) {
+            wrapper.eq(Order::getFulfillmentStatus, dto.getFulfillmentStatus().trim());
+        }
+        if (trimToNull(dto.getCollectionStatus()) != null) {
+            wrapper.eq(Order::getCollectionStatus, dto.getCollectionStatus().trim());
+        }
         if (trimToNull(dto.getOrderType()) != null) {
             wrapper.eq(Order::getOrderType, dto.getOrderType().trim());
         }
