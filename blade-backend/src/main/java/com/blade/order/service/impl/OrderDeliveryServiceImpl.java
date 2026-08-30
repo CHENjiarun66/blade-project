@@ -14,6 +14,7 @@ import com.blade.order.mapper.OrderDeliveryMapper;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.order.service.OrderDeliveryService;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.product.entity.Product;
 import com.blade.product.entity.ProductColor;
 import com.blade.product.entity.ProductSku;
@@ -51,6 +52,7 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
     private final ProductSizeMapper productSizeMapper;
     private final ProductMapper productMapper;
     private final OrderService orderService;
+    private final OrderAccessPolicy accessPolicy;
     private final org.redisson.api.RedissonClient redissonClient;
 
     @Autowired
@@ -64,6 +66,7 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
                                    ProductSizeMapper productSizeMapper,
                                    ProductMapper productMapper,
                                    OrderService orderService,
+                                   OrderAccessPolicy accessPolicy,
                                    org.redisson.api.RedissonClient redissonClient) {
         this.deliveryMapper = deliveryMapper;
         this.deliveryItemMapper = deliveryItemMapper;
@@ -75,6 +78,7 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         this.productSizeMapper = productSizeMapper;
         this.productMapper = productMapper;
         this.orderService = orderService;
+        this.accessPolicy = accessPolicy;
         this.redissonClient = redissonClient;
     }
 
@@ -92,6 +96,7 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         if (order == null) {
             throw BusinessException.of(404, "订单不存在");
         }
+        accessPolicy.requireAccess(order);
         // 履约边界：历史未迁移行不得创建出库单；仅关联库存订单且处于配货中/待发货阶段
         if (order.getFulfillmentStatus() == null) {
             throw BusinessException.of(400, "历史订单尚未迁移，不能创建出库单");
@@ -218,6 +223,11 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
 
     @Override
     public List<OrderDeliveryVO> getByOrderId(Long orderId) {
+        Order order = orderMapper.selectById(orderId);
+        if (order == null) {
+            throw BusinessException.of(404, "订单不存在");
+        }
+        accessPolicy.requireAccess(order);
         LambdaQueryWrapper<OrderDelivery> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderDelivery::getOrderId, orderId);
         wrapper.orderByAsc(OrderDelivery::getCreateTime);
@@ -240,6 +250,11 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         if (delivery == null) {
             throw new RuntimeException("出库单不存在");
         }
+        Order order = orderMapper.selectById(delivery.getOrderId());
+        if (order == null) {
+            throw BusinessException.of(404, "订单不存在");
+        }
+        accessPolicy.requireAccess(order);
 
         // Status 2: idempotent success (already shipped)
         if (delivery.getStatus() == 2) {

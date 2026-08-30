@@ -145,20 +145,18 @@ public class OrderLegacyMigrator {
 
         // dry-run 与 execute 使用同一决策
         List<LegacyOrder> toMigrate = new ArrayList<>();
+        List<LegacyOrder> manualReviewOrders = new ArrayList<>();
         for (LegacyOrder o : orders) {
             Decision d = decideOne(o);
             applyDecisionToReport(o, d, report);
-            if ("MIGRATED".equals(d.decision()) && execute) {
+            if ("MIGRATED".equals(d.decision())) {
                 toMigrate.add(o);
+            } else if ("MANUAL_REVIEW".equals(d.decision())) {
+                manualReviewOrders.add(o);
             }
         }
 
-        // 实收基线只统计将迁移的订单（人工核对/跳过订单的 paid_amount 不参与对账）
-        BigDecimal expectedGrossAfter = toMigrate.stream()
-                .map(o -> nz(o.paidAmount))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        if (execute && !toMigrate.isEmpty()) {
+        if (execute) {
             // 单事务：任一订单写失败整体回滚，无部分提交
             txTemplate.executeWithoutResult(status -> {
                 for (LegacyOrder o : toMigrate) {
@@ -168,7 +166,7 @@ public class OrderLegacyMigrator {
                     writeOne(o);
                 }
                 // 事务内逐单验证 + 总量校验；任何不平则抛异常触发回滚
-                verifyInvariants(tenantId, toMigrate, totalBefore, expectedGrossAfter, report);
+                verifyInvariants(tenantId, toMigrate, manualReviewOrders, totalBefore, report);
             });
         } else {
             computeInvariants(tenantId, report);
@@ -184,22 +182,19 @@ public class OrderLegacyMigrator {
      * 4. 人工核对订单零写入（新字段仍为 NULL）
      */
     private void verifyInvariants(Long tenantId, List<LegacyOrder> migratedOrders,
-                                  BigDecimal totalBefore,
-                                  BigDecimal expectedGrossAfter, Report report) {
+                                  List<LegacyOrder> manualReviewOrders,
+                                  BigDecimal totalBefore, Report report) {
         // 1+2: 总量
         computeInvariants(tenantId, report);
         if (report.sumTotalAfter.compareTo(totalBefore) != 0) {
             throw new IllegalStateException("金额不变量被破坏（total_amount 总量变化），整体回滚");
         }
-        // 3+4: 逐单验证（每单 gross==paid、旧字段投影一致、非空新字段）
-        // 总量对账通过逐单验证累加覆盖（sumGross 可能包含此前已迁移的订单，不能直接与本轮 expected 比较）
-        BigDecimal migratedGrossSum = BigDecimal.ZERO;
+        // 3+4: 逐单验证快照、流水、状态投影及迁移日志，不用输入值自加后与自身比较
         for (LegacyOrder o : migratedOrders) {
             verifyOne(o);
-            migratedGrossSum = migratedGrossSum.add(nz(o.paidAmount));
         }
-        if (migratedGrossSum.compareTo(expectedGrossAfter) != 0) {
-            throw new IllegalStateException("实收迁移对账不平（本轮迁移订单实收合计 != 原 paid 合计），整体回滚");
+        for (LegacyOrder o : manualReviewOrders) {
+            verifyManualReviewUntouched(o);
         }
     }
 
@@ -210,6 +205,12 @@ public class OrderLegacyMigrator {
         Integer legacyStatus = (Integer) row.get("status");
         Integer legacyPayment = (Integer) row.get("payment_status");
         BigDecimal gross = (BigDecimal) row.get("gross_received_amount");
+        BigDecimal net = (BigDecimal) row.get("net_received_amount");
+        BigDecimal balance = (BigDecimal) row.get("balance_amount");
+        BigDecimal total = (BigDecimal) row.get("total_amount");
+        BigDecimal salesReturn = (BigDecimal) row.get("sales_return_amount");
+        BigDecimal cashRefund = (BigDecimal) row.get("cash_refund_amount");
+        BigDecimal writeOff = (BigDecimal) row.get("write_off_amount");
         BigDecimal originalPaid = nz(o.paidAmount);
 
         // 新字段必须已写入
@@ -229,6 +230,42 @@ public class OrderLegacyMigrator {
         if (gross.compareTo(originalPaid) != 0) {
             throw new IllegalStateException("订单 " + o.id + " 实收快照不一致 gross="
                     + gross + " paid=" + originalPaid);
+        }
+        BigDecimal expectedNet = gross.subtract(nz(cashRefund));
+        BigDecimal expectedBalance = nz(total).subtract(nz(salesReturn))
+                .subtract(nz(writeOff)).subtract(expectedNet).max(BigDecimal.ZERO);
+        if (net.compareTo(expectedNet) != 0 || balance.compareTo(expectedBalance) != 0) {
+            throw new IllegalStateException("订单 " + o.id + " 金额快照公式不平 net=" + net
+                    + "/" + expectedNet + " balance=" + balance + "/" + expectedBalance);
+        }
+
+        Map<String, Object> facts = jdbc.queryForMap(sql.get("verifyMigrationFacts"),
+                o.id, o.tenantId, o.id, o.tenantId, o.id, o.tenantId,
+                o.id, o.tenantId, o.id, o.tenantId);
+        int openingCount = number(facts.get("opening_count")).intValue();
+        int writeOffCount = number(facts.get("write_off_count")).intValue();
+        int transitionCount = number(facts.get("transition_count")).intValue();
+        BigDecimal openingSum = decimal(facts.get("opening_sum"));
+        BigDecimal writeOffSum = decimal(facts.get("write_off_sum"));
+        int expectedOpeningCount = originalPaid.signum() > 0 ? 1 : 0;
+        int expectedWriteOffCount = nz(o.writeOffAmount).signum() > 0 ? 1 : 0;
+        if (openingCount != expectedOpeningCount || openingSum.compareTo(originalPaid) != 0
+                || writeOffCount != expectedWriteOffCount
+                || writeOffSum.compareTo(nz(o.writeOffAmount)) != 0
+                || transitionCount != 1) {
+            throw new IllegalStateException("订单 " + o.id + " 迁移事实不守恒 opening="
+                    + openingCount + "/" + openingSum + " writeOff=" + writeOffCount + "/"
+                    + writeOffSum + " transitions=" + transitionCount);
+        }
+    }
+
+    private void verifyManualReviewUntouched(LegacyOrder o) {
+        Map<String, Object> row = jdbc.queryForMap(sql.get("verifyManualReviewUntouched"),
+                o.id, o.tenantId, o.id, o.tenantId, o.id, o.tenantId);
+        if (number(row.get("new_field_count")).intValue() != 0
+                || number(row.get("migration_record_count")).intValue() != 0
+                || number(row.get("migration_transition_count")).intValue() != 0) {
+            throw new IllegalStateException("人工核对订单 " + o.id + " 被迁移程序写入，整体回滚");
         }
     }
 
@@ -433,6 +470,15 @@ public class OrderLegacyMigrator {
 
     private static BigDecimal nz(BigDecimal v) {
         return v == null ? BigDecimal.ZERO : v;
+    }
+
+    private static Number number(Object value) {
+        return value instanceof Number n ? n : 0;
+    }
+
+    private static BigDecimal decimal(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        return value instanceof BigDecimal b ? b : new BigDecimal(value.toString());
     }
 
     private static String str(Integer v) {

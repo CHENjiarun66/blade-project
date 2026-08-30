@@ -318,7 +318,7 @@ export function confirmDelivery(deliveryId: number) {
 
 // 配货计划项请求DTO
 export interface DeliveryPlanItemDTO {
-  orderItemId?: number
+  orderItemId: number
   skuId: number
   warehouseId?: number
   plannedQty?: number

@@ -734,11 +734,7 @@ public class OrderActionService {
     }
 
     private User currentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user;
-        }
-        return null;
+        return accessPolicy.currentUser();
     }
 
     private Set<String> currentAuthorities() {

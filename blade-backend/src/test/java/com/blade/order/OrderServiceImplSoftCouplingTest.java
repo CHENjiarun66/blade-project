@@ -4,6 +4,8 @@ import com.blade.common.tenant.TenantContext;
 import com.blade.file.service.FileService;
 import com.blade.inventory.service.InventoryService;
 import com.blade.order.dto.AddPaymentDTO;
+import com.blade.order.dto.OrderUpdateDTO;
+import com.blade.common.exception.BusinessException;
 import com.blade.order.entity.Order;
 import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.order.mapper.OrderFinancialRecordMapper;
@@ -207,5 +209,25 @@ class OrderServiceImplSoftCouplingTest {
         RuntimeException ex = assertThrows(RuntimeException.class, () -> orderService.delete(22L));
         assertTrue(ex.getMessage().contains("待处理"));
         verify(orderMapper, never()).updateById(any(Order.class));
+    }
+
+    @Test
+    void updateFinancialFields_shouldRejectWhenFinancialFactsExist() {
+        Order order = stubOrder(30L, 0);
+        order.setFulfillmentStatus("CONFIRMED");
+        order.setCollectionStatus("PARTIAL");
+        order.setFreightAmount(BigDecimal.ZERO);
+        when(orderMapper.selectById(30L)).thenReturn(order);
+        when(financialRecordMapper.selectCount(any())).thenReturn(1L);
+        OrderUpdateDTO dto = new OrderUpdateDTO();
+        dto.setId(30L);
+        dto.setFreightAmount(new BigDecimal("1.00"));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> orderService.update(dto));
+
+        assertEquals(400, ex.getCode());
+        verify(orderItemMapper, never()).delete(any());
+        verify(orderMapper, never()).updateById(any(Order.class));
+        verify(snapshotService, never()).recalculateAndApply(any());
     }
 }

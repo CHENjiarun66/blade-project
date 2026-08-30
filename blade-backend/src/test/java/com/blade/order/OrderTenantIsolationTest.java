@@ -75,7 +75,8 @@ class OrderTenantIsolationTest {
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper,
                 new OrderFinanceSnapshotService(orderMapper, financialRecordMapper, new OrderCompatAdapter()),
-                new OrderCompatAdapter(), inventoryService, placeholderSplitService, customerStatsCacheService, new com.blade.order.service.OrderAccessPolicy());
+                new OrderCompatAdapter(), inventoryService, placeholderSplitService, customerStatsCacheService,
+                new com.blade.order.service.OrderAccessPolicy(mock(com.blade.system.user.mapper.UserMapper.class)));
     }
 
     @AfterEach

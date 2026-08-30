@@ -3,6 +3,7 @@ package com.blade.order.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.blade.common.tenant.TenantContext;
+import com.blade.common.exception.BusinessException;
 import com.blade.inventory.entity.Warehouse;
 import com.blade.inventory.mapper.WarehouseMapper;
 import com.blade.order.dto.AdjustmentLogDTO;
@@ -18,6 +19,7 @@ import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.order.enums.FulfillmentStatus;
 import com.blade.order.service.OrderActionService;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.order.service.OrderDeliveryPlanService;
 import com.blade.product.entity.ProductColor;
 import com.blade.product.entity.ProductSku;
@@ -27,11 +29,8 @@ import com.blade.product.mapper.ProductSkuMapper;
 import com.blade.product.mapper.ProductSizeMapper;
 import com.blade.product.mapper.ProductMapper;
 import com.blade.system.user.entity.User;
-import com.blade.system.user.mapper.UserMapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,7 +56,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
     private final ProductColorMapper colorMapper;
     private final ProductSizeMapper sizeMapper;
     private final WarehouseMapper warehouseMapper;
-    private final UserMapper userMapper;
+    private final OrderAccessPolicy accessPolicy;
 
     @Autowired
     public OrderDeliveryPlanServiceImpl(OrderMapper orderMapper,
@@ -70,7 +69,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
                                        ProductColorMapper colorMapper,
                                        ProductSizeMapper sizeMapper,
                                        WarehouseMapper warehouseMapper,
-                                       UserMapper userMapper) {
+                                       OrderAccessPolicy accessPolicy) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.deliveryPlanMapper = deliveryPlanMapper;
@@ -81,7 +80,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         this.colorMapper = colorMapper;
         this.sizeMapper = sizeMapper;
         this.warehouseMapper = warehouseMapper;
-        this.userMapper = userMapper;
+        this.accessPolicy = accessPolicy;
     }
 
     @Override
@@ -91,6 +90,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+        accessPolicy.requireAccess(order);
 
         // 状态前置：经统一动作服务校验（STOCK_LINKED + 待配货）并进入配货中；
         // 失败（含历史未迁移订单）整体回滚
@@ -145,15 +145,19 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+        accessPolicy.requireAccess(order);
+        requireMigratedOrder(order);
+        if (dto.getOrderId() == null || !orderId.equals(dto.getOrderId())) {
+            throw BusinessException.of(400, "请求订单ID与路径订单不一致");
+        }
         // 状态前置：只有配货中的订单可以调整方案
         requireAllocating(order);
 
         // 终审三轮 P0-6：整批验证前置到删除旧计划之前——明细归属、SKU 一致、数量守恒、目标去重
-        java.util.Set<Long> orderItemIds = orderItemMapper.selectList(
-                new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId))
-                .stream().collect(Collectors.toMap(OrderItem::getId, java.util.function.Function.identity()))
-                .keySet();
-        java.util.Set<String> seenKeys = new java.util.HashSet<>();
+        Map<Long, OrderItem> orderItems = orderItemMapper.selectList(
+                        new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId))
+                .stream().collect(Collectors.toMap(OrderItem::getId, java.util.function.Function.identity()));
+        java.util.Set<Long> seenOrderItemIds = new java.util.HashSet<>();
         for (DeliveryPlanDTO.PlanItemDTO itemDto : dto.getItems()) {
             if (itemDto.getAllocatedQty() == null || itemDto.getAllocatedQty() <= 0
                     || itemDto.getPlannedQty() == null || itemDto.getPlannedQty() <= 0) {
@@ -162,19 +166,29 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
             if (itemDto.getAllocatedQty() > itemDto.getPlannedQty()) {
                 throw new RuntimeException("配货数量不能超过计划数量");
             }
-            if (itemDto.getOrderItemId() != null) {
-                if (!orderItemIds.contains(itemDto.getOrderItemId())) {
-                    throw new RuntimeException("配货明细不属于当前订单: " + itemDto.getOrderItemId());
-                }
-                OrderItem oi = orderItemMapper.selectById(itemDto.getOrderItemId());
-                if (oi != null && oi.getSkuId() != null && !oi.getSkuId().equals(itemDto.getSkuId())) {
-                    throw new RuntimeException("配货 SKU 与订单明细不一致: " + itemDto.getSkuId());
-                }
-                String key = itemDto.getOrderItemId() + ":" + itemDto.getSkuId();
-                if (!seenKeys.add(key)) {
-                    throw new RuntimeException("配货明细重复: " + key);
-                }
+            if (itemDto.getOrderItemId() == null) {
+                throw BusinessException.of(400, "订单明细ID不能为空");
             }
+            OrderItem oi = orderItems.get(itemDto.getOrderItemId());
+            if (oi == null) {
+                throw BusinessException.of(400, "配货明细不属于当前订单: " + itemDto.getOrderItemId());
+            }
+            if (oi.getSkuId() == null || !oi.getSkuId().equals(itemDto.getSkuId())) {
+                throw BusinessException.of(400, "配货 SKU 与订单明细不一致: " + itemDto.getSkuId());
+            }
+            if (!seenOrderItemIds.add(itemDto.getOrderItemId())) {
+                throw BusinessException.of(400, "配货明细重复: " + itemDto.getOrderItemId());
+            }
+            if (oi.getQuantity() == null || !itemDto.getPlannedQty().equals(oi.getQuantity())
+                    || itemDto.getAllocatedQty() > oi.getQuantity()) {
+                throw BusinessException.of(400, "配货数量不得超过订单原数量，计划数量必须等于订单数量");
+            }
+            if (itemDto.getWarehouseId() != null && warehouseMapper.selectById(itemDto.getWarehouseId()) == null) {
+                throw BusinessException.of(400, "仓库不存在或不属于当前租户: " + itemDto.getWarehouseId());
+            }
+        }
+        if (!seenOrderItemIds.equals(orderItems.keySet())) {
+            throw BusinessException.of(400, "配货计划必须覆盖订单全部明细且每条仅出现一次");
         }
 
         // 删除旧的配货计划
@@ -212,6 +226,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
 
     @Override
     public List<DeliveryPlanVO> getDeliveryPlanByOrderId(Long orderId) {
+        Order scopedOrder = requireAccessibleOrder(orderId);
         LambdaQueryWrapper<OrderDeliveryPlan> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderDeliveryPlan::getOrderId, orderId);
         List<OrderDeliveryPlan> plans = deliveryPlanMapper.selectList(wrapper);
@@ -228,7 +243,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
                 plans.stream().map(OrderDeliveryPlan::getWarehouseId).collect(Collectors.toList()));
 
         // 获取订单信息
-        Order order = orderMapper.selectById(orderId);
+        Order order = scopedOrder;
 
         return plans.stream().map(plan -> {
             DeliveryPlanVO vo = new DeliveryPlanVO();
@@ -288,6 +303,8 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+        accessPolicy.requireAccess(order);
+        requireMigratedOrder(order);
         // 删除配货计划
         LambdaQueryWrapper<OrderDeliveryPlan> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderDeliveryPlan::getOrderId, orderId);
@@ -295,17 +312,7 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
 
         // 新行：只有配货中的订单可以删除计划，经动作服务回到待配货；
         // 不会把已发货/已完成订单拉回旧状态
-        if (order.getFulfillmentStatus() != null) {
-            actionService.revertAllocationToWaiting(orderId, "PC");
-        } else {
-            // 历史未迁移行保持旧语义（带前置校验）
-            requireLegacyAllocating(order);
-            LambdaUpdateWrapper<Order> updateWrapper = new LambdaUpdateWrapper<>();
-            updateWrapper.eq(Order::getId, orderId)
-                    .set(Order::getStatus, 1)  // PAID
-                    .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.NONE);
-            orderMapper.update(null, updateWrapper);
-        }
+        actionService.revertAllocationToWaiting(orderId, "PC");
     }
 
     @Override
@@ -315,6 +322,8 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+        accessPolicy.requireAccess(order);
+        requireMigratedOrder(order);
 
         // 获取当前用户
         User currentUser = getCurrentUser();
@@ -341,6 +350,8 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+        accessPolicy.requireAccess(order);
+        requireMigratedOrder(order);
 
         // 获取配货计划
         LambdaQueryWrapper<OrderDeliveryPlan> planQueryWrapper = new LambdaQueryWrapper<>();
@@ -384,17 +395,8 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
             }
         }
 
-        // 新行：经统一动作服务推进 配货中 → 待发货；历史行带前置校验保持旧语义
-        if (order.getFulfillmentStatus() != null) {
-            actionService.confirmAllocation(orderId, "PC");
-        } else {
-            requireLegacyAllocating(order);
-            LambdaUpdateWrapper<Order> wrapper = new LambdaUpdateWrapper<>();
-            wrapper.eq(Order::getId, orderId)
-                    .set(Order::getStatus, 3)  // READY_TO_SHIP
-                    .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.APPROVED);
-            orderMapper.update(null, wrapper);
-        }
+        // 经统一动作服务推进 配货中 → 待发货
+        actionService.confirmAllocation(orderId, "PC");
 
         // 更新配货计划状态为 ALLOCATED
         LambdaUpdateWrapper<OrderDeliveryPlan> planWrapper = new LambdaUpdateWrapper<>();
@@ -410,6 +412,8 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+        accessPolicy.requireAccess(order);
+        requireMigratedOrder(order);
 
         // 删除配货计划
         LambdaQueryWrapper<OrderDeliveryPlan> planWrapper = new LambdaQueryWrapper<>();
@@ -421,17 +425,8 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         logWrapper.eq(OrderAdjustmentLog::getOrderId, orderId);
         adjustmentLogMapper.delete(logWrapper);
 
-        // 新行：经动作服务回到待配货；历史行带前置校验保持旧语义
-        if (order.getFulfillmentStatus() != null) {
-            actionService.revertAllocationToWaiting(orderId, "PC");
-        } else {
-            requireLegacyAllocating(order);
-            LambdaUpdateWrapper<Order> orderUpdateWrapper = new LambdaUpdateWrapper<>();
-            orderUpdateWrapper.eq(Order::getId, orderId)
-                    .set(Order::getStatus, 1)  // PAID
-                    .set(Order::getAdjustmentStatus, Order.AdjustmentStatus.NONE);
-            orderMapper.update(null, orderUpdateWrapper);
-        }
+        // 经统一动作服务回到待配货
+        actionService.revertAllocationToWaiting(orderId, "PC");
     }
 
     /** 新行状态前置：只有配货中的订单可以调整/删除方案。 */
@@ -442,15 +437,9 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
         }
     }
 
-    /** 历史行旧语义前置：只有配货中（status=2）的订单可以确认/取消调整。 */
-    private void requireLegacyAllocating(Order order) {
-        if (order.getStatus() == null || order.getStatus() != 2) {
-            throw new RuntimeException("只有配货中的订单可以执行该操作");
-        }
-    }
-
     @Override
     public List<AdjustmentLogDTO> getAdjustmentLogs(Long orderId) {
+        requireAccessibleOrder(orderId);
         LambdaQueryWrapper<OrderAdjustmentLog> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderAdjustmentLog::getOrderId, orderId)
                 .orderByDesc(OrderAdjustmentLog::getCreateTime);
@@ -467,6 +456,21 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
             dto.setReason(log.getReason());
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    private Order requireAccessibleOrder(Long orderId) {
+        Order order = orderMapper.selectById(orderId);
+        if (order == null) {
+            throw BusinessException.of(404, "订单不存在");
+        }
+        accessPolicy.requireAccess(order);
+        return order;
+    }
+
+    private void requireMigratedOrder(Order order) {
+        if (order.getFulfillmentStatus() == null || order.getCollectionStatus() == null) {
+            throw BusinessException.of(400, "历史订单尚未迁移，不能执行配货操作");
+        }
     }
 
     private Map<Long, ProductSku> loadSkuMap(List<Long> ids) {
@@ -508,15 +512,6 @@ public class OrderDeliveryPlanServiceImpl implements OrderDeliveryPlanService {
      * 获取当前登录用户
      */
     private User getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            String username = authentication.getName();
-            if (username != null && !username.equals("anonymousUser")) {
-                LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-                wrapper.eq(User::getUsername, username);
-                return userMapper.selectOne(wrapper);
-            }
-        }
-        return null;
+        return accessPolicy.currentUser();
     }
 }

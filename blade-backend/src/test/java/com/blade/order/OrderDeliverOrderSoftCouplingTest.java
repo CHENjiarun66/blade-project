@@ -88,6 +88,8 @@ class OrderDeliverOrderSoftCouplingTest {
     void setUp() {
         TenantContext.setTenantId(1L);
         lenient().when(orderMapper.updateById(any(Order.class))).thenReturn(1);
+        lenient().when(orderMapper.selectById(anyLong())).thenAnswer(invocation ->
+                stubOrder(invocation.getArgument(0, Long.class), 3));
 
         User principal = new User();
         principal.setId(1L);
@@ -111,13 +113,15 @@ class OrderDeliverOrderSoftCouplingTest {
 
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
-                inventoryService, placeholderSplitService, customerStatsCacheService, new com.blade.order.service.OrderAccessPolicy());
+                inventoryService, placeholderSplitService, customerStatsCacheService,
+                new com.blade.order.service.OrderAccessPolicy(mock(com.blade.system.user.mapper.UserMapper.class)));
         deliveryService = new OrderDeliveryServiceImpl(deliveryMapper, deliveryItemMapper,
                 orderMapper, mock(com.blade.order.mapper.OrderItemMapper.class),
                 mock(WarehouseMapper.class), mock(com.blade.product.mapper.ProductSkuMapper.class),
                 mock(com.blade.product.mapper.ProductColorMapper.class),
                 mock(com.blade.product.mapper.ProductSizeMapper.class),
                 mock(com.blade.product.mapper.ProductMapper.class), orderServiceMockForDelivery,
+                mock(com.blade.order.service.OrderAccessPolicy.class),
                 mock(org.redisson.api.RedissonClient.class));
     }
 

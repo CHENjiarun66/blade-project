@@ -1,6 +1,7 @@
 package com.blade.order.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -21,13 +22,15 @@ public class DeliveryPlanDTO {
 
     @Schema(description = "配货明细")
     @NotEmpty(message = "配货明细不能为空")
+    @Valid
     private List<PlanItemDTO> items;
 
     @Data
     @Schema(description = "配货明细项")
     public static class PlanItemDTO {
 
-        @Schema(description = "订单明细ID（可选，用于追踪原商品）")
+        @Schema(description = "订单明细ID")
+        @NotNull(message = "订单明细ID不能为空")
         private Long orderItemId;
 
         @Schema(description = "SKU ID")

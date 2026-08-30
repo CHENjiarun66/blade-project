@@ -438,3 +438,53 @@ $ git rev-list --left-right --count HEAD...@{upstream}
 | Codex 最终批准 | **未批准** |
 
 因此 `09afa7b` 仍只能作为第四轮整改基线，不能合并、部署 NAS 或接触生产库。
+
+---
+
+## 十三、Codex 第四轮整改与终验（2026-08-30）
+
+### 13.1 结论
+
+第三轮列出的 **P0×6、P1×4 代码问题已全部关闭**。当前状态更新为：
+
+```text
+CODEX_APPROVED_FOR_RELEASE_PREPARATION
+```
+
+该批准仅表示代码与隔离环境门禁通过；不等于已部署生产。生产发布仍须按既定流程完成只读备份、恢复演练、V42 生产副本预演、维护窗口确认和用户最终批准，禁止直接在 NAS 生产库试跑。
+
+### 13.2 问题关闭对照
+
+| 第三轮问题 | 本轮实际修复 | 可定位验证 |
+|---|---|---|
+| P0-1 生产 JWT principal 无法解析用户 | `OrderAccessPolicy` 统一支持业务 `User` 与 Spring Security `UserDetails`；后者按认证用户名经当前租户 `UserMapper` 回查，`OrderServiceImpl`、`OrderActionService`、配货调整操作人统一复用该入口；列表无法解析用户时按 `salesman_id=-1` 失败关闭 | `OrderJwtAccessIntegrationTest.salesJwt_canReadOwnOrderButNotAnotherSalesOrder`（真实登录→JWT filter→UserDetails→controller，本人 200、他人 403、列表仅本人）；`OrderAccessControlTest.springUserDetailsPrincipal_resolvesDomainUserAndCanAccessOwnOrder` |
+| P0-2 tenant 2 无法加载全局权限 | `TenantLineHandler` 将 `sys_permission` 明确列为全局定义表，角色/用户关联表仍保留租户隔离 | `OrderPermissionTenantTest.tenantTwoUser_loadsGlobalPermissionDefinitionsThroughMapper`（tenant 2 + 真实 `PermissionMapper`，不再用 JdbcTemplate 绕过拦截器） |
+| P0-3 WAREHOUSE 被所有权策略阻断 | 新增 Flyway `V55__order_warehouse_scope.sql`，为每个租户的 `ROLE_WAREHOUSE` 授予 `menu:order`、`btn:order:view`、`btn:order:viewAll`，但不授予 `viewFinance` | `OrderPermissionTenantTest.warehouseRole_canReadFulfillmentOrdersButCannotReadFinance`；现有动作状态机/发货回归继续验证 allocate/deliver 路径 |
+| P0-4 历史行仍存在旧状态直写 | 删除配货计划服务中的全部 legacy 直写分支及 `requireLegacyAllocating`；删除计划、写调整、确认/取消调整前统一 `requireMigratedOrder`，历史行在任何副作用前拒绝 | `OrderActionStateMachineTest.shipOrder_andFulfillmentActions_rejectedForLegacyUnmigratedRows`；源码扫描无 `OrderDeliveryPlanServiceImpl` 旧 `status` 直写 |
+| P0-5 配货计划可写任意 SKU/放大数量 | DTO 明细启用 `@Valid`，`orderItemId` 必填；更新前一次性校验路径/请求订单一致、订单明细归属、SKU 精确一致、原数量守恒、重复明细、整单完整覆盖及仓库存在，全部通过后才删除旧计划 | `OrderDeliveryPlanServiceImplTest.updatePlan_rejectsCrossOrderItemBeforeDeletingExistingPlan`、`rejectsSkuMismatch...`、`rejectsInflatedQuantity...`、`rejectsDuplicateAndMissingItems...`、`acceptsEqualQuantityAboveIntegerCacheRange` |
+| P0-6 子资源缺数据范围 | 配货计划、调整记录、订单出库单查询与出库确认均在服务层加载订单并调用 `OrderAccessPolicy`；订单编辑、删除也补同一策略 | `OrderJwtAccessIntegrationTest` 的真实 JWT 数据范围；`OrderAccessControlTest` 的本人/他人/viewAll 反例 |
+| P1-1 迁移不变量恒等比较 | 移除由同一内存输入自加自比的校验；事务内从数据库逐单核对金额快照公式、`MIGRATION_OPENING`/`WRITE_OFF` 流水数量与金额、唯一迁移日志、旧字段投影，并显式验证人工核对订单新字段/流水/日志零写入 | `OrderMigrationRehearsalTest.dryRunExecuteReplay_mappingGuards`、`faultInjection_midBatchRollsBackEntirely`（真实 3307 隔离库） |
+| P1-2 已有财务事实仍可改金额缺直接反例 | `OrderServiceImpl.update/delete` 统一执行订单访问策略；保留财务事实/履约事实编辑锁并补直接调用反例 | `OrderServiceImplSoftCouplingTest.updateFinancialFields_shouldRejectWhenFinancialFactsExist`：返回 400，且不删明细、不更新订单、不重算快照 |
+| P1-3 缺真实 JWT/controller 与多租户权限测试 | 新增真实登录 JWT MockMvc 数据范围测试；多租户权限使用真实 Mapper 穿透租户拦截器 | `OrderJwtAccessIntegrationTest`、`OrderPermissionTenantTest.tenantTwoUser_loadsGlobalPermissionDefinitionsThroughMapper` |
+| P1-4 配货测试引用错误 | 报告改为引用直接调用 `updateDeliveryPlan` 的四个反例及一个大数量正例，不再以出库单测试替代配货计划测试 | `OrderDeliveryPlanServiceImplTest` 四项 `updatePlan_rejects...` + `updatePlan_acceptsEqualQuantityAboveIntegerCacheRange` |
+
+### 13.3 最终验证
+
+| 验证项 | 结果 |
+|---|---|
+| `git diff --check` | 通过 |
+| 后端全量测试（显式连接 Docker 隔离库 `127.0.0.1:3307/blade_project`） | **467/467 通过，0 失败，0 错误，0 跳过** |
+| Flyway | **57 个 migration 校验通过，测试库已连续升级到 V55** |
+| `packages/types` | `npm run build` 通过 |
+| `blade-admin` | `npm run build` 通过；仅既有 chunk 大小提示 |
+| `blade-mobile` | `npm run build` 通过；仅既有 Vite 配置/chunk 提示 |
+| 生产/NAS 数据 | **未连接、未修改、未删除** |
+
+### 13.4 发布边界
+
+代码门禁已通过，但以下属于发布阶段操作，本轮没有越权执行：
+
+1. 从生产环境生成只读、带校验值的数据库备份，并在独立实例完成恢复验证。
+2. 在恢复出的生产副本上执行 V42→V55 迁移与 `OrderLegacyMigrator` dry-run，人工处理报告中的 `MANUAL_REVIEW` 行。
+3. 通过金额守恒、订单数量、人工核对零写入及关键角色冒烟后，方可申请生产维护窗口。
+4. 未经用户明确批准，不合并发布分支、不部署 NAS、不执行生产 migration。

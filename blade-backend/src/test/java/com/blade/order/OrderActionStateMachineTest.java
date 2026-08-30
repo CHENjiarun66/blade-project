@@ -112,7 +112,8 @@ class OrderActionStateMachineTest {
                 new OrderCompatAdapter());
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
-                inventoryService, placeholderSplitService, customerStatsCacheService, new com.blade.order.service.OrderAccessPolicy());
+                inventoryService, placeholderSplitService, customerStatsCacheService,
+                new com.blade.order.service.OrderAccessPolicy(mock(com.blade.system.user.mapper.UserMapper.class)));
     }
 
     @AfterEach

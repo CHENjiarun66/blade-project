@@ -17,6 +17,7 @@ import com.blade.order.service.OrderCompatAdapter;
 import com.blade.order.service.OrderFinanceSnapshotService;
 import com.blade.inventory.service.InventoryService;
 import com.blade.system.user.entity.User;
+import com.blade.system.user.mapper.UserMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,7 @@ class OrderAccessControlTest {
     @Mock private OrderDeliveryPlanMapper deliveryPlanMapper;
     @Mock private OrderAdjustmentLogMapper adjustmentLogMapper;
     @Mock private InventoryService inventoryService;
+    @Mock private UserMapper userMapper;
 
     private OrderActionService actionService;
 
@@ -112,6 +114,22 @@ class OrderAccessControlTest {
         SecurityContextHolder.setContext(sc);
     }
 
+    /** 模拟生产 JWT 链路中的 Spring Security UserDetails principal。 */
+    private void loginAsSpringUserDetails(String username) {
+        org.springframework.security.core.userdetails.User principal =
+                new org.springframework.security.core.userdetails.User(username, "n/a", List.of(
+                        new SimpleGrantedAuthority("btn:order:recordPayment"),
+                        new SimpleGrantedAuthority("btn:order:view")));
+        SecurityContext sc = mock(SecurityContext.class);
+        Authentication auth = mock(Authentication.class);
+        lenient().when(sc.getAuthentication()).thenReturn(auth);
+        lenient().when(auth.getPrincipal()).thenReturn(principal);
+        lenient().when(auth.getName()).thenReturn(username);
+        lenient().when(auth.isAuthenticated()).thenReturn(true);
+        lenient().when(auth.getAuthorities()).thenReturn((java.util.Collection) principal.getAuthorities());
+        SecurityContextHolder.setContext(sc);
+    }
+
     private Order migratedOrder(Long id, Long salesmanId) {
         Order order = new Order();
         order.setId(id);
@@ -152,7 +170,7 @@ class OrderAccessControlTest {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 1L); // 他人开单
         stubOrder(order);
-        OrderAccessPolicy policy = new OrderAccessPolicy();
+        OrderAccessPolicy policy = new OrderAccessPolicy(userMapper);
         actionService = buildService(policy);
 
         AddPaymentDTO dto = new AddPaymentDTO();
@@ -171,7 +189,7 @@ class OrderAccessControlTest {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 1L); // salesmanId=1，SALES 用户 id=2
         stubOrder(order);
-        actionService = buildService(new OrderAccessPolicy());
+        actionService = buildService(new OrderAccessPolicy(userMapper));
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
                 actionService.recordPayment(1L, new BigDecimal("10.00"), null, null, "PC"));
@@ -184,7 +202,22 @@ class OrderAccessControlTest {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 2L); // salesmanId=2，SALES 用户 id=2
         stubOrder(order);
-        actionService = buildService(new OrderAccessPolicy());
+        actionService = buildService(new OrderAccessPolicy(userMapper));
+
+        assertDoesNotThrow(() ->
+                actionService.recordPayment(1L, new BigDecimal("10.00"), null, null, "PC"));
+    }
+
+    @Test
+    void springUserDetailsPrincipal_resolvesDomainUserAndCanAccessOwnOrder() {
+        loginAsSpringUserDetails("sales2");
+        User domainUser = new User();
+        domainUser.setId(2L);
+        domainUser.setUsername("sales2");
+        when(userMapper.selectOne(any())).thenReturn(domainUser);
+        Order order = migratedOrder(1L, 2L);
+        stubOrder(order);
+        actionService = buildService(new OrderAccessPolicy(userMapper));
 
         assertDoesNotThrow(() ->
                 actionService.recordPayment(1L, new BigDecimal("10.00"), null, null, "PC"));
@@ -196,7 +229,7 @@ class OrderAccessControlTest {
         loginAsAdmin(1L);
         Order order = migratedOrder(1L, 99L); // 他人开单，但 admin 有 viewAll
         stubOrder(order);
-        actionService = buildService(new OrderAccessPolicy());
+        actionService = buildService(new OrderAccessPolicy(userMapper));
 
         assertDoesNotThrow(() ->
                 actionService.recordPayment(1L, new BigDecimal("10.00"), null, null, "PC"));
@@ -207,7 +240,7 @@ class OrderAccessControlTest {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 2L); // 本人订单
         stubOrder(order);
-        actionService = buildService(new OrderAccessPolicy());
+        actionService = buildService(new OrderAccessPolicy(userMapper));
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
                 actionService.refundPayment(1L, new BigDecimal("10.00"), "退款", null, "PC"));
@@ -218,7 +251,7 @@ class OrderAccessControlTest {
     void allowedActions_emptyForNonOwner() {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 1L); // 他人订单
-        actionService = buildService(new OrderAccessPolicy());
+        actionService = buildService(new OrderAccessPolicy(userMapper));
 
         List<String> actions = actionService.computeAllowedActions(order);
         assertTrue(actions.isEmpty(), "非本人订单不得有 allowedActions");

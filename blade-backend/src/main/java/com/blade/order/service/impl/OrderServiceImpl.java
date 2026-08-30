@@ -132,10 +132,8 @@ public class OrderServiceImpl implements OrderService {
         wrapper.eq(Order::getDeleted, 0);
         // 数据范围：无 viewAll 的用户只能看到本人开单
         if (!accessPolicy.hasViewAllScope()) {
-            User user = getCurrentUser();
-            if (user != null) {
-                wrapper.eq(Order::getSalesmanId, user.getId());
-            }
+            Long currentUserId = accessPolicy.currentUserId();
+            wrapper.eq(Order::getSalesmanId, currentUserId != null ? currentUserId : -1L);
         }
         applyOrderPageFilters(wrapper, dto);
 
@@ -475,6 +473,7 @@ public class OrderServiceImpl implements OrderService {
         if (order == null || Integer.valueOf(1).equals(order.getDeleted())) {
             throw new RuntimeException("订单不存在");
         }
+        accessPolicy.requireAccess(order);
         // 终审 P0-7：可编辑性按新生命周期与财务事实判断，不再依赖旧数字状态
         boolean hasFinancialFacts = financialRecordMapper.selectCount(new LambdaQueryWrapper<OrderFinancialRecord>()
                 .eq(OrderFinancialRecord::getOrderId, order.getId())
@@ -545,6 +544,7 @@ public class OrderServiceImpl implements OrderService {
         if (order == null) {
             throw new RuntimeException("订单不存在");
         }
+        accessPolicy.requireAccess(order);
         // 只允许删除尚未产生任何事实的确认订单（软删除，可恢复）
         if (order.getStatus() != null && order.getStatus() != 0) {
             throw new RuntimeException("只有待处理状态的订单可以删除");
@@ -685,18 +685,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private User getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user;
-        }
-        if (authentication != null && authentication.isAuthenticated()
-                && authentication.getName() != null
-                && !"anonymousUser".equals(authentication.getName())) {
-            return userMapper.selectOne(new LambdaQueryWrapper<User>()
-                    .eq(User::getUsername, authentication.getName())
-                    .last("LIMIT 1"));
-        }
-        return null;
+        return accessPolicy.currentUser();
     }
 
     private String generateOrderNo() {

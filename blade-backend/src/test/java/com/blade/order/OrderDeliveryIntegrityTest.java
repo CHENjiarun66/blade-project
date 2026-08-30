@@ -94,7 +94,7 @@ class OrderDeliveryIntegrityTest {
                 orderMapper, orderItemMapper, warehouseMapper,
                 mock(ProductSkuMapper.class), mock(ProductColorMapper.class),
                 mock(ProductSizeMapper.class), mock(ProductMapper.class),
-                orderService, redissonClient);
+                orderService, mock(com.blade.order.service.OrderAccessPolicy.class), redissonClient);
 
         // 仓库与插入桩：各用例的校验都发生在仓库检查之后
         Warehouse w = new Warehouse();

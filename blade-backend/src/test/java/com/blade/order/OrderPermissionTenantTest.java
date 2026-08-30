@@ -1,10 +1,14 @@
 package com.blade.order;
 
+import com.blade.common.tenant.TenantContext;
+import com.blade.system.permission.mapper.PermissionMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -20,14 +24,21 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@Transactional
 class OrderPermissionTenantTest {
 
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private PermissionMapper permissionMapper;
 
     private static final List<String> ACTION_CODES = List.of(
             "btn:order:recordPayment", "btn:order:writeOff", "btn:order:refund", "btn:order:reverse",
             "btn:order:chooseFulfillment", "btn:order:allocate", "btn:order:export", "btn:order:viewFinance",
             "btn:order:viewAll");
+
+    @AfterEach
+    void clearTenant() {
+        TenantContext.clear();
+    }
 
     @Test
     void permissionDefinitions_areGloballyUnique() {
@@ -103,5 +114,51 @@ class OrderPermissionTenantTest {
                 WHERE r.role_code = 'ROLE_SALES' AND r.deleted = 0
                 """, Integer.class);
         assertEquals(0, count, "SALES 不得有 writeOff 权限");
+    }
+
+    @Test
+    void tenantTwoUser_loadsGlobalPermissionDefinitionsThroughMapper() {
+        String username = "t2p" + Long.toString(System.nanoTime()).substring(4);
+        jdbc.update("INSERT IGNORE INTO sys_tenant (id, tenant_code, tenant_name, status) VALUES (2, 'second_tenant', '第二租户', 1)");
+        jdbc.update("INSERT IGNORE INTO sys_role (role_name, role_code, description, tenant_id, status, deleted) VALUES ('老板/经理', 'ROLE_OWNER', '测试第二租户', 2, 1, 0)");
+        jdbc.update("INSERT INTO sys_user (username, password, nickname, tenant_id, status, deleted) VALUES (?, 'n/a', '租户二权限用户', 2, 1, 0)", username);
+        Long roleId = jdbc.queryForObject(
+                "SELECT id FROM sys_role WHERE role_code='ROLE_OWNER' AND tenant_id=2 AND deleted=0", Long.class);
+        Long userId = jdbc.queryForObject(
+                "SELECT id FROM sys_user WHERE username=? AND tenant_id=2 AND deleted=0", Long.class, username);
+        jdbc.update("INSERT IGNORE INTO sys_user_role (user_id, role_id, tenant_id, deleted) VALUES (?, ?, 2, 0)", userId, roleId);
+        jdbc.update("""
+                INSERT INTO sys_role_permission (role_id, permission_id, tenant_id, deleted)
+                SELECT ?, p.id, 2, 0 FROM sys_permission p
+                WHERE p.code IN ('btn:order:recordPayment', 'btn:order:viewAll') AND p.deleted=0
+                ON DUPLICATE KEY UPDATE tenant_id=2, deleted=0
+                """, roleId);
+
+        TenantContext.setTenantId(2L);
+        List<String> codes = permissionMapper.selectCodesByUserId(userId);
+
+        assertTrue(codes.contains("btn:order:recordPayment"));
+        assertTrue(codes.contains("btn:order:viewAll"));
+    }
+
+    @Test
+    void warehouseRole_canReadFulfillmentOrdersButCannotReadFinance() {
+        Integer fulfillmentScope = jdbc.queryForObject("""
+                SELECT COUNT(DISTINCT p.code) FROM sys_role_permission rp
+                JOIN sys_role r ON r.id=rp.role_id AND r.tenant_id=rp.tenant_id
+                JOIN sys_permission p ON p.id=rp.permission_id
+                WHERE r.role_code='ROLE_WAREHOUSE' AND r.deleted=0
+                  AND p.code IN ('menu:order','btn:order:view','btn:order:viewAll')
+                """, Integer.class);
+        Integer financeScope = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM sys_role_permission rp
+                JOIN sys_role r ON r.id=rp.role_id AND r.tenant_id=rp.tenant_id
+                JOIN sys_permission p ON p.id=rp.permission_id
+                WHERE r.role_code='ROLE_WAREHOUSE' AND r.deleted=0
+                  AND p.code='btn:order:viewFinance'
+                """, Integer.class);
+
+        assertEquals(3, fulfillmentScope);
+        assertEquals(0, financeScope);
     }
 }

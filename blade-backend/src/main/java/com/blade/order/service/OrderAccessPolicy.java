@@ -3,6 +3,8 @@ package com.blade.order.service;
 import com.blade.common.exception.BusinessException;
 import com.blade.order.entity.Order;
 import com.blade.system.user.entity.User;
+import com.blade.system.user.mapper.UserMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,12 @@ import java.util.Set;
 public class OrderAccessPolicy {
 
     public static final String AUTH_VIEW_ALL = "btn:order:viewAll";
+
+    private final UserMapper userMapper;
+
+    public OrderAccessPolicy(UserMapper userMapper) {
+        this.userMapper = userMapper;
+    }
 
     /**
      * 当前用户是否可访问指定订单。不可访问抛 403。
@@ -63,9 +71,25 @@ public class OrderAccessPolicy {
         return user != null ? user.getId() : null;
     }
 
-    private User currentUser() {
+    public User currentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null && authentication.getPrincipal() instanceof User user ? user : null;
+        if (authentication == null) {
+            return null;
+        }
+        if (authentication.getPrincipal() instanceof User user) {
+            return user;
+        }
+        if (!authentication.isAuthenticated()) {
+            return null;
+        }
+        String username = authentication.getName();
+        if (username == null || username.isBlank() || "anonymousUser".equals(username)) {
+            return null;
+        }
+        return userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getUsername, username)
+                .eq(User::getDeleted, 0)
+                .last("LIMIT 1"));
     }
 
     private Set<String> currentAuthorities() {
