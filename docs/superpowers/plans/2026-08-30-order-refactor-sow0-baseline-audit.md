@@ -466,8 +466,9 @@ $ git rev-list --left-right --count HEAD...@{upstream}
 $ git diff --check
 （无输出，通过）
 
-报告 commit：<本报告首个提交，SHA 回填见文末>
-交付 commit：推送后 feature 分支 tip（= 记录交付元数据的第二个 [zcode] 提交）
+报告 commit：`d4eb8ced52e3c4b5d31fdb4fd294a782bc76bdae`（docs(order): submit sow0 baseline audit cr0 rework [zcode]）
+交付 commit：推送后 feature 分支 tip（= 本回填提交，Codex 复审以 `git log -1` 为准）
+环境注记：本机 git hooks 提示 `Can't find lefthook in PATH`（提交仍成功）；本次交付仅含本报告文档，无代码变更
 ```
 
 > 提交说明：报告正文与提交元数据无法写入自身 commit 的 SHA，采用两个 [zcode] 提交：① 本报告；② 在第十六节回填报告 commit SHA 与推送确认。Codex 复审以 `git log -1` 的 tip 为交付 commit。
