@@ -473,7 +473,7 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.status").value(0))
-                .andExpect(jsonPath("$.data.statusName").value("创建"))
+                .andExpect(jsonPath("$.data.statusName").value("已确认"))
                 .andExpect(jsonPath("$.data.totalAmount").isNumber())
                 .andExpect(jsonPath("$.data.items[0].productName").isString());
 
