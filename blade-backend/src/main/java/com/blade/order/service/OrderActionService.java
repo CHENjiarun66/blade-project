@@ -3,6 +3,7 @@ package com.blade.order.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.blade.common.exception.BusinessException;
 import com.blade.common.tenant.TenantContext;
+import com.blade.customer.service.CustomerStatsCacheService;
 import com.blade.inventory.service.InventoryService;
 import com.blade.order.dto.AddPaymentDTO;
 import com.blade.order.entity.Order;
@@ -68,6 +69,7 @@ public class OrderActionService {
     private final OrderCompatAdapter compatAdapter;
     private final InventoryService inventoryService;
     private final OrderPlaceholderSplitService placeholderSplitService;
+    private final CustomerStatsCacheService customerStatsCacheService;
 
     public OrderActionService(OrderMapper orderMapper,
                               OrderFinancialRecordMapper recordMapper,
@@ -77,7 +79,8 @@ public class OrderActionService {
                               OrderFinanceSnapshotService snapshotService,
                               OrderCompatAdapter compatAdapter,
                               InventoryService inventoryService,
-                              OrderPlaceholderSplitService placeholderSplitService) {
+                              OrderPlaceholderSplitService placeholderSplitService,
+                              CustomerStatsCacheService customerStatsCacheService) {
         this.orderMapper = orderMapper;
         this.recordMapper = recordMapper;
         this.transitionLogMapper = transitionLogMapper;
@@ -87,6 +90,7 @@ public class OrderActionService {
         this.compatAdapter = compatAdapter;
         this.inventoryService = inventoryService;
         this.placeholderSplitService = placeholderSplitService;
+        this.customerStatsCacheService = customerStatsCacheService;
     }
 
     // ==================== 财务动作 ====================
@@ -587,10 +591,12 @@ public class OrderActionService {
 
     /**
      * 统一落库：动作内所有变更（含快照与乐观版本）一次 updateById。
+     * 订单/财务变化后失效相关客户统计缓存（系列 E 口径一致性）。
      */
     private void persist(Order order) {
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
+        customerStatsCacheService.evictPreferenceCache(order.getCustomerId());
     }
 
     private void insertRecord(Order order, FinancialRecordType type, BigDecimal amount,

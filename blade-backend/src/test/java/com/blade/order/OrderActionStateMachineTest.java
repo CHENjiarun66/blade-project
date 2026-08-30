@@ -63,6 +63,7 @@ class OrderActionStateMachineTest {
     @Mock private OrderAdjustmentLogMapper adjustmentLogMapper;
     @Mock private InventoryService inventoryService;
     @Mock private com.blade.order.service.OrderPlaceholderSplitService placeholderSplitService;
+    @Mock private com.blade.customer.service.CustomerStatsCacheService customerStatsCacheService;
 
     private OrderActionService actionService;
     private OrderFinanceSnapshotService snapshotService;
@@ -99,7 +100,7 @@ class OrderActionStateMachineTest {
                 new OrderCompatAdapter());
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
-                inventoryService, placeholderSplitService);
+                inventoryService, placeholderSplitService, customerStatsCacheService);
     }
 
     @AfterEach

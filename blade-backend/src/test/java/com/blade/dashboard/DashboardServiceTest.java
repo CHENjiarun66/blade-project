@@ -13,6 +13,7 @@ import com.blade.order.entity.Order;
 import com.blade.order.entity.OrderItem;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.service.OrderFactsService;
 import com.blade.product.mapper.ProductMapper;
 import com.blade.product.mapper.ProductSkuMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -64,7 +65,8 @@ class DashboardServiceTest {
                 productMapper,
                 productSkuMapper,
                 inventoryMapper,
-                warehouseMapper
+                warehouseMapper,
+                new OrderFactsService(orderMapper)
         );
     }
 
@@ -96,9 +98,10 @@ class DashboardServiceTest {
         assertEquals(new BigDecimal("50.00"), stats.getPeriodGrossProfit());
         assertEquals(5L, stats.getPeriodSalesQuantity());
         assertEquals(400L, stats.getPeriodSalesQuantityTrend());
-        assertEquals(1L, stats.getWeekOrders());
-        assertEquals(new BigDecimal("190.00"), stats.getWeekSales());
-        assertEquals(new BigDecimal("10.00"), stats.getWeekGrossProfit());
+        // 系列 E 口径：已取消订单不计入经营订单额（即使已产生收款，其流水仍归现金流统计）
+        assertEquals(0L, stats.getWeekOrders());
+        assertEquals(0, new BigDecimal("0.00").compareTo(stats.getWeekSales()));
+        assertEquals(0, new BigDecimal("0.00").compareTo(stats.getWeekGrossProfit()));
         assertEquals(new BigDecimal("110.00"), stats.getAvgOrderValue());
     }
 
@@ -122,7 +125,17 @@ class DashboardServiceTest {
 
     @Test
     void getOrderStatusDistribution_returnsAllStatuses() {
-        orderHandler.thenSelectCount(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L);
+        // 系列 E：一次取数后按统一状态映射分组（兼容历史数字状态）
+        orderHandler.thenSelectList(List.of(
+                order(1L, "100.00", "0", "30.00", "40.00", 1, 0),
+                order(2L, "100.00", "0", "30.00", "40.00", 1, 1),
+                order(3L, "100.00", "0", "30.00", "40.00", 1, 2),
+                order(4L, "100.00", "0", "30.00", "40.00", 1, 3),
+                order(5L, "100.00", "0", "30.00", "40.00", 1, 4),
+                order(6L, "100.00", "0", "30.00", "40.00", 1, 5),
+                order(7L, "100.00", "0", "30.00", "40.00", 1, 6),
+                order(8L, "100.00", "0", "30.00", "40.00", 1, 7),
+                order(9L, "100.00", "0", "30.00", "40.00", 1, 8)));
 
         List<OrderStatusDTO> statuses = dashboardService.getOrderStatusDistribution(defaultWeekQuery());
 
@@ -131,7 +144,7 @@ class DashboardServiceTest {
         assertEquals("待付款", statuses.get(0).getLabel());
         assertEquals(8, statuses.get(8).getStatus());
         assertEquals("已退货", statuses.get(8).getLabel());
-        assertTrue(statuses.stream().allMatch(s -> s.getCount() > 0));
+        assertTrue(statuses.stream().allMatch(s -> s.getCount() == 1L));
     }
 
     private DashboardQueryDTO defaultWeekQuery() {

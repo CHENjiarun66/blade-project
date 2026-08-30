@@ -9,6 +9,8 @@ import com.blade.analytics.enums.AnalyticsDimension;
 import com.blade.analytics.enums.AnalyticsSortBy;
 import com.blade.analytics.service.AnalyticsService;
 import com.blade.common.tenant.TenantContext;
+import com.blade.order.service.OrderFactsService;
+import com.blade.order.service.OrderFactsService;
 import com.blade.dashboard.dto.DashboardQueryDTO;
 import com.blade.dashboard.enums.PeriodType;
 import com.blade.order.entity.Order;
@@ -44,10 +46,13 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
+    private final OrderFactsService orderFactsService;
 
-    public AnalyticsServiceImpl(OrderMapper orderMapper, OrderItemMapper orderItemMapper) {
+    public AnalyticsServiceImpl(OrderMapper orderMapper, OrderItemMapper orderItemMapper,
+                                OrderFactsService orderFactsService) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
+        this.orderFactsService = orderFactsService;
     }
 
     @Override
@@ -257,14 +262,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     private List<Order> selectPaidOrdersInPeriod(Long tenantId, LocalDate startDate, LocalDate endDate) {
-        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Order::getTenantId, tenantId);
-        wrapper.eq(Order::getDeleted, 0);
-        wrapper.apply("COALESCE(order_date, DATE(create_time)) BETWEEN {0} AND {1}", startDate, endDate);
-        wrapper.and(w -> w.gt(Order::getPaidAmount, BigDecimal.ZERO)
-                .or()
-                .in(Order::getPaymentStatus, PAID_PAYMENT_STATUSES));
-        return orderMapper.selectList(wrapper);
+        // 系列 E：统一走版本化订单事实服务，不再复制已收款口径
+        return orderFactsService.paidBusinessOrdersByOrderDate(tenantId, startDate, endDate);
     }
 
     private List<OrderItem> selectItems(List<Order> orders) {
@@ -320,28 +319,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     private BigDecimal sumNetSales(List<Order> orders) {
         return orders.stream()
-                .map(this::netSalesAmount)
+                .map(orderFactsService::netSalesAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private BigDecimal netSalesAmount(Order order) {
-        BigDecimal netAmount = safeAmount(order.getTotalAmount())
-                .subtract(safeAmount(order.getRefundAmount()))
-                .subtract(safeAmount(order.getWriteOffAmount()));
-        return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
     }
 
     private BigDecimal sumNetGrossProfit(List<Order> orders) {
         return orders.stream()
-                .map(this::netGrossProfitAmount)
+                .map(orderFactsService::netGrossProfitAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private BigDecimal netGrossProfitAmount(Order order) {
-        BigDecimal netAmount = safeAmount(order.getGrossProfit())
-                .subtract(safeAmount(order.getRefundAmount()))
-                .subtract(safeAmount(order.getWriteOffAmount()));
-        return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
     }
 
     private long sumQuantity(List<OrderItem> items) {

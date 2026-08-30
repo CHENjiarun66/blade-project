@@ -25,6 +25,7 @@ import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.order.mapper.OrderFinancialRecordMapper;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.customer.service.CustomerStatsCacheService;
 import com.blade.order.service.OrderActionService;
 import com.blade.order.service.OrderCompatAdapter;
 import com.blade.order.service.OrderFinanceSnapshotService;
@@ -75,6 +76,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderActionService actionService;
     private final OrderFinanceSnapshotService snapshotService;
     private final OrderCompatAdapter compatAdapter;
+    private final CustomerStatsCacheService customerStatsCacheService;
 
     private static final String ORDER_TYPE_SPOT = "SPOT";
     private static final String ORDER_TYPE_PREORDER = "PREORDER";
@@ -97,7 +99,8 @@ public class OrderServiceImpl implements OrderService {
                             FileService fileService,
                             OrderActionService actionService,
                             OrderFinanceSnapshotService snapshotService,
-                            OrderCompatAdapter compatAdapter) {
+                            OrderCompatAdapter compatAdapter,
+                            CustomerStatsCacheService customerStatsCacheService) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.deliveryPlanMapper = deliveryPlanMapper;
@@ -113,6 +116,7 @@ public class OrderServiceImpl implements OrderService {
         this.actionService = actionService;
         this.snapshotService = snapshotService;
         this.compatAdapter = compatAdapter;
+        this.customerStatsCacheService = customerStatsCacheService;
     }
 
     @Override
@@ -270,6 +274,7 @@ public class OrderServiceImpl implements OrderService {
             snapshotService.recalculateAndApply(order);
         }
 
+        customerStatsCacheService.evictPreferenceCache(order.getCustomerId());
         return order.getId();
     }
 

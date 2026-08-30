@@ -13,6 +13,7 @@ import com.blade.order.entity.Order;
 import com.blade.order.entity.OrderItem;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.service.OrderFactsService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,7 @@ class AnalyticsServiceTest {
         itemHandler = new FakeMapperHandler();
         OrderMapper orderMapper = fakeMapper(OrderMapper.class, orderHandler);
         OrderItemMapper orderItemMapper = fakeMapper(OrderItemMapper.class, itemHandler);
-        service = new AnalyticsServiceImpl(orderMapper, orderItemMapper);
+        service = new AnalyticsServiceImpl(orderMapper, orderItemMapper, new OrderFactsService(orderMapper));
     }
 
     @AfterEach

@@ -284,14 +284,20 @@ public class WhatsappAnalysisService {
     }
 
     private OrderFacts orderFacts(long tenant,long customerId) {
+        // 系列 E：统一经营订单口径（排除取消订单），不再让消费者自行决定状态范围
+        String businessCondition="""
+                AND (o.fulfillment_status IS NOT NULL AND o.fulfillment_status<>'CANCELLED'
+                     OR (o.fulfillment_status IS NULL AND (o.status IS NULL OR o.status NOT IN (6,8))))
+                """;
         Map<String,Object> aggregate=jdbc.queryForMap("""
                 SELECT COUNT(*) order_count,MAX(create_time) last_order_at,COALESCE(SUM(total_amount),0) total_amount
-                FROM sale_order WHERE tenant_id=? AND customer_id=? AND deleted=0
-                """,tenant,customerId);
+                FROM sale_order o WHERE o.tenant_id=? AND o.customer_id=? AND o.deleted=0
+                """+businessCondition,tenant,customerId);
         List<ProductFact> products=jdbc.query("""
                 SELECT oi.product_name,oi.color_name,oi.size_name,SUM(oi.quantity) qty
                 FROM sale_order_item oi JOIN sale_order o ON o.id=oi.order_id AND o.tenant_id=oi.tenant_id
                 WHERE o.tenant_id=? AND o.customer_id=? AND o.deleted=0
+                """+businessCondition+"""
                 GROUP BY oi.product_name,oi.color_name,oi.size_name ORDER BY qty DESC LIMIT 20
                 """,(rs,row)->new ProductFact(rs.getString(1),rs.getString(2),rs.getString(3),rs.getLong(4)),tenant,customerId);
         return new OrderFacts(((Number)aggregate.get("order_count")).longValue(),timestamp(aggregate.get("last_order_at")),
@@ -307,8 +313,10 @@ public class WhatsappAnalysisService {
                   AND m.sent_at>=DATE_SUB(NOW(3),INTERVAL 90 DAY) AND m.deleted=0 AND m.source_deleted=0
                 """,tenant,contactId);
         Map<String,Object> orders=jdbc.queryForMap("""
-                SELECT COUNT(*) order_count,MAX(update_time) last_update FROM sale_order
-                WHERE tenant_id=? AND customer_id=? AND deleted=0
+                SELECT COUNT(*) order_count,MAX(update_time) last_update FROM sale_order o
+                WHERE o.tenant_id=? AND o.customer_id=? AND o.deleted=0
+                  AND (o.fulfillment_status IS NOT NULL AND o.fulfillment_status<>'CANCELLED'
+                       OR (o.fulfillment_status IS NULL AND (o.status IS NULL OR o.status NOT IN (6,8))))
                 """,tenant,customerId);
         return new ContextStamp(((Number)messages.get("last_id")).longValue(),timestamp(messages.get("last_at")),timestamp(messages.get("last_update")),
                 ((Number)messages.get("message_count")).longValue(),((Number)orders.get("order_count")).longValue(),timestamp(orders.get("last_update")));

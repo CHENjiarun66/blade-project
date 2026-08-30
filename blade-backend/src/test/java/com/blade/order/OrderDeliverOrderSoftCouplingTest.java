@@ -73,6 +73,7 @@ class OrderDeliverOrderSoftCouplingTest {
     @Mock private OrderFinanceSnapshotService snapshotService;
     @Mock private InventoryService inventoryService;
     @Mock private com.blade.order.service.OrderPlaceholderSplitService placeholderSplitService;
+    @Mock private com.blade.customer.service.CustomerStatsCacheService customerStatsCacheService;
 
     private OrderActionService actionService;
 
@@ -98,7 +99,7 @@ class OrderDeliverOrderSoftCouplingTest {
 
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
-                inventoryService, placeholderSplitService);
+                inventoryService, placeholderSplitService, customerStatsCacheService);
         deliveryService = new OrderDeliveryServiceImpl(deliveryMapper, deliveryItemMapper,
                 orderMapper, mock(com.blade.order.mapper.OrderItemMapper.class),
                 mock(WarehouseMapper.class), mock(com.blade.product.mapper.ProductSkuMapper.class),

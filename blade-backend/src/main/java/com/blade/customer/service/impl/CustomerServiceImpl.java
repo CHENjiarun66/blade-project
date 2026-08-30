@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
+import com.blade.order.service.OrderFactsService;
+import com.blade.customer.service.CustomerStatsCacheService;
 import com.blade.customer.dto.CustomerCreateDTO;
 import com.blade.customer.dto.CustomerOrderPageDTO;
 import com.blade.customer.dto.CustomerPageDTO;
@@ -46,15 +48,19 @@ public class CustomerServiceImpl implements CustomerService {
     private final OrderItemMapper orderItemMapper;
     private final CustomerOperationLogMapper operationLogMapper;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final OrderFactsService orderFactsService;
+    private final CustomerStatsCacheService customerStatsCacheService;
 
     @Autowired
-    public CustomerServiceImpl(CustomerMapper customerMapper, CustomerPhoneMapper customerPhoneMapper, OrderMapper orderMapper, OrderItemMapper orderItemMapper, CustomerOperationLogMapper operationLogMapper, RedisTemplate<String, Object> redisTemplate) {
+    public CustomerServiceImpl(CustomerMapper customerMapper, CustomerPhoneMapper customerPhoneMapper, OrderMapper orderMapper, OrderItemMapper orderItemMapper, CustomerOperationLogMapper operationLogMapper, RedisTemplate<String, Object> redisTemplate, OrderFactsService orderFactsService, CustomerStatsCacheService customerStatsCacheService) {
         this.customerMapper = customerMapper;
         this.customerPhoneMapper = customerPhoneMapper;
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.operationLogMapper = operationLogMapper;
         this.redisTemplate = redisTemplate;
+        this.orderFactsService = orderFactsService;
+        this.customerStatsCacheService = customerStatsCacheService;
     }
 
     @Override
@@ -309,10 +315,13 @@ public class CustomerServiceImpl implements CustomerService {
             throw new RuntimeException("客户不存在");
         }
 
-        // 检查是否有进行中的订单（status NOT IN 4,5）
+        // 检查是否有进行中的订单（统一口径：非取消且未进入已发货/已完成/已取消终态）
         LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
         orderWrapper.eq(Order::getCustomerId, id)
-                   .notIn(Order::getStatus, java.util.Arrays.asList(4, 5)); // 排除已发货、已完成
+                   .notIn(Order::getFulfillmentStatus,
+                           java.util.Arrays.asList("SHIPPED", "COMPLETED", "CANCELLED"))
+                   .and(w -> w.isNull(Order::getStatus)
+                           .or(sub -> sub.notIn(Order::getStatus, java.util.Arrays.asList(4, 5, 6))));
         List<Order> activeOrders = orderMapper.selectList(orderWrapper);
         if (!activeOrders.isEmpty()) {
             String orderNos = activeOrders.stream()
@@ -377,12 +386,11 @@ public class CustomerServiceImpl implements CustomerService {
         java.time.LocalDateTime firstOrderTime = null;
 
         for (Order order : orders) {
-            if (order.getStatus() == 5) { // 已完成
+            if (!orderFactsService.isBusinessOrder(order)) continue; // 取消订单不进经营口径
+            if (orderFactsService.isFulfilled(order)) {
                 completedOrders++;
             }
-            if (order.getPaidAmount() != null) {
-                totalSpending = totalSpending.add(order.getPaidAmount());
-            }
+            totalSpending = totalSpending.add(orderFactsService.gross(order));
             java.time.LocalDateTime ct = order.getCreateTime();
             if (ct != null) {
                 if (lastOrderTime == null || ct.isAfter(lastOrderTime)) lastOrderTime = ct;
@@ -493,10 +501,12 @@ public class CustomerServiceImpl implements CustomerService {
             return (CustomerPreferenceVO) cached;
         }
 
-        // 查询该客户所有已完成或已发货的订单项
+        // 查询该客户所有已完成或已发货的订单项（统一口径，含 RECORD_ONLY 完成）
         LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
         orderWrapper.eq(Order::getCustomerId, customerId)
-                    .in(Order::getStatus, java.util.Arrays.asList(4, 5)); // 已发货、已完成
+                    .and(w -> w.in(Order::getFulfillmentStatus, java.util.Arrays.asList("SHIPPED", "COMPLETED"))
+                            .or(sub -> sub.isNull(Order::getFulfillmentStatus)
+                                    .in(Order::getStatus, java.util.Arrays.asList(4, 5))));
 
         // 时间范围过滤
         if (dto != null && dto.getStartDate() != null && !dto.getStartDate().isBlank()) {
