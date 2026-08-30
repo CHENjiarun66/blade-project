@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/8/30 03:44:29　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/8/30 11:46:06　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,15 +73,15 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">156 完成 · 0 进行中 · 33 待办 · 0 部分 · 5 暂缓</span>
+          <span class="card-nums">156 完成 · 15 进行中 · 17 待办 · 0 部分 · 6 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:83%"></div></div>
-        <div class="bar-label">83% 完成（活跃 189 项，暂缓 5 项）</div>
+        <div class="bar-label">83% 完成（活跃 188 项，暂缓 6 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">82 完成 · 0 进行中 · 6 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">82 完成 · 5 进行中 · 1 待办 · 0 部分 · 2 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:93%"></div></div>
         <div class="bar-label">93% 完成（活跃 88 项，暂缓 2 项）</div>
@@ -89,7 +89,7 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">移动端</span>
-          <span class="card-nums">14 完成 · 0 进行中 · 11 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">14 完成 · 2 进行中 · 9 待办 · 0 部分 · 2 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:56%"></div></div>
         <div class="bar-label">56% 完成（活跃 25 项，暂缓 2 项）</div>
@@ -97,12 +97,166 @@
 
 
     <section class="section doing">
-      <h2>🔴 正在做 <span class="count">0</span></h2>
-      <p class="empty">（无）</p>
+      <h2>🔴 正在做 <span class="count">22</span></h2>
+      <table class="task-table">
+      <tr data-status="doing">
+        <td class="td-id">BE-1040</td>
+        <td class="td-name">订单新状态字段与兼容迁移<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 A；新增新状态、履约和并发字段并保留旧兼容字段 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1041</td>
+        <td class="td-name">财务流水、金额快照与状态流转日志<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 A/B；追加式流水、金额快照、状态日志与数据库约束 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1042</td>
+        <td class="td-name">统一订单动作与状态机服务<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 B；统一 11 个动作，禁止直接写数字状态 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1043</td>
+        <td class="td-name">草稿确认与首笔收款交接<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 B；草稿定金写正式 `RECEIPT` |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1044</td>
+        <td class="td-name">履约方式选择与库存边界<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 B/C；两种履约方式严格隔离库存 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1045</td>
+        <td class="td-name">配货与出库入口统一改造<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 C；占位阻断与单一发货事务入口 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1046</td>
+        <td class="td-name">统计、客户、导出与 Agent 口径改造<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 E；全部消费者接统一事实服务 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1047</td>
+        <td class="td-name">旧订单审计与迁移工具<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 G；仅离线 dry-run/受控执行，不设生产应用端点 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1049</td>
+        <td class="td-name">订单动作与财务权限重构<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 A/B/D；后端动作权限、同租户赋权和字段裁剪 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1050</td>
+        <td class="td-name">统一订单事实服务与缓存失效<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 E；统一事实版本和缓存失效 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-1051</td>
+        <td class="td-name">公共 API、共享类型与导出兼容<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 D/F；PC、移动端、共享类型和导出兼容 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">TEST-ORDER-LIFECYCLE-001</td>
+        <td class="td-name">订单状态重构全链路验证<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">各系列自测并在最终交付统一报告，Codex 最后复核 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-610</td>
+        <td class="td-name">占位数量拆分到真实 SKU<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">长任务系列 C；原子拆分并保持数量、金额和来源追溯守恒 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-611</td>
+        <td class="td-name">占位 SKU 履约保护<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">长任务系列 C；未拆分占位 SKU 阻断配货、出库和库存调整 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BE-612</td>
+        <td class="td-name">占位拆分审计与分析回算<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">长任务系列 C/E；拆分审计并防止占位与真实规格重复统计 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BA-1120</td>
+        <td class="td-name">订单新状态与履约方式展示<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">长任务系列 D；新字符串枚举展示并保留兼容读取 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BA-1121</td>
+        <td class="td-name">财务流水与结清交互<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">长任务系列 D；展示订单金额、现金、核销、尾款和逐笔流水 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BA-1122</td>
+        <td class="td-name">履约方式选择与快速录单联动<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">长任务系列 D；选择关联库存或仅记录，不直接提交状态数字 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BA-1123</td>
+        <td class="td-name">配货动作与占位 SKU 保护<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">长任务系列 C/D；按 allowedActions 展示配货并引导占位拆分 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">BA-805</td>
+        <td class="td-name">占位 SKU 拆分界面<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">长任务系列 C/D；按真实颜色/尺码拆分并显示守恒校验和历史 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">FE-110</td>
+        <td class="td-name">移动端订单新状态模型<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
+        <td class="td-remark">长任务系列 F；替换旧四状态模型并使用共享字符串枚举 |</td>
+      </tr>
+      <tr data-status="doing">
+        <td class="td-id">FE-111</td>
+        <td class="td-name">移动端订单动作权限<span class="tag executor">执行人：Z Code</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
+        <td class="td-remark">长任务系列 F；按后端 allowedActions 展示和拒绝动作 |</td>
+      </tr></table>
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">50</span></h2>
+      <h2>🟡 还没做 <span class="count">27</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -112,102 +266,11 @@
         <td class="td-remark">微信/钉钉（暂缓） |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-1040</td>
-        <td class="td-name">订单新状态字段与兼容迁移</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">新增 `collection_status`、`fulfillment_status`、履约方式、决策时间/人员、结清时间和并发版本；保留旧 `status`、`payment_status` |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1041</td>
-        <td class="td-name">财务流水、金额快照与状态流转日志</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">新增 `order_financial_record` 和 `order_state_transition_log`；拆分实收、现金退款、销售退回、核销、净实收和尾款 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1042</td>
-        <td class="td-name">统一订单动作与状态机服务</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">集中校验草稿确认、收款、核销、履约选择、配货、发货、完成和取消；禁止直接写数字状态 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1043</td>
-        <td class="td-name">草稿确认与首笔收款交接</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">草稿定金确认后写入正式收款流水；正式订单进入 `CONFIRMED`，不自动履约 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1044</td>
-        <td class="td-name">履约方式选择与库存边界</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">已结清后选择 `STOCK_LINKED` 或 `RECORD_ONLY`；仅前者可配货和出库 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1045</td>
-        <td class="td-name">配货与出库入口统一改造</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">配货计划、出库单和订单发货统一调用状态机；占位 SKU 未拆分时阻断库存履约 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1046</td>
-        <td class="td-name">统计、客户、导出与 Agent 口径改造</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">按订单、销售、现金、结清、履约和库存拆分指标与时间；仅记录订单计入销售，不计入库存出库 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1047</td>
-        <td class="td-name">旧订单审计与迁移工具</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">生成状态、金额、计划和出库异常清单，支持测试预演、逐单映射快照和生产回滚 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1048</td>
-        <td class="td-name">旧接口和兼容字段下线评估</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">新模型稳定一个发布周期后，评估旧状态、时间、定金快照和重复 DTO |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1049</td>
-        <td class="td-name">订单动作与财务权限重构</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">拆分收款、核销、退款、冲销、履约选择、财务查看和迁移权限；补角色迁移和字段级校验 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1050</td>
-        <td class="td-name">统一订单事实服务与缓存失效</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">仪表盘、Analytics、客户、Agent、WhatsApp 和导出统一消费版本化事实；订单/财务变化后失效相关缓存 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1051</td>
-        <td class="td-name">公共 API、共享类型与导出兼容</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">增加字符串枚举、金额快照、`allowedActions`、口径版本和新导出列；旧客户端保留兼容读取 |</td>
-      </tr>
-      <tr data-status="todo">
         <td class="td-id">BE-1052</td>
         <td class="td-name">V42 至新版本迁移与 NAS 发布门禁</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">在生产副本连续执行 V43-V50 和新迁移；补数据库/uploads/镜像备份集、SHA-256、异机副本、恢复演练、短暂停写、逐单对账和回滚门禁 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">TEST-ORDER-LIFECYCLE-001</td>
-        <td class="td-name">订单状态重构全链路验证</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">覆盖草稿、分次收款、短款结清、两种履约方式、占位阻断、并发、迁移和统计不变量 |</td>
+        <td class="td-remark">等 Z Code 长任务和 Codex 最终审核通过后再做；仍需用户批准生产操作 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BE-506</td>
@@ -301,27 +364,6 @@
         <td class="td-remark">备份生产库后部署 V43-V47 和前后端；配置 Collector/Worker Key，验证增量同步、客户绑定、媒体预览、定向扫描和回滚 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-610</td>
-        <td class="td-name">占位数量拆分到真实 SKU</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">在草稿或正式订单中把一条 PLACEHOLDER 数量原子转移到多个真实 SKU；保持总数量、销售额、客户贡献和来源追溯不变 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-611</td>
-        <td class="td-name">占位 SKU 履约保护</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">配货计划、出库和库存调整发现 PLACEHOLDER 时拒绝扣库存，并提示先完成规格拆分 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-612</td>
-        <td class="td-name">占位拆分审计与分析回算</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">记录拆分前后明细、操作人和时间；分析只保留转移后的销量，禁止占位与真实规格重复计数 |</td>
-      </tr>
-      <tr data-status="todo">
         <td class="td-id">TEST-PHASE2-001</td>
         <td class="td-name">真实纸单批次本地验收</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
@@ -334,41 +376,6 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">备份后部署 V48-V50 和前后端，配置最小 scope Agent Key，通过 NAS API 导入 30 张纸单并核对库存、财务和统计隔离 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-1120</td>
-        <td class="td-name">订单新状态与履约方式展示</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
-        <td class="td-remark">列表、详情、筛选和状态标签切换到新字符串枚举，并保留兼容读取 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-1121</td>
-        <td class="td-name">财务流水与结清交互</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
-        <td class="td-remark">展示订单额、实收、退款、净实收、核销、尾款和逐笔流水；前端不直接提交最终支付状态 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-1122</td>
-        <td class="td-name">履约方式选择与快速录单联动</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
-        <td class="td-remark">已结清后明确选择关联库存或仅记录；仅记录订单确认后直接完成 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-1123</td>
-        <td class="td-name">配货动作与占位 SKU 保护</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
-        <td class="td-remark">只有 `STOCK_LINKED` 订单显示配货动作；占位 SKU 未拆分时引导先拆分 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-805</td>
-        <td class="td-name">占位 SKU 拆分界面</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
-        <td class="td-remark">在草稿和未履约正式订单中按真实颜色/尺码拆分数量；显示剩余未指定数量、合计校验和拆分历史 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BA-1111</td>
@@ -397,20 +404,6 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">移动端 › Phase 2: 订单系统</td>
         <td class="td-remark">订单号/客户名搜索 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">FE-110</td>
-        <td class="td-name">移动端订单新状态模型</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
-        <td class="td-remark">替换旧四状态 Tab、详情进度和共享类型数字映射 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">FE-111</td>
-        <td class="td-name">移动端订单动作权限</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
-        <td class="td-remark">按新状态和履约方式展示收款、配货、发货、完成与取消动作 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">FE-204</td>
@@ -462,8 +455,15 @@
     </section>
 
     <section class="section deferred">
-      <h2>⏸ 暂缓或由外部流程承担 <span class="count">9</span></h2>
+      <h2>⏸ 暂缓或由外部流程承担 <span class="count">10</span></h2>
       <table class="task-table">
+      <tr data-status="deferred">
+        <td class="td-id">BE-1048</td>
+        <td class="td-name">旧接口和兼容字段下线评估</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">新模型稳定一个发布周期后再评估，不属于本次长任务首发删除范围 |</td>
+      </tr>
       <tr data-status="deferred">
         <td class="td-id">BE-601</td>
         <td class="td-name">ERP 内置 OCR 图片上传</td>

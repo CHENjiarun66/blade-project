@@ -598,3 +598,15 @@ $ git diff --check
 2. 运行并记录 `git diff --check`、分支状态和 ahead/behind。
 3. 使用带 `[zcode]` 的提交信息提交并推送 `origin/feature/order-lifecycle-finance-refactor`。
 4. 把新 tip 提交给 Codex 复审。若上述阻断项全部闭合，CR-0 可直接转为 `CODEX_APPROVED`，随后才开始 ORDER-SOW-1。
+
+---
+
+## 十九、Codex CR-0 最终处置与长任务放行
+
+> 审核日期：2026-08-30　审核人：Codex　审核基线：`d800ec4`　结论：`CODEX_APPROVED_FOR_IMPLEMENTATION`
+
+Z Code 已在 `0ee6312`/`d800ec4` 按 18.1、18.2 修正第 13～17 节：补齐数据库级并发冲销与幂等约束、实际 CHECK、11 个动作、同租户权限赋权、ADMIN 权限、独立配货权限、兼容读取边界、离线迁移工具和测试矩阵。CR-0 不再阻塞编码。
+
+根据用户最新决定，本重构不再执行逐 SOW 文档往返审核。后续统一按 `2026-08-30-order-refactor-zcode-long-run-task.md` 执行：Z Code 连续完成原 SOW-1～SOW-7，每个系列自行测试并分提交，全部完成后再由 Codex 对 `d800ec4..最终 tip` 做一次完整代码审核。
+
+本批准只授权功能分支开发和隔离环境测试，不授权 NAS/生产写入、release、合并 `master` 或生产迁移。
