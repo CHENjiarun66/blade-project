@@ -209,6 +209,70 @@ class OrderPlaceholderSplitTest {
                 () -> splitService.splitPlaceholderItem(4L, 400L, targets, null));
     }
 
+    @Test
+    void split_rejectsCrossSpuTarget() {
+        splittableOrder(5L);
+        OrderItem placeholder = placeholderItem(500L, 5L, 10, "40.00", "20.00");
+        when(orderItemMapper.selectOne(any())).thenReturn(placeholder);
+        ProductSku placeholderSku = sku(900L, "PLACEHOLDER");
+        placeholderSku.setProductId(77L);
+        when(productSkuMapper.selectById(900L)).thenReturn(placeholderSku);
+        ProductSku otherSpu = sku(11L, "NORMAL");
+        otherSpu.setProductId(88L); // 不同款
+        when(productSkuMapper.selectBatchIds(any())).thenReturn(List.of(otherSpu));
+
+        List<OrderPlaceholderSplitService.SplitTarget> targets = new ArrayList<>();
+        targets.add(target(11L, 10));
+
+        com.blade.common.exception.BusinessException ex = assertThrows(com.blade.common.exception.BusinessException.class,
+                () -> splitService.splitPlaceholderItem(5L, 500L, targets, null));
+        assertTrue(ex.getMessage().contains("同一款商品"));
+        verify(orderItemMapper, org.mockito.Mockito.never()).deleteById(anyLong());
+    }
+
+    @Test
+    void split_rejectsNegativeAndZeroQuantity() {
+        splittableOrder(6L);
+        OrderItem placeholder = placeholderItem(600L, 6L, 10, "40.00", "20.00");
+        when(orderItemMapper.selectOne(any())).thenReturn(placeholder);
+        when(productSkuMapper.selectById(900L)).thenReturn(sku(900L, "PLACEHOLDER"));
+        when(productSkuMapper.selectBatchIds(any())).thenReturn(List.of(sku(11L, "NORMAL")));
+
+        List<OrderPlaceholderSplitService.SplitTarget> targets = new ArrayList<>();
+        targets.add(target(11L, 8));
+        targets.add(target(12L, 2));
+        targets.get(1).setQuantity(-2); // 负数绕过守恒的反例：8 + (-2) = 6 ≠ 10，但同符号组合仍须拒绝
+
+        assertThrows(com.blade.common.exception.BusinessException.class,
+                () -> splitService.splitPlaceholderItem(6L, 600L, targets, null));
+
+        // 单个负数量 + 合计凑巧相等（20 + (-10) = 10）也必须拒绝
+        List<OrderPlaceholderSplitService.SplitTarget> tricky = new ArrayList<>();
+        tricky.add(target(11L, 20));
+        tricky.add(target(12L, -10));
+        targets.clear();
+        targets.addAll(tricky);
+        assertThrows(com.blade.common.exception.BusinessException.class,
+                () -> splitService.splitPlaceholderItem(6L, 600L, targets, null));
+        verify(orderItemMapper, org.mockito.Mockito.never()).deleteById(600L);
+    }
+
+    @Test
+    void split_rejectsDuplicateTargetSku() {
+        splittableOrder(7L);
+        when(orderItemMapper.selectOne(any())).thenReturn(placeholderItem(700L, 7L, 10, "40.00", "20.00"));
+        when(productSkuMapper.selectById(900L)).thenReturn(sku(900L, "PLACEHOLDER"));
+        when(productSkuMapper.selectBatchIds(any())).thenReturn(List.of(sku(11L, "NORMAL")));
+
+        List<OrderPlaceholderSplitService.SplitTarget> targets = new ArrayList<>();
+        targets.add(target(11L, 5));
+        targets.add(target(11L, 5));
+
+        assertThrows(com.blade.common.exception.BusinessException.class,
+                () -> splitService.splitPlaceholderItem(7L, 700L, targets, null));
+        verify(orderItemMapper, org.mockito.Mockito.never()).deleteById(700L);
+    }
+
     private OrderPlaceholderSplitService.SplitTarget target(Long skuId, int qty) {
         OrderPlaceholderSplitService.SplitTarget t = new OrderPlaceholderSplitService.SplitTarget();
         t.setSkuId(skuId);

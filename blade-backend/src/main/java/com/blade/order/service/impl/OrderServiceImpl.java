@@ -3,6 +3,7 @@ package com.blade.order.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.blade.common.exception.BusinessException;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
 import com.blade.file.service.FileService;
@@ -201,7 +202,10 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("订单不存在");
         }
         OrderVO vo = convertToVO(order);
-        // 详情页附财务流水（列表页不附带，避免 N+1）
+        // 详情页财务流水仅对持有财务查看权限的用户返回（终审 P0-1：前端隐藏不等于权限控制）
+        if (!currentAuthorities().contains("btn:order:viewFinance")) {
+            return vo;
+        }
         vo.setFinancialRecords(snapshotService.records(id, order.getTenantId()).stream()
                 .map(r -> {
                     OrderVO.FinancialRecordVO recordVO = new OrderVO.FinancialRecordVO();
@@ -224,7 +228,11 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public Long create(OrderCreateDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        // 空租户显式拒绝（终审 P0-2）：业务写路径不允许默认租户回退
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw BusinessException.of(403, "缺少租户上下文");
+        }
 
         Order order = new Order();
         order.setOrderNo(generateOrderNo());
@@ -454,20 +462,33 @@ public class OrderServiceImpl implements OrderService {
         if (order == null || Integer.valueOf(1).equals(order.getDeleted())) {
             throw new RuntimeException("订单不存在");
         }
-        // 已发货后只允许补充备注/图片，金额结构和明细不再修改
-        if (order.getStatus() >= 4) {
+        // 终审 P0-7：可编辑性按新生命周期与财务事实判断，不再依赖旧数字状态
+        boolean hasFinancialFacts = financialRecordMapper.selectCount(new LambdaQueryWrapper<OrderFinancialRecord>()
+                .eq(OrderFinancialRecord::getOrderId, order.getId())
+                .eq(OrderFinancialRecord::getTenantId, order.getTenantId())) > 0;
+        boolean afterShipped = order.getFulfillmentStatus() != null
+                && (com.blade.order.enums.FulfillmentStatus.SHIPPED.name().equals(order.getFulfillmentStatus())
+                    || com.blade.order.enums.FulfillmentStatus.COMPLETED.name().equals(order.getFulfillmentStatus()));
+        // 已发货（或已完成）后只允许补充备注/图片，金额结构和明细不再修改
+        if (afterShipped) {
             if (dto.getRemark() != null) order.setRemark(dto.getRemark());
             if (dto.getImages() != null) order.setImages(dto.getImages());
             order.setUpdateTime(LocalDateTime.now());
-            orderMapper.updateById(order);
+            int rows = orderMapper.updateById(order);
+            if (rows == 0) {
+                throw BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
+            }
             fileService.bindFilesFromJson("order", order.getId(), order.getImages());
             return;
         }
         boolean hasFinancialChange = amountChanged(order.getFreightAmount(), dto.getFreightAmount())
                 || amountChanged(order.getFreightCost(), dto.getFreightCost())
                 || (dto.getItems() != null && !dto.getItems().isEmpty());
-        if (order.getStatus() != 0 && hasFinancialChange) {
-            throw new RuntimeException("已收款或配货订单不允许直接修改金额和明细，请先取消订单或调整配货计划");
+        if (hasFinancialChange && (hasFinancialFacts
+                || (order.getFulfillmentStatus() != null
+                    && !com.blade.order.enums.FulfillmentStatus.CONFIRMED.name().equals(order.getFulfillmentStatus()))
+                || order.getStatus() != 0)) {
+            throw BusinessException.of(400, "订单已产生收款、履约或配货事实，不允许直接修改金额和明细；请使用取消、冲销或调整流程");
         }
         if (dto.getOrderDate() != null) order.setOrderDate(dto.getOrderDate());
         if (dto.getSourceDocNo() != null) order.setSourceDocNo(dto.getSourceDocNo());
@@ -497,7 +518,10 @@ public class OrderServiceImpl implements OrderService {
             snapshotService.recalculateAndApply(order);
         }
         order.setUpdateTime(LocalDateTime.now());
-        orderMapper.updateById(order);
+        int rows = orderMapper.updateById(order);
+        if (rows == 0) {
+            throw BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
+        }
         fileService.bindFilesFromJson("order", order.getId(), order.getImages());
     }
 
@@ -622,6 +646,16 @@ public class OrderServiceImpl implements OrderService {
         return vo;
     }
 
+    private java.util.Set<String> currentAuthorities() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return java.util.Set.of();
+        }
+        return authentication.getAuthorities().stream()
+                .map(Object::toString)
+                .collect(Collectors.toSet());
+    }
+
     /** 历史未迁移行的尾款展示回退（只读，不落库）。 */
     private BigDecimal legacyBalanceForDisplay(Order order) {
         BigDecimal legacy = safeAmount(order.getTotalAmount())
@@ -632,8 +666,9 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private Long getCurrentUserId() {
+        // 无默认用户（终审 P0-2）：无登录上下文时操作人为空，不得伪造 admin
         User user = getCurrentUser();
-        return user != null ? user.getId() : 1L;
+        return user != null ? user.getId() : null;
     }
 
     private User getCurrentUser() {

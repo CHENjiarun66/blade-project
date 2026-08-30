@@ -173,8 +173,10 @@ public class OrderActionService {
         }
         Order order = lockForFinancialAction(orderId, idempotencyKey);
         if (order == null) return; // 幂等重放
-        if (grossReceivedForValidation(order).compareTo(amount) < 0) {
-            throw BusinessException.of(400, "退款金额不能超过累计实收");
+        // 终审 P0-3：额度 = 有效累计实收 − 有效累计现金退款；连续多次退款不得超过剩余额度
+        BigDecimal refundable = refundableForValidation(order);
+        if (refundable.compareTo(amount) < 0) {
+            throw BusinessException.of(400, "退款金额超过剩余可退额度：" + refundable);
         }
         String fromCollection = order.getCollectionStatus();
         insertRecord(order, FinancialRecordType.REFUND, amount, null, reason, idempotencyKey, source);
@@ -189,7 +191,7 @@ public class OrderActionService {
      * 同一原流水的并发双冲销由 uk_ofr_reversal 唯一键兜底，只能成功一次。
      */
     @Transactional
-    public void reverseFinancialRecord(Long recordId, String reason, String idempotencyKey, String source) {
+    public void reverseFinancialRecord(Long pathOrderId, Long recordId, String reason, String idempotencyKey, String source) {
         if (reason == null || reason.isBlank()) {
             throw BusinessException.of(400, "冲销必须填写原因");
         }
@@ -199,6 +201,10 @@ public class OrderActionService {
                 .eq(OrderFinancialRecord::getTenantId, tenantId));
         if (target == null) {
             throw BusinessException.of(404, "财务流水不存在");
+        }
+        // 终审 P1-6：资源边界——流水必须属于路径中的订单
+        if (!target.getOrderId().equals(pathOrderId)) {
+            throw BusinessException.of(400, "财务流水不属于当前订单");
         }
         if (FinancialRecordType.REVERSAL.name().equals(target.getRecordType())) {
             throw BusinessException.of(400, "冲销记录不能再被冲销");
@@ -667,6 +673,18 @@ public class OrderActionService {
             return safe(order.getGrossReceivedAmount());
         }
         return safe(order.getPaidAmount());
+    }
+
+    /**
+     * 剩余可退额度 = 有效累计实收 − 有效累计现金退款（终审 P0-3）。
+     * 行锁保证并发退款串行校验；退款被冲销后额度自动恢复。
+     */
+    private BigDecimal refundableForValidation(Order order) {
+        BigDecimal gross = grossReceivedForValidation(order);
+        BigDecimal refunded = order.getCollectionStatus() != null
+                ? safe(order.getCashRefundAmount())
+                : BigDecimal.ZERO; // 历史行没有退款流水（R2 起历史行整体拒绝退款）
+        return gross.subtract(refunded).max(BigDecimal.ZERO);
     }
 
     private Long currentTenant() {

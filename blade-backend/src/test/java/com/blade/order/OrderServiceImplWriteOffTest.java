@@ -344,7 +344,7 @@ class OrderServiceImplWriteOffTest {
         // 第一次无已有冲销，第二次已有冲销（数据库唯一键并发兜底由 schema/集成测试验证）
         when(financialRecordMapper.selectCount(any())).thenReturn(0L, 1L);
 
-        actionService.reverseFinancialRecord(target.getId(), "录错金额", null, "PC");
+        actionService.reverseFinancialRecord(10L, target.getId(), "录错金额", null, "PC");
 
         // 被冲销的收款不再计入快照
         assertEquals(0, order.getGrossReceivedAmount().compareTo(BigDecimal.ZERO));
@@ -352,7 +352,7 @@ class OrderServiceImplWriteOffTest {
 
         // 第二次冲销同一流水：服务层守卫拒绝
         assertThrows(RuntimeException.class, () ->
-                actionService.reverseFinancialRecord(target.getId(), "重复冲销", null, "PC"));
+                actionService.reverseFinancialRecord(10L, target.getId(), "重复冲销", null, "PC"));
     }
 
     @Test
@@ -367,7 +367,7 @@ class OrderServiceImplWriteOffTest {
         when(financialRecordMapper.selectOne(any())).thenReturn(reversal);
 
         assertThrows(RuntimeException.class, () ->
-                actionService.reverseFinancialRecord(2000L, "冲销冲销", null, "PC"));
+                actionService.reverseFinancialRecord(11L, 2000L, "冲销冲销", null, "PC"));
     }
 
     // ── 幂等键 ──────────────────────────────────────────────────────

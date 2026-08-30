@@ -120,7 +120,7 @@ class OrderFinancialConcurrencyTest {
             try {
                 bindContext();
                 start.await();
-                actionService.reverseFinancialRecord(target.getId(), "并发冲销测试", null, "TEST");
+                actionService.reverseFinancialRecord(order.getId(), target.getId(), "并发冲销测试", null, "TEST");
                 success.incrementAndGet();
             } catch (BusinessException | IllegalStateException e) {
                 rejected.incrementAndGet();

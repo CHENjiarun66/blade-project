@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,6 +26,7 @@ public class OrderDeliveryController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('btn:order:deliver')")
     @Operation(summary = "创建出库单")
     public R<Long> create(@RequestBody @Valid OrderDeliveryDTO dto) {
         Long id = deliveryService.create(dto);
@@ -39,6 +41,7 @@ public class OrderDeliveryController {
     }
 
     @PostMapping("/{id}/confirm")
+    @PreAuthorize("hasAuthority('btn:order:deliver')")
     @Operation(summary = "确认发货")
     public R<Void> confirmDelivery(@PathVariable Long id) {
         deliveryService.confirmDelivery(id);

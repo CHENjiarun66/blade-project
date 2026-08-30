@@ -41,6 +41,7 @@ public class OrderController {
     private com.blade.order.service.OrderPlaceholderSplitService placeholderSplitService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('btn:order:view')")
     @Operation(summary = "订单列表（分页）")
     public R<PageResult<OrderVO>> list(@Valid OrderPageDTO dto) {
         return R.ok(orderService.pageList(dto));
@@ -63,18 +64,21 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('btn:order:view')")
     @Operation(summary = "订单详情")
     public R<OrderVO> getById(@PathVariable Long id) {
         return R.ok(orderService.getById(id));
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('btn:order:create')")
     @Operation(summary = "创建订单")
     public R<Long> create(@RequestBody @Valid OrderCreateDTO dto) {
         return R.ok(orderService.create(dto));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('btn:order:edit')")
     @Operation(summary = "更新订单基础信息")
     public R<Void> update(@PathVariable Long id, @RequestBody @Valid OrderUpdateDTO dto) {
         dto.setId(id);
@@ -126,7 +130,8 @@ public class OrderController {
     @PreAuthorize("hasAuthority('btn:order:reverse')")
     @Operation(summary = "冲销财务流水（只追加 REVERSAL，不改历史）")
     public R<Void> reverseRecord(@PathVariable Long id, @RequestBody @Valid OrderReverseDTO dto) {
-        actionService.reverseFinancialRecord(dto.getRecordId(), dto.getReason(), dto.getIdempotencyKey(), "PC");
+        // 资源边界：流水必须属于路径订单（P1-6）
+        actionService.reverseFinancialRecord(id, dto.getRecordId(), dto.getReason(), dto.getIdempotencyKey(), "PC");
         return R.ok();
     }
 

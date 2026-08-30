@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +26,7 @@ public class OrderDraftController {
     private final OrderDraftService service;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('btn:order:view')")
     @Operation(summary = "分页查询订单草稿")
     public R<PageResult<OrderDraftDTO.Summary>> page(
             @RequestParam(defaultValue = "1") int current,
@@ -35,12 +37,14 @@ public class OrderDraftController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('btn:order:view')")
     @Operation(summary = "查询订单草稿详情")
     public R<OrderDraftDTO.View> get(@PathVariable Long id) {
         return R.ok(service.get(id));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('btn:order:create')")
     @Operation(summary = "保存订单草稿")
     public R<Void> update(@PathVariable Long id,
                           @RequestBody @Valid OrderDraftDTO.SaveRequest request) {
@@ -49,6 +53,7 @@ public class OrderDraftController {
     }
 
     @PostMapping("/{id}/confirm")
+    @PreAuthorize("hasAuthority('btn:order:create')")
     @Operation(summary = "确认草稿并创建正式订单")
     public R<OrderDraftDTO.ConfirmResponse> confirm(
             @PathVariable Long id,

@@ -108,14 +108,28 @@ public class OrderPlaceholderSplitService {
                     "拆分数量合计必须等于占位数量 %d", placeholder.getQuantity()));
         }
 
-        // 目标 SKU 校验：必须是真实规格 SKU
+        // 目标 SKU 校验：同款商品（同 product_id）的真实规格 SKU；数量为正整数；目标不重复
         Map<Long, ProductSku> targetSkuMap = productSkuMapper.selectBatchIds(
                         targets.stream().map(SplitTarget::getSkuId).toList()).stream()
                 .collect(Collectors.toMap(ProductSku::getId, Function.identity()));
+        java.util.Set<Long> seenSkuIds = new java.util.HashSet<>();
         for (SplitTarget target : targets) {
+            if (target.getSkuId() == null || target.getQuantity() == null || target.getQuantity() <= 0) {
+                throw BusinessException.of(400, "拆分目标必须指定真实 SKU 且数量为正整数");
+            }
+            if (!seenSkuIds.add(target.getSkuId())) {
+                throw BusinessException.of(400, "拆分目标 SKU 重复：" + target.getSkuId());
+            }
             ProductSku sku = targetSkuMap.get(target.getSkuId());
-            if (sku == null || !"NORMAL".equals(sku.getSkuType()) && !"DEFAULT".equals(sku.getSkuType())) {
+            boolean realSku = sku != null
+                    && ("NORMAL".equals(sku.getSkuType()) || "DEFAULT".equals(sku.getSkuType()));
+            if (!realSku) {
                 throw BusinessException.of(400, "拆分目标必须是真实规格 SKU：" + target.getSkuId());
+            }
+            // 终审 P0-6：禁止跨 SPU 拆分
+            if (sku.getProductId() == null || sourceSku.getProductId() == null
+                    || !sku.getProductId().equals(sourceSku.getProductId())) {
+                throw BusinessException.of(400, "拆分目标必须与占位明细属于同一款商品");
             }
         }
 

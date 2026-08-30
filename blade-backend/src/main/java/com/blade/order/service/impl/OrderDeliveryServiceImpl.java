@@ -1,6 +1,7 @@
 package com.blade.order.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.blade.common.exception.BusinessException;
 import com.blade.common.tenant.TenantContext;
 import com.blade.order.dto.OrderDeliveryDTO;
 import com.blade.order.dto.OrderDeliveryVO;
@@ -80,22 +81,27 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
     @Override
     @Transactional
     public Long create(OrderDeliveryDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
-
-        // 查询订单
-        Order order = orderMapper.selectById(dto.getOrderId());
-        if (order == null) {
-            throw new RuntimeException("订单不存在");
+        // 空租户显式拒绝（终审 P0-2）
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw BusinessException.of(403, "缺少租户上下文");
         }
-        // 履约边界：仅关联库存订单可以创建出库单，且必须处于配货中/待发货阶段
-        if (order.getFulfillmentStatus() != null) {
-            if (!"STOCK_LINKED".equals(order.getFulfillmentMode())) {
-                throw new RuntimeException("仅记录订单不能创建出库单");
-            }
-            String status = order.getFulfillmentStatus();
-            if (!"ALLOCATING".equals(status) && !"READY_TO_SHIP".equals(status)) {
-                throw new RuntimeException("订单当前状态不能创建出库单");
-            }
+
+        // 数据范围：订单必须属于当前租户
+        Order order = orderMapper.selectByIdForUpdate(dto.getOrderId(), tenantId);
+        if (order == null) {
+            throw BusinessException.of(404, "订单不存在");
+        }
+        // 履约边界：历史未迁移行不得创建出库单；仅关联库存订单且处于配货中/待发货阶段
+        if (order.getFulfillmentStatus() == null) {
+            throw BusinessException.of(400, "历史订单尚未迁移，不能创建出库单");
+        }
+        if (!"STOCK_LINKED".equals(order.getFulfillmentMode())) {
+            throw BusinessException.of(400, "仅记录订单不能创建出库单");
+        }
+        String status = order.getFulfillmentStatus();
+        if (!"ALLOCATING".equals(status) && !"READY_TO_SHIP".equals(status)) {
+            throw BusinessException.of(400, "订单当前状态不能创建出库单");
         }
 
         // 查询仓库
@@ -120,10 +126,24 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         List<OrderDeliveryItem> items = new ArrayList<>();
 
         for (OrderDeliveryDTO.OrderDeliveryItemDTO itemDTO : dto.getItems()) {
-            // 查询订单明细
-            OrderItem orderItem = orderItemMapper.selectById(itemDTO.getOrderItemId());
+            // 终审 P1-1：明细完整性（归属、SKU 一致、正数量、不超可发）
+            if (itemDTO.getQuantity() == null || itemDTO.getQuantity() <= 0) {
+                throw BusinessException.of(400, "出库数量必须大于0");
+            }
+            OrderItem orderItem = orderItemMapper.selectOne(
+                    new LambdaQueryWrapper<OrderItem>()
+                            .eq(OrderItem::getId, itemDTO.getOrderItemId())
+                            .eq(OrderItem::getOrderId, dto.getOrderId())
+                            .eq(OrderItem::getTenantId, tenantId));
             if (orderItem == null) {
-                throw new RuntimeException("订单明细不存在: " + itemDTO.getOrderItemId());
+                throw BusinessException.of(400, "出库明细不属于当前订单: " + itemDTO.getOrderItemId());
+            }
+            if (orderItem.getSkuId() != null && !orderItem.getSkuId().equals(itemDTO.getSkuId())) {
+                throw BusinessException.of(400, "出库 SKU 与订单明细不一致");
+            }
+            int shippable = orderItem.getQuantity() - (orderItem.getOutQuantity() == null ? 0 : orderItem.getOutQuantity());
+            if (itemDTO.getQuantity() > shippable) {
+                throw BusinessException.of(400, "出库数量超过可发数量（剩余 " + shippable + "）");
             }
 
             // 查询SKU信息
