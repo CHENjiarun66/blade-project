@@ -532,7 +532,7 @@ $ git diff --check
 （无输出，通过）
 
 二轮整改基线：4cfdb7c（Codex 第二轮复审提交）
-报告 commit：<回填于下一提交>
+报告 commit：`0ee63125d3428c72928f2f241910a0e8f96034a3`（docs(order): apply second cr0 contract fixes to sow0 audit [zcode]）
 交付 commit：推送后 feature 分支 tip（Codex 复审以 `git log -1` 为准）
 ```
 
