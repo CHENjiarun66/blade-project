@@ -8,6 +8,35 @@
 
 ## 2026-08-30 变更记录
 
+### [架构重构] - 订单生命周期、财务、履约与统计大重构连续实施（系列 A~G）
+
+**变更内容**：
+- **系列 A**：新增 V51（`sale_order` 生命周期/收款/履约方式/结清/金额快照/乐观锁列 + `order_financial_record` + `order_state_transition_log`，含幂等唯一键、并发冲销唯一键、正金额与冲销形态 CHECK、快照非负 CHECK、租户优先索引）与 V52（收款/核销/退款/冲销/履约选择/配货/导出/财务查看权限，ROLE_OWNER+ROLE_ADMIN 全量，同租户 JOIN 幂等赋权，无迁移端点）；新增实体/枚举/Mapper；隔离库空库 Flyway V1→V52 连续升级成功。
+- **系列 B**：新增统一动作服务 `OrderActionService`（11 动作：confirmDraft/recordPayment/settleWithWriteOff/refundPayment/reverseFinancialRecord/chooseFulfillmentMode/startAllocation/confirmAllocation/shipOrder/completeOrder/cancelOrder）、统一财务快照服务 `OrderFinanceSnapshotService`（期初固化 + 流水聚合 + 排除已冲销 + 单语句快照更新）、唯一新旧映射点 `OrderCompatAdapter`；旧接口（confirm-payment/add-payment/deliver/complete/cancel）全部委托动作服务；删除裸 `updateStatus` 与第二套收款公式；草稿确认把定金写为首笔 RECEIPT；订单删除改为软删除（有财务流水或配货事实的订单禁止删除）；`allowedActions` 后端统一计算；历史未迁移行仅展示回退并带 `legacyUnmigrated` 标记。
+- **系列 C**：新增占位 SKU 拆分服务（数量/销售额/成本守恒 + `PLACEHOLDER_SPLIT` 审计）与拆分端点；`startAllocation`/`shipOrder` 占位阻断；出库单创建前置（仅 STOCK_LINKED 且配货中/待发货）；`/api/inventory/out-by-plan` 改为 410 明确业务拒绝；出库单号改 Redis 计数器 + DB 序号兜底；配货计划全表加载改按需批量。
+- **系列 D**：`packages/types` 与 `blade-admin/api` 增加新字符串枚举、金额快照、`allowedActions`、财务流水类型；订单详情新增金额与结清区、财务流水表、履约方式选择、现金退款、占位拆分引导弹窗；新建订单页不再提交数字收款状态（创建后经统一收款动作入账）；导出增加实收/退款/核销/尾款/结清方式/履约列并显式拒绝超 10000 行；客户订单 VO 增加新字段。
+- **系列 E**：新增版本化 `OrderFactsService`（经营订单/已产生收款/净销售额/净毛利/现金流口径）；Dashboard、Analytics、Customer、WhatsApp `orderFacts/contextStamp` 全部切换到统一口径（取消订单不进经营订单额、RECORD_ONLY 计入销售不计库存周转）；新增 `CustomerStatsCacheService`，订单/财务动作后失效客户偏好缓存。
+- **系列 F**：移动端订单列表按履约状态字符串筛选、详情展示收款/结清/履约 Chip、按钮按 `allowedActions` 白名单展示、旧响应兼容回退；移动端不再提交数字状态。
+- **系列 G**：新增离线迁移工具 `OrderLegacyMigrator`（默认 dry-run、`--execute` 显式写回、空租户拒绝、status=7/8 与证据冲突进人工核对、幂等重放、SQL 独立资源文件参数绑定）；迁移预演测试覆盖 dry-run/映射判定/期初流水/重放幂等/金额不变量。
+
+**变更原因**：执行 [订单大重构长任务](./superpowers/plans/2026-08-30-order-refactor-zcode-long-run-task.md)，消除旧数字状态多义性、建立财务流水真相与统一统计口径。
+
+**影响范围**：订单/草稿/配货/出库/库存出库入口/仪表盘/分析/客户/Agent 间接消费/WhatsApp 订单事实/导出/PC 订单页面/移动端订单页面/共享类型/权限种子。
+
+**验证结果**：
+- `cd blade-backend && mvn test`（隔离库 3307，Flyway V1→V52 空库连续升级）：431/431 通过（含新增 12 个测试类/文件）
+- `cd packages/types && npm run build`：通过
+- `cd blade-admin && npm run build`：通过
+- `cd blade-mobile && npm run build`：通过
+- Playwright 关键路径结果见最终交付报告（e2e-order-lifecycle 等）
+- 未执行：V42 生产副本迁移预演（本机无 V42 备份，留 Codex/发布阶段）；迁移工具仅以合成数据在隔离库验证
+
+**执行人**：ZCode（长任务连续实施，最终状态 WAITING_CODEX_FINAL_REVIEW）
+
+---
+
+## 2026-08-30 变更记录
+
 ### [协作决策] - 订单重构改为 Z Code 连续长任务与 Codex 最终审核
 
 - `ORDER-SOW-0` 的字段、并发、权限、兼容和测试契约已在 `d800ec4` 闭合，Codex 放行功能开发。

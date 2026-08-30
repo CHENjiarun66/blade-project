@@ -24,6 +24,12 @@
 - 本轮整理前，GitHub `codex/phase2-order-drafts` 与本地代码基线同为 `38c969b`，相对 `master` 前进 27 个提交并同时包含 V43-V47 WhatsApp 与 V48-V50 Phase 2；本轮新增设计文档随交接基线提交。已推送功能分支不代表已合入主干或已部署生产。
 - 2026-08-30 只读复核 NAS：四个生产容器均运行，生产 Flyway 为 V42，V43-V50 尚未发布。本次核查未修改生产数据或容器。
 
+## 2026-08-30 订单生命周期、财务与统计大重构（长任务系列 A~G 完成，待终审）
+
+- 在 `feature/order-lifecycle-finance-refactor` 分支完成订单大重构连续实施（基线 `1594a8f` → 最终 tip 见交付报告）：V51/V52 加法迁移、统一动作服务 11 动作、统一财务快照与唯一兼容适配器、占位 SKU 拆分与履约保护、`/api/inventory/out-by-plan` 410 收口、PC/移动端/共享类型/导出切换新契约、`OrderFactsService` 统一统计口径并切换全部消费者、客户偏好缓存按订单/财务动作失效、离线迁移工具（dry-run 默认 + 幂等重放）。
+- 验证：隔离库（Docker `blade-mysql-test`，端口 3307）空库 Flyway V1→V52 连续升级成功；后端全量测试通过；PC/移动端/类型包构建通过；Playwright 结果见交付报告。迁移工具以合成数据预演，**V42 生产副本预演未执行**（本机无备份，留 Codex/发布阶段）。
+- 当前状态：**WAITING_CODEX_FINAL_REVIEW**——等待 Codex 对 `1594a8f..tip` 完整 Diff 做最终审核；BE-1048（旧字段下线）与 BE-1052（V42 迁移 + NAS 发布）不在本次范围。
+
 ## 2026-08-27 Phase 2 SPU/SKU 颗粒度补充
 
 - V49/V50 为 `product_sku` 增加 `NORMAL / DEFAULT / PLACEHOLDER`；多规格商品自动维护一个“未指定颜色 / 未指定尺码”占位 SKU，无规格商品使用正常 `DEFAULT` SKU。
