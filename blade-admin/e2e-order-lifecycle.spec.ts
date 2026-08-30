@@ -1,6 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test'
 
-const API_BASE = 'http://127.0.0.1:8080/api'
+const API_BASE = process.env.E2E_API_BASE || 'http://127.0.0.1:8080/api'
 // 凭据从环境变量注入，不写入源码（本地运行示例：E2E_PASSWORD=*** npx playwright test ...）
 const E2E_TENANT = process.env.E2E_TENANT_CODE || 'test_tenant'
 const E2E_USER = process.env.E2E_USERNAME || 'admin'
@@ -48,10 +48,17 @@ async function createSeedProductAndInventory(request: APIRequestContext, token: 
   const sku = detail.data.skus[0]
   expect(sku).toBeTruthy()
 
-  await request.post(`${API_BASE}/inventory/in`, {
+  const inRes = await request.post(`${API_BASE}/inventory/in`, {
     headers: { Authorization: `Bearer ${token}` },
-    data: { skuId: sku.id, warehouseId: 1, quantity: 100, remark: 'E2E 期初' },
+    data: {
+      warehouseId: 1,
+      items: [{ skuId: sku.id, quantity: 100, remark: 'E2E 期初' }],
+      remark: 'E2E 期初',
+    },
   })
+  expect(inRes.ok()).toBeTruthy()
+  const inJson = await inRes.json()
+  expect(inJson.code).toBe(200)
   return { skuId: sku.id as number }
 }
 

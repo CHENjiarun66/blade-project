@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 
 const BASE_URL = 'http://127.0.0.1:5777'
-const API_BASE = 'http://127.0.0.1:8080/api'
+const API_BASE = process.env.E2E_API_BASE || 'http://127.0.0.1:8080/api'
 
 type LoginResult = {
   token: string
@@ -100,7 +100,7 @@ async function uiLogin(page: Page) {
 async function openNewOrderPage(page: Page) {
   await page.goto(`${BASE_URL}/orders/new`)
   await page.waitForLoadState('networkidle')
-  await expect(page.getByText('新建订单')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '新建订单' })).toBeVisible()
 }
 
 test.describe('订单系统全流程 E2E', () => {

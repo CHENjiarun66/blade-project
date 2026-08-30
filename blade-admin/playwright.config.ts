@@ -16,7 +16,8 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      // 本机 mac13-arm64 无法安装捆绑 Chromium，改用系统 Chrome（channel 模式）
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
   ],
   webServer: undefined, // No web server start since we assume the dev server is already running
