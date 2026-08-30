@@ -190,7 +190,25 @@ public class OrderServiceImpl implements OrderService {
         if (order == null || Integer.valueOf(1).equals(order.getDeleted())) {
             throw new RuntimeException("订单不存在");
         }
-        return convertToVO(order);
+        OrderVO vo = convertToVO(order);
+        // 详情页附财务流水（列表页不附带，避免 N+1）
+        vo.setFinancialRecords(snapshotService.records(id, order.getTenantId()).stream()
+                .map(r -> {
+                    OrderVO.FinancialRecordVO recordVO = new OrderVO.FinancialRecordVO();
+                    recordVO.setId(r.getId());
+                    recordVO.setOrderId(r.getOrderId());
+                    recordVO.setRecordType(r.getRecordType());
+                    recordVO.setAmount(r.getAmount());
+                    recordVO.setPaymentMethod(r.getPaymentMethod());
+                    recordVO.setOccurredAt(r.getOccurredAt());
+                    recordVO.setOperatorName(r.getOperatorName());
+                    recordVO.setReason(r.getReason());
+                    recordVO.setSource(r.getSource());
+                    recordVO.setReversedRecordId(r.getReversedRecordId());
+                    return recordVO;
+                })
+                .toList());
+        return vo;
     }
 
     @Override
@@ -505,7 +523,10 @@ public class OrderServiceImpl implements OrderService {
     private OrderVO convertToVO(Order order) {
         OrderVO vo = new OrderVO();
         BeanUtils.copyProperties(order, vo);
-        vo.setStatusName(getStatusName(order.getStatus()));
+        // 新行展示新履约状态标签；历史行保持旧标签
+        boolean migratedVo = order.getCollectionStatus() != null;
+        vo.setStatusName(migratedVo ? fulfillmentStatusLabel(order.getFulfillmentStatus())
+                : getStatusName(order.getStatus()));
         vo.setPaymentStatusName(getPaymentStatusName(order.getPaymentStatus()));
         vo.setOrderTypeName(getOrderTypeName(order.getOrderType()));
         vo.setWriteOffAmount(order.getWriteOffAmount());
@@ -549,10 +570,17 @@ public class OrderServiceImpl implements OrderService {
         List<OrderItem> items = orderItemMapper.selectList(wrapper);
 
         if (items != null && !items.isEmpty()) {
+            // 明细 SKU 类型（占位标记供前端引导拆分）
+            List<Long> itemSkuIds = items.stream().map(OrderItem::getSkuId).filter(java.util.Objects::nonNull).distinct().toList();
+            java.util.Map<Long, ProductSku> itemSkuMap = itemSkuIds.isEmpty() ? java.util.Map.of()
+                    : productSkuMapper.selectBatchIds(itemSkuIds).stream()
+                            .collect(Collectors.toMap(ProductSku::getId, sk -> sk));
             List<OrderVO.OrderItemVO> itemVOList = items.stream().map(item -> {
                 OrderVO.OrderItemVO itemVO = new OrderVO.OrderItemVO();
                 itemVO.setId(item.getId());
                 itemVO.setSkuId(item.getSkuId());
+                ProductSku itemSku = item.getSkuId() == null ? null : itemSkuMap.get(item.getSkuId());
+                itemVO.setSkuType(itemSku != null ? itemSku.getSkuType() : null);
                 itemVO.setWarehouseId(item.getWarehouseId());
                 // 查询仓库名称
                 if (item.getWarehouseId() != null) {
@@ -658,6 +686,50 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    private String fulfillmentStatusLabel(String status) {
+        if (status == null) return "";
+        switch (status) {
+            case "CONFIRMED": return "已确认";
+            case "WAITING_ALLOCATION": return "待配货";
+            case "ALLOCATING": return "配货中";
+            case "READY_TO_SHIP": return "待发货";
+            case "SHIPPED": return "已发货";
+            case "COMPLETED": return "已完成";
+            case "CANCELLED": return "已取消";
+            default: return status;
+        }
+    }
+
+    private String collectionStatusLabel(String status) {
+        if (status == null) return "";
+        switch (status) {
+            case "UNPAID": return "未收款";
+            case "PARTIAL": return "部分收款";
+            case "SETTLED": return "已结清";
+            default: return status;
+        }
+    }
+
+    private String fulfillmentModeLabel(String mode) {
+        if (mode == null) return "";
+        switch (mode) {
+            case "UNDECIDED": return "尚未选择";
+            case "STOCK_LINKED": return "关联库存";
+            case "RECORD_ONLY": return "仅记录订单";
+            default: return mode;
+        }
+    }
+
+    private String settlementMethodLabel(String method) {
+        if (method == null) return "";
+        switch (method) {
+            case "FULL_RECEIPT": return "足额收款";
+            case "WRITE_OFF": return "短款结清";
+            case "MIGRATION_CONFIRMED": return "迁移确认";
+            default: return method;
+        }
+    }
+
     private String getPaymentStatusName(Integer paymentStatus) {
         if (paymentStatus == null) return "";
         switch (paymentStatus) {
@@ -736,7 +808,11 @@ public class OrderServiceImpl implements OrderService {
 
         wrapper.orderByDesc(Order::getCreateTime);
 
-        // 查询订单（设置一个很大的分页大小）
+        // 导出上限显式化：超过上限要求缩小筛选范围，不允许静默丢数据
+        long matchTotal = orderMapper.selectCount(wrapper);
+        if (matchTotal > 10000) {
+            throw new RuntimeException("符合筛选条件的订单共 " + matchTotal + " 条，超过单次导出上限 10000 条，请缩小筛选范围");
+        }
         Page<Order> page = new Page<>(1, 10000);
         IPage<Order> orderPage = orderMapper.selectPage(page, wrapper);
         List<Order> orders = orderPage.getRecords();
@@ -793,6 +869,14 @@ public class OrderServiceImpl implements OrderService {
         exportDto.setOrderTypeName(getOrderTypeName(order.getOrderType()));
         exportDto.setStatusName(getStatusName(order.getStatus()));
         exportDto.setPaymentStatusName(getPaymentStatusName(order.getPaymentStatus()));
+        boolean migratedRow = order.getCollectionStatus() != null;
+        exportDto.setFulfillmentStatusName(migratedRow ? fulfillmentStatusLabel(order.getFulfillmentStatus()) : null);
+        exportDto.setCollectionStatusName(migratedRow ? collectionStatusLabel(order.getCollectionStatus()) : null);
+        exportDto.setFulfillmentModeName(migratedRow ? fulfillmentModeLabel(order.getFulfillmentMode()) : null);
+        exportDto.setGrossReceivedAmount(order.getGrossReceivedAmount());
+        exportDto.setCashRefundAmount(order.getCashRefundAmount());
+        exportDto.setNetReceivedAmount(order.getNetReceivedAmount());
+        exportDto.setSettlementMethodName(migratedRow ? settlementMethodLabel(order.getSettlementMethod()) : null);
         exportDto.setCustomerName(order.getCustomerName());
         exportDto.setCustomerPhone(order.getCustomerPhone());
         exportDto.setTotalAmount(order.getTotalAmount());

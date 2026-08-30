@@ -13,10 +13,10 @@
         <h2 class="text-2xl font-bold text-gray-900 tracking-tight">订单详情</h2>
       </div>
       <div class="flex items-center gap-3">
-        <!-- 状态操作按钮 -->
+        <!-- 状态操作按钮（按后端 allowedActions 白名单展示，历史行回退旧判断） -->
         <template v-if="order">
           <el-button
-            v-if="order.status === 0"
+            v-if="hasAction('recordPayment') && (order.status === 0 || legacyUnmigrated)"
             type="warning"
             class="!bg-amber-500 !border-amber-500"
             @click="handleConfirmPayment"
@@ -24,15 +24,24 @@
             确认收款
           </el-button>
           <el-button
-            v-if="canAddPayment"
+            v-if="hasAction('recordPayment') && !(order.status === 0 || legacyUnmigrated)"
             type="warning"
             plain
             @click="handleAddPayment"
           >
             追加收款
           </el-button>
+          <!-- 履约方式选择：已结清且未选择 -->
+          <template v-if="hasAction('chooseFulfillmentMode')">
+            <el-button type="success" plain @click="handleChooseFulfillmentMode('STOCK_LINKED')">
+              履约：关联库存
+            </el-button>
+            <el-button type="info" plain @click="handleChooseFulfillmentMode('RECORD_ONLY')">
+              履约：仅记录
+            </el-button>
+          </template>
           <!-- 配货计划按钮 -->
-          <template v-if="order.status === 1 && deliveryPlans.length === 0">
+          <template v-if="(hasAction('startAllocation') || (legacyUnmigrated && order.status === 1)) && deliveryPlans.length === 0">
             <el-button
               type="success"
               @click="handleCreateDeliveryPlan"
@@ -41,7 +50,7 @@
             </el-button>
           </template>
           <el-button
-            v-if="order.status === 2"
+            v-if="hasAction('confirmAllocation') || (legacyUnmigrated && order.status === 2)"
             type="primary"
             @click="handleConfirmAdjustment"
           >
@@ -63,25 +72,33 @@
             取消调整
           </el-button>
           <el-button
-            v-if="order.status === 3"
+            v-if="hasAction('shipOrder') || (legacyUnmigrated && order.status === 3)"
             type="success"
             @click="handleDeliver"
           >
             发货
           </el-button>
           <el-button
-            v-if="order.status === 4"
+            v-if="hasAction('completeOrder') || (legacyUnmigrated && order.status === 4)"
             type="primary"
             @click="handleComplete"
           >
             完成订单
           </el-button>
           <el-button
-            v-if="order.status !== 4 && order.status !== 3 && order.status !== 6 && order.status !== 2"
+            v-if="hasAction('cancelOrder') || (legacyUnmigrated && order.status !== 4 && order.status !== 3 && order.status !== 6 && order.status !== 2)"
             type="danger"
             @click="handleCancel"
           >
             取消订单
+          </el-button>
+          <el-button
+            v-if="hasAction('refundPayment')"
+            type="danger"
+            plain
+            @click="showRefundDialog = true"
+          >
+            现金退款
           </el-button>
         </template>
       </div>
@@ -458,6 +475,78 @@
           </div>
         </div>
 
+        <!-- 占位明细拆分引导 -->
+        <div v-if="placeholderRows.length > 0" class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between">
+          <div class="text-sm text-amber-700">
+            本订单含 {{ placeholderRows.length }} 行未指定颜色/尺码的占位明细，创建配货计划与出库前需先拆分到真实 SKU。
+          </div>
+          <el-button size="small" type="warning" @click="openSplitDialog(placeholderRows[0])">去拆分</el-button>
+        </div>
+
+        <!-- 金额与结清事实（新模型；历史行回退旧字段展示） -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center gap-2 mb-4 border-l-4 border-[#408aee] pl-4">
+            <h3 class="text-lg font-bold text-gray-900">金额与结清</h3>
+            <el-tag v-if="legacyUnmigrated" size="small" type="warning">历史未迁移</el-tag>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <div class="text-gray-500 mb-1">客户实收</div>
+              <div class="font-bold text-gray-900">¥ {{ fmt(order.grossReceivedAmount ?? order.paidAmount) }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 mb-1">现金退款</div>
+              <div class="font-bold text-red-500">¥ {{ fmt(order.cashRefundAmount ?? 0) }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 mb-1">净实收</div>
+              <div class="font-bold text-gray-900">¥ {{ fmt(order.netReceivedAmount ?? order.paidAmount) }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 mb-1">短款核销</div>
+              <div class="font-bold text-amber-600">¥ {{ fmt(order.writeOffAmount ?? 0) }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 mb-1">待收尾款</div>
+              <div class="font-bold text-red-500">¥ {{ fmt(order.balanceAmount ?? 0) }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 mb-1">收款状态</div>
+              <div class="font-bold">{{ collectionLabel ?? paymentStatusNameLegacy }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 mb-1">结清方式</div>
+              <div class="font-bold">{{ settlementLabel ?? '—' }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 mb-1">履约方式</div>
+              <div class="font-bold">{{ fulfillmentModeLabel }}</div>
+            </div>
+          </div>
+          <!-- 财务流水 -->
+          <div v-if="order.financialRecords && order.financialRecords.length > 0" class="mt-4 pt-4 border-t border-gray-100">
+            <div class="text-sm font-bold text-gray-700 mb-2">财务流水</div>
+            <el-table :data="order.financialRecords" size="small" class="w-full">
+              <el-table-column label="时间" width="160">
+                <template #default="{ row }">{{ formatDateTime(row.occurredAt) }}</template>
+              </el-table-column>
+              <el-table-column label="类型" width="110">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="recordTagType(row.recordType)">{{ recordTypeLabel(row.recordType) }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="金额" width="110" align="right">
+                <template #default="{ row }">¥ {{ fmt(row.amount) }}</template>
+              </el-table-column>
+              <el-table-column prop="reason" label="原因" min-width="140" show-overflow-tooltip />
+              <el-table-column prop="operatorName" label="操作人" width="100" />
+              <el-table-column label="来源" width="90">
+                <template #default="{ row }">{{ row.source }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+
         <!-- 备注 -->
         <div v-if="order.remark" class="bg-white rounded-xl p-6 shadow-sm">
           <div class="flex items-center gap-2 mb-4 border-l-4 border-[#408aee] pl-4">
@@ -505,6 +594,61 @@
       <template #footer>
         <el-button @click="showPayDialog = false">取消</el-button>
         <el-button type="primary" @click="confirmPay">确认收款</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 现金退款弹窗 -->
+    <el-dialog v-model="showRefundDialog" title="现金退款" width="420px">
+      <div class="py-4 space-y-3">
+        <div class="text-xs text-gray-400">现金退款只表示资金流出，不影响销售退货口径。</div>
+        <div>
+          <label class="block text-sm font-bold text-gray-500 mb-2">退款金额</label>
+          <el-input-number v-model="refundAmount" :min="0" :precision="2" class="!w-full" />
+        </div>
+        <div>
+          <label class="block text-sm font-bold text-gray-500 mb-2">退款原因（必填）</label>
+          <el-input v-model="refundReason" type="textarea" :rows="2" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showRefundDialog = false">取消</el-button>
+        <el-button type="danger" @click="submitRefund">确认退款</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 占位明细拆分弹窗 -->
+    <el-dialog v-model="showSplitDialog" title="拆分占位明细到真实SKU" width="560px">
+      <div class="py-2 space-y-3">
+        <div class="text-xs text-gray-400">
+          拆分数量合计必须等于占位数量 {{ splitRow?.quantity }}，单价与成本沿用占位行，金额保持守恒。
+        </div>
+        <div v-for="(row, idx) in splitTargets" :key="idx" class="flex items-center gap-2">
+          <el-select
+            v-model="row.skuId"
+            filterable
+            remote
+            :remote-method="searchSplitSku"
+            :loading="splitSkuLoading"
+            placeholder="搜索商品/款号选择真实SKU"
+            class="flex-1"
+          >
+            <el-option
+              v-for="opt in splitSkuOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+          <el-input-number v-model="row.quantity" :min="1" :step="1" class="!w-28" />
+          <el-button text type="danger" @click="splitTargets.splice(idx, 1)">删除</el-button>
+        </div>
+        <el-button text type="primary" @click="splitTargets.push({ skuId: undefined as any, quantity: 1 })">
+          + 添加一行
+        </el-button>
+      </div>
+      <template #footer>
+        <el-button @click="showSplitDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitSplit">确认拆分</el-button>
       </template>
     </el-dialog>
 
@@ -654,7 +798,7 @@ import { computed, ref, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
-import { getOrderById, confirmPayment, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO, type AddPaymentDTO } from '@/api/order'
+import { getOrderById, confirmPayment, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO, type AddPaymentDTO, refundPayment, chooseFulfillmentMode, splitPlaceholderItem } from '@/api/order'
 import { getAllWarehouses, getInventoryByWarehouse, type WarehouseVO, type InventoryVO } from '@/api/inventory'
 import { parseImageSources, parseImageVariantSources } from '@/api/file'
 
@@ -758,10 +902,156 @@ function getInventoryStatus(item: typeof deliveryPlanItems.value[number]): { tex
 }
 
 const orderId = Number(route.params.id)
-const canAddPayment = computed(() => {
-  if (!order.value || order.value.paymentStatus === 2) return false
-  return Number(order.value.balanceAmount ?? 0) > 0 && ![5, 6, 7, 8].includes(order.value.status)
+
+
+// ==== 新模型辅助（系列 D） ====
+const legacyUnmigrated = computed(() => !!order.value?.legacyUnmigrated)
+
+function hasAction(action: string): boolean {
+  const list = order.value?.allowedActions
+  if (!list || list.length === 0) return false
+  return list.includes(action)
+}
+
+function fmt(v: number | undefined | null): string {
+  return Number(v ?? 0).toFixed(2)
+}
+
+const collectionLabel = computed(() => {
+  const map: Record<string, string> = { UNPAID: '未收款', PARTIAL: '部分收款', SETTLED: '已结清' }
+  return order.value?.collectionStatus ? map[order.value.collectionStatus] ?? order.value.collectionStatus : null
 })
+const paymentStatusNameLegacy = computed(() => order.value?.paymentStatusName ?? '')
+const settlementLabel = computed(() => {
+  const map: Record<string, string> = { FULL_RECEIPT: '足额收款', WRITE_OFF: '短款结清', MIGRATION_CONFIRMED: '迁移确认' }
+  return order.value?.settlementMethod ? map[order.value.settlementMethod] ?? order.value.settlementMethod : null
+})
+const fulfillmentModeLabel = computed(() => {
+  const map: Record<string, string> = { UNDECIDED: '尚未选择', STOCK_LINKED: '关联库存', RECORD_ONLY: '仅记录订单' }
+  return order.value?.fulfillmentMode ? map[order.value.fulfillmentMode] ?? order.value.fulfillmentMode : '—'
+})
+
+function recordTypeLabel(t: string): string {
+  const map: Record<string, string> = {
+    RECEIPT: '收款', WRITE_OFF: '短款核销', REFUND: '现金退款', REVERSAL: '冲销', MIGRATION_OPENING: '迁移期初',
+  }
+  return map[t] ?? t
+}
+function recordTagType(t: string): 'success' | 'warning' | 'danger' | 'info' {
+  if (t === 'RECEIPT') return 'success'
+  if (t === 'REFUND') return 'danger'
+  if (t === 'WRITE_OFF') return 'warning'
+  return 'info'
+}
+
+const showRefundDialog = ref(false)
+const refundAmount = ref<number>(0)
+const refundReason = ref('')
+async function submitRefund() {
+  if (!order.value) return
+  if (!refundAmount.value || refundAmount.value <= 0) {
+    ElMessage.warning('请填写退款金额')
+    return
+  }
+  if (!refundReason.value.trim()) {
+    ElMessage.warning('退款必须填写原因')
+    return
+  }
+  try {
+    await refundPayment(order.value.id, { amount: refundAmount.value, reason: refundReason.value.trim() })
+    ElMessage.success('退款已入账')
+    showRefundDialog.value = false
+    refundAmount.value = 0
+    refundReason.value = ''
+    await loadOrder()
+  } catch (error: any) {
+    ElMessage.error(error.message || '退款失败')
+  }
+}
+
+async function handleChooseFulfillmentMode(mode: 'STOCK_LINKED' | 'RECORD_ONLY') {
+  if (!order.value) return
+  const tip = mode === 'RECORD_ONLY'
+    ? '仅记录订单完成后直接进入已完成，且不产生任何库存流水。确认选择？'
+    : '关联库存订单需经过配货、确认与出库。确认选择？'
+  try {
+    await ElMessageBox.confirm(tip, '选择履约方式', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await chooseFulfillmentMode(order.value.id, mode)
+    ElMessage.success('履约方式已确认')
+    await loadOrder()
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败')
+  }
+}
+
+
+
+// ==== 占位明细拆分（系列 D） ====
+const placeholderRows = computed(() =>
+  (order.value?.items ?? []).filter(i => i.skuType === 'PLACEHOLDER'))
+const showSplitDialog = ref(false)
+const splitRow = ref<any>(null)
+const splitTargets = ref<{ skuId?: number; quantity: number }[]>([])
+const splitSkuOptions = ref<{ value: number; label: string }[]>([])
+const splitSkuLoading = ref(false)
+
+function openSplitDialog(row: any) {
+  splitRow.value = row
+  splitTargets.value = [{ skuId: undefined as any, quantity: row.quantity }]
+  splitSkuOptions.value = []
+  showSplitDialog.value = true
+}
+
+async function searchSplitSku(keyword: string) {
+  if (!keyword || !keyword.trim()) return
+  splitSkuLoading.value = true
+  try {
+    const { getProductPage } = await import('@/api/product')
+    const res = await getProductPage({ keyword: keyword.trim(), size: 10, status: 1 })
+    const options: { value: number; label: string }[] = []
+    for (const product of res.data.records ?? []) {
+      for (const sku of product.skus ?? []) {
+        if (sku.skuType === 'PLACEHOLDER' || sku.status !== 1) continue
+        options.push({
+          value: sku.id,
+          label: `${product.name} / ${sku.colorName ?? ''}-${sku.sizeName ?? ''} / ${sku.skuCode}`,
+        })
+      }
+    }
+    splitSkuOptions.value = options
+  } catch {
+    splitSkuOptions.value = []
+  } finally {
+    splitSkuLoading.value = false
+  }
+}
+
+async function submitSplit() {
+  if (!order.value || !splitRow.value) return
+  const targets = splitTargets.value.filter(t => t.skuId && t.quantity > 0) as { skuId: number; quantity: number }[]
+  if (targets.length === 0) {
+    ElMessage.warning('请至少选择一个目标 SKU')
+    return
+  }
+  const total = targets.reduce((s, t) => s + Number(t.quantity), 0)
+  if (total !== splitRow.value.quantity) {
+    ElMessage.warning(`拆分数量合计（${total}）必须等于占位数量（${splitRow.value.quantity}）`)
+    return
+  }
+  try {
+    await splitPlaceholderItem(order.value.id, splitRow.value.id, { targets })
+    ElMessage.success('拆分完成，金额保持守恒')
+    showSplitDialog.value = false
+    await loadOrder()
+  } catch (error: any) {
+    ElMessage.error(error.message || '拆分失败')
+  }
+}
+
 const orderImageSources = computed(() => parseImageVariantSources(order.value?.images, 'thumb'))
 const orderImageOriginalSources = computed(() => parseImageSources(order.value?.images))
 

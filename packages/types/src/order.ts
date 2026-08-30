@@ -1,5 +1,48 @@
 // ==================== Order 类型 ====================
 
+// ==================== 新订单生命周期与财务事实（系列 D 契约） ====================
+
+export type FulfillmentStatus =
+  | 'CONFIRMED'
+  | 'WAITING_ALLOCATION'
+  | 'ALLOCATING'
+  | 'READY_TO_SHIP'
+  | 'SHIPPED'
+  | 'COMPLETED'
+  | 'CANCELLED'
+
+export type CollectionStatus = 'UNPAID' | 'PARTIAL' | 'SETTLED'
+
+export type FulfillmentMode = 'UNDECIDED' | 'STOCK_LINKED' | 'RECORD_ONLY'
+
+export type SettlementMethod = 'FULL_RECEIPT' | 'WRITE_OFF' | 'MIGRATION_CONFIRMED'
+
+export type OrderAction =
+  | 'confirmDraft'
+  | 'recordPayment'
+  | 'settleWithWriteOff'
+  | 'refundPayment'
+  | 'reverseFinancialRecord'
+  | 'chooseFulfillmentMode'
+  | 'startAllocation'
+  | 'confirmAllocation'
+  | 'shipOrder'
+  | 'completeOrder'
+  | 'cancelOrder'
+
+export interface FinancialRecordVO {
+  id: number
+  orderId: number
+  recordType: 'RECEIPT' | 'WRITE_OFF' | 'REFUND' | 'REVERSAL' | 'MIGRATION_OPENING'
+  amount: number
+  paymentMethod?: string
+  occurredAt: string
+  operatorName?: string
+  reason?: string
+  source: string
+  reversedRecordId?: number
+}
+
 export interface OrderVO {
   id: number
   orderNo: string
@@ -31,6 +74,21 @@ export interface OrderVO {
   createTime: string
   updateTime: string
   items: OrderItemVO[]
+  // 新生命周期与财务快照（历史未迁移行为空）
+  fulfillmentStatus?: FulfillmentStatus
+  collectionStatus?: CollectionStatus
+  fulfillmentMode?: FulfillmentMode
+  settledAt?: string
+  settlementMethod?: SettlementMethod
+  grossReceivedAmount?: number
+  cashRefundAmount?: number
+  salesReturnAmount?: number
+  netReceivedAmount?: number
+  /** 历史未迁移行：展示值来自旧字段回退，禁止参与动作与统计 */
+  legacyUnmigrated?: boolean
+  /** 后端按状态+权限计算的可用动作白名单 */
+  allowedActions?: OrderAction[]
+  financialRecords?: FinancialRecordVO[]
 }
 
 export interface OrderItemVO {
@@ -92,4 +150,30 @@ export interface PaymentConfirmDTO {
 
 export interface CancelOrderDTO {
   reason: string
+}
+
+export interface OrderRefundDTO {
+  amount: number
+  reason: string
+  idempotencyKey?: string
+}
+
+export interface OrderReverseDTO {
+  recordId: number
+  reason: string
+  idempotencyKey?: string
+}
+
+export interface OrderFulfillmentModeDTO {
+  mode: FulfillmentMode
+}
+
+export interface OrderItemSplitTarget {
+  skuId: number
+  quantity: number
+}
+
+export interface OrderItemSplitDTO {
+  targets: OrderItemSplitTarget[]
+  reason?: string
 }

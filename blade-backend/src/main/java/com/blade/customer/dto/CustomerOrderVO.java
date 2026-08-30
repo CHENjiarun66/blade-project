@@ -44,6 +44,12 @@ public class CustomerOrderVO {
     @Schema(description = "商品数量")
     private Integer totalQuantity;
 
+    /** 新模型字段（兼容期与旧数字状态并存；历史未迁移行为空） */
+    private String collectionStatus;
+    private String fulfillmentStatus;
+    private Boolean legacyUnmigrated;
+
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getOrderNo() { return orderNo; }
@@ -64,6 +70,13 @@ public class CustomerOrderVO {
     public void setPaidAmountText(String paidAmountText) { this.paidAmountText = paidAmountText; }
     public List<OrderItemVO> getItems() { return items; }
     public void setItems(List<OrderItemVO> items) { this.items = items; }
+    public String getCollectionStatus() { return collectionStatus; }
+    public void setCollectionStatus(String collectionStatus) { this.collectionStatus = collectionStatus; }
+    public String getFulfillmentStatus() { return fulfillmentStatus; }
+    public void setFulfillmentStatus(String fulfillmentStatus) { this.fulfillmentStatus = fulfillmentStatus; }
+    public Boolean getLegacyUnmigrated() { return legacyUnmigrated; }
+    public void setLegacyUnmigrated(Boolean legacyUnmigrated) { this.legacyUnmigrated = legacyUnmigrated; }
+
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public Integer getTotalQuantity() { return totalQuantity; }

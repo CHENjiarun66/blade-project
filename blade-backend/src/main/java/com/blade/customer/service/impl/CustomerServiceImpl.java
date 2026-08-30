@@ -444,6 +444,9 @@ public class CustomerServiceImpl implements CustomerService {
             vo.setStatus(order.getStatus());
             vo.setStatusName(getStatusName(order.getStatus()));
             vo.setPaymentStatus(order.getPaymentStatus());
+            vo.setCollectionStatus(order.getCollectionStatus());
+            vo.setFulfillmentStatus(order.getFulfillmentStatus());
+            vo.setLegacyUnmigrated(order.getCollectionStatus() == null);
             vo.setTotalAmount(order.getTotalAmount());
             vo.setPaidAmount(order.getPaidAmount());
             vo.setTotalAmountText(formatMoney(order.getTotalAmount()));

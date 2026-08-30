@@ -499,7 +499,7 @@
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createOrder } from '@/api/order'
+import { createOrder, addPayment } from '@/api/order'
 import { searchCustomerByPhone, type CustomerVO } from '@/api/customer'
 import { fileVariantUrl, uploadFile } from '@/api/file'
 import { getProductPage } from '@/api/product'
@@ -929,13 +929,12 @@ async function handleSubmit() {
   const cleanPhone = form.customerPhone ? form.customerPhone.replace(/[\s\-+]/g, '') : undefined
 
   try {
+    // 新契约：提交不再携带最终收款状态数字；收款通过创建后的统一收款动作入账
     const data = {
       customerId: form.customerId,
       customerName: form.customerName,
       customerPhone: cleanPhone,
       customerAddress: form.customerAddress || undefined,
-      paymentStatus: form.paymentStatus,
-      depositAmount: form.paymentStatus === 1 ? form.depositAmount : undefined,
       needDelivery: needDelivery.value ? 1 : 0,
       deliveryAddress: needDelivery.value ? form.deliveryAddress : undefined,
       warehouseId: form.warehouseId,
@@ -949,8 +948,18 @@ async function handleSubmit() {
     }
 
     const res = await createOrder(data)
+    const orderId = res.data
+
+    // 创建即收款：按界面选择把定金/全款写为首笔收款流水
+    const total = form.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
+    if (form.paymentStatus === 1 && Number(form.depositAmount) > 0) {
+      await addPayment(orderId, { additionalAmount: Number(form.depositAmount) })
+    } else if (form.paymentStatus === 2 && total > 0) {
+      await addPayment(orderId, { additionalAmount: total })
+    }
+
     ElMessage.success('订单创建成功')
-    router.push(`/orders/${res.data}`)
+    router.push(`/orders/${orderId}`)
   } catch (error: any) {
     ElMessage.error(error.message || '创建订单失败')
   }

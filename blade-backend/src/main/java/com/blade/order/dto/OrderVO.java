@@ -100,6 +100,45 @@ public class OrderVO {
     public List<String> getAllowedActions() { return allowedActions; }
     public void setAllowedActions(List<String> allowedActions) { this.allowedActions = allowedActions; }
 
+    private List<FinancialRecordVO> financialRecords;
+    public List<FinancialRecordVO> getFinancialRecords() { return financialRecords; }
+    public void setFinancialRecords(List<FinancialRecordVO> financialRecords) { this.financialRecords = financialRecords; }
+
+    @Schema(description = "财务流水")
+    public static class FinancialRecordVO {
+        private Long id;
+        private Long orderId;
+        private String recordType;
+        private BigDecimal amount;
+        private String paymentMethod;
+        private LocalDateTime occurredAt;
+        private String operatorName;
+        private String reason;
+        private String source;
+        private Long reversedRecordId;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getOrderId() { return orderId; }
+        public void setOrderId(Long orderId) { this.orderId = orderId; }
+        public String getRecordType() { return recordType; }
+        public void setRecordType(String recordType) { this.recordType = recordType; }
+        public BigDecimal getAmount() { return amount; }
+        public void setAmount(BigDecimal amount) { this.amount = amount; }
+        public String getPaymentMethod() { return paymentMethod; }
+        public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+        public LocalDateTime getOccurredAt() { return occurredAt; }
+        public void setOccurredAt(LocalDateTime occurredAt) { this.occurredAt = occurredAt; }
+        public String getOperatorName() { return operatorName; }
+        public void setOperatorName(String operatorName) { this.operatorName = operatorName; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+        public String getSource() { return source; }
+        public void setSource(String source) { this.source = source; }
+        public Long getReversedRecordId() { return reversedRecordId; }
+        public void setReversedRecordId(Long reversedRecordId) { this.reversedRecordId = reversedRecordId; }
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getOrderNo() { return orderNo; }
@@ -194,6 +233,8 @@ public class OrderVO {
     @Schema(description = "订单明细VO")
     public static class OrderItemVO {
         private Long id;
+        /** NORMAL/DEFAULT/PLACEHOLDER：占位行需要先拆分才能履约 */
+        private String skuType;
         private Long skuId;
         private Long warehouseId;
         private String warehouseName;
@@ -248,5 +289,7 @@ public class OrderVO {
         public void setCostAmount(BigDecimal costAmount) { this.costAmount = costAmount; }
         public BigDecimal getGrossProfit() { return grossProfit; }
         public void setGrossProfit(BigDecimal grossProfit) { this.grossProfit = grossProfit; }
+        public String getSkuType() { return skuType; }
+        public void setSkuType(String skuType) { this.skuType = skuType; }
     }
 }
