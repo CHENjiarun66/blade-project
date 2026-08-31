@@ -168,6 +168,63 @@ public class OrderActionService {
     }
 
     /**
+     * 按“最终累计实收”确认整单结清。服务端基于锁内最新快照计算本次新增收款和短款，
+     * 避免前端把累计金额误当成本次金额，也避免并发收款导致核销金额失真。
+     */
+    @Transactional
+    public void confirmSettlement(Long orderId, BigDecimal finalReceivedAmount, String writeOffReason,
+                                  String idempotencyKey, String source) {
+        requireTenant();
+        requireAuthority("btn:order:recordPayment");
+        if (finalReceivedAmount == null || finalReceivedAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw BusinessException.of(400, "最终累计实收不能为负数");
+        }
+        Order order = lockForFinancialAction(orderId, idempotencyKey);
+        if (order == null) return;
+        requireMigrated(order);
+        requireMutableCollection(order);
+
+        BigDecimal currentReceived = netReceivedForValidation(order);
+        BigDecimal currentBalance = balanceForValidation(order);
+        BigDecimal effectiveReceivable = currentReceived.add(currentBalance);
+        if (finalReceivedAmount.compareTo(currentReceived) < 0) {
+            throw BusinessException.of(400, "最终累计实收不能小于当前已收款：" + currentReceived);
+        }
+        if (finalReceivedAmount.compareTo(effectiveReceivable) > 0) {
+            throw BusinessException.of(400, "最终累计实收不能超过当前应收金额：" + effectiveReceivable);
+        }
+
+        BigDecimal additionalReceipt = finalReceivedAmount.subtract(currentReceived);
+        BigDecimal writeOffAmount = effectiveReceivable.subtract(finalReceivedAmount);
+        if (writeOffAmount.compareTo(BigDecimal.ZERO) > 0) {
+            requireAuthority("btn:order:writeOff");
+            if (writeOffReason == null || writeOffReason.isBlank()) {
+                throw BusinessException.of(400, "存在短款时必须填写核销原因");
+            }
+            if (finalReceivedAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                throw BusinessException.of(400, "订单还没有正数实收，不能整单核销");
+            }
+        }
+
+        String fromCollection = order.getCollectionStatus();
+        if (additionalReceipt.compareTo(BigDecimal.ZERO) > 0) {
+            insertRecord(order, FinancialRecordType.RECEIPT, additionalReceipt, null, null,
+                    idempotencyKey, source);
+        }
+        if (writeOffAmount.compareTo(BigDecimal.ZERO) > 0) {
+            insertRecord(order, FinancialRecordType.WRITE_OFF, writeOffAmount, null,
+                    writeOffReason.trim(), additionalReceipt.signum() > 0 ? null : idempotencyKey, source);
+            order.setWriteOffReason(writeOffReason.trim());
+        }
+        snapshotService.recalculate(order);
+        writeTransitionLog(order,
+                writeOffAmount.signum() > 0 ? SETTLE_WITH_WRITE_OFF : RECORD_PAYMENT,
+                order.getFulfillmentStatus(), fromCollection, order.getFulfillmentMode(), source,
+                writeOffAmount.signum() > 0 ? writeOffReason.trim() : null, idempotencyKey);
+        persist(order);
+    }
+
+    /**
      * 现金退款：只表示现金流出，与销售退货无关；不能超过累计实收。
      */
     @Transactional

@@ -5,6 +5,7 @@ import com.blade.common.result.PageResult;
 import com.blade.common.result.R;
 import com.blade.order.dto.*;
 import com.blade.order.dto.AddPaymentDTO;
+import com.blade.order.dto.ConfirmSettlementDTO;
 import com.blade.order.dto.OrderUpdateDTO;
 import com.blade.order.enums.FulfillmentMode;
 import com.blade.order.service.OrderActionService;
@@ -88,7 +89,7 @@ public class OrderController {
 
     @PostMapping("/confirm-payment")
     @PreAuthorize("hasAuthority('btn:order:recordPayment')")
-    @Operation(summary = "付款确认")
+    @Operation(summary = "兼容接口：按本次金额追加收款")
     public R<Void> confirmPayment(@RequestBody @Valid PaymentConfirmDTO dto) {
         orderService.confirmPayment(dto.getOrderId(), dto.getPaidAmount());
         return R.ok();
@@ -115,6 +116,15 @@ public class OrderController {
     @Operation(summary = "追加收款 / 标记结清")
     public R<Void> addPayment(@PathVariable Long id, @RequestBody @Valid AddPaymentDTO dto) {
         orderService.addPayment(id, dto);
+        return R.ok();
+    }
+
+    @PostMapping("/{id}/confirm-settlement")
+    @PreAuthorize("hasAuthority('btn:order:recordPayment')")
+    @Operation(summary = "按最终累计实收确认结清")
+    public R<Void> confirmSettlement(@PathVariable Long id, @RequestBody @Valid ConfirmSettlementDTO dto) {
+        actionService.confirmSettlement(id, dto.getFinalReceivedAmount(), dto.getWriteOffReason(),
+                dto.getIdempotencyKey(), "PC");
         return R.ok();
     }
 

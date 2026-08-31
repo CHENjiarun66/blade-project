@@ -223,6 +223,62 @@ class OrderServiceImplWriteOffTest {
         assertNotNull(order.getSettledAt());
     }
 
+    @Test
+    void confirmSettlement_fullAmountTreatsInputAsCumulativeReceived() {
+        Order order = migratedOrder(32L, new BigDecimal("500.00"), new BigDecimal("400.00"));
+        when(orderMapper.selectByIdForUpdate(32L, TENANT_ID)).thenReturn(order);
+
+        actionService.confirmSettlement(32L, new BigDecimal("500.00"), null, "SETTLE-32", "PC");
+
+        assertEquals(0, order.getNetReceivedAmount().compareTo(new BigDecimal("500.00")));
+        assertEquals(0, order.getWriteOffAmount().compareTo(BigDecimal.ZERO));
+        assertEquals(CollectionStatus.SETTLED.name(), order.getCollectionStatus());
+        assertEquals("FULL_RECEIPT", order.getSettlementMethod());
+        assertEquals(2, records.stream().filter(r -> FinancialRecordType.RECEIPT.name().equals(r.getRecordType())).count());
+        assertEquals(0, records.get(1).getAmount().compareTo(new BigDecimal("100.00")),
+                "最终累计实收 500 只能新增收款 100，不能再收 500");
+    }
+
+    @Test
+    void confirmSettlement_shortPaymentCreatesReceiptAndWriteOffFromFinalAmount() {
+        Order order = migratedOrder(35L, new BigDecimal("500.00"), new BigDecimal("400.00"));
+        when(orderMapper.selectByIdForUpdate(35L, TENANT_ID)).thenReturn(order);
+
+        actionService.confirmSettlement(35L, new BigDecimal("495.00"), "客户少付尾款", "SETTLE-35", "PC");
+
+        assertEquals(0, order.getNetReceivedAmount().compareTo(new BigDecimal("495.00")));
+        assertEquals(0, order.getWriteOffAmount().compareTo(new BigDecimal("5.00")));
+        assertEquals(CollectionStatus.SETTLED.name(), order.getCollectionStatus());
+        assertEquals("WRITE_OFF", order.getSettlementMethod());
+        assertEquals(0, records.get(1).getAmount().compareTo(new BigDecimal("95.00")));
+        assertEquals(FinancialRecordType.WRITE_OFF.name(), records.get(2).getRecordType());
+        assertEquals(0, records.get(2).getAmount().compareTo(new BigDecimal("5.00")));
+    }
+
+    @Test
+    void confirmSettlement_rejectsFinalAmountBelowCurrentReceived() {
+        Order order = migratedOrder(36L, new BigDecimal("500.00"), new BigDecimal("400.00"));
+        when(orderMapper.selectByIdForUpdate(36L, TENANT_ID)).thenReturn(order);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                actionService.confirmSettlement(36L, new BigDecimal("399.00"), "错误减少", null, "PC"));
+
+        assertTrue(ex.getMessage().contains("不能小于"));
+        assertEquals(1, records.size());
+    }
+
+    @Test
+    void confirmSettlement_rejectsFinalAmountAboveEffectiveReceivable() {
+        Order order = migratedOrder(37L, new BigDecimal("500.00"), new BigDecimal("400.00"));
+        when(orderMapper.selectByIdForUpdate(37L, TENANT_ID)).thenReturn(order);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                actionService.confirmSettlement(37L, new BigDecimal("501.00"), null, null, "PC"));
+
+        assertTrue(ex.getMessage().contains("不能超过"));
+        assertEquals(1, records.size());
+    }
+
     // ── 历史未迁移行（旧公式余额兜底） ──────────────────────────────
 
     @Test

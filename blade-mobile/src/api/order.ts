@@ -22,6 +22,19 @@ export async function confirmPayment(orderId: number, paidAmount: number): Promi
   return response.data
 }
 
+export async function addPayment(orderId: number, additionalAmount: number): Promise<R<void>> {
+  const response = await client.post<R<void>>(`/orders/${orderId}/add-payment`, { additionalAmount })
+  return response.data
+}
+
+export async function confirmSettlement(
+  orderId: number,
+  data: { finalReceivedAmount: number; writeOffReason?: string; idempotencyKey?: string }
+): Promise<R<void>> {
+  const response = await client.post<R<void>>(`/orders/${orderId}/confirm-settlement`, data)
+  return response.data
+}
+
 export async function deliverOrder(id: number): Promise<R<void>> {
   const response = await client.post<R<void>>(`/orders/${id}/deliver`)
   return response.data

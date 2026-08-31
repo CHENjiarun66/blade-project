@@ -227,6 +227,16 @@ export function addPayment(orderId: number, data: AddPaymentDTO) {
   return client.post(`/orders/${orderId}/add-payment`, data) as any
 }
 
+// 最终确认收款：finalReceivedAmount 是订单累计实收，不是本次增收金额
+export interface ConfirmSettlementDTO {
+  finalReceivedAmount: number
+  writeOffReason?: string
+  idempotencyKey?: string
+}
+export function confirmSettlement(orderId: number, data: ConfirmSettlementDTO) {
+  return client.post(`/orders/${orderId}/confirm-settlement`, data) as any
+}
+
 // ==== 新动作接口（系列 D） ====
 
 // 现金退款（与销售退货无关）

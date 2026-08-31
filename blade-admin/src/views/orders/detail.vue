@@ -16,20 +16,20 @@
         <!-- 状态操作按钮（按后端 allowedActions 白名单展示，历史行回退旧判断） -->
         <template v-if="order">
           <el-button
-            v-if="hasAction('recordPayment') && (order.status === 0 || legacyUnmigrated)"
+            v-if="hasAction('recordPayment') && !legacyUnmigrated"
+            type="warning"
+            plain
+            @click="handleAddPayment"
+          >
+            加收金额
+          </el-button>
+          <el-button
+            v-if="hasAction('recordPayment') && !legacyUnmigrated"
             type="warning"
             class="!bg-amber-500 !border-amber-500"
             @click="handleConfirmPayment"
           >
             确认收款
-          </el-button>
-          <el-button
-            v-if="hasAction('recordPayment') && !(order.status === 0 || legacyUnmigrated)"
-            type="warning"
-            plain
-            @click="handleAddPayment"
-          >
-            追加收款
           </el-button>
           <!-- 履约方式选择：已结清且未选择 -->
           <template v-if="hasAction('chooseFulfillmentMode')">
@@ -577,23 +577,59 @@
     </div>
 
     <!-- 确认收款弹窗 -->
-    <el-dialog v-model="showPayDialog" title="确认收款" width="400px">
-      <div class="py-4">
-        <p class="text-gray-600 mb-4">订单总额：<span class="font-bold text-gray-900">¥ {{ order?.totalAmount?.toFixed(2) }}</span></p>
+    <el-dialog v-model="showPayDialog" title="确认收款" width="520px" :close-on-click-modal="false">
+      <div class="space-y-5 py-2">
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2.5">
+          <div class="flex justify-between text-sm"><span class="text-gray-500">订单总额</span><span class="font-semibold">¥ {{ fmt(order?.totalAmount) }}</span></div>
+          <div class="flex justify-between text-sm"><span class="text-gray-500">当前实收金额</span><span class="font-semibold text-blue-600">¥ {{ fmt(currentReceived) }}</span></div>
+          <div class="flex justify-between text-sm"><span class="text-gray-500">待收尾款</span><span class="font-semibold text-red-500">¥ {{ fmt(currentBalance) }}</span></div>
+          <div v-if="effectiveReceivable !== Number(order?.totalAmount ?? 0)" class="flex justify-between text-sm border-t border-gray-200 pt-2.5">
+            <span class="text-gray-500">当前有效应收</span><span class="font-semibold">¥ {{ fmt(effectiveReceivable) }}</span>
+          </div>
+        </div>
         <div>
-          <label class="block text-sm font-bold text-gray-500 mb-2">实收金额</label>
+          <label class="block text-sm font-bold text-gray-700 mb-2">最终累计实收金额</label>
           <el-input-number
-            v-model="payAmount"
-            :min="0"
+            v-model="payFinalReceived"
+            :min="currentReceived"
+            :max="effectiveReceivable"
             :precision="2"
-            :step="100"
+            :step="1"
             class="!w-full"
           />
+          <p class="mt-2 text-xs text-gray-400">填写订单最终实际收到的累计金额，系统会自动计算本次增收与短款。</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="rounded-xl border border-blue-100 bg-blue-50 p-3">
+            <div class="text-xs text-blue-600">本次新增收款</div>
+            <div class="mt-1 text-xl font-bold text-blue-700">¥ {{ fmt(settlementAdditional) }}</div>
+          </div>
+          <div class="rounded-xl border border-amber-100 bg-amber-50 p-3">
+            <div class="text-xs text-amber-700">短款核销金额</div>
+            <div class="mt-1 text-xl font-bold text-amber-700">¥ {{ fmt(settlementWriteOff) }}</div>
+          </div>
+        </div>
+        <div v-if="settlementWriteOff > 0" class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <label class="block text-sm font-bold text-amber-800 mb-2">短款核销原因 <span class="text-red-500">*</span></label>
+          <el-input v-model="payWriteOffReason" type="textarea" :rows="2" placeholder="如：客户少付5元，确认不再追收" />
+          <p class="mt-2 text-xs text-amber-700">确认后，该短款不再计入应收尾款，订单将变为已结清。</p>
+        </div>
+        <el-alert
+          v-if="settlementWriteOff > 0 && !hasAction('settleWithWriteOff')"
+          type="warning"
+          :closable="false"
+          title="当前账号无短款核销权限；请足额收款或联系有权限的人员。"
+        />
+        <div class="text-sm text-gray-600">
+          本次将新增收款 <strong>¥ {{ fmt(settlementAdditional) }}</strong>
+          <template v-if="settlementWriteOff > 0">，并核销短款 <strong>¥ {{ fmt(settlementWriteOff) }}</strong></template>。
         </div>
       </div>
       <template #footer>
-        <el-button @click="showPayDialog = false">取消</el-button>
-        <el-button type="primary" @click="confirmPay">确认收款</el-button>
+        <el-button @click="showPayDialog = false" :disabled="paySubmitting">取消</el-button>
+        <el-button type="primary" :loading="paySubmitting" @click="confirmPay">
+          {{ settlementWriteOff > 0 ? '确认收款并核销短款' : '确认收齐' }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -652,52 +688,40 @@
       </template>
     </el-dialog>
 
-    <!-- 追加收款弹窗 -->
-    <el-dialog v-model="showAddPayDialog" title="追加收款" width="420px">
-      <div class="py-4 space-y-3">
-        <div class="flex justify-between text-sm">
-          <span class="text-gray-500">订单总额</span>
-          <span class="font-bold">¥ {{ order?.totalAmount?.toFixed(2) }}</span>
+    <!-- 加收金额弹窗 -->
+    <el-dialog v-model="showAddPayDialog" title="加收金额" width="480px" :close-on-click-modal="false">
+      <div class="py-2 space-y-5">
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2.5">
+          <div class="flex justify-between text-sm"><span class="text-gray-500">订单总额</span><span class="font-semibold">¥ {{ fmt(order?.totalAmount) }}</span></div>
+          <div class="flex justify-between text-sm"><span class="text-gray-500">已收款金额</span><span class="font-semibold text-blue-600">¥ {{ fmt(currentReceived) }}</span></div>
+          <div class="flex justify-between text-sm"><span class="text-gray-500">待收尾款</span><span class="font-semibold text-red-500">¥ {{ fmt(currentBalance) }}</span></div>
         </div>
-        <div class="flex justify-between text-sm">
-          <span class="text-gray-500">已付金额</span>
-          <span class="font-bold text-blue-600">¥ {{ order?.paidAmount?.toFixed(2) }}</span>
-        </div>
-        <div class="flex justify-between text-sm">
-          <span class="text-gray-500">待付余额</span>
-          <span class="font-bold text-red-500">¥ {{ (order?.balanceAmount ?? 0).toFixed(2) }}</span>
-        </div>
-        <el-divider />
         <div>
-          <label class="block text-sm font-bold text-gray-500 mb-2">本次收款金额</label>
+          <label class="block text-sm font-bold text-gray-700 mb-2">加收金额</label>
           <el-input-number
             v-model="addPayAmount"
-            :min="addPayMarkSettled ? 0 : 0.01"
-            :max="order?.balanceAmount ?? 0"
+            :min="0.01"
+            :max="currentBalance"
             :precision="2"
-            :step="100"
+            :step="1"
             class="!w-full"
           />
         </div>
-        <div>
-          <el-checkbox v-model="addPayMarkSettled">
-            标记结清（尾款金额将写入抹零/短款）
-          </el-checkbox>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="rounded-xl border border-blue-100 bg-blue-50 p-3">
+            <div class="text-xs text-blue-600">加收后累计实收</div>
+            <div class="mt-1 text-lg font-bold text-blue-700">¥ {{ fmt(addPayResultReceived) }}</div>
+          </div>
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+            <div class="text-xs text-gray-500">加收后剩余尾款</div>
+            <div class="mt-1 text-lg font-bold text-gray-800">¥ {{ fmt(addPayResultBalance) }}</div>
+          </div>
         </div>
-        <div v-if="addPayMarkSettled" class="bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <p class="text-xs text-amber-700 mb-2">
-            标记结清后，当前尾款 ¥{{ ((order?.balanceAmount ?? 0) - addPayAmount).toFixed(2) }} 将记为抹零/短款，此订单不再追收。
-          </p>
-          <label class="block text-xs font-bold text-amber-700 mb-1">结清原因 <span class="text-red-500">*</span></label>
-          <el-input
-            v-model="addPayWriteOffReason"
-            placeholder="如：客户少付2元，确认不再追收"
-          />
-        </div>
+        <p class="text-xs text-gray-400">此操作只记录一笔新增收款，不会自动核销尾款。</p>
       </div>
       <template #footer>
         <el-button @click="showAddPayDialog = false" :disabled="addPaySubmitting">取消</el-button>
-        <el-button type="primary" :loading="addPaySubmitting" @click="confirmAddPay">确认收款</el-button>
+        <el-button type="primary" :loading="addPaySubmitting" @click="confirmAddPay">确认加收</el-button>
       </template>
     </el-dialog>
 
@@ -798,7 +822,7 @@ import { computed, ref, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
-import { getOrderById, confirmPayment, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO, type AddPaymentDTO, refundPayment, chooseFulfillmentMode, splitPlaceholderItem } from '@/api/order'
+import { getOrderById, confirmSettlement, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO, type AddPaymentDTO, refundPayment, chooseFulfillmentMode, splitPlaceholderItem } from '@/api/order'
 import { getAllWarehouses, getInventoryByWarehouse, type WarehouseVO, type InventoryVO } from '@/api/inventory'
 import { parseImageSources, parseImageVariantSources } from '@/api/file'
 
@@ -809,7 +833,10 @@ const order = ref<OrderVO | null>(null)
 const loading = ref(true)
 const showPayDialog = ref(false)
 const showCancelDialog = ref(false)
-const payAmount = ref(0)
+const payFinalReceived = ref(0)
+const payWriteOffReason = ref('')
+const paySubmitting = ref(false)
+const payIdempotencyKey = ref('')
 const cancelReason = ref('')
 const imageViewerVisible = ref(false)
 const imageViewerIndex = ref(0)
@@ -1099,49 +1126,74 @@ function handleBack() {
 }
 
 async function handleConfirmPayment() {
+  payFinalReceived.value = currentReceived.value
+  payWriteOffReason.value = ''
+  paySubmitting.value = false
+  payIdempotencyKey.value = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `settle-${orderId}-${Date.now()}`
   showPayDialog.value = true
-  payAmount.value = order.value?.paidAmount || 0
 }
 
 async function confirmPay() {
+  if (paySubmitting.value) return
+  if (payFinalReceived.value < currentReceived.value || payFinalReceived.value > effectiveReceivable.value) {
+    ElMessage.warning('最终实收金额必须在当前实收与有效应收之间')
+    return
+  }
+  if (settlementWriteOff.value > 0 && payFinalReceived.value <= 0) {
+    ElMessage.warning('不能将整笔订单作为短款核销')
+    return
+  }
+  if (settlementWriteOff.value > 0 && !hasAction('settleWithWriteOff')) {
+    ElMessage.warning('当前账号无短款核销权限')
+    return
+  }
+  if (settlementWriteOff.value > 0 && !payWriteOffReason.value.trim()) {
+    ElMessage.warning('请填写短款核销原因')
+    return
+  }
+  paySubmitting.value = true
   try {
-    await confirmPayment(orderId, payAmount.value)
-    ElMessage.success('收款确认成功')
+    await confirmSettlement(orderId, {
+      finalReceivedAmount: payFinalReceived.value,
+      writeOffReason: settlementWriteOff.value > 0 ? payWriteOffReason.value.trim() : undefined,
+      idempotencyKey: payIdempotencyKey.value,
+    })
+    ElMessage.success(settlementWriteOff.value > 0 ? '收款及短款核销已确认' : '订单已足额收款')
     showPayDialog.value = false
     await loadOrder()
   } catch (error: any) {
     ElMessage.error(error.message || '收款确认失败')
+  } finally {
+    paySubmitting.value = false
   }
 }
 
-// 追加收款
+const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100
+const currentReceived = computed(() => roundMoney(Number(order.value?.netReceivedAmount ?? order.value?.paidAmount ?? 0)))
+const currentBalance = computed(() => roundMoney(Number(order.value?.balanceAmount ?? 0)))
+const effectiveReceivable = computed(() => roundMoney(currentReceived.value + currentBalance.value))
+const settlementAdditional = computed(() => roundMoney(Math.max(0, payFinalReceived.value - currentReceived.value)))
+const settlementWriteOff = computed(() => roundMoney(Math.max(0, effectiveReceivable.value - payFinalReceived.value)))
+
+// 加收金额
 const showAddPayDialog = ref(false)
 const addPayAmount = ref(0)
-const addPayMarkSettled = ref(false)
-const addPayWriteOffReason = ref('')
 const addPaySubmitting = ref(false)
+const addPayResultReceived = computed(() => roundMoney(currentReceived.value + Number(addPayAmount.value || 0)))
+const addPayResultBalance = computed(() => roundMoney(Math.max(0, currentBalance.value - Number(addPayAmount.value || 0))))
 
 function handleAddPayment() {
   addPayAmount.value = 0
-  addPayMarkSettled.value = false
-  addPayWriteOffReason.value = ''
   addPaySubmitting.value = false
   showAddPayDialog.value = true
 }
 
 async function confirmAddPay() {
   if (addPaySubmitting.value) return
-  const balance = Number(order.value?.balanceAmount ?? 0)
-  if (!addPayMarkSettled.value && addPayAmount.value <= 0) {
-    ElMessage.warning('本次收款金额必须大于0')
-    return
-  }
-  if (addPayMarkSettled.value && !addPayWriteOffReason.value.trim()) {
-    ElMessage.warning('请填写结清原因')
-    return
-  }
-  if (addPayMarkSettled.value && balance - addPayAmount.value <= 0) {
-    ElMessage.warning('本次收款已覆盖全部尾款，无需勾选标记结清')
+  if (addPayAmount.value <= 0 || addPayAmount.value > currentBalance.value) {
+    ElMessage.warning('加收金额必须大于0且不能超过待收尾款')
     return
   }
   addPaySubmitting.value = true
@@ -1149,12 +1201,8 @@ async function confirmAddPay() {
     const payload: AddPaymentDTO = {
       additionalAmount: addPayAmount.value,
     }
-    if (addPayMarkSettled.value) {
-      payload.markAsSettled = true
-      payload.writeOffReason = addPayWriteOffReason.value.trim()
-    }
     await addPayment(orderId, payload)
-    ElMessage.success(addPayMarkSettled.value ? '订单已标记结清' : '收款记录已更新')
+    ElMessage.success('加收金额已记录')
     showAddPayDialog.value = false
     await loadOrder()
   } catch (error: any) {
