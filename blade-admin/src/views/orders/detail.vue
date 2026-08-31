@@ -532,15 +532,15 @@
               class="finance-record-table w-full"
               scrollbar-always-on
             >
-              <el-table-column label="时间" width="108" fixed="left">
+              <el-table-column label="时间" width="108">
                 <template #default="{ row }">{{ formatDateTime(row.occurredAt) }}</template>
               </el-table-column>
-              <el-table-column label="类型" width="76" fixed="left">
+              <el-table-column label="类型" width="76">
                 <template #default="{ row }">
                   <el-tag size="small" :type="recordTagType(row.recordType)">{{ recordTypeLabel(row.recordType) }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="金额" width="96" fixed="left" align="right">
+              <el-table-column label="金额" width="96" align="right">
                 <template #default="{ row }"><span class="font-semibold whitespace-nowrap">¥ {{ fmt(row.amount) }}</span></template>
               </el-table-column>
               <el-table-column prop="reason" label="原因" min-width="140" show-overflow-tooltip />
