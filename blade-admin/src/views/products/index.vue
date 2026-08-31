@@ -169,6 +169,7 @@
       class="product-edit-dialog"
       :close-on-click-modal="false"
       @opened="onDialogOpened"
+      @closed="resetQuickAttributeForms"
     >
       <div class="edit-overview">
         <div class="edit-overview-main">
@@ -282,6 +283,50 @@
                     <h4>颜色</h4>
                     <p>已选 {{ form.colorIds.length }} 个颜色</p>
                   </div>
+                  <el-popover
+                    v-model:visible="quickColorVisible"
+                    placement="bottom-end"
+                    :width="320"
+                    trigger="click"
+                    popper-class="quick-attribute-popover"
+                    @show="prepareQuickColor"
+                  >
+                    <template #reference>
+                      <el-button class="quick-add-button" plain>
+                        <span class="material-symbols-outlined">add</span>
+                        新增颜色
+                      </el-button>
+                    </template>
+                    <div class="quick-create-panel">
+                      <div class="quick-create-title">快速新增颜色</div>
+                      <p class="quick-create-tip">新增后会自动选中，不会关闭当前商品页面。</p>
+                      <label class="quick-field-label" for="quick-color-name">颜色名称</label>
+                      <el-input
+                        id="quick-color-name"
+                        v-model="quickColorForm.colorName"
+                        maxlength="50"
+                        placeholder="如：藏青色"
+                        autofocus
+                        @input="quickColorError = ''"
+                        @keyup.enter="submitQuickColor"
+                      />
+                      <label class="quick-field-label" for="quick-color-code">颜色编码</label>
+                      <el-input
+                        id="quick-color-code"
+                        v-model="quickColorForm.colorCode"
+                        maxlength="50"
+                        placeholder="如：NAVY"
+                        @input="quickColorError = ''"
+                        @keyup.enter="submitQuickColor"
+                      />
+                      <p class="quick-field-help">用于生成 SKU，建议使用简短的英文大写编码。</p>
+                      <p v-if="quickColorError" class="quick-create-error" role="alert">{{ quickColorError }}</p>
+                      <div class="quick-create-actions">
+                        <el-button :disabled="quickColorSaving" @click="quickColorVisible = false">取消</el-button>
+                        <el-button type="primary" :loading="quickColorSaving" @click="submitQuickColor">新增并选中</el-button>
+                      </div>
+                    </div>
+                  </el-popover>
                 </div>
                 <el-form-item label="">
                   <el-checkbox-group v-model="form.colorIds" class="option-grid">
@@ -299,6 +344,49 @@
                     <h4>尺码</h4>
                     <p>已选 {{ form.sizeIds.length }} 个尺码</p>
                   </div>
+                  <el-popover
+                    v-model:visible="quickSizeVisible"
+                    placement="bottom-end"
+                    :width="300"
+                    trigger="click"
+                    popper-class="quick-attribute-popover"
+                    @show="prepareQuickSize"
+                  >
+                    <template #reference>
+                      <el-button class="quick-add-button" plain>
+                        <span class="material-symbols-outlined">add</span>
+                        新增尺码
+                      </el-button>
+                    </template>
+                    <div class="quick-create-panel">
+                      <div class="quick-create-title">快速新增尺码</div>
+                      <p class="quick-create-tip">新增后会自动选中，并按顺序加入尺码列表。</p>
+                      <label class="quick-field-label" for="quick-size-code">尺码编码</label>
+                      <el-input
+                        id="quick-size-code"
+                        v-model="quickSizeForm.sizeCode"
+                        maxlength="50"
+                        placeholder="如：3XL、均码"
+                        autofocus
+                        @input="quickSizeError = ''"
+                        @keyup.enter="submitQuickSize"
+                      />
+                      <label class="quick-field-label" for="quick-size-sort">显示顺序</label>
+                      <el-input-number
+                        id="quick-size-sort"
+                        v-model="quickSizeForm.sort"
+                        :min="0"
+                        :max="9999"
+                        controls-position="right"
+                        class="w-full"
+                      />
+                      <p v-if="quickSizeError" class="quick-create-error" role="alert">{{ quickSizeError }}</p>
+                      <div class="quick-create-actions">
+                        <el-button :disabled="quickSizeSaving" @click="quickSizeVisible = false">取消</el-button>
+                        <el-button type="primary" :loading="quickSizeSaving" @click="submitQuickSize">新增并选中</el-button>
+                      </div>
+                    </div>
+                  </el-popover>
                 </div>
                 <el-form-item label="">
                   <el-checkbox-group v-model="form.sizeIds" class="option-grid size-grid">
@@ -572,7 +660,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getProductPage, getProductById, createProduct, updateProduct, deleteProduct, getAllColors, getAllSizes, getAllCategories, getProductFileBindings, setProductFileBindings, batchUpdateSkus, type ProductVO, type ProductColor, type ProductSize, type ProductSku, type ProductCreateDTO, type ProductCategory, type FileBindingItem, type SkuImageBindingDTO, type SkuUpdateDTO } from '@/api/product'
+import { getProductPage, getProductById, createProduct, updateProduct, deleteProduct, getAllColors, getAllSizes, createColor, createSize, getAllCategories, getProductFileBindings, setProductFileBindings, batchUpdateSkus, type ProductVO, type ProductColor, type ProductSize, type ProductSku, type ProductCreateDTO, type ProductCategory, type FileBindingItem, type SkuImageBindingDTO, type SkuUpdateDTO } from '@/api/product'
 import { parseImageVariantSources, uploadFile, fileVariantUrl } from '@/api/file'
 import { hasFriendlySkuName, skuColorDisplay, skuFriendlyName, skuSizeDisplay } from '@/utils/skuDisplay'
 
@@ -597,6 +685,14 @@ const editingId = ref<number | null>(null)
 const colorOptions = ref<ProductColor[]>([])
 const sizeOptions = ref<ProductSize[]>([])
 const categoryOptions = ref<ProductCategory[]>([])
+const quickColorVisible = ref(false)
+const quickColorSaving = ref(false)
+const quickColorError = ref('')
+const quickColorForm = ref({ colorName: '', colorCode: '' })
+const quickSizeVisible = ref(false)
+const quickSizeSaving = ref(false)
+const quickSizeError = ref('')
+const quickSizeForm = ref({ sizeCode: '', sort: 0 })
 
 // 表单
 const form = ref<{
@@ -729,6 +825,112 @@ async function loadOptions() {
     }
   } catch (error) {
     console.error('加载选项失败:', error)
+  }
+}
+
+function nextSizeSort() {
+  return sizeOptions.value.length
+    ? Math.max(...sizeOptions.value.map(size => Number(size.sort) || 0)) + 1
+    : 1
+}
+
+function prepareQuickColor() {
+  quickColorForm.value = { colorName: '', colorCode: '' }
+  quickColorError.value = ''
+}
+
+function prepareQuickSize() {
+  quickSizeForm.value = { sizeCode: '', sort: nextSizeSort() }
+  quickSizeError.value = ''
+}
+
+function resetQuickAttributeForms() {
+  quickColorVisible.value = false
+  quickSizeVisible.value = false
+  quickColorSaving.value = false
+  quickSizeSaving.value = false
+  quickColorError.value = ''
+  quickSizeError.value = ''
+}
+
+async function refreshColorsAndSelect(id: number) {
+  const response = await getAllColors()
+  if (response.code !== 200) throw new Error(response.message || '颜色列表刷新失败')
+  colorOptions.value = response.data
+  if (!form.value.colorIds.includes(id)) form.value.colorIds.push(id)
+}
+
+async function refreshSizesAndSelect(id: number) {
+  const response = await getAllSizes()
+  if (response.code !== 200) throw new Error(response.message || '尺码列表刷新失败')
+  sizeOptions.value = response.data.sort((a: ProductSize, b: ProductSize) => a.sort - b.sort)
+  if (!form.value.sizeIds.includes(id)) form.value.sizeIds.push(id)
+}
+
+async function submitQuickColor() {
+  if (quickColorSaving.value) return
+  const colorName = quickColorForm.value.colorName.trim()
+  const colorCode = quickColorForm.value.colorCode.trim().toUpperCase()
+  if (!colorName || !colorCode) {
+    quickColorError.value = '请填写颜色名称和颜色编码'
+    return
+  }
+  const duplicate = colorOptions.value.find(color =>
+    color.colorCode.trim().toUpperCase() === colorCode
+    || color.colorName.trim() === colorName)
+  if (duplicate) {
+    if (!form.value.colorIds.includes(duplicate.id)) form.value.colorIds.push(duplicate.id)
+    quickColorVisible.value = false
+    ElMessage.success(`“${duplicate.colorName}”已存在，已为你选中`)
+    return
+  }
+
+  quickColorSaving.value = true
+  quickColorError.value = ''
+  try {
+    const response = await createColor({ colorName, colorCode, status: 1 })
+    if (response.code !== 200 || !response.data) {
+      throw new Error(response.message || '新增颜色失败')
+    }
+    await refreshColorsAndSelect(Number(response.data))
+    quickColorVisible.value = false
+    ElMessage.success(`已新增并选中颜色“${colorName}”`)
+  } catch (error: any) {
+    quickColorError.value = error?.message || error?.response?.data?.message || '新增颜色失败，请稍后重试'
+  } finally {
+    quickColorSaving.value = false
+  }
+}
+
+async function submitQuickSize() {
+  if (quickSizeSaving.value) return
+  const sizeCode = quickSizeForm.value.sizeCode.trim().toUpperCase()
+  if (!sizeCode) {
+    quickSizeError.value = '请填写尺码编码'
+    return
+  }
+  const duplicate = sizeOptions.value.find(size => size.sizeCode.trim().toUpperCase() === sizeCode)
+  if (duplicate) {
+    if (!form.value.sizeIds.includes(duplicate.id)) form.value.sizeIds.push(duplicate.id)
+    quickSizeVisible.value = false
+    ElMessage.success(`尺码“${duplicate.sizeCode}”已存在，已为你选中`)
+    return
+  }
+
+  quickSizeSaving.value = true
+  quickSizeError.value = ''
+  try {
+    const response = await createSize({ sizeCode, sort: quickSizeForm.value.sort, status: 1 })
+    if (response.code !== 200 || !response.data) {
+      throw new Error(response.message || '新增尺码失败')
+    }
+    await refreshSizesAndSelect(Number(response.data))
+    quickSizeVisible.value = false
+    ElMessage.success(`已新增并选中尺码“${sizeCode}”`)
+  } catch (error: any) {
+    quickSizeError.value = error?.message || error?.response?.data?.message || '新增尺码失败，请稍后重试'
+  } finally {
+    quickSizeSaving.value = false
   }
 }
 
@@ -1456,6 +1658,76 @@ function removeSkuImage(skuId: number, index: number) {
   margin: 4px 0 0;
   color: #8a95a8;
   font-size: 12px;
+}
+
+.quick-add-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border-color: #cfe0f8;
+  border-radius: 9px;
+  color: #2f7de1;
+  font-size: 12px;
+  font-weight: 750;
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.quick-add-button:hover,
+.quick-add-button:focus-visible {
+  border-color: #408aee;
+  background: #f0f7ff;
+  color: #1f6fd2;
+}
+
+.quick-add-button .material-symbols-outlined {
+  margin-right: 4px;
+  font-size: 17px;
+}
+
+.quick-create-panel {
+  padding: 4px 2px 2px;
+}
+
+.quick-create-title {
+  color: #172033;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.quick-create-tip,
+.quick-field-help {
+  margin: 4px 0 14px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.quick-field-label {
+  display: block;
+  margin: 12px 0 6px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.quick-field-help {
+  margin: 6px 0 0;
+  color: #8491a5;
+}
+
+.quick-create-error {
+  margin: 10px 0 0;
+  color: #dc2626;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.quick-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
 }
 
 .form-grid {

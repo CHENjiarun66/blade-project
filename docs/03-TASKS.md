@@ -465,6 +465,7 @@
 | BA-408 | SKU 明细精细维护 | ✅ 完成 | SKU明细Tab展示SKU表格，支持inline编辑售价/成本价/条码/状态（el-switch）；脏跟踪+批量保存调用PUT /api/products/skus |
 | BA-409 | 商品素材管理内聚到商品页 | ✅ 完成 | 素材Tab展示主图/图集/SKU图片管理；每个SKU行可上传/fileId添加/点击移除图片；saveFileBindings发送全部SKU的skuImageBindings；复用filePreviewUrl()预览；素材独立保存 |
 | BA-410 | 商品删除/禁用交互优化 | ✅ 完成 | 商品/颜色/尺码/分类删除前提示引用风险和建议禁用；删除失败时弹窗展示后端引用保护消息 |
+| BA-411 | 商品弹窗快速新增颜色/尺码 | ✅ 完成 | 颜色尺码 Tab 内使用轻量新增面板创建主档；成功后刷新列表、自动选中并实时更新 SKU 预览；已有项直接选中 |
 
 ### Phase 5: 客户管理
 
