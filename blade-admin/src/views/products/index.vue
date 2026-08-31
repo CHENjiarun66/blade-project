@@ -346,19 +346,22 @@
             </div>
             <div class="sku-table-wrapper">
               <el-table :data="skuEditList" class="sku-table" size="small" max-height="360">
-                <el-table-column label="SKU 编码" min-width="140" show-overflow-tooltip>
+                <el-table-column label="SKU" min-width="210">
                   <template #default="{ row }">
-                    <span class="text-xs font-mono text-gray-700">{{ row.skuCode }}</span>
+                    <div class="sku-semantic-name">
+                      <span>{{ skuFriendlyName(row) }}</span>
+                      <small v-if="hasFriendlySkuName(row)">{{ row.skuCode }}</small>
+                    </div>
                   </template>
                 </el-table-column>
                 <el-table-column label="颜色" width="80">
                   <template #default="{ row }">
-                    <span class="text-xs">{{ row.colorName }}</span>
+                    <span class="text-xs">{{ skuColorDisplay(row) }}</span>
                   </template>
                 </el-table-column>
                 <el-table-column label="尺码" width="70">
                   <template #default="{ row }">
-                    <span class="text-xs">{{ row.sizeName }}</span>
+                    <span class="text-xs">{{ skuSizeDisplay(row) }}</span>
                   </template>
                 </el-table-column>
                 <el-table-column label="售价" width="120">
@@ -368,6 +371,7 @@
                       :min="0"
                       :precision="2"
                       :controls="false"
+                      :disabled="isSystemManagedSku(row)"
                       size="small"
                       class="sku-inline-input"
                       @change="markSkuDirty(row.id)"
@@ -381,6 +385,7 @@
                       :min="0"
                       :precision="2"
                       :controls="false"
+                      :disabled="isSystemManagedSku(row)"
                       size="small"
                       class="sku-inline-input"
                       @change="markSkuDirty(row.id)"
@@ -393,22 +398,24 @@
                       v-model="row.barCode"
                       size="small"
                       placeholder="条形码"
+                      :disabled="isSystemManagedSku(row)"
                       class="sku-inline-input"
                       @change="markSkuDirty(row.id)"
                     />
                   </template>
                 </el-table-column>
-                <el-table-column label="状态" width="80" align="center">
+                <el-table-column label="状态" width="96" align="center">
                   <template #default="{ row }">
                     <div class="status-cell">
                       <el-switch
                         v-model="row.status"
                         :active-value="1"
                         :inactive-value="0"
+                        :disabled="isSystemManagedSku(row)"
                         size="small"
                         @change="markSkuDirty(row.id)"
                       />
-                      <span>{{ row.status === 1 ? '启用' : '禁用' }}</span>
+                      <span>{{ isSystemManagedSku(row) ? '系统维护' : (row.status === 1 ? '启用' : '禁用') }}</span>
                     </div>
                   </template>
                 </el-table-column>
@@ -500,8 +507,9 @@
               <div v-else class="sku-media-list">
                 <div v-for="sku in skuEditList" :key="sku.id" class="sku-media-row">
                   <div class="sku-media-info">
-                    <strong>{{ sku.skuCode }}</strong>
-                    <span>{{ sku.colorName }} / {{ sku.sizeName }}</span>
+                    <strong>{{ skuFriendlyName(sku) }}</strong>
+                    <small v-if="hasFriendlySkuName(sku)">{{ sku.skuCode }}</small>
+                    <span>{{ skuColorDisplay(sku) }} / {{ skuSizeDisplay(sku) }}</span>
                   </div>
                   <div class="sku-image-strip">
                     <div
@@ -566,6 +574,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProductPage, getProductById, createProduct, updateProduct, deleteProduct, getAllColors, getAllSizes, getAllCategories, getProductFileBindings, setProductFileBindings, batchUpdateSkus, type ProductVO, type ProductColor, type ProductSize, type ProductSku, type ProductCreateDTO, type ProductCategory, type FileBindingItem, type SkuImageBindingDTO, type SkuUpdateDTO } from '@/api/product'
 import { parseImageVariantSources, uploadFile, fileVariantUrl } from '@/api/file'
+import { hasFriendlySkuName, skuColorDisplay, skuFriendlyName, skuSizeDisplay } from '@/utils/skuDisplay'
 
 const searchQuery = ref('')
 const categoryFilter = ref<number | undefined>(undefined)
@@ -921,6 +930,12 @@ function initSkuEditList(skus: ProductSku[]) {
   }))
   skuDirtyIds.value = new Set()
   hasSkuChanges.value = false
+}
+
+function isSystemManagedSku(sku: ProductSku) {
+  if (sku.skuType === 'PLACEHOLDER') return true
+  return sku.skuType === 'DEFAULT'
+    && skuEditList.value.some(item => item.skuType === 'NORMAL' && item.status === 1)
 }
 
 function markSkuDirty(skuId: number) {
@@ -1581,6 +1596,26 @@ function removeSkuImage(skuId: number, index: number) {
 }
 
 /* SKU 明细表格 */
+.sku-semantic-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.3;
+}
+
+.sku-semantic-name > span {
+  color: #374151;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.sku-semantic-name > small,
+.sku-media-info > small {
+  color: #9ca3af;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 400;
+}
 .sku-table-wrapper {
   border: 1px solid #e5e7eb;
   border-radius: 12px;

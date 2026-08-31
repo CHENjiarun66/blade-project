@@ -4,6 +4,7 @@ export interface OrderItemVO {
   id: number
   skuId: number
   skuType?: string
+  variantUnresolved?: boolean
   warehouseId?: number
   warehouseName?: string
   skuCode: string

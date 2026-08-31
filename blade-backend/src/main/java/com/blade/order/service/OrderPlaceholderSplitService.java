@@ -18,6 +18,7 @@ import com.blade.product.mapper.ProductColorMapper;
 import com.blade.product.mapper.ProductMapper;
 import com.blade.product.mapper.ProductSizeMapper;
 import com.blade.product.mapper.ProductSkuMapper;
+import com.blade.product.service.ProductSkuSemantics;
 import com.blade.system.user.entity.User;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,7 +35,7 @@ import java.util.stream.Collectors;
 
 /**
  * 占位 SKU 拆分服务（BE-610～612）：
- * 把一条 PLACEHOLDER 订单明细原子转移到多个真实 SKU 明细，
+ * 把一条 PLACEHOLDER，或商品增加规格前遗留的 DEFAULT 订单明细，原子转移到多个真实 SKU 明细，
  * 保持总数量、销售额（subtotal 合计）、成本快照（costAmount 合计）与毛利合计守恒，
  * 并写入拆分来源审计（OrderAdjustmentLog，adjustmentType=PLACEHOLDER_SPLIT）。
  */
@@ -95,8 +96,13 @@ public class OrderPlaceholderSplitService {
         }
         ProductSku sourceSku = placeholder.getSkuId() != null
                 ? productSkuMapper.selectById(placeholder.getSkuId()) : null;
-        if (sourceSku == null || !"PLACEHOLDER".equals(sourceSku.getSkuType())) {
-            throw BusinessException.of(400, "只有未指定颜色/尺码的占位明细可以拆分");
+        boolean sourceRequiresResolution = ProductSkuSemantics.isPlaceholder(sourceSku);
+        if (!sourceRequiresResolution && ProductSkuSemantics.isDefault(sourceSku)) {
+            sourceRequiresResolution = ProductSkuSemantics.requiresVariantResolution(sourceSku,
+                    ProductSkuSemantics.findProductsWithActiveVariants(productSkuMapper, List.of(sourceSku)));
+        }
+        if (!sourceRequiresResolution) {
+            throw BusinessException.of(400, "只有整款未指定或历史无规格明细可以拆分");
         }
 
         // 数量守恒校验
@@ -122,7 +128,8 @@ public class OrderPlaceholderSplitService {
             }
             ProductSku sku = targetSkuMap.get(target.getSkuId());
             boolean realSku = sku != null
-                    && ("NORMAL".equals(sku.getSkuType()) || "DEFAULT".equals(sku.getSkuType()));
+                    && ("NORMAL".equals(sku.getSkuType()) || "DEFAULT".equals(sku.getSkuType()))
+                    && Integer.valueOf(1).equals(sku.getStatus());
             if (!realSku) {
                 throw BusinessException.of(400, "拆分目标必须是真实规格 SKU：" + target.getSkuId());
             }
@@ -210,11 +217,14 @@ public class OrderPlaceholderSplitService {
         if (skuIds.isEmpty()) {
             return false;
         }
-        Map<Long, ProductSku> skuMap = productSkuMapper.selectBatchIds(skuIds).stream()
+        List<ProductSku> referencedSkus = productSkuMapper.selectBatchIds(skuIds);
+        Map<Long, ProductSku> skuMap = referencedSkus.stream()
                 .collect(Collectors.toMap(ProductSku::getId, Function.identity()));
+        java.util.Set<Long> variantProductIds = ProductSkuSemantics.findProductsWithActiveVariants(
+                productSkuMapper, referencedSkus);
         return items.stream().anyMatch(item -> {
             ProductSku sku = item.getSkuId() == null ? null : skuMap.get(item.getSkuId());
-            return sku != null && "PLACEHOLDER".equals(sku.getSkuType());
+            return ProductSkuSemantics.requiresVariantResolution(sku, variantProductIds);
         });
     }
 

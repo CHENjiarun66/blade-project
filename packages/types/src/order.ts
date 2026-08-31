@@ -97,6 +97,8 @@ export interface OrderItemVO {
   id: number
   skuId: number
   skuCode: string
+  skuType?: 'NORMAL' | 'DEFAULT' | 'PLACEHOLDER'
+  variantUnresolved?: boolean
   productName: string
   colorName: string
   sizeName: string

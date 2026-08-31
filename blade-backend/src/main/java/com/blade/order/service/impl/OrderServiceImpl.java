@@ -39,6 +39,7 @@ import com.blade.product.entity.ProductSize;
 import com.blade.product.mapper.ProductColorMapper;
 import com.blade.product.mapper.ProductMapper;
 import com.blade.product.mapper.ProductSkuMapper;
+import com.blade.product.service.ProductSkuSemantics;
 import com.blade.product.mapper.ProductSizeMapper;
 import com.blade.system.user.entity.User;
 import com.blade.system.user.mapper.UserMapper;
@@ -623,12 +624,16 @@ public class OrderServiceImpl implements OrderService {
             java.util.Map<Long, ProductSku> itemSkuMap = itemSkuIds.isEmpty() ? java.util.Map.of()
                     : productSkuMapper.selectBatchIds(itemSkuIds).stream()
                             .collect(Collectors.toMap(ProductSku::getId, sk -> sk));
+            java.util.Set<Long> variantProductIds = ProductSkuSemantics.findProductsWithActiveVariants(
+                    productSkuMapper, itemSkuMap.values());
             List<OrderVO.OrderItemVO> itemVOList = items.stream().map(item -> {
                 OrderVO.OrderItemVO itemVO = new OrderVO.OrderItemVO();
                 itemVO.setId(item.getId());
                 itemVO.setSkuId(item.getSkuId());
                 ProductSku itemSku = item.getSkuId() == null ? null : itemSkuMap.get(item.getSkuId());
                 itemVO.setSkuType(itemSku != null ? itemSku.getSkuType() : null);
+                itemVO.setVariantUnresolved(ProductSkuSemantics.requiresVariantResolution(
+                        itemSku, variantProductIds));
                 itemVO.setWarehouseId(item.getWarehouseId());
                 // 查询仓库名称
                 if (item.getWarehouseId() != null) {

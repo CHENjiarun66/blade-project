@@ -457,10 +457,12 @@ import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO
 import { fileVariantUrl, parseImageSources, uploadFile } from '@/api/file'
 import { getProductFileBindings, getProductPage, type ProductVO, type ProductSku, type ProductFileBindingsVO } from '@/api/product'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
+import { skuFriendlyName } from '@/utils/skuDisplay'
 
 interface QuickLine {
   skuId?: number
   skuCode?: string
+  skuType?: string
   productName?: string
   productCode?: string
   colorName?: string
@@ -478,6 +480,7 @@ interface SkuOption {
   skuId: number
   productId: number
   skuCode: string
+  skuType?: string
   productCode: string
   productName: string
   colorName: string
@@ -686,13 +689,23 @@ function sanitizeMoneyText(value: string) {
     .replace(/(\..*)\./g, '$1')
 }
 
-function formatSkuDisplay(sku: Pick<SkuOption, 'productName' | 'productCode' | 'colorName' | 'sizeName'>) {
-  return `${sku.productName} · ${sku.colorName || '-'} · ${sku.sizeName || '-'}`
+function formatSkuDisplay(sku: Pick<SkuOption, 'productName' | 'productCode' | 'colorName' | 'sizeName' | 'skuCode' | 'skuType'>) {
+  const semanticName = skuFriendlyName(sku)
+  return semanticName === sku.skuCode
+    ? `${sku.productName} · ${sku.colorName || '-'} · ${sku.sizeName || '-'}`
+    : `${sku.productName} · ${semanticName}`
 }
 
 function lineSkuLabel(row: QuickLine) {
   return row.productName
-    ? `${row.productName} · ${row.colorName || '-'} · ${row.sizeName || '-'}`
+    ? formatSkuDisplay({
+        productName: row.productName,
+        productCode: row.productCode || '',
+        colorName: row.colorName || '',
+        sizeName: row.sizeName || '',
+        skuCode: row.skuCode || '',
+        skuType: row.skuType,
+      })
     : ''
 }
 
@@ -783,6 +796,7 @@ async function onSkuChange(row: QuickLine) {
   const sku = skuOptions.value.find(item => item.skuId === row.skuId)
   if (!sku) return
   row.skuCode = sku.skuCode
+  row.skuType = sku.skuType
   row.productCode = sku.productCode
   row.productName = sku.productName
   row.colorName = sku.colorName
@@ -805,6 +819,7 @@ function ensureSkuOption(product: ProductVO, sku: ProductSku) {
     skuId: sku.id,
     productId: product.id,
     skuCode: sku.skuCode,
+    skuType: sku.skuType,
     productCode: product.productCode,
     productName: product.name,
     colorName: sku.colorName || '',
@@ -1016,6 +1031,7 @@ async function loadProducts() {
         skuId: sku.id,
         productId: product.id,
         skuCode: sku.skuCode,
+        skuType: sku.skuType,
         productCode: product.productCode,
         productName: product.name,
         colorName: sku.colorName || '',

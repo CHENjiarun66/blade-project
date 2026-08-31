@@ -46,6 +46,7 @@ export interface AnalyticsProductDetail {
   colors: AnalyticsRanking[]
   sizes: AnalyticsRanking[]
   unspecified?: AnalyticsRanking | null
+  historicalNoVariant?: AnalyticsRanking | null
   totalSalesQuantity: number
   specifiedSalesQuantity: number
   variantCoverageRate: number

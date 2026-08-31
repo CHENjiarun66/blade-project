@@ -321,7 +321,7 @@
 
 **索引**：`uk_sku_code(sku_code, tenant_id)`, `idx_product_id(product_id)`, `idx_color_id(color_id)`, `idx_size_id(size_id)`, `idx_tenant_id(tenant_id)`, `idx_product_sku_type(tenant_id, product_id, sku_type, status, deleted)`
 
-系统保留属性 `UNSPECIFIED/UNSPEC` 用于 `PLACEHOLDER`，`NA/NA` 用于无规格 `DEFAULT`；它们状态为禁用且不写入商品颜色/尺码关联，因此不会出现在普通属性维护列表。多规格商品最多一个有效占位 SKU，编码为 `{product_code}-UNSPEC-UNSPEC`。
+系统保留属性 `UNSPECIFIED/UNSPEC` 用于 `PLACEHOLDER`，`NA/NA` 用于无规格 `DEFAULT`；保留属性状态为禁用且不写入商品颜色/尺码关联，因此不会出现在普通属性维护列表。多规格商品最多一个有效占位 SKU，新建编码为 `{product_code}-UNSPECIFIED-UNSPEC`，并兼容 V49 既有 `{product_code}-UNSPEC-UNSPEC`。编码是后端稳定标识，不直接作为业务文案：前端分别显示“整款录入（颜色/尺码未指定）”和“无规格商品（实际 SKU）”。商品增加真实规格后，历史 `DEFAULT` 行仅禁用、不删除，保证既有订单外键和销售事实不变。
 
 ---
 

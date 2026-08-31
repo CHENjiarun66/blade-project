@@ -17,6 +17,7 @@ import com.blade.product.dto.SkuUpdateDTO;
 import com.blade.product.entity.*;
 import com.blade.product.mapper.*;
 import com.blade.product.service.impl.ProductServiceImpl;
+import com.blade.common.exception.BusinessException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -369,6 +370,25 @@ class ProductServiceV2Test {
         assertEquals(new BigDecimal("70.00"), updated.getCostPrice());
         assertEquals("690000000002", updated.getBarCode());
         assertEquals(0, (int) updated.getStatus());
+    }
+
+    @Test
+    void updateSku_rejectsSystemManagedPlaceholder() {
+        ProductSku sku = new ProductSku();
+        sku.setId(11L);
+        sku.setProductId(1L);
+        sku.setTenantId(1L);
+        sku.setDeleted(0);
+        sku.setSkuType("PLACEHOLDER");
+        sku.setStatus(1);
+        skuHandler.thenSelectOne(sku);
+
+        SkuUpdateDTO dto = new SkuUpdateDTO();
+        dto.setId(11L);
+        dto.setStatus(0);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.updateSku(dto));
+        assertTrue(ex.getMessage().contains("系统维护"));
     }
 
     @Test

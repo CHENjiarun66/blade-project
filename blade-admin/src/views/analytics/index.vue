@@ -196,8 +196,12 @@
           <strong>{{ (Number(productDetail.variantCoverageRate || 0) * 100).toFixed(1) }}%</strong>
         </div>
         <div v-if="productDetail.unspecified" class="variant-unspecified">
-          <span>未指定颜色 / 尺码</span>
+          <span>整款录入（规格未指定）</span>
           <strong>{{ productDetail.unspecified.salesQuantity }} 件</strong>
+        </div>
+        <div v-if="productDetail.historicalNoVariant" class="variant-historical">
+          <span>历史无规格</span>
+          <strong>{{ productDetail.historicalNoVariant.salesQuantity }} 件</strong>
         </div>
       </div>
       <el-tabs v-model="detailTab">
@@ -493,7 +497,7 @@ onMounted(() => {
 
 .variant-quality {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -523,6 +527,11 @@ onMounted(() => {
 .variant-quality .variant-unspecified {
   border-color: #fed7aa;
   background: #fff7ed;
+}
+
+.variant-quality .variant-historical {
+  border-color: #dbe4f0;
+  background: #f8fafc;
 }
 
 .panel-header {

@@ -216,10 +216,13 @@
               <tbody class="divide-y divide-gray-100">
                 <tr v-for="item in order.items" :key="item.id" class="hover:bg-gray-50/50 transition-colors">
                   <td class="px-6 py-4 font-semibold text-gray-900">{{ item.productName }}</td>
-                  <td class="px-6 py-4 font-mono text-sm text-gray-500">{{ item.skuCode || '-' }}</td>
+                  <td class="px-6 py-4">
+                    <div class="text-sm font-semibold text-gray-700">{{ skuFriendlyName(item) }}</div>
+                    <div v-if="hasFriendlySkuName(item)" class="mt-0.5 font-mono text-[10px] text-gray-400">{{ item.skuCode }}</div>
+                  </td>
                   <td class="px-6 py-4">
                     <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 text-xs font-bold text-gray-600">
-                      {{ item.colorName || '-' }} / {{ item.sizeName || '-' }}
+                      {{ skuColorDisplay(item) }} / {{ skuSizeDisplay(item) }}
                     </span>
                   </td>
                   <td class="px-6 py-4 font-medium text-gray-900">¥ {{ item.price?.toFixed(2) }}</td>
@@ -478,7 +481,7 @@
         <!-- 占位明细拆分引导 -->
         <div v-if="placeholderRows.length > 0" class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between">
           <div class="text-sm text-amber-700">
-            本订单含 {{ placeholderRows.length }} 行未指定颜色/尺码的占位明细，创建配货计划与出库前需先拆分到真实 SKU。
+            本订单含 {{ placeholderRows.length }} 行待明确规格明细（整款录入或历史无规格），创建配货计划与出库前需先拆分到真实 SKU。
           </div>
           <el-button size="small" type="warning" @click="openSplitDialog(placeholderRows[0])">去拆分</el-button>
         </div>
@@ -830,6 +833,7 @@ import { Loading } from '@element-plus/icons-vue'
 import { getOrderById, confirmSettlement, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO, type AddPaymentDTO, refundPayment, chooseFulfillmentMode, splitPlaceholderItem } from '@/api/order'
 import { getAllWarehouses, getInventoryByWarehouse, type WarehouseVO, type InventoryVO } from '@/api/inventory'
 import { parseImageSources, parseImageVariantSources } from '@/api/file'
+import { hasFriendlySkuName, skuColorDisplay, skuFriendlyName, skuSizeDisplay } from '@/utils/skuDisplay'
 
 const router = useRouter()
 const route = useRoute()
@@ -1024,7 +1028,7 @@ async function handleChooseFulfillmentMode(mode: 'STOCK_LINKED' | 'RECORD_ONLY')
 
 // ==== 占位明细拆分（系列 D） ====
 const placeholderRows = computed(() =>
-  (order.value?.items ?? []).filter(i => i.skuType === 'PLACEHOLDER'))
+  (order.value?.items ?? []).filter(i => i.variantUnresolved || i.skuType === 'PLACEHOLDER'))
 const showSplitDialog = ref(false)
 const splitRow = ref<any>(null)
 const splitTargets = ref<{ skuId?: number; quantity: number }[]>([])

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.blade.common.exception.BusinessException;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
 import com.blade.file.entity.FileBusinessBind;
@@ -27,6 +28,7 @@ import com.blade.product.entity.ProductSku;
 import com.blade.product.enums.ProductSkuType;
 import com.blade.product.mapper.*;
 import com.blade.product.service.ProductService;
+import com.blade.product.service.ProductSkuSemantics;
 import com.blade.system.user.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -739,6 +741,12 @@ public class ProductServiceImpl implements ProductService {
         ProductSku sku = skuMapper.selectOne(wrapper);
         if (sku == null) {
             throw new RuntimeException("SKU 不存在");
+        }
+        boolean historicalDefault = ProductSkuSemantics.isDefault(sku)
+                && ProductSkuSemantics.findProductsWithActiveVariants(skuMapper, List.of(sku))
+                        .contains(sku.getProductId());
+        if (ProductSkuSemantics.isPlaceholder(sku) || historicalDefault) {
+            throw BusinessException.of(400, "整款占位或历史无规格 SKU 由系统维护，不能直接修改");
         }
 
         boolean changed = false;

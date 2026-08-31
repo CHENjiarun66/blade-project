@@ -14,6 +14,8 @@ import com.blade.order.entity.OrderItem;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.order.service.OrderFactsService;
+import com.blade.product.entity.ProductSku;
+import com.blade.product.mapper.ProductSkuMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,7 @@ class AnalyticsServiceTest {
 
     private FakeMapperHandler orderHandler;
     private FakeMapperHandler itemHandler;
+    private FakeMapperHandler skuHandler;
     private AnalyticsServiceImpl service;
 
     @BeforeEach
@@ -42,9 +45,12 @@ class AnalyticsServiceTest {
         TenantContext.setTenantId(1L);
         orderHandler = new FakeMapperHandler();
         itemHandler = new FakeMapperHandler();
+        skuHandler = new FakeMapperHandler();
         OrderMapper orderMapper = fakeMapper(OrderMapper.class, orderHandler);
         OrderItemMapper orderItemMapper = fakeMapper(OrderItemMapper.class, itemHandler);
-        service = new AnalyticsServiceImpl(orderMapper, orderItemMapper, new OrderFactsService(orderMapper));
+        ProductSkuMapper productSkuMapper = fakeMapper(ProductSkuMapper.class, skuHandler);
+        service = new AnalyticsServiceImpl(orderMapper, orderItemMapper,
+                new OrderFactsService(orderMapper), productSkuMapper);
     }
 
     @AfterEach
@@ -134,6 +140,29 @@ class AnalyticsServiceTest {
         assertEquals("LOW", detail.getVariantDataQuality());
     }
 
+    @Test
+    void getProductDetail_separatesHistoricalDefaultAfterProductGainsVariants() {
+        orderHandler.thenSelectList(List.of(order(1L, "500.00", "0", "500.00", "200.00")));
+        OrderItem historical = item(1L, "7000#", "7000#-NA-NA", "不分颜色", "NA", 5,
+                "500.00", "300.00", "200.00");
+        historical.setSkuId(90L);
+        itemHandler.thenSelectList(List.of(historical));
+
+        ProductSku oldDefault = sku(90L, 70L, "DEFAULT", 0);
+        ProductSku currentVariant = sku(91L, 70L, "NORMAL", 1);
+        skuHandler.thenSelectBatchIds(List.of(oldDefault));
+        skuHandler.thenSelectList(List.of(currentVariant));
+
+        AnalyticsProductDetailDTO detail = service.getProductDetail(weekQuery(), "7000#");
+
+        assertEquals(0, detail.getSkus().size());
+        assertNull(detail.getUnspecified());
+        assertNotNull(detail.getHistoricalNoVariant());
+        assertEquals(5L, detail.getHistoricalNoVariant().getSalesQuantity());
+        assertEquals(0L, detail.getSpecifiedSalesQuantity());
+        assertEquals(BigDecimal.ZERO.setScale(4), detail.getVariantCoverageRate());
+    }
+
     private DashboardQueryDTO weekQuery() {
         DashboardQueryDTO query = new DashboardQueryDTO();
         query.setPeriodType(PeriodType.WEEK);
@@ -177,6 +206,16 @@ class AnalyticsServiceTest {
         return item;
     }
 
+    private ProductSku sku(Long id, Long productId, String skuType, int status) {
+        ProductSku sku = new ProductSku();
+        sku.setId(id);
+        sku.setProductId(productId);
+        sku.setSkuType(skuType);
+        sku.setStatus(status);
+        sku.setDeleted(0);
+        return sku;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T fakeMapper(Class<T> mapperType, FakeMapperHandler handler) {
         return (T) Proxy.newProxyInstance(
@@ -188,16 +227,23 @@ class AnalyticsServiceTest {
 
     private static class FakeMapperHandler implements java.lang.reflect.InvocationHandler {
         private final Queue<Object> selectListResults = new ArrayDeque<>();
+        private final Queue<Object> selectBatchIdsResults = new ArrayDeque<>();
 
         @SafeVarargs
         final void thenSelectList(List<?>... results) {
             selectListResults.addAll(List.of(results));
         }
 
+        @SafeVarargs
+        final void thenSelectBatchIds(List<?>... results) {
+            selectBatchIdsResults.addAll(List.of(results));
+        }
+
         @Override
         public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) {
             return switch (method.getName()) {
                 case "selectList" -> selectListResults.isEmpty() ? List.of() : selectListResults.remove();
+                case "selectBatchIds" -> selectBatchIdsResults.isEmpty() ? List.of() : selectBatchIdsResults.remove();
                 case "toString" -> "FakeMapper";
                 case "hashCode" -> System.identityHashCode(proxy);
                 case "equals" -> proxy == args[0];

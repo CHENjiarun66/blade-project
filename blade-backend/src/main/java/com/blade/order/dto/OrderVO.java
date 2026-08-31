@@ -235,6 +235,8 @@ public class OrderVO {
         private Long id;
         /** NORMAL/DEFAULT/PLACEHOLDER：占位行需要先拆分才能履约 */
         private String skuType;
+        /** 当前明细需要在库存履约前明确到真实规格；包含 PLACEHOLDER 与历史 DEFAULT。 */
+        private Boolean variantUnresolved;
         private Long skuId;
         private Long warehouseId;
         private String warehouseName;
@@ -291,5 +293,7 @@ public class OrderVO {
         public void setGrossProfit(BigDecimal grossProfit) { this.grossProfit = grossProfit; }
         public String getSkuType() { return skuType; }
         public void setSkuType(String skuType) { this.skuType = skuType; }
+        public Boolean getVariantUnresolved() { return variantUnresolved; }
+        public void setVariantUnresolved(Boolean variantUnresolved) { this.variantUnresolved = variantUnresolved; }
     }
 }

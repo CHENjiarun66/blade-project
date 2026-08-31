@@ -10,7 +10,9 @@ import com.blade.analytics.enums.AnalyticsSortBy;
 import com.blade.analytics.service.AnalyticsService;
 import com.blade.common.tenant.TenantContext;
 import com.blade.order.service.OrderFactsService;
-import com.blade.order.service.OrderFactsService;
+import com.blade.product.entity.ProductSku;
+import com.blade.product.mapper.ProductSkuMapper;
+import com.blade.product.service.ProductSkuSemantics;
 import com.blade.dashboard.dto.DashboardQueryDTO;
 import com.blade.dashboard.enums.PeriodType;
 import com.blade.order.entity.Order;
@@ -47,12 +49,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
     private final OrderFactsService orderFactsService;
+    private final ProductSkuMapper productSkuMapper;
 
     public AnalyticsServiceImpl(OrderMapper orderMapper, OrderItemMapper orderItemMapper,
-                                OrderFactsService orderFactsService) {
+                                OrderFactsService orderFactsService, ProductSkuMapper productSkuMapper) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.orderFactsService = orderFactsService;
+        this.productSkuMapper = productSkuMapper;
     }
 
     @Override
@@ -134,7 +138,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         boolean profitVisible = hasProfitPermission();
         List<Order> orders = selectPaidOrdersInCurrentPeriod(query);
         List<OrderItem> items = selectItems(orders);
-        return rankItems(items, dimension, sortBy, limit, profitVisible);
+        List<OrderItem> rankingItems = dimension == AnalyticsDimension.PRODUCT
+                ? items
+                : partitionVariantItems(items).specified();
+        return rankItems(rankingItems, dimension, sortBy, limit, profitVisible);
     }
 
     @Override
@@ -144,8 +151,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<OrderItem> items = selectItems(orders).stream()
                 .filter(item -> Objects.equals(safeText(item.getProductName(), "未知商品"), productName))
                 .collect(Collectors.toList());
-        List<OrderItem> unspecifiedItems = items.stream().filter(this::isPlaceholderItem).toList();
-        List<OrderItem> specifiedItems = items.stream().filter(item -> !isPlaceholderItem(item)).toList();
+        VariantPartition partition = partitionVariantItems(items);
+        List<OrderItem> unspecifiedItems = partition.unspecified();
+        List<OrderItem> historicalNoVariantItems = partition.historicalNoVariant();
+        List<OrderItem> specifiedItems = partition.specified();
         long totalQuantity = sumQuantity(items);
         long specifiedQuantity = sumQuantity(specifiedItems);
         BigDecimal coverage = totalQuantity > 0
@@ -161,6 +170,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<AnalyticsRankingDTO> unspecified = rankItems(
                 unspecifiedItems, AnalyticsDimension.SKU, AnalyticsSortBy.SALES, 1, profitVisible);
         dto.setUnspecified(unspecified.isEmpty() ? null : unspecified.get(0));
+        List<AnalyticsRankingDTO> historicalNoVariant = rankItems(
+                historicalNoVariantItems, AnalyticsDimension.SKU, AnalyticsSortBy.SALES, 1, profitVisible);
+        dto.setHistoricalNoVariant(historicalNoVariant.isEmpty() ? null : historicalNoVariant.get(0));
         dto.setTotalSalesQuantity(totalQuantity);
         dto.setSpecifiedSalesQuantity(specifiedQuantity);
         dto.setVariantCoverageRate(coverage);
@@ -172,7 +184,45 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     private boolean isPlaceholderItem(OrderItem item) {
-        return item.getSkuCode() != null && item.getSkuCode().endsWith("-UNSPEC-UNSPEC");
+        if (item.getSkuCode() == null) {
+            return false;
+        }
+        String normalized = item.getSkuCode().toUpperCase(java.util.Locale.ROOT);
+        return normalized.endsWith("-UNSPEC-UNSPEC")
+                || normalized.endsWith("-UNSPECIFIED-UNSPEC");
+    }
+
+    private VariantPartition partitionVariantItems(List<OrderItem> items) {
+        if (items == null || items.isEmpty()) {
+            return new VariantPartition(List.of(), List.of(), List.of());
+        }
+        List<Long> skuIds = items.stream().map(OrderItem::getSkuId).filter(Objects::nonNull).distinct().toList();
+        List<ProductSku> referencedSkus = skuIds.isEmpty() ? List.of() : productSkuMapper.selectBatchIds(skuIds);
+        Map<Long, ProductSku> skuMap = referencedSkus.stream()
+                .collect(Collectors.toMap(ProductSku::getId, sku -> sku));
+        Set<Long> variantProductIds = ProductSkuSemantics.findProductsWithActiveVariants(productSkuMapper, referencedSkus);
+
+        List<OrderItem> specified = new ArrayList<>();
+        List<OrderItem> unspecified = new ArrayList<>();
+        List<OrderItem> historicalNoVariant = new ArrayList<>();
+        for (OrderItem item : items) {
+            if (isPlaceholderItem(item)) {
+                unspecified.add(item);
+                continue;
+            }
+            ProductSku sku = item.getSkuId() == null ? null : skuMap.get(item.getSkuId());
+            if (ProductSkuSemantics.isDefault(sku)
+                    && ProductSkuSemantics.requiresVariantResolution(sku, variantProductIds)) {
+                historicalNoVariant.add(item);
+            } else {
+                specified.add(item);
+            }
+        }
+        return new VariantPartition(specified, unspecified, historicalNoVariant);
+    }
+
+    private record VariantPartition(List<OrderItem> specified, List<OrderItem> unspecified,
+                                    List<OrderItem> historicalNoVariant) {
     }
 
     private List<AnalyticsRankingDTO> rankItems(List<OrderItem> items,

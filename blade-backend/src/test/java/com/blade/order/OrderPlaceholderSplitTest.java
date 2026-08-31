@@ -133,7 +133,39 @@ class OrderPlaceholderSplitTest {
         sku.setSkuType(type);
         sku.setSkuCode("SKU-" + id);
         sku.setProductId(10L);
+        sku.setStatus(1);
+        sku.setDeleted(0);
         return sku;
+    }
+
+    @Test
+    void split_acceptsHistoricalDefaultAfterProductGainsVariants() {
+        splittableOrder(8L);
+        when(orderItemMapper.selectOne(any())).thenReturn(placeholderItem(800L, 8L, 4, "40.00", "20.00"));
+        ProductSku historicalDefault = sku(900L, "DEFAULT");
+        historicalDefault.setStatus(0);
+        when(productSkuMapper.selectById(900L)).thenReturn(historicalDefault);
+        when(productSkuMapper.selectList(any())).thenReturn(List.of(sku(11L, "NORMAL")));
+        when(productSkuMapper.selectBatchIds(any())).thenReturn(List.of(sku(11L, "NORMAL")));
+
+        List<OrderItem> created = splitService.splitPlaceholderItem(
+                8L, 800L, List.of(target(11L, 4)), "商品增加规格后补录");
+
+        assertEquals(1, created.size());
+        assertEquals(11L, created.get(0).getSkuId());
+        verify(orderItemMapper).deleteById(800L);
+    }
+
+    @Test
+    void hasPlaceholderItems_blocksHistoricalDefaultAfterProductGainsVariants() {
+        OrderItem historicalItem = placeholderItem(810L, 8L, 4, "40.00", "20.00");
+        when(orderItemMapper.selectList(any())).thenReturn(List.of(historicalItem));
+        ProductSku historicalDefault = sku(900L, "DEFAULT");
+        historicalDefault.setStatus(0);
+        when(productSkuMapper.selectBatchIds(any())).thenReturn(List.of(historicalDefault));
+        when(productSkuMapper.selectList(any())).thenReturn(List.of(sku(11L, "NORMAL")));
+
+        assertTrue(splitService.hasPlaceholderItems(8L, TENANT_ID));
     }
 
     @Test

@@ -38,6 +38,9 @@ public class AgentSkuMixService {
         dto.setUnspecified(detail.getUnspecified() != null
                 ? AgentSkuMixDTO.MixRow.from(detail.getUnspecified(), "UNSPECIFIED")
                 : aggregateUnspecified(placeholderRows));
+        dto.setHistoricalNoVariant(detail.getHistoricalNoVariant() != null
+                ? AgentSkuMixDTO.MixRow.from(detail.getHistoricalNoVariant(), "HISTORICAL_NO_VARIANT")
+                : null);
         long fallbackUnspecified = dto.getUnspecified() != null ? dto.getUnspecified().getSalesQuantity() : 0L;
         long specifiedQuantity = detail.getSpecifiedSalesQuantity() != null
                 ? detail.getSpecifiedSalesQuantity()
@@ -138,6 +141,10 @@ public class AgentSkuMixService {
                     + " 件仅记录到款号，颜色/尺码分析覆盖率为 "
                     + dto.getVariantCoverageRate().multiply(BigDecimal.valueOf(100)).setScale(1, RoundingMode.HALF_UP)
                     + "%");
+        }
+        if (dto.getHistoricalNoVariant() != null && dto.getHistoricalNoVariant().getSalesQuantity() > 0) {
+            reasons.add("有 " + dto.getHistoricalNoVariant().getSalesQuantity()
+                    + " 件来自商品增加颜色/尺码前的历史无规格订单，已从当前规格排名中分离");
         }
         return reasons;
     }

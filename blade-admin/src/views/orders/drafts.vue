@@ -338,6 +338,7 @@ import { useRouter } from 'vue-router'
 import { filePreviewUrl } from '@/api/file'
 import { getCustomerPage, type CustomerVO } from '@/api/customer'
 import { getProductPage, type ProductVO } from '@/api/product'
+import { hasFriendlySkuName, skuFriendlyName } from '@/utils/skuDisplay'
 import {
   confirmOrderDraft,
   getOrderDraft,
@@ -455,9 +456,9 @@ async function loadProducts() {
         placeholder: sku.placeholder || sku.skuType === 'PLACEHOLDER',
         colorName: sku.colorName || '',
         sizeName: sku.sizeName || '',
-        label: sku.placeholder || sku.skuType === 'PLACEHOLDER'
-          ? `${product.productCode} / ${product.name} · 整款（未指定颜色/尺码）`
-          : `${product.productCode} / ${product.name} · ${sku.colorName || '-'} · ${sku.sizeName || '-'}`,
+        label: `${product.productCode} / ${product.name} · ${hasFriendlySkuName(sku)
+          ? skuFriendlyName(sku)
+          : [sku.colorName, sku.sizeName].filter(Boolean).join(' · ') || sku.skuCode}`,
         price: Number(sku.price || product.wholesalePrice || 0),
       }))
   ).sort((a, b) => Number(b.placeholder) - Number(a.placeholder))
