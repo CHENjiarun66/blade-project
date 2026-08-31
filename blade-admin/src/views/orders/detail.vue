@@ -526,17 +526,22 @@
           <!-- 财务流水 -->
           <div v-if="order.financialRecords && order.financialRecords.length > 0" class="mt-4 pt-4 border-t border-gray-100">
             <div class="text-sm font-bold text-gray-700 mb-2">财务流水</div>
-            <el-table :data="order.financialRecords" size="small" class="w-full">
-              <el-table-column label="时间" width="160">
+            <el-table
+              :data="order.financialRecords"
+              size="small"
+              class="finance-record-table w-full"
+              scrollbar-always-on
+            >
+              <el-table-column label="时间" width="108" fixed="left">
                 <template #default="{ row }">{{ formatDateTime(row.occurredAt) }}</template>
               </el-table-column>
-              <el-table-column label="类型" width="110">
+              <el-table-column label="类型" width="76" fixed="left">
                 <template #default="{ row }">
                   <el-tag size="small" :type="recordTagType(row.recordType)">{{ recordTypeLabel(row.recordType) }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="金额" width="110" align="right">
-                <template #default="{ row }">¥ {{ fmt(row.amount) }}</template>
+              <el-table-column label="金额" width="96" fixed="left" align="right">
+                <template #default="{ row }"><span class="font-semibold whitespace-nowrap">¥ {{ fmt(row.amount) }}</span></template>
               </el-table-column>
               <el-table-column prop="reason" label="原因" min-width="140" show-overflow-tooltip />
               <el-table-column prop="operatorName" label="操作人" width="100" />
@@ -1580,5 +1585,18 @@ function formatDateTime(dateStr: string) {
   overflow-x: auto;
   max-height: 50vh;
   overflow-y: auto;
+}
+
+.finance-record-table :deep(.el-table__cell) {
+  padding: 7px 0;
+}
+
+.finance-record-table :deep(.cell) {
+  padding: 0 7px;
+  white-space: nowrap;
+}
+
+.finance-record-table :deep(.el-tag) {
+  padding: 0 7px;
 }
 </style>
