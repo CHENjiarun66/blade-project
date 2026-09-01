@@ -971,13 +971,14 @@ public class ProductServiceImpl implements ProductService {
                 .eq(ProductSku::getTenantId, product.getTenantId())
                 .eq(ProductSku::getDeleted, 0);
         List<ProductSku> skus = skuMapper.selectList(wrapper);
-        long activeRealSkuCount = skus.stream()
-                .filter(sku -> !isPlaceholder(sku))
-                .filter(sku -> Objects.equals(sku.getStatus(), 1))
-                .count();
+        boolean hasActiveNormalSku = skus.stream()
+                .filter(sku -> ProductSkuType.NORMAL.name().equals(normalizeSkuType(sku)))
+                .anyMatch(sku -> Objects.equals(sku.getStatus(), 1));
         ProductSku placeholder = skus.stream().filter(this::isPlaceholder).findFirst().orElse(null);
 
-        if (activeRealSkuCount <= 1) {
+        // 只要商品选择了显式颜色/尺码并产生 NORMAL SKU，就必须保留整款录入入口。
+        // 完全无规格商品只有 DEFAULT/NA-NA，不创建 PLACEHOLDER。
+        if (!hasActiveNormalSku) {
             if (placeholder != null && !Objects.equals(placeholder.getStatus(), 0)) {
                 placeholder.setStatus(0);
                 skuMapper.updateById(placeholder);

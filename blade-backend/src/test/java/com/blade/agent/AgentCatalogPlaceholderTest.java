@@ -51,6 +51,30 @@ class AgentCatalogPlaceholderTest {
         assertFalse(variantMatches.get(0).isPlaceholder());
     }
 
+    @Test
+    void singleVariantSpuQueryStillPrefersPlaceholder() {
+        ProductSkuMapper skuMapper = mock(ProductSkuMapper.class);
+        ProductMapper productMapper = mock(ProductMapper.class);
+        ProductColorMapper colorMapper = mock(ProductColorMapper.class);
+        ProductSizeMapper sizeMapper = mock(ProductSizeMapper.class);
+
+        Product product = product(20L, "7000#");
+        ProductSku normal = sku(201L, 20L, 1L, 1L, "7000#-BLACK-S", "NORMAL");
+        ProductSku placeholder = sku(299L, 20L, 9L, 9L, "7000#-UNSPECIFIED-UNSPEC", "PLACEHOLDER");
+        when(skuMapper.selectList(any())).thenReturn(List.of(normal, placeholder));
+        when(productMapper.selectBatchIds(any())).thenReturn(List.of(product));
+        when(colorMapper.selectBatchIds(any())).thenReturn(List.of(
+                color(1L, "BLACK", "黑色"), color(9L, "UNSPECIFIED", "未指定颜色")));
+        when(sizeMapper.selectBatchIds(any())).thenReturn(List.of(size(1L, "S"), size(9L, "UNSPEC")));
+
+        AgentCatalogService service = new AgentCatalogService(skuMapper, productMapper, colorMapper, sizeMapper);
+        List<CatalogCandidate> matches = service.search(null, "7000", null, null, 10);
+
+        assertEquals(299L, matches.get(0).getSkuId());
+        assertTrue(matches.get(0).isPlaceholder());
+        assertEquals(new BigDecimal("1.00"), matches.get(0).getMatchScore());
+    }
+
     private Product product(Long id, String code) {
         Product row = new Product();
         row.setId(id);

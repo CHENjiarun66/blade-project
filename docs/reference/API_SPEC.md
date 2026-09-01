@@ -1053,7 +1053,7 @@ X-Agent-Key: {agent_key}
 
 约束：`salePrice`、`quantity`、`paperAmount`、`paperTotalAmount` 和 `deposit` 来自纸单识别或人工修正；`systemReferencePrice` 仅用于对照，不能覆盖纸单售价。客户无法匹配时使用“散客”。草稿确认前不进入正式订单、库存、财务和经营统计。
 
-SKU 候选补充规则：候选返回 `skuType` 和 `placeholder`。只按款号查询多规格商品时，`PLACEHOLDER` 以 `matchScore=1.00` 优先返回；请求包含 `colorName` 或 `sizeCode` 时不返回占位 SKU。单真实 SKU 商品直接返回该 SKU。英文 SKU 编码是接口稳定标识，前端应将 `DEFAULT/NA-NA` 显示为“无规格商品（实际 SKU）”，将 `PLACEHOLDER/UNSPEC-UNSPEC` 显示为“整款录入（颜色/尺码未指定）”。`GET /api/agent/analytics/sku-mix` 的款号总量包含占位销量，真实 `skus/colors/sizes` 排名排除占位量，并通过 `unspecified`、`historicalNoVariant`、`variantCoverageRate`、`variantDataQuality` 分别描述当前整款录入量、商品升级规格前的历史无规格量及规格覆盖质量。
+SKU 候选补充规则：候选返回 `skuType` 和 `placeholder`。只按款号查询任何显式规格商品时，`PLACEHOLDER` 以 `matchScore=1.00` 优先返回，即使当前只有一个具体 `NORMAL` SKU；请求包含 `colorName` 或 `sizeCode` 时不返回占位 SKU。只有纯无规格 `DEFAULT` 商品按款号直接返回实际 SKU。英文 SKU 编码是接口稳定标识，前端应将 `DEFAULT/NA-NA` 显示为“无规格商品（实际 SKU）”，将 `PLACEHOLDER/UNSPEC-UNSPEC` 显示为“整款录入（颜色/尺码未指定）”。`GET /api/agent/analytics/sku-mix` 的款号总量包含占位销量，真实 `skus/colors/sizes` 排名排除占位量，并通过 `unspecified`、`historicalNoVariant`、`variantCoverageRate`、`variantDataQuality` 分别描述当前整款录入量、商品升级规格前的历史无规格量及规格覆盖质量。
 
 ---
 

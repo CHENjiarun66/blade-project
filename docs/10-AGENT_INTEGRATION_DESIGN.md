@@ -163,9 +163,9 @@ Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴
 #### SPU 款号与 SKU 颗粒度处理
 
 - `product_sku.sku_type` 使用 `NORMAL`、`DEFAULT`、`PLACEHOLDER`。
-- 多规格商品自动维护一个 `PLACEHOLDER`，接口继续返回英文技术编码，管理页面显示“整款录入（颜色/尺码未指定）”；无规格商品使用正常可售的 `DEFAULT`，页面显示“无规格商品（实际 SKU）”。
+- 只要商品存在显式颜色/尺码并产生至少一个启用的 `NORMAL` SKU，就自动维护一个 `PLACEHOLDER`；即使只有一个具体组合也不例外。接口继续返回英文技术编码，管理页面显示“整款录入（颜色/尺码未指定）”；纯无规格商品使用正常可售的 `DEFAULT`，页面显示“无规格商品（实际 SKU）”。
 - 只提供款号且没有颜色尺码时，候选接口优先返回 `PLACEHOLDER`，`matchReasons` 包含 `spu_placeholder`。
-- 提供任一颜色或尺码条件时，候选接口排除 `PLACEHOLDER`；只有一个真实/默认 SKU 时直接返回该 SKU，原因包含 `single_saleable_sku`。
+- 提供任一颜色或尺码条件时，候选接口排除 `PLACEHOLDER` 并匹配具体 `NORMAL` SKU；只有纯无规格 `DEFAULT` 商品才按款号直接返回实际 SKU，原因可包含 `single_saleable_sku`。
 - 候选返回 `skuType` 与 `placeholder`，系统参考价仍不能覆盖纸单销售价。
 - 占位 SKU 不进入对外商品目录和库存可用性判断。经营分析将其计入款号总销量/销售额，但从真实颜色尺码排名中移出，单列 `unspecified` 并返回 `variantCoverageRate` 和 `variantDataQuality`。
 - 占位数量进入正式订单后，配货和出库前必须转移到真实 SKU。转移需保证数量与销售额守恒，保留来源明细和操作审计，并避免分析重复计数。
