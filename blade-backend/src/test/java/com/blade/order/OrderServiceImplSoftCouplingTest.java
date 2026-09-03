@@ -37,6 +37,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -69,6 +70,7 @@ class OrderServiceImplSoftCouplingTest {
 
     @InjectMocks
     private OrderServiceImpl orderService;
+    private Authentication authentication;
 
     @BeforeEach
     void setUp() {
@@ -77,7 +79,7 @@ class OrderServiceImplSoftCouplingTest {
         lenient().when(accessPolicy.hasViewAllScope()).thenReturn(true);
         // Stub security context so getCurrentUserId() returns 1L without tripping NPE
         SecurityContext securityContext = mock(SecurityContext.class);
-        Authentication authentication = mock(Authentication.class);
+        authentication = mock(Authentication.class);
         lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
         lenient().when(authentication.getPrincipal()).thenReturn(null); // triggers default 1L path
         lenient().when(authentication.getAuthorities()).thenReturn((java.util.Collection) java.util.List.of(
@@ -85,6 +87,7 @@ class OrderServiceImplSoftCouplingTest {
                 new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:viewFinance"),
                 new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:view")));
         SecurityContextHolder.setContext(securityContext);
+        lenient().when(snapshotService.records(anyLong(), anyLong())).thenReturn(List.of());
     }
 
     @AfterEach
@@ -103,6 +106,28 @@ class OrderServiceImplSoftCouplingTest {
         order.setWarehouseId(1L);
         order.setTenantId(1L);
         return order;
+    }
+
+    @Test
+    void getById_withoutAmountFieldPermissions_shouldReturnNullInsteadOfZeroOrSensitiveValues() {
+        Order order = stubOrder(1L, 0);
+        order.setOriginalAmount(new BigDecimal("120.00"));
+        order.setDepositAmount(new BigDecimal("20.00"));
+        order.setFreightAmount(new BigDecimal("5.00"));
+        order.setFreightCost(new BigDecimal("2.00"));
+        order.setTotalCostAmount(new BigDecimal("60.00"));
+        order.setGrossProfit(new BigDecimal("45.00"));
+        when(orderMapper.selectById(1L)).thenReturn(order);
+        when(orderItemMapper.selectList(any())).thenReturn(List.of());
+
+        com.blade.order.dto.OrderVO result = orderService.getById(1L);
+
+        assertNull(result.getTotalAmount());
+        assertNull(result.getOriginalAmount());
+        assertNull(result.getPaidAmount());
+        assertNull(result.getDepositAmount());
+        assertNull(result.getFreightCost());
+        assertNull(result.getGrossProfit());
     }
 
     // ── confirmPayment 委托统一收款动作 ───────────────────────────────

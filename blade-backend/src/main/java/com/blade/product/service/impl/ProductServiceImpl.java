@@ -1052,6 +1052,9 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private ProductVO convertToVO(Product product) {
+        Set<String> authorities = currentAuthorities();
+        boolean canViewCost = authorities.contains("field:cost_price");
+        boolean canViewSale = authorities.contains("field:sale_price");
         ProductVO vo = new ProductVO();
         vo.setId(product.getId());
         vo.setProductCode(product.getProductCode());
@@ -1059,8 +1062,8 @@ public class ProductServiceImpl implements ProductService {
         vo.setCategoryId(product.getCategoryId());
         vo.setSupplierId(product.getSupplierId());
         vo.setUnit(product.getUnit());
-        vo.setCostPrice(product.getCostPrice());
-        vo.setWholesalePrice(product.getWholesalePrice());
+        vo.setCostPrice(canViewCost ? product.getCostPrice() : null);
+        vo.setWholesalePrice(canViewSale ? product.getWholesalePrice() : null);
         vo.setWeight(product.getWeight());
         vo.setDescription(product.getDescription());
         vo.setImageUrl(product.getImageUrl());
@@ -1122,8 +1125,10 @@ public class ProductServiceImpl implements ProductService {
                 skuVO.setPlaceholder(isPlaceholder(sku));
                 skuVO.setColorId(sku.getColorId());
                 skuVO.setSizeId(sku.getSizeId());
-                skuVO.setPrice(sku.getPrice());
-                skuVO.setCostPrice(hasPositiveAmount(sku.getCostPrice()) ? sku.getCostPrice() : product.getCostPrice());
+                skuVO.setPrice(canViewSale ? sku.getPrice() : null);
+                skuVO.setCostPrice(canViewCost
+                        ? (hasPositiveAmount(sku.getCostPrice()) ? sku.getCostPrice() : product.getCostPrice())
+                        : null);
                 skuVO.setBarCode(sku.getBarCode());
                 skuVO.setStatus(sku.getStatus());
                 // 查询颜色名称
@@ -1146,6 +1151,16 @@ public class ProductServiceImpl implements ProductService {
         }
 
         return vo;
+    }
+
+    private Set<String> currentAuthorities() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return Set.of();
+        }
+        return authentication.getAuthorities().stream()
+                .map(Object::toString)
+                .collect(Collectors.toSet());
     }
 
     private boolean hasPositiveAmount(BigDecimal value) {

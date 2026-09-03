@@ -19,6 +19,7 @@ import com.blade.order.entity.OrderDeliveryPlan;
 import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.ProductSkuMapper;
+import com.blade.product.service.InventorySkuEligibilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -46,6 +47,9 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Autowired
     private ProductSkuMapper productSkuMapper;
+
+    @Autowired
+    private InventorySkuEligibilityService inventorySkuEligibilityService;
 
     @Autowired
     private RedissonClient redissonClient;
@@ -151,6 +155,7 @@ public class InventoryServiceImpl implements InventoryService {
         String images = toImagesJson(dto.getImages());
 
         for (InventoryInItemDTO item : dto.getItems()) {
+            inventorySkuEligibilityService.requireEligible(item.getSkuId(), tenantId);
             String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
             RLock lock = redissonClient.getLock(lockKey);
 
@@ -224,6 +229,7 @@ public class InventoryServiceImpl implements InventoryService {
         Long tenantId = TenantContext.getTenantId();
 
         for (InventoryOutItemDTO item : dto.getItems()) {
+            inventorySkuEligibilityService.requireEligible(item.getSkuId(), tenantId);
             String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
             RLock lock = redissonClient.getLock(lockKey);
 
@@ -233,12 +239,15 @@ public class InventoryServiceImpl implements InventoryService {
                 }
 
                 Inventory inv = inventoryMapper.selectBySkuAndWarehouse(item.getSkuId(), dto.getWarehouseId());
+                if (inv == null) {
+                    throw new RuntimeException("库存不足，无法出库");
+                }
                 // ORDER来源时，global_reserved_qty是本订单的预留，出库时只检查quantity - reservedQty
                 // 非ORDER来源时，检查 quantity - reservedQty - globalReservedQty
                 int available = "ORDER".equals(dto.getSource())
                     ? inv.getQuantity() - inv.getReservedQty()
                     : inv.getQuantity() - inv.getReservedQty() - inv.getGlobalReservedQty();
-                if (inv == null || available < item.getQuantity()) {
+                if (available < item.getQuantity()) {
                     throw new RuntimeException("库存不足，无法出库");
                 }
 
@@ -296,6 +305,7 @@ public class InventoryServiceImpl implements InventoryService {
         Long tenantId = TenantContext.getTenantId();
 
         for (InventoryAdjustItemDTO item : dto.getItems()) {
+            inventorySkuEligibilityService.requireEligible(item.getSkuId(), tenantId);
             String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
             RLock lock = redissonClient.getLock(lockKey);
 
@@ -359,6 +369,7 @@ public class InventoryServiceImpl implements InventoryService {
         Long tenantId = TenantContext.getTenantId();
 
         for (InventoryReserveDTO.ReserveItemDTO item : dto.getItems()) {
+            inventorySkuEligibilityService.requireEligible(item.getSkuId(), tenantId);
             String lockKey = INVENTORY_LOCK_PREFIX + item.getSkuId() + ":" + dto.getWarehouseId();
             RLock lock = redissonClient.getLock(lockKey);
 
@@ -477,6 +488,7 @@ public class InventoryServiceImpl implements InventoryService {
         Long tenantId = TenantContext.getTenantId();
 
         for (InventoryReserveDTO.ReserveItemDTO item : dto.getItems()) {
+            inventorySkuEligibilityService.requireEligible(item.getSkuId(), tenantId);
             String lockKey = "sku:lock:" + item.getSkuId();
             RLock lock = redissonClient.getLock(lockKey);
 
@@ -743,6 +755,8 @@ public class InventoryServiceImpl implements InventoryService {
         if (plan.getWarehouseId() == null) {
             throw new RuntimeException("配货计划未指定仓库");
         }
+
+        inventorySkuEligibilityService.requireEligible(plan.getSkuId(), tenantId);
 
         // Validate plan data integrity — null allocatedQty/outQty is invalid
         if (plan.getAllocatedQty() == null || plan.getOutQty() == null) {

@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-09-03 最新基线（优先于下方历史快照）
+
+- 订单重构 `BE-1040`～`BE-1051` 已完成三轮整改并获 `CODEX_APPROVED_FOR_RELEASE_PREPARATION`；仍未执行生产副本迁移、NAS 部署或生产数据变更。
+- 已并入旧 ERP 只读审计。后续优先顺序是商品/SKU 库存边界与价格隐私 → 生产副本迁移门禁 → 旧 ERP 期初库存/历史档案 → 无价采购收货；完整资金账户、AR/AP、跨单核销和采购付款暂缓。
+- 当前订单财务实现是可追溯的订单专用子账，不等于完整财务模块。后续使用 `ARCH-FIN-002` 设计桥接和加法迁移，不删除、不双写、不把现有订单任务退回 TODO。
+- SKU 库存契约：`NORMAL` 和当前真正无规格的 `DEFAULT` 可产生库存事实；`PLACEHOLDER` 与已有真实规格后的历史 `DEFAULT` 只保留订单/分析引用，必须拆分后才能配货、预留或出库。
+- 旧 ERP 迁移与 Blade V42 订单迁移是两个独立工作包：前者采用真实 SKU×仓期初快照与历史只读档案，后者由现有 `OrderLegacyMigrator` 处理，禁止混用。
+
 ## 2026-08-30 项目状态核对结论
 
 - 订单状态、收款与履约重构方案已确认，详见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md)。本次只完成设计和影响面扫描，代码、数据库和生产数据尚未修改。
@@ -28,7 +36,7 @@
 
 - 在 `feature/order-lifecycle-finance-refactor` 分支完成订单大重构连续实施（基线 `1594a8f` → 最终 tip 见交付报告）：V51/V52 加法迁移、统一动作服务 11 动作、统一财务快照与唯一兼容适配器、占位 SKU 拆分与履约保护、`/api/inventory/out-by-plan` 410 收口、PC/移动端/共享类型/导出切换新契约、`OrderFactsService` 统一统计口径并切换全部消费者、客户偏好缓存按订单/财务动作失效、离线迁移工具（dry-run 默认 + 幂等重放）。
 - 验证：隔离库（Docker `blade-mysql-test`，端口 3307）空库 Flyway V1→V52 连续升级成功；后端全量测试通过；PC/移动端/类型包构建通过；Playwright 结果见交付报告。迁移工具以合成数据预演，**V42 生产副本预演未执行**（本机无备份，留 Codex/发布阶段）。
-- 当前状态：**WAITING_CODEX_FINAL_REVIEW**——等待 Codex 对 `1594a8f..tip` 完整 Diff 做最终审核；BE-1048（旧字段下线）与 BE-1052（V42 迁移 + NAS 发布）不在本次范围。
+- 当时状态曾为 `WAITING_CODEX_FINAL_REVIEW`；此门禁已在后续三轮整改后关闭。BE-1048（旧字段下线）与 BE-1052（V42 迁移 + NAS 发布）仍不在已完成范围。
 
 ## 2026-08-27 Phase 2 SPU/SKU 颗粒度补充
 
@@ -44,7 +52,7 @@
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
 | 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；统一文件上传和文件中心底座已完成；WhatsApp 本地归档与客户工作区已完成；纸单识别 Agent 的 SKU 候选、批量订单草稿、占位 SKU、草稿工作台和人工确认正式订单 MVP 已于 2026-08-27 完成本地验证；移动端继续开发中 |
-| 下一步 | Z Code 从 `feature/order-lifecycle-finance-refactor@d800ec4` 执行订单重构长任务系列 A～G，完成后提交 `WAITING_CODEX_FINAL_REVIEW`；未经 Codex 最终审核和用户生产批准，不部署 NAS。 |
+| 下一步 | 订单 A～G 已终审通过；先完成商品/SKU 与价格隐私增量回归，再准备 BE-1052 生产副本预演。未经用户生产批准，不部署 NAS。 |
 
 ---
 

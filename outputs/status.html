@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/8/30 14:14:03　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/3 23:34:48　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,18 +73,18 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">171 完成 · 0 进行中 · 17 待办 · 0 部分 · 6 暂缓</span>
+          <span class="card-nums">172 完成 · 0 进行中 · 18 待办 · 0 部分 · 6 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
-        <div class="bar-label">91% 完成（活跃 188 项，暂缓 6 项）</div>
+        <div class="bar-label">91% 完成（活跃 190 项，暂缓 6 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">87 完成 · 0 进行中 · 1 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">88 完成 · 0 进行中 · 1 待办 · 0 部分 · 2 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:99%"></div></div>
-        <div class="bar-label">99% 完成（活跃 88 项，暂缓 2 项）</div>
+        <div class="bar-label">99% 完成（活跃 89 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -102,7 +102,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">27</span></h2>
+      <h2>🟡 还没做 <span class="count">28</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -117,6 +117,13 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
         <td class="td-remark">等 Z Code 长任务和 Codex 最终审核通过后再做；仍需用户批准生产操作 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">TEST-ERP-PRICE-PRIVACY-001</td>
+        <td class="td-name">工厂角色全出口隐私测试</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">本轮先覆盖商品、订单详情和订单导出；打印、分享、Agent、缓存需后续专项补齐后才能标记完成 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BE-506</td>
@@ -376,7 +383,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 274 项） <span class="count">274</span></h2>
+      <h2>✅ 已完成（共 276 项） <span class="count">276</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -873,7 +880,7 @@
         <td class="td-name">财务流水、金额快照与状态流转日志</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">长任务系列 A/B；追加式流水、金额快照、状态日志与数据库约束 |</td>
+        <td class="td-remark">长任务系列 A/B；订单追加式子账、金额快照、状态日志与数据库约束；完整通用财务另见 ARCH-FIN-002 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-1042</td>
@@ -912,17 +919,17 @@
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-1047</td>
-        <td class="td-name">旧订单审计与迁移工具</td>
+        <td class="td-name">Blade 旧订单审计与迁移工具</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">长任务系列 G；仅离线 dry-run/受控执行，不设生产应用端点 |</td>
+        <td class="td-remark">长任务系列 G；只处理 Blade V42 订单，不等于启云记历史 ERP 导入 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-1049</td>
         <td class="td-name">订单动作与财务权限重构</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">长任务系列 A/B/D；后端动作权限、同租户赋权和字段裁剪 |</td>
+        <td class="td-remark">长任务系列 A/B/D；后端动作权限、同租户赋权和订单流水裁剪；全出口价格隐私继续增量加固 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-1050</td>
@@ -943,7 +950,7 @@
         <td class="td-name">订单状态重构全链路验证</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">各系列自测并在最终交付统一报告，Codex 最后复核 |</td>
+        <td class="td-remark">终审基线 `CODEX_APPROVED_FOR_RELEASE_PREPARATION`；生产副本预演仍未做 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-401</td>
@@ -1335,7 +1342,7 @@
         <td class="td-name">SPU 纸单占位 SKU 与分析隔离</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">V49/V50 增加并校正 NORMAL/DEFAULT/PLACEHOLDER；多规格商品自动维护占位 SKU，Agent 按规格信息选择候选；Agent/PC 分析计入款号总量并把未指定规格与覆盖率单列 |</td>
+        <td class="td-remark">V49/V50/V56 增加并校正 NORMAL/DEFAULT/PLACEHOLDER；任何显式规格商品（含单一具体 SKU）自动维护占位 SKU，Agent 按规格信息选择候选；Agent/PC 分析计入款号总量并把未指定规格与覆盖率单列 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-610</td>
@@ -1357,6 +1364,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">长任务系列 C/E；拆分审计并防止占位与真实规格重复统计 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-613</td>
+        <td class="td-name">历史无规格 SKU 兼容与语义化显示</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">`NA-NA` 作为无规格实际 SKU、`UNSPEC-UNSPEC` 作为整款占位；历史 DEFAULT 保留引用并与当前规格排名隔离，库存履约前可拆分 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-901</td>
@@ -1791,6 +1805,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
         <td class="td-remark">商品/颜色/尺码/分类删除前提示引用风险和建议禁用；删除失败时弹窗展示后端引用保护消息 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-411</td>
+        <td class="td-name">商品弹窗快速新增颜色/尺码</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">颜色尺码 Tab 内使用轻量新增面板创建主档；成功后刷新列表、自动选中并实时更新 SKU 预览；已有项直接选中 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-501</td>

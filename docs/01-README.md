@@ -58,6 +58,8 @@ BladeProject/
 | 多 Agent 协作、认领与 worktree 隔离 | [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) |
 | 排查问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
 | 查看技术决策 | [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md) |
+| 查旧 ERP 真实数据与使用度证据 | [reference/legacy-erp-functional-audit.md](./reference/legacy-erp-functional-audit.md) |
+| 查旧 ERP 接替范围、冲突校准与发布阶段 | [reference/legacy-erp-to-blade-optimization-blueprint.md](./reference/legacy-erp-to-blade-optimization-blueprint.md) |
 
 ---
 

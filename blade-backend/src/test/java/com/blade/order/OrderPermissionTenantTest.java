@@ -161,4 +161,26 @@ class OrderPermissionTenantTest {
         assertEquals(3, fulfillmentScope);
         assertEquals(0, financeScope);
     }
+
+    @Test
+    void salesCollectionFieldsAndWarehousePricePrivacy_areAlignedWithActions() {
+        Integer salesCollectionFields = jdbc.queryForObject("""
+                SELECT COUNT(DISTINCT p.code) FROM sys_role_permission rp
+                JOIN sys_role r ON r.id=rp.role_id AND r.tenant_id=rp.tenant_id
+                JOIN sys_permission p ON p.id=rp.permission_id
+                WHERE r.role_code='ROLE_SALES' AND r.deleted=0
+                  AND p.code IN ('field:paid_amount','field:deposit_amount')
+                """, Integer.class);
+        Integer warehouseSensitiveFields = jdbc.queryForObject("""
+                SELECT COUNT(DISTINCT p.code) FROM sys_role_permission rp
+                JOIN sys_role r ON r.id=rp.role_id AND r.tenant_id=rp.tenant_id
+                JOIN sys_permission p ON p.id=rp.permission_id
+                WHERE r.role_code='ROLE_WAREHOUSE' AND r.deleted=0
+                  AND p.code IN ('field:sale_price','field:cost_price','field:paid_amount',
+                                 'field:deposit_amount','field:profit')
+                """, Integer.class);
+
+        assertEquals(2, salesCollectionFields, "有收款动作的 SALES 必须能读取当前实收和定金");
+        assertEquals(0, warehouseSensitiveFields, "WAREHOUSE 不得获得价格、收款或利润字段权限");
+    }
 }

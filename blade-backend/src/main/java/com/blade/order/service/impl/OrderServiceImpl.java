@@ -237,6 +237,58 @@ public class OrderServiceImpl implements OrderService {
         return vo;
     }
 
+    private void redactSensitiveAmounts(OrderVO vo, java.util.Set<String> authorities) {
+        boolean canViewSale = authorities.contains("field:sale_price");
+        boolean canViewPaid = authorities.contains("field:paid_amount");
+        boolean canViewDeposit = authorities.contains("field:deposit_amount");
+        boolean canViewCost = authorities.contains("field:cost_price");
+        boolean canViewProfit = authorities.contains("field:profit");
+
+        if (!canViewSale) {
+            vo.setTotalAmount(null);
+            vo.setOriginalAmount(null);
+            vo.setFreightAmount(null);
+        }
+        if (!canViewPaid) {
+            vo.setRefundAmount(null);
+            vo.setPaidAmount(null);
+            vo.setWriteOffAmount(null);
+            vo.setWriteOffReason(null);
+            vo.setBalanceAmount(null);
+            vo.setGrossReceivedAmount(null);
+            vo.setCashRefundAmount(null);
+            vo.setSalesReturnAmount(null);
+            vo.setNetReceivedAmount(null);
+            vo.setSettlementMethod(null);
+            vo.setSettledAt(null);
+        }
+        if (!canViewDeposit) {
+            vo.setDepositAmount(null);
+        }
+        if (!canViewCost) {
+            vo.setFreightCost(null);
+            vo.setTotalCostAmount(null);
+        }
+        if (!canViewProfit) {
+            vo.setGrossProfit(null);
+        }
+        if (vo.getItems() != null) {
+            for (OrderVO.OrderItemVO item : vo.getItems()) {
+                if (!canViewSale) {
+                    item.setPrice(null);
+                    item.setSubtotal(null);
+                }
+                if (!canViewCost) {
+                    item.setCostPrice(null);
+                    item.setCostAmount(null);
+                }
+                if (!canViewProfit) {
+                    item.setGrossProfit(null);
+                }
+            }
+        }
+    }
+
     @Override
     @Transactional
     public Long create(OrderCreateDTO dto) {
@@ -661,6 +713,7 @@ public class OrderServiceImpl implements OrderService {
             vo.setItems(itemVOList);
         }
 
+        redactSensitiveAmounts(vo, currentAuthorities());
         return vo;
     }
 
@@ -911,7 +964,43 @@ public class OrderServiceImpl implements OrderService {
                 }
             }
         }
+        redactExportAmounts(result, currentAuthorities());
         return result;
+    }
+
+    private void redactExportAmounts(List<OrderExportDTO> rows, java.util.Set<String> authorities) {
+        boolean canViewSale = authorities.contains("field:sale_price");
+        boolean canViewPaid = authorities.contains("field:paid_amount");
+        boolean canViewCost = authorities.contains("field:cost_price");
+        boolean canViewProfit = authorities.contains("field:profit");
+        for (OrderExportDTO row : rows) {
+            if (!canViewSale) {
+                row.setTotalAmount(null);
+                row.setFreightAmount(null);
+                row.setPrice(null);
+                row.setSubtotal(null);
+            }
+            if (!canViewPaid) {
+                row.setPaidAmount(null);
+                row.setWriteOffAmount(null);
+                row.setWriteOffReason(null);
+                row.setBalanceAmount(null);
+                row.setGrossReceivedAmount(null);
+                row.setCashRefundAmount(null);
+                row.setNetReceivedAmount(null);
+                row.setSettlementMethodName(null);
+            }
+            if (!canViewCost) {
+                row.setFreightCost(null);
+                row.setTotalCostAmount(null);
+                row.setCostPrice(null);
+                row.setCostAmount(null);
+            }
+            if (!canViewProfit) {
+                row.setGrossProfit(null);
+                row.setItemGrossProfit(null);
+            }
+        }
     }
 
     private void fillOrderFields(OrderExportDTO exportDto, Order order) {

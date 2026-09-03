@@ -23,6 +23,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
@@ -122,6 +125,40 @@ class ProductServiceV2Test {
     @AfterEach
     void tearDown() {
         TenantContext.clear();
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void getById_withoutPricePermissions_shouldRedactProductAndSkuPrices() {
+        Product product = new Product();
+        product.setId(1L);
+        product.setTenantId(1L);
+        product.setCostPrice(new BigDecimal("40.00"));
+        product.setWholesalePrice(new BigDecimal("80.00"));
+        productHandler.thenSelectById(product);
+        colorRelHandler.thenCustomResult(List.of());
+        sizeRelHandler.thenCustomResult(List.of());
+
+        ProductSku sku = new ProductSku();
+        sku.setId(10L);
+        sku.setProductId(1L);
+        sku.setPrice(new BigDecimal("80.00"));
+        sku.setCostPrice(new BigDecimal("40.00"));
+        sku.setStatus(1);
+        skuHandler.thenSelectList(List.of(sku));
+
+        SecurityContext context = mock(SecurityContext.class);
+        Authentication authentication = mock(Authentication.class);
+        when(context.getAuthentication()).thenReturn(authentication);
+        when(authentication.getAuthorities()).thenReturn((Collection) List.of());
+        SecurityContextHolder.setContext(context);
+
+        com.blade.product.dto.ProductVO result = service.getById(1L);
+
+        assertNull(result.getCostPrice());
+        assertNull(result.getWholesalePrice());
+        assertNull(result.getSkus().get(0).getPrice());
+        assertNull(result.getSkus().get(0).getCostPrice());
     }
 
     // ==================== BE-1013: getFileBindings ====================

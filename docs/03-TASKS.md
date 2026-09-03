@@ -196,28 +196,46 @@
 
 ### Phase 3.4: 订单状态、金额、收款与履约重构（P0）
 
-> 业务方案见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) 和 [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)，实施分工见[订单大重构 ROM/SOW](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。本阶段尚未实施，不得把旧数字状态直接改成新含义。
+> 业务方案见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) 和 [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)，实施分工见[订单大重构 ROM/SOW](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。本阶段代码已通过最终审核，尚未执行生产迁移与 NAS 发布。
 >
 > 本阶段由 Z Code 实现，Codex 不认领编码任务。`ORDER-SOW-0` 已在 `d800ec4` 完成并获准进入实施；后续按[Z Code 长任务](./superpowers/plans/2026-08-30-order-refactor-zcode-long-run-task.md)连续完成、自测和分系列提交，中间不再逐工作包等待 Codex，全部完成后统一进行代码审核。生产与 NAS 门禁不变。
 
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
-| BE-1040 | 订单新状态字段与兼容迁移 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 A；新增新状态、履约和并发字段并保留旧兼容字段 |
-| BE-1041 | 财务流水、金额快照与状态流转日志 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 A/B；追加式流水、金额快照、状态日志与数据库约束 |
-| BE-1042 | 统一订单动作与状态机服务 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 B；统一 11 个动作，禁止直接写数字状态 |
-| BE-1043 | 草稿确认与首笔收款交接 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 B；草稿定金写正式 `RECEIPT` |
-| BE-1044 | 履约方式选择与库存边界 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 B/C；两种履约方式严格隔离库存 |
-| BE-1045 | 配货与出库入口统一改造 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 C；占位阻断与单一发货事务入口 |
-| BE-1046 | 统计、客户、导出与 Agent 口径改造 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 E；全部消费者接统一事实服务 |
-| BE-1047 | 旧订单审计与迁移工具 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 G；仅离线 dry-run/受控执行，不设生产应用端点 |
+| BE-1040 | 订单新状态字段与兼容迁移 | ✅ 完成并终审通过 | 长任务系列 A；新增新状态、履约和并发字段并保留旧兼容字段 |
+| BE-1041 | 财务流水、金额快照与状态流转日志 | ✅ 完成并终审通过 | 长任务系列 A/B；订单追加式子账、金额快照、状态日志与数据库约束；完整通用财务另见 ARCH-FIN-002 |
+| BE-1042 | 统一订单动作与状态机服务 | ✅ 完成并终审通过 | 长任务系列 B；统一 11 个动作，禁止直接写数字状态 |
+| BE-1043 | 草稿确认与首笔收款交接 | ✅ 完成并终审通过 | 长任务系列 B；草稿定金写正式 `RECEIPT` |
+| BE-1044 | 履约方式选择与库存边界 | ✅ 完成并终审通过 | 长任务系列 B/C；两种履约方式严格隔离库存 |
+| BE-1045 | 配货与出库入口统一改造 | ✅ 完成并终审通过 | 长任务系列 C；占位阻断与单一发货事务入口 |
+| BE-1046 | 统计、客户、导出与 Agent 口径改造 | ✅ 完成并终审通过 | 长任务系列 E；全部消费者接统一事实服务 |
+| BE-1047 | Blade 旧订单审计与迁移工具 | ✅ 完成并终审通过 | 长任务系列 G；只处理 Blade V42 订单，不等于启云记历史 ERP 导入 |
 | BE-1048 | 旧接口和兼容字段下线评估 | ⏸️ 暂缓 | 新模型稳定一个发布周期后再评估，不属于本次长任务首发删除范围 |
-| BE-1049 | 订单动作与财务权限重构 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 A/B/D；后端动作权限、同租户赋权和字段裁剪 |
-| BE-1050 | 统一订单事实服务与缓存失效 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 E；统一事实版本和缓存失效 |
-| BE-1051 | 公共 API、共享类型与导出兼容 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 D/F；PC、移动端、共享类型和导出兼容 |
+| BE-1049 | 订单动作与财务权限重构 | ✅ 完成并终审通过 | 长任务系列 A/B/D；后端动作权限、同租户赋权和订单流水裁剪；全出口价格隐私继续增量加固 |
+| BE-1050 | 统一订单事实服务与缓存失效 | ✅ 完成并终审通过 | 长任务系列 E；统一事实版本和缓存失效 |
+| BE-1051 | 公共 API、共享类型与导出兼容 | ✅ 完成并终审通过 | 长任务系列 D/F；PC、移动端、共享类型和导出兼容 |
 | BE-1052 | V42 至新版本迁移与 NAS 发布门禁 | ⏳ TODO | 等 Z Code 长任务和 Codex 最终审核通过后再做；仍需用户批准生产操作 |
-| TEST-ORDER-LIFECYCLE-001 | 订单状态重构全链路验证 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 各系列自测并在最终交付统一报告，Codex 最后复核 |
+| TEST-ORDER-LIFECYCLE-001 | 订单状态重构全链路验证 | ✅ 完成并终审通过 | 终审基线 `CODEX_APPROVED_FOR_RELEASE_PREPARATION`；生产副本预演仍未做 |
 
 实施顺序固定为长任务系列 A→G。每个系列完成后 Z Code 自测、修复并提交，可直接进入下一系列；全部完成后 Codex 一次性审核完整 Diff。`BE-1052`、release、NAS 和生产迁移不包含在连续开发授权内。
+
+### Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）
+
+> 审计事实见[旧 ERP 功能审计](./reference/legacy-erp-functional-audit.md)，冲突校准和发布边界见[旧 ERP 到 Blade 优化蓝图](./reference/legacy-erp-to-blade-optimization-blueprint.md)。不得把本阶段 TODO 覆盖到上面已经终审通过的订单任务。
+
+| 任务 ID | 任务 | 状态 | 备注 |
+|---------|------|------|------|
+| ERP-GAP-001 | 旧 ERP 真实使用度只读审计 | ✅ 完成 | 851 商品、4493 SKU/仓行、4 仓；库存事实可信度高，旧金额/结算状态不作为迁移真相 |
+| ARCH-PROD-001 | SKU 语义与库存写入契约 | ✅ 完成 | `NORMAL`、当前 `DEFAULT` 可落库存；`PLACEHOLDER` 与已有启用真实规格的历史 `DEFAULT` 禁止新增库存事实；全量回归通过 |
+| PRICE-PRIVACY-001 | 商品/订单 API 与导出金额脱敏 | ✅ 完成（当前出口） | 商品/订单返回与订单导出按字段权限裁剪，不以 0 伪装；V57 补齐销售收款必要字段，仓库角色仍无金额权限；其他出口由 TEST-ERP-PRICE-PRIVACY-001 追踪 |
+| TEST-ERP-PRICE-PRIVACY-001 | 工厂角色全出口隐私测试 | ⏳ TODO | 本轮先覆盖商品、订单详情和订单导出；打印、分享、Agent、缓存需后续专项补齐后才能标记完成 |
+| ERP-DATA-001 | 启云记迁移数据质量与期初库存 | ⏳ TODO | 清洗主数据，按真实 SKU×仓导入 `MIGRATION_OPENING`；与 Blade V42 订单迁移严格分开 |
+| ERP-ARCHIVE-001 | 启云记历史单据只读档案 | ⏳ TODO | 旧金额标记 `LEGACY_UNTRUSTED`，不得重放到活动库存或财务账 |
+| ERP-PUR-STOCK-001 | 无价采购收货与库存过账 | ⏳ TODO | 允许 `UNPRICED` 收货，库存动作不依赖价格可见性；不包含应付/付款 |
+| ARCH-FIN-002 | 通用财务演进与订单子账桥接 | ⏸️ 暂缓 | 完整资金账户、AR/AP、跨单核销、预收预付、采购付款启动前先冻结唯一真相和迁移方案 |
+| ERP-PUR-FIN-001 | 采购估值、应付与付款 | ⏸️ 暂缓 | 依赖 ARCH-FIN-002；不得阻塞 ERP-PUR-STOCK-001 |
+
+当前顺序：完成本轮商品/SKU 和订单价格隐私回归 → `BE-1052` 生产副本预演 → `ERP-DATA-001` → `ERP-PUR-STOCK-001`。完整财务保持后置。
 
 ### Phase 4: 客户模块（P1）
 
@@ -436,10 +454,10 @@
 | BA-206 | PC 快速录单增强 | ✅ 完成 | 单张纸单连续录入、来源档口/店铺独立于仓库、订货/现货标记、运费收入/成本、成本与毛利快照、订单图片统一上传、结算与汇总左右并列、列表/详情/导出展示 |
 | BA-207 | PC 快速录单商品级批量 SKU 录入 | ✅ 完成 | 选择商品后展示正常状态 SKU 矩阵，批量填写颜色/尺码数量并一次性添加到订单；不读取、不展示、不校验库存；重复 skuId 自动合并数量且不覆盖已改单价/成本价；Claude Code 实现，Codex 复核并修正重复合并提示与正常状态过滤 |
 | BA-214 | 订单列表筛选确认按钮 | ✅ 完成 | 筛选区新增“确认筛选”按钮；关键字回车提交；日期范围参数前后端对齐；订单列表与导出复用同一筛选条件 |
-| BA-1120 | 订单新状态与履约方式展示 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 D；新字符串枚举展示并保留兼容读取 |
-| BA-1121 | 财务流水与结清交互 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 D；展示订单金额、现金、核销、尾款和逐笔流水 |
-| BA-1122 | 履约方式选择与快速录单联动 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 D；选择关联库存或仅记录，不直接提交状态数字 |
-| BA-1123 | 配货动作与占位 SKU 保护 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 C/D；按 allowedActions 展示配货并引导占位拆分 |
+| BA-1120 | 订单新状态与履约方式展示 | ✅ 完成并终审通过 | 长任务系列 D；新字符串枚举展示并保留兼容读取 |
+| BA-1121 | 财务流水与结清交互 | ✅ 完成并终审通过 | 长任务系列 D；展示订单金额、现金、核销、尾款和逐笔流水 |
+| BA-1122 | 履约方式选择与快速录单联动 | ✅ 完成并终审通过 | 长任务系列 D；选择关联库存或仅记录，不直接提交状态数字 |
+| BA-1123 | 配货动作与占位 SKU 保护 | ✅ 完成并终审通过 | 长任务系列 C/D；按 allowedActions 展示配货并引导占位拆分 |
 
 ### Phase 3: 库存管理
 
@@ -511,7 +529,7 @@
 | BA-802 | ERP 内置 AI 拍照录单页 | ⏸ 转外部 Agent | 不在 ERP 内重复建设识别页；候选、警告和人工修改由 BA-803 承接 |
 | BA-803 | 快速录单草稿工作台 | ✅ 完成 | `/orders/drafts` 已改为快速录单式全宽表单：顶部切换草稿、单据/客户分区、全宽商品编辑、金额汇总，原图按需从抽屉打开 |
 | BA-804 | 草稿工作台占位 SKU 标识 | ✅ 完成 | 商品选择器优先显示占位 SKU，并明确标记“整款（未指定颜色/尺码）”，避免与真实颜色尺码混淆 |
-| BA-805 | 占位 SKU 拆分界面 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 C/D；按真实颜色/尺码拆分并显示守恒校验和历史 |
+| BA-805 | 占位 SKU 拆分界面 | ✅ 完成并终审通过 | 长任务系列 C/D；按真实颜色/尺码拆分并显示守恒校验和历史 |
 
 ### Phase 9: 统一文件存储接入（P1）
 
@@ -603,8 +621,8 @@
 | FE-103 | 新建订单页 | ✅ 完成 | 骨架已搭建，含SKU选择/仓库选择 |
 | FE-104 | 订单状态筛选 | ⏳ TODO | 底部 Tab 筛选优化 |
 | FE-105 | 订单搜索 | ⏳ TODO | 订单号/客户名搜索 |
-| FE-110 | 移动端订单新状态模型 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 F；替换旧四状态模型并使用共享字符串枚举 |
-| FE-111 | 移动端订单动作权限 | ✅ 完成（执行人：ZCode；状态：WAITING_CODEX_FINAL_REVIEW） | 长任务系列 F；按后端 allowedActions 展示和拒绝动作 |
+| FE-110 | 移动端订单新状态模型 | ✅ 完成并终审通过 | 长任务系列 F；替换旧四状态模型并使用共享字符串枚举 |
+| FE-111 | 移动端订单动作权限 | ✅ 完成并终审通过 | 长任务系列 F；按后端 allowedActions 展示和拒绝动作 |
 
 ### Phase 3: 库存系统
 

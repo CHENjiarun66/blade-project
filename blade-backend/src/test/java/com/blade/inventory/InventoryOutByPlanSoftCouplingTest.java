@@ -16,6 +16,7 @@ import com.blade.inventory.service.impl.InventoryServiceImpl;
 import com.blade.order.entity.OrderDeliveryPlan;
 import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.product.mapper.ProductSkuMapper;
+import com.blade.product.service.InventorySkuEligibilityService;
 import com.blade.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
@@ -57,6 +58,7 @@ class InventoryOutByPlanSoftCouplingTest {
     @Mock private InventoryLogMapper inventoryLogMapper;
     @Mock private com.blade.inventory.mapper.InventoryGlobalReserveMapper globalReserveMapper;
     @Mock private ProductSkuMapper productSkuMapper;
+    @Mock private InventorySkuEligibilityService inventorySkuEligibilityService;
     @Mock private RedissonClient redissonClient;
     @Mock private OrderDeliveryPlanMapper deliveryPlanMapper;
     @Mock private FileService fileService;
