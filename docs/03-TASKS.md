@@ -350,17 +350,17 @@
 
 ### Phase 6: 外部纸单识别 Agent 与订单草稿（P0）
 
-> 2026-08-27 已确定由独立 Agent 负责图片识别和 Excel 整理。BladeProject 负责商品候选、草稿、人工复核和正式订单转换，不在 ERP 内重复建设 OCR 服务。
+> 2026-09-04 最终边界：独立 Mac Agent 负责图片识别和 Excel/结构化数据整理；BladeProject 只接收结构化 JSON，或接收标准 Excel 后转换为同一结构，负责商品候选、草稿、人工复核和正式订单转换。纸单原图不要求上传系统。外网 API 入口通过 `BLADE_AGENT_API_BASE_URL` 配置，当前值为 `https://frp-pen.com:33294`。
 
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
-| BE-601 | ERP 内置 OCR 图片上传 | ⏸ 转外部 Agent | 原图仍通过 BE-607 上传并绑定；ERP 不提供拍照识别入口 |
+| BE-601 | ERP 内置 OCR 图片上传 | ⏸ 转外部 Agent | ERP 不提供拍照识别入口，也不要求上传原图；现有 source-files 仅作可选凭证兼容 |
 | BE-602 | ERP 内置 OCR 识别服务 | ⏸ 转外部 Agent | 图片识别由本机订单识别 Agent 承担 |
 | BE-603 | ERP 内置字段提取 | ⏸ 转外部 Agent | Agent 输出结构化 JSON 和 Excel；ERP 保留原值并校验 |
 | BE-604 | ERP 内置 AI 表格解析 | ⏸ 转外部 Agent | 表格解析和初步款号识别由外部 Agent 承担 |
 | BE-605 | ERP 内置识别置信度 | ⏸ 转外部 Agent | 外部 Agent 可提交候选和警告；ERP 继续显示待匹配与差异警告 |
 | BE-606 | Agent 订单草稿数据模型与幂等写入 | ✅ 完成 | V48 独立草稿主表/明细表；租户 + externalRefNo 幂等，允许未匹配 SKU，保留纸单原值与警告 |
-| BE-607 | Agent 商品候选与批量草稿 API | ✅ 完成 | `agent:catalog:read` 查询候选，`agent:orders:write` 上传原图并批量建草稿；客户缺失默认散客 |
+| BE-607 | Agent 商品候选与批量草稿 API | ✅ 完成 | `agent:catalog:read` 查询候选，`agent:orders:write` 接收结构化批次并创建草稿；原图非必需，客户缺失默认散客 |
 | BE-608 | 草稿确认转正式订单 | ✅ 完成 | JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计 |
 | BE-609 | SPU 纸单占位 SKU 与分析隔离 | ✅ 完成 | V49/V50/V56 增加并校正 NORMAL/DEFAULT/PLACEHOLDER；任何显式规格商品（含单一具体 SKU）自动维护占位 SKU，Agent 按规格信息选择候选；Agent/PC 分析计入款号总量并把未指定规格与覆盖率单列 |
 | BE-610 | 占位数量拆分到真实 SKU | ✅ 完成 | 长任务系列 C；原子拆分并保持数量、金额和来源追溯守恒 |
@@ -368,7 +368,7 @@
 | BE-612 | 占位拆分审计与分析回算 | ✅ 完成 | 长任务系列 C/E；拆分审计并防止占位与真实规格重复统计 |
 | BE-613 | 历史无规格 SKU 兼容与语义化显示 | ✅ 完成 | `NA-NA` 作为无规格实际 SKU、`UNSPEC-UNSPEC` 作为整款占位；历史 DEFAULT 保留引用并与当前规格排名隔离，库存履约前可拆分 |
 | TEST-PHASE2-001 | 真实纸单批次本地验收 | ⏳ TODO | 使用“单据收纳/42”的图片和 Excel 验证候选、原值、散客、幂等、编辑保存、占位拆分和确认链路 |
-| TEST-PHASE2-002 | NAS 生产发布与 30 单联调 | ⏳ TODO | 备份后部署 V48-V50 和前后端，配置最小 scope Agent Key，通过 NAS API 导入 30 张纸单并核对库存、财务和统计隔离 |
+| TEST-PHASE2-002 | NAS 生产发布与 30 单联调 | ⏳ TODO | 备份后部署对应迁移和前后端；在实际 Mac 配置 `BLADE_AGENT_API_BASE_URL=https://frp-pen.com:33294` 及最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对 TLS、断线幂等、审计、库存、财务和统计隔离 |
 
 ### Phase 6.5: 统一文件存储（P1）
 

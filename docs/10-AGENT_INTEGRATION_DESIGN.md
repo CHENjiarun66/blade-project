@@ -150,10 +150,15 @@ Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴
 
 本机识别 Agent 使用绑定租户的 Agent Key 调用 NAS 生产环境：
 
+- API 入口由 Agent 运行环境的 `BLADE_AGENT_API_BASE_URL` 配置，不写死在客户端代码中。
+- 当前外网生产入口为 `https://frp-pen.com:33294`，接口实际地址由该入口拼接 `/api/agent/...`。
+- 地址只解决 Mac 到 NAS 的网络可达性；租户和权限仍由 `X-Agent-Key` 绑定，不允许请求参数自行指定租户。
+- 纸单图片识别与 Excel 整理由本机 Agent 完成。BladeProject 主流程只接收结构化 JSON 或标准 Excel 转换后的结构化数据，不要求上传原图。
+
 | 接口 | scope | 用途 |
 |------|-------|------|
 | `GET /api/agent/catalog/skus` | `agent:catalog:read` | 按款号、SKU、名称、颜色查询候选；系统售价仅作参考 |
-| `POST /api/agent/order-drafts/source-files` | `agent:orders:write` | 上传纸单原图并返回文件 ID |
+| `POST /api/agent/order-drafts/source-files` | `agent:orders:write` | 可选兼容接口；需要留存凭证时上传原图，不是批量草稿前置条件 |
 | `POST /api/agent/order-drafts/batch` | `agent:orders:write` | 批量创建草稿；每单隔离结果，按 externalRefNo 幂等 |
 
 管理端使用 JWT 调用 `/api/order-drafts` 读取、编辑和确认。确认动作不属于 Agent API；只有用户确认后才调用既有订单领域服务创建正式订单。

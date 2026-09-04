@@ -35,6 +35,7 @@
 | docker-compose | `/usr/local/bin/docker-compose`，旧版 compose v1 |
 | 生产端口 | `8899` |
 | 访问入口 | `https://192.168.1.10:8899/catalog` |
+| 外网业务入口 | `https://frp-pen.com:33294`（Agent 运行配置，可变，不写死） |
 
 不要在文档或日志中打印 NAS 密码、`.env.prod`、JWT secret、数据库密码。
 
@@ -44,6 +45,8 @@
 - 如果本地环境无法访问 `192.168.1.10:22`，发布脚本会自动切换到 WireGuard 地址 `10.13.13.1` 继续连接 NAS。
 - 如需强制使用某个地址，可传入 `NAS_HOST=<host> NAS_HOST_FIXED=1`。
 - 生产入口文档仍以局域网地址 `https://192.168.1.10:8899/catalog` 记录；通过 WireGuard 验证时可访问 `https://10.13.13.1:8899/catalog`。
+- 外部 Mac Agent 当前通过 `https://frp-pen.com:33294` 访问业务 API；Agent 端使用 `BLADE_AGENT_API_BASE_URL` 配置，实际接口拼接 `/api/agent/...`。该外网地址与 SSH 发布地址相互独立，变更外网入口不得影响 NAS 发布脚本的 `NAS_HOST`。
+- 外网业务入口只允许转发 Nginx HTTPS，不得公开 MySQL、Redis、后端容器端口、SSH 或 DSM 管理入口。正式联调需从 Agent 所在 Mac 验证证书、限流、审计和断线幂等重试。
 
 ### 1.2 生产部署目录
 
