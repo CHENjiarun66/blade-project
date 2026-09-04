@@ -25,6 +25,9 @@ public class AgentKey {
     private LocalDateTime expiresTime;
     private LocalDateTime lastUsedTime;
     private String lastUsedIp;
+    private Long createdByUserId;
+    private LocalDateTime disabledTime;
+    private Long rotatedFromKeyId;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
@@ -52,6 +55,12 @@ public class AgentKey {
     public void setLastUsedTime(LocalDateTime lastUsedTime) { this.lastUsedTime = lastUsedTime; }
     public String getLastUsedIp() { return lastUsedIp; }
     public void setLastUsedIp(String lastUsedIp) { this.lastUsedIp = lastUsedIp; }
+    public Long getCreatedByUserId() { return createdByUserId; }
+    public void setCreatedByUserId(Long createdByUserId) { this.createdByUserId = createdByUserId; }
+    public LocalDateTime getDisabledTime() { return disabledTime; }
+    public void setDisabledTime(LocalDateTime disabledTime) { this.disabledTime = disabledTime; }
+    public Long getRotatedFromKeyId() { return rotatedFromKeyId; }
+    public void setRotatedFromKeyId(Long rotatedFromKeyId) { this.rotatedFromKeyId = rotatedFromKeyId; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }

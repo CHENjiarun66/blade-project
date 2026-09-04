@@ -166,7 +166,6 @@ public class OrderDraftWriter {
     private Set<String> collectWarnings(OrderDraftDTO.SaveRequest request) {
         Set<String> warnings = new LinkedHashSet<>();
         if (request.getWarnings() != null) warnings.addAll(request.getWarnings());
-        if (request.getSourceFileId() == null) warnings.add("SOURCE_IMAGE_MISSING");
         if (request.getOrderDate() == null && trim(request.getRawOrderDate()) != null) {
             warnings.add("ORDER_DATE_UNPARSED");
         }

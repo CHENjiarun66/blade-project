@@ -435,7 +435,7 @@ WhatsApp 信息不是订单真相来源，而是客户沟通上下文来源。�
 | 阶段 | 内容 | 说明 |
 |------|------|------|
 | Phase A | 需求与安全边界锁定 | PRD、任务、鉴权策略、客户接口认证边界 |
-| Phase B | Agent 只读鉴权 | Agent Key、租户绑定、scope、调用审计、限流基础 |
+| Phase B | Agent 独立鉴权 | Agent Key、租户绑定、scope、调用审计已完成；V58 补齐 Owner 签发、轮换、停用和一次性密钥交付，限流仍在生产入口验收 |
 | Phase C | Agent Gateway v1 | 款式趋势、客户跟进、客户风险、颜色尺码结构、库存建议事实、周期报告数据包、统一搜索 |
 | Phase D | 验证接入 | 用 Hermes 或等价 Agent 在真实接口上验证工具调用和返回稳定性 |
 | Phase E | WhatsApp 本地归档 v1 | Mac 只读快照、结构化事实、CRM 绑定、导入权限和完整性工作台已完成 |

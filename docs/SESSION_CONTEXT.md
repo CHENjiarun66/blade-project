@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-09-05 最新基线（优先于下方历史快照）
+
+- `feature/order-lifecycle-finance-refactor` 在 V57 基础上新增 V58 Agent Key 生命周期管理：Owner 可在系统管理页签签发、轮换和不可逆停用当前租户 Key；完整密钥仅返回一次，数据库只存 BCrypt 哈希，并记录签发用户、停用时间和轮换来源。
+- Mac 纸单 Agent 的 NAS 入口通过 `BLADE_AGENT_API_BASE_URL` 配置，当前外网值为 `https://frp-pen.com:33294`；租户和 scope 仍由 `X-Agent-Key` 决定，接口请求不能自选租户。
+- 纸单原图不再是草稿创建前置条件；结构化批次没有 `sourceFileId` 时不再产生缺图警告。现有 source-files 接口只保留为可选凭证兼容。
+- 新增 Key 管理与无原图草稿测试通过，后端跳过测试打包和 PC 生产构建通过。全量后端测试因本机 Docker/MySQL 测试库未运行而无法完成，需恢复隔离测试库后重新执行；未连接或修改 NAS 生产环境。
+
 ## 2026-09-03 最新基线（优先于下方历史快照）
 
 - 订单重构 `BE-1040`～`BE-1051` 已完成三轮整改并获 `CODEX_APPROVED_FOR_RELEASE_PREPARATION`；仍未执行生产副本迁移、NAS 部署或生产数据变更。

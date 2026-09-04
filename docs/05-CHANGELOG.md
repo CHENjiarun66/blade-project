@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-09-05 变更记录
+
+### [Agent 生产接入] - Owner 凭证管理与无原图草稿
+
+- 新增 V58 Agent Key 生命周期审计字段和 Owner 专属 `agent-key:manage` 权限；系统管理新增 Agent Key 页签，支持 scope 白名单、1～365 天有效期、一次性密钥交付、不可逆停用和原子轮换。
+- 完整 Key 只在创建或轮换响应中返回；数据库只保存 BCrypt 哈希。列表仅展示前缀、状态、有效期、最近使用时间/IP、签发用户和轮换关系。
+- Mac Agent API 地址通过 `BLADE_AGENT_API_BASE_URL` 配置，当前外网生产入口为 `https://frp-pen.com:33294`；地址和 Key 分离，页面只在当前浏览器保存地址以生成可复制配置片段。
+- 纸单草稿不再要求上传原图，结构化批次缺少 `sourceFileId` 不产生 `SOURCE_IMAGE_MISSING` 警告，source-files 接口仅保留为可选凭证兼容。
+- 验证：新增 Agent Key 管理、V58 schema 和无原图草稿测试通过；后端 `-DskipTests package` 与 PC `npm run build` 通过。全量后端测试因本机 Docker/MySQL 未运行而在既有 Spring 上下文阶段失败，未连接或修改 NAS 生产环境。
+
 ## 2026-09-03 变更记录
 
 ### [旧 ERP 审计并入与冲突校准] - 商品/订单优先，完整财务后置

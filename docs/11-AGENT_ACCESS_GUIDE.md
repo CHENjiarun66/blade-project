@@ -7,13 +7,15 @@
 
 ## 一、当前接入状态
 
-截至 2026-05-31，BladeProject 已落地 Agent Gateway 的第一条只读链路：
+截至 2026-09-05，BladeProject 已落地 Agent Gateway 鉴权、订单草稿窄写入和 Owner 凭证管理：
 
 | 能力 | 状态 | 接口 |
 |------|------|------|
 | Agent Key 独立鉴权 | 已实现 | 请求头 `X-Agent-Key` |
 | 租户绑定和 scope 鉴权 | 已实现 | Agent Key 认证后写入租户上下文 |
 | 调用审计和最近使用信息 | 已实现 | 成功请求记录路径、状态、耗时、IP、User-Agent |
+| Owner 签发、轮换与停用 | 已实现 | 系统管理 → Agent Key；完整密钥仅显示一次 |
+| 纸单批量订单草稿 | 已实现 | `POST /api/agent/order-drafts/batch`，不要求上传原图 |
 | 款式趋势数据包 | 已实现 | `GET /api/agent/analytics/style-trends` |
 | 多周期趋势标签、建议依据 | 已实现 | `GROWING` / `STABLE` / `DECLINING` / `INSUFFICIENT_DATA` |
 | 颜色尺码结构事实包 | 已实现 | `GET /api/agent/analytics/sku-mix` |
@@ -58,7 +60,7 @@ X-Agent-Key: {agent_key}
 3. 不把某个租户的 key 用于另一个租户的数据请求。
 4. key 失效、禁用或过期时，向 BladeProject 管理方申请替换。
 
-当前代码已支持 Agent Key 表和后端认证。Agent Key 管理入口还未完成，测试或早期接入阶段由后端管理流程生成和交付 key。
+当前代码已支持 Agent Key 表、后端认证和 Owner 管理入口。创建或轮换时应立即保存一次性返回的完整 Key；关闭窗口后只能看到公开前缀，无法恢复原密钥。
 
 ### 2.3 Mac 与 NAS 不同网络时的地址配置
 
