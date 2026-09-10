@@ -5,14 +5,22 @@
 
 ---
 
-## 2026-09-10 最新基线（优先于下方历史快照）
+## 2026-09-11 最新基线（优先于下方历史快照）
+
+- 生产已以 commit `12e1eb91c19401dde3919afec0b3d80cbc910750`、release `20260911_032005` 从 Flyway V42 升级至 V58。NAS 与 Mac 双份备份均通过 SHA-256；维护模式已关闭，内外网恢复访问，可信外网入口为 `https://www.chenjianas.asia:33294`。
+- 145 张旧订单全部迁移，人工核对 0，重放新增 0：129 单为 `COMPLETED/RECORD_ONLY/SETTLED`，14 单为 `CONFIRMED/UNDECIDED/PARTIAL`，1 单为 `CONFIRMED/UNDECIDED/UNPAID`，1 单为 `CANCELLED/UNDECIDED/SETTLED`。订单总额 `367811.00`、实收 `367145.00`、余额 `666.00`，迁移前后守恒。
+- 生产现有 144 条历史实收期初流水、187 个商品、699 个 SKU，其中 187 个占位 SKU；全部订单/财务/SKU 发布 SQL 门禁为 0。
+- 备份：NAS `/volume2/blade/db-backups/nas_blade_project_prod_20260911_032005`；Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260911_032005`（目录 `700`、文件 `600`、SHA-256 已验签）。release manifest：`/volume2/blade/releases/20260911_032005/blade-release-manifest-20260911_032005.txt`。
+- `BE-1052` 已完成。下一主线是 `TEST-PHASE2-001` 真实纸单本地验收与 `TEST-PHASE2-002` 外网 30 单联调；完整财务仍后置。
+
+## 2026-09-10 基线
 
 - Codex 发布前复审发现并修复 JWT 租户/注销/刷新缺口：访问令牌携带租户，过滤器要求 Redis 活跃会话、在用户查询前恢复租户，声明与 Redis 不一致时拒绝，并在请求后清理线程上下文；刷新接口拒绝 access token，refresh token 采用 Redis 单次轮换，PC/移动端退出同时撤销两类会话。Agent/Collector 保持独立鉴权链。
 - Agent 草稿批次上限为 100 张、每单 200 行；`AgentSkuMixService` 同时识别两种历史占位编码。
 - 后端全量回归 496/496，`OrderDraftConfirmFinanceTest` 已改为事务内自建真实 SKU，不再依赖历史测试数据，并增加 100 单/每单 200 行硬上限反例；共享类型、PC、移动端生产构建全部通过。真实 HTTP 验证：受保护接口注销前 200、注销 200、复用同一 JWT 后 403。一次性空库完成 Flyway V1→V58、3 条内置旧订单迁移（人工核对 0）、幂等重放和全部发布 SQL 不变量检查，验证库已删除。
 - `BE-1052` 发布工具已实现：要求干净 Git、同 commit 生产副本预演证据、不可变镜像、维护页、压缩备份+SHA-256+NAS 外副本、历史迁移执行与幂等重放、迁移后 SQL 不变量校验。Web TLS 证书/私钥改为 NAS 私有目录只读挂载，不再进入 Git 和镜像。
-- 2026-09-10 已将 NAS V42 生产库以一致性快照只读拉取到本地隔离库，完成 145 单 V42→V58 迁移、幂等重放和全部 SQL 门禁；人工核对 0，订单总额 367811.00、收款 367145.00 前后一致。隔离库与含业务数据的临时文件已删除，生产仍保持 Flyway V42 且未写入。
-- 2026-09-10 已将 TrustAsia 证书以 NAS 私有目录只读挂载到 `blade-web`，`https://chenjianas.asia:33294/catalog` 和 `https://www.chenjianas.asia:33294/catalog` 均不带 `-k` 返回 200，TLS 门禁已关闭。证书 2026-11-26 到期且尚无自动续期，最迟需在 2026-11-19 前替换。2026-09-11 已基于外网地址同步后的最终候选重跑 V42→V58 生产副本预演并生成精确 commit 绑定的 PASS 证据；正式订单重构上线只剩用户批准维护窗口，候选 commit 再变更则必须重跑预演。
+- 2026-09-10 将 NAS V42 生产库以一致性快照只读拉取到本地隔离库，完成 145 单 V42→V58 迁移预演、幂等重放和全部 SQL 门禁；人工核对 0，订单总额 367811.00、收款 367145.00 前后一致。该预演随后用于 2026-09-11 正式发布。
+- 2026-09-10 将 TrustAsia 证书以 NAS 私有目录只读挂载到 `blade-web`，`https://chenjianas.asia:33294/catalog` 和 `https://www.chenjianas.asia:33294/catalog` 均不带 `-k` 返回 200。证书 2026-11-26 到期且尚无自动续期，最迟需在 2026-11-19 前替换。
 
 ## 2026-09-05 最新基线（优先于下方历史快照）
 

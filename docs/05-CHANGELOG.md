@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-09-11 变更记录
+
+### [生产发布完成] - 订单生命周期、纸单 Agent 与占位 SKU 上线
+
+- 用户批准维护窗口后，以 commit `12e1eb91c19401dde3919afec0b3d80cbc910750`、release `20260911_032005` 将 NAS 生产环境从 Flyway V42 升级至 V58；仅重建 `blade-web` 与 `blade-backend`，MySQL、Redis、uploads 和 `.env.prod` 未重启或覆盖。
+- 发布前在 NAS `/volume2/blade/db-backups/nas_blade_project_prod_20260911_032005` 生成全库/schema/Flyway 历史备份，下载验签后持久保存到 Mac `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260911_032005`；目录权限 `700`、文件权限 `600`，两端 SHA-256 验签通过。release manifest 位于 `/volume2/blade/releases/20260911_032005/`。
+- 迁移 145 张旧订单，人工核对 0，幂等重放新增 0；订单总额保持 `367811.00`，历史实收保持 `367145.00`，余额 `666.00`。结果为：已完成/仅记录/已结清 129 单，已确认/部分收款 14 单，已确认/未收款 1 单，已取消/已结清 1 单。
+- 生产创建 144 条历史实收期初流水；商品保持 187 个，SKU 为 699 个，其中 187 个占位 SKU。未迁移订单、非法状态、负数快照、流水/快照不平和占位 SKU 缺失均为 0。
+- 首次执行在维护模式启用前因 macOS legacy `scp -O` 拒绝远端 `/.` 路径而被门禁中止，生产仍为 V42。随后将备份下载改为四个显式文件，使用已生成备份验证两端校验成功，再形成新 commit、重跑生产副本预演后完成正式发布。
+- 发布完成后维护开关关闭，`blade-backend:20260911_032005`、`blade-web:20260911_032005` 正常运行，`https://www.chenjianas.asia:33294/catalog` 返回 200 且 TLS 校验通过。
+
 ## 2026-09-10 变更记录
 
 ### [发布前安全整改] - JWT 租户闭环、可复现测试与订单发布门禁
@@ -20,7 +31,7 @@
 - 以 NAS V42 生产一致性副本完成 145 张订单的 V42→V58 真实迁移预演：人工核对 0，幂等重放迁移 0，订单总额 367811.00 和收款 367145.00 前后一致，所有 SQL 门禁为 0。该操作未写入生产，隔离库和业务数据临时文件已删除。
 - 修正 Web 镜像 TLS 安全边界：从 Dockerfile 移除证书复制，删除仓库内自签公钥，改为 NAS `/volume2/blade/secrets/tls` 只读挂载；发布前强制校验证书未过期且与私钥匹配。
 
-**发布状态**：2026-09-10 已将 `chenjianas.asia` TrustAsia 完整证书链和匹配私钥安全存放于 NAS `/volume2/blade/secrets/tls`，以只读卷挂载到原 `blade-web:prod`，仅重建 Web，未重启 backend/MySQL/Redis，生产仍为 Flyway V42、145 单。`chenjianas.asia:33294` 与 `www.chenjianas.asia:33294` 均通过系统信任链并返回 200。2026-09-11 已基于默认外网地址同步后的最终候选重跑生产副本预演并生成精确 commit 绑定的 PASS 证据；正式重构发布只剩用户批准维护窗口，候选 commit 再变更则必须重新预演。
+**后续状态**：上述 TLS 与发布门禁已用于 2026-09-11 正式发布，生产现为 Flyway V58；详细结果见上一节。
 
 ## 2026-09-05 变更记录
 

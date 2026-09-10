@@ -745,7 +745,7 @@ SELECT \"flyway\", COUNT(*) FROM flyway_schema_history;
 - Flyway 和历史迁移失败时保持停写，不自动继续开放流量。
 - 发布清单记录 Git commit、镜像 digest、migration 范围、备份文件和回滚命令。
 
-上述能力已于 2026-09-10 落到脚本，但 `BE-1052` 仍处于“工具完成、生产执行待批准”：
+上述能力已于 2026-09-10 落到脚本，并在 2026-09-11 release `20260911_032005` 的 V42→V58 正式发布中全部通过：
 
 - `backup_db.sh` 默认 dry-run；`--execute` 才会生成压缩全库与 schema、Flyway 历史、SHA-256，并下载到 `LOCAL_BACKUP_DIR` 后再次验签。
 - `deploy_app_from_local.sh` 默认 dry-run；执行前要求工作区干净、`ORDER_RELEASE_CONFIRM=YES`，以及与当前完整 Git commit 一致的 `REHEARSAL_REPORT`。
@@ -771,6 +771,8 @@ deploy/nas/deploy_app_from_local.sh --execute
 ```
 
 2026-09-10 已将 `chenjianas.asia` TrustAsia 完整证书链以 NAS 私有目录只读挂载到 `blade-web`，`https://chenjianas.asia:33294/catalog` 和 `https://www.chenjianas.asia:33294/catalog` 均以系统信任链返回 200。发布脚本仍必须在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`。2026-09-11 已基于外网默认地址同步后的最终候选重跑生产副本预演，并生成精确 commit 绑定的非敏感 PASS 证据；候选 commit 再变更时必须重跑。
+
+2026-09-11 正式发布记录：commit `12e1eb91c19401dde3919afec0b3d80cbc910750`，release `20260911_032005`，NAS 备份 `/volume2/blade/db-backups/nas_blade_project_prod_20260911_032005`，Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260911_032005`。Flyway V58、145 单迁移、0 人工核对、幂等重放和全部 SQL 门禁通过，维护模式已解除。
 
 当前证书于 2026-11-26 03:59:59 GMT 到期，尚未建立自动续期。运维人员必须于 2026-11-19 前完成替换，使用新证书覆盖 NAS 密钥目录后仅重建 `web`，并重复证书/私钥匹配、裸域名和 `www` 外网信任链验证。
 

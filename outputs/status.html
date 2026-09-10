@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/10 10:07:16　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/11 03:26:47　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,10 +73,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">173 完成 · 1 进行中 · 16 待办 · 0 部分 · 6 暂缓</span>
+          <span class="card-nums">174 完成 · 0 进行中 · 16 待办 · 0 部分 · 6 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
-        <div class="bar-label">91% 完成（活跃 190 项，暂缓 6 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:92%"></div></div>
+        <div class="bar-label">92% 完成（活跃 190 项，暂缓 6 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -97,15 +97,8 @@
 
 
     <section class="section doing">
-      <h2>🔴 正在做 <span class="count">1</span></h2>
-      <table class="task-table">
-      <tr data-status="doing">
-        <td class="td-id">BE-1052</td>
-        <td class="td-name">V42 至新版本迁移与 NAS 发布门禁<span class="tag executor">执行人：Codex</span></td>
-        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">发布工具已补齐干净 Git/预演证据、不可变镜像、维护页、压缩备份+SHA-256+NAS 外副本、迁移执行/重放和 SQL 不变量门禁；仍待可信外网 TLS、正式 release commit 的生产副本证据及用户批准维护窗口，未执行生产写操作 |</td>
-      </tr></table>
+      <h2>🔴 正在做 <span class="count">0</span></h2>
+      <p class="empty">（无）</p>
     </section>
 
     <section class="section todo">
@@ -221,7 +214,7 @@
         <td class="td-name">NAS 生产发布与 30 单联调</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">备份后部署对应迁移和前后端；在实际 Mac 配置 `BLADE_AGENT_API_BASE_URL=https://www.chenjianas.asia:33294` 及最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对 TLS、断线幂等、审计、库存、财务和统计隔离 |</td>
+        <td class="td-remark">V43-V58 和前后端已于 2026-09-11 发布；剩余工作是在实际 Mac 配置 `BLADE_AGENT_API_BASE_URL=https://www.chenjianas.asia:33294` 及最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">FE-005</td>
@@ -369,7 +362,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 278 项） <span class="count">278</span></h2>
+      <h2>✅ 已完成（共 279 项） <span class="count">279</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -930,6 +923,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
         <td class="td-remark">长任务系列 D/F；PC、移动端、共享类型和导出兼容 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1052</td>
+        <td class="td-name">V42 至新版本迁移与 NAS 发布门禁</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">2026-09-11 以 commit `12e1eb9`、release `20260911_032005` 完成 NAS V42→V58 发布；双份压缩备份验签通过，145 单迁移、0 人工核对、幂等重放新增 0，金额/状态/流水/SKU SQL 门禁全部通过。生产已恢复访问，新域名可信 HTTPS 200 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">TEST-ORDER-LIFECYCLE-001</td>
