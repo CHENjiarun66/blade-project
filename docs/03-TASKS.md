@@ -86,7 +86,7 @@
 | BE-003 | Security 配置 + JWT | ✅ 完成 | Spring Security OAuth2 |
 | BE-004 | MyBatis-Plus + 多租户配置 | ✅ 完成 | TenantLineInnerInterceptor |
 | BE-005 | 统一响应 R.java | ✅ 完成 | Controller 基础 |
-| BE-006 | 认证接口（登录/登出/刷新） | ✅ 完成 | /api/auth/*；refresh token 支持 remember=30天 / 默认7天，并携带 tenantId 以便续签时恢复租户上下文 |
+| BE-006 | 认证接口（登录/登出/刷新） | ✅ 完成 | /api/auth/*；refresh token 支持 remember=30天 / 默认7天、tenantId、类型校验和 Redis 单次轮换；PC/移动端登出同时撤销 access/refresh 会话 |
 | BE-007 | 用户 CRUD 接口 | ✅ 完成 | /api/system/users |
 | BE-008 | Flyway 数据库迁移脚本 | ✅ 完成 | V1__init_schema |
 | BE-009 | 社交登录适配 | ⏳ TODO | 微信/钉钉（暂缓） |
@@ -214,8 +214,8 @@
 | BE-1049 | 订单动作与财务权限重构 | ✅ 完成并终审通过 | 长任务系列 A/B/D；后端动作权限、同租户赋权和订单流水裁剪；全出口价格隐私继续增量加固 |
 | BE-1050 | 统一订单事实服务与缓存失效 | ✅ 完成并终审通过 | 长任务系列 E；统一事实版本和缓存失效 |
 | BE-1051 | 公共 API、共享类型与导出兼容 | ✅ 完成并终审通过 | 长任务系列 D/F；PC、移动端、共享类型和导出兼容 |
-| BE-1052 | V42 至新版本迁移与 NAS 发布门禁 | ⏳ TODO | 等 Z Code 长任务和 Codex 最终审核通过后再做；仍需用户批准生产操作 |
-| TEST-ORDER-LIFECYCLE-001 | 订单状态重构全链路验证 | ✅ 完成并终审通过 | 终审基线 `CODEX_APPROVED_FOR_RELEASE_PREPARATION`；生产副本预演仍未做 |
+| BE-1052 | V42 至新版本迁移与 NAS 发布门禁 | ⏳ 进行中（执行人：Codex） | 发布工具已补齐干净 Git/预演证据、不可变镜像、维护页、压缩备份+SHA-256+NAS 外副本、迁移执行/重放和 SQL 不变量门禁；仍待可信外网 TLS、正式 release commit 的生产副本证据及用户批准维护窗口，未执行生产写操作 |
+| TEST-ORDER-LIFECYCLE-001 | 订单状态重构全链路验证 | ✅ 完成并终审通过 | 2026-09-10 后端全量 496/496、共享类型/PC/移动端构建通过；访问令牌不可充当刷新令牌，refresh token 采用 Redis 单次轮换，真实 HTTP 验证旧 JWT 在注销后由 200 变为 403；一次性空库验证 V1→V58、3 单迁移/零人工核对、幂等重放及全部 SQL 发布门禁；生产副本曾只读恢复并验证 V42→V58 与 145 单迁移/重放，正式 release commit 仍须重新生成可留档证据 |
 
 实施顺序固定为长任务系列 A→G。每个系列完成后 Z Code 自测、修复并提交，可直接进入下一系列；全部完成后 Codex 一次性审核完整 Diff。`BE-1052`、release、NAS 和生产迁移不包含在连续开发授权内。
 

@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/3 23:34:48　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/10 10:07:16　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,7 +73,7 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">172 完成 · 0 进行中 · 18 待办 · 0 部分 · 6 暂缓</span>
+          <span class="card-nums">173 完成 · 1 进行中 · 16 待办 · 0 部分 · 6 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
         <div class="bar-label">91% 完成（活跃 190 项，暂缓 6 项）</div>
@@ -81,10 +81,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">88 完成 · 0 进行中 · 1 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">89 完成 · 0 进行中 · 0 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:99%"></div></div>
-        <div class="bar-label">99% 完成（活跃 89 项，暂缓 2 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-label">100% 完成（活跃 89 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -97,12 +97,19 @@
 
 
     <section class="section doing">
-      <h2>🔴 正在做 <span class="count">0</span></h2>
-      <p class="empty">（无）</p>
+      <h2>🔴 正在做 <span class="count">1</span></h2>
+      <table class="task-table">
+      <tr data-status="doing">
+        <td class="td-id">BE-1052</td>
+        <td class="td-name">V42 至新版本迁移与 NAS 发布门禁<span class="tag executor">执行人：Codex</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">发布工具已补齐干净 Git/预演证据、不可变镜像、维护页、压缩备份+SHA-256+NAS 外副本、迁移执行/重放和 SQL 不变量门禁；仍待可信外网 TLS、正式 release commit 的生产副本证据及用户批准维护窗口，未执行生产写操作 |</td>
+      </tr></table>
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">28</span></h2>
+      <h2>🟡 还没做 <span class="count">25</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -110,13 +117,6 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
         <td class="td-remark">微信/钉钉（暂缓） |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-1052</td>
-        <td class="td-name">V42 至新版本迁移与 NAS 发布门禁</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">等 Z Code 长任务和 Codex 最终审核通过后再做；仍需用户批准生产操作 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">TEST-ERP-PRICE-PRIVACY-001</td>
@@ -203,13 +203,6 @@
         <td class="td-remark">增加并回归 `agent:analytics:profit`；未授权时所有 Agent 数据包禁止返回成本、毛利和毛利率 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-586</td>
-        <td class="td-name">Agent Key 安全签发与轮换</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">提供 Owner 管理 API 或受控运维命令；密钥只显示一次，数据库仅存哈希，支持 scope、有效期、停用、轮换和审计 |</td>
-      </tr>
-      <tr data-status="todo">
         <td class="td-id">TEST-WA-NAS-001</td>
         <td class="td-name">WhatsApp Mac → NAS 生产联调</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
@@ -228,14 +221,7 @@
         <td class="td-name">NAS 生产发布与 30 单联调</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">备份后部署 V48-V50 和前后端，配置最小 scope Agent Key，通过 NAS API 导入 30 张纸单并核对库存、财务和统计隔离 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-1111</td>
-        <td class="td-name">Agent Key 管理页面</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 13: Agent 凭证管理（P2）</td>
-        <td class="td-remark">Owner 创建、查看前缀、配置 scope/有效期、停用和轮换 Key；密钥正文只在创建时显示一次 |</td>
+        <td class="td-remark">备份后部署对应迁移和前后端；在实际 Mac 配置 `BLADE_AGENT_API_BASE_URL=https://frp-pen.com:33294` 及最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对 TLS、断线幂等、审计、库存、财务和统计隔离 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">FE-005</td>
@@ -322,7 +308,7 @@
         <td class="td-name">ERP 内置 OCR 图片上传</td>
         <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">原图仍通过 BE-607 上传并绑定；ERP 不提供拍照识别入口 |</td>
+        <td class="td-remark">ERP 不提供拍照识别入口，也不要求上传原图；现有 source-files 仅作可选凭证兼容 |</td>
       </tr>
       <tr data-status="deferred">
         <td class="td-id">BE-602</td>
@@ -383,7 +369,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 276 项） <span class="count">276</span></h2>
+      <h2>✅ 已完成（共 278 项） <span class="count">278</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -425,7 +411,7 @@
         <td class="td-name">认证接口（登录/登出/刷新）</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
-        <td class="td-remark">/api/auth/*；refresh token 支持 remember=30天 / 默认7天，并携带 tenantId 以便续签时恢复租户上下文 |</td>
+        <td class="td-remark">/api/auth/*；refresh token 支持 remember=30天 / 默认7天、tenantId、类型校验和 Redis 单次轮换；PC/移动端登出同时撤销 access/refresh 会话 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-007</td>
@@ -950,7 +936,7 @@
         <td class="td-name">订单状态重构全链路验证</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">终审基线 `CODEX_APPROVED_FOR_RELEASE_PREPARATION`；生产副本预演仍未做 |</td>
+        <td class="td-remark">2026-09-10 后端全量 496/496、共享类型/PC/移动端构建通过；访问令牌不可充当刷新令牌，refresh token 采用 Redis 单次轮换，真实 HTTP 验证旧 JWT 在注销后由 200 变为 403；一次性空库验证 V1→V58、3 单迁移/零人工核对、幂等重放及全部 SQL 发布门禁；生产副本曾只读恢复并验证 V42→V58 与 145 单迁移/重放，正式 release commit 仍须重新生成可留档证据 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-401</td>
@@ -1317,6 +1303,13 @@
         <td class="td-remark">按租户/customerId 返回绑定、账号、真实号码、聊天与缺失媒体上下文；待确认/已绑定状态明确，禁止前端猜测号码 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-586</td>
+        <td class="td-name">Agent Key 安全签发与轮换</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V58 + `/api/system/agent-keys`；仅 Owner 拥有管理权限，密钥只显示一次、数据库仅存 BCrypt 哈希，scope 白名单、1～365 天有效期、不可逆停用、轮换链和签发用户均可审计 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BE-606</td>
         <td class="td-name">Agent 订单草稿数据模型与幂等写入</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1328,7 +1321,7 @@
         <td class="td-name">Agent 商品候选与批量草稿 API</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">`agent:catalog:read` 查询候选，`agent:orders:write` 上传原图并批量建草稿；客户缺失默认散客 |</td>
+        <td class="td-remark">`agent:catalog:read` 查询候选，`agent:orders:write` 接收结构化批次并创建草稿；原图非必需，客户缺失默认散客 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-608</td>
@@ -2204,6 +2197,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
         <td class="td-remark">客户详情新增 WhatsApp Tab，显示绑定/同步/缺失媒体状态，直接查看完整只读聊天、打开 WhatsApp 和仅扫描此客户 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1111</td>
+        <td class="td-name">Agent Key 管理页面</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 13: Agent 凭证管理（P2）</td>
+        <td class="td-remark">系统管理新增 Owner 专属 Agent Key 页签；支持创建、查看前缀/scope/有效期/最近使用、不可逆停用和轮换；完整密钥只显示一次，并可按可配置 `BLADE_AGENT_API_BASE_URL` 复制 Mac 环境配置 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">FE-001</td>

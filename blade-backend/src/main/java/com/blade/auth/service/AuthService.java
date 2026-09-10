@@ -76,64 +76,78 @@ public class AuthService {
         // 2. 设置租户上下文
         TenantContext.setTenantId(tenant.getId());
 
-        // 3. 根据租户ID和用户名查询用户
-        User user = userMapper.selectOne(
-            new LambdaQueryWrapper<User>()
-                .eq(User::getTenantId, tenant.getId())
-                .eq(User::getUsername, username)
-        );
+        try {
+            // 3. 根据租户ID和用户名查询用户
+            User user = userMapper.selectOne(
+                new LambdaQueryWrapper<User>()
+                    .eq(User::getTenantId, tenant.getId())
+                    .eq(User::getUsername, username)
+            );
 
-        if (user == null) {
+            if (user == null) {
+                throw new UsernameNotFoundException("用户不存在: " + username);
+            }
+            if (user.getStatus() != 1) {
+                throw new RuntimeException("用户已被禁用");
+            }
+
+            // 4. 使用 Spring Security 验证密码
+            Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(username, password)
+            );
+
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String token = jwtTokenProvider.generateToken(userDetails, tenant.getId());
+            long effectiveRefreshExpiration = remember ? rememberRefreshExpiration : refreshExpiration;
+            String refreshToken = jwtTokenProvider.generateRefreshToken(userDetails, effectiveRefreshExpiration, remember, tenant.getId());
+
+            redisTemplate.opsForValue().set(
+                "token:" + token,
+                userDetails.getUsername(),
+                jwtExpiration,
+                TimeUnit.MILLISECONDS
+            );
+
+            // 保存租户信息到 Redis；访问令牌仍保留独立租户键以兼容发布前签发的 token。
+            redisTemplate.opsForValue().set(
+                "token:tenant:" + token,
+                tenant.getId(),
+                jwtExpiration,
+                TimeUnit.MILLISECONDS
+            );
+            redisTemplate.opsForValue().set(
+                "token:tenant:" + refreshToken,
+                tenant.getId(),
+                effectiveRefreshExpiration,
+                TimeUnit.MILLISECONDS
+            );
+
+            return new LoginResponse(token, refreshToken, jwtExpiration / 1000);
+        } finally {
             TenantContext.clear();
-            throw new UsernameNotFoundException("用户不存在: " + username);
         }
-
-        if (user.getStatus() != 1) {
-            TenantContext.clear();
-            throw new RuntimeException("用户已被禁用");
-        }
-
-        // 4. 使用 Spring Security 验证密码
-        Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(username, password)
-        );
-
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String token = jwtTokenProvider.generateToken(userDetails);
-        long effectiveRefreshExpiration = remember ? rememberRefreshExpiration : refreshExpiration;
-        String refreshToken = jwtTokenProvider.generateRefreshToken(userDetails, effectiveRefreshExpiration, remember, tenant.getId());
-
-        redisTemplate.opsForValue().set(
-            "token:" + token,
-            userDetails.getUsername(),
-            jwtExpiration,
-            TimeUnit.MILLISECONDS
-        );
-
-        // 保存租户信息到 Redis
-        redisTemplate.opsForValue().set(
-            "token:tenant:" + token,
-            tenant.getId(),
-            jwtExpiration,
-            TimeUnit.MILLISECONDS
-        );
-        redisTemplate.opsForValue().set(
-            "token:tenant:" + refreshToken,
-            tenant.getId(),
-            effectiveRefreshExpiration,
-            TimeUnit.MILLISECONDS
-        );
-
-        return new LoginResponse(token, refreshToken, jwtExpiration / 1000);
     }
 
     public void logout(String token) {
+        logout(token, null);
+    }
+
+    public void logout(String token, String refreshToken) {
+        revokeToken(token, true);
+        revokeToken(refreshToken, false);
+    }
+
+    private void revokeToken(String token, boolean accessToken) {
         if (token != null && token.startsWith("Bearer ")) {
             token = token.substring(7);
         }
-        if (token != null) {
+        if (token == null || token.isBlank()) {
+            return;
+        }
+        if (accessToken) {
             redisTemplate.delete("token:" + token);
         }
+        redisTemplate.delete("token:tenant:" + token);
     }
 
     public LoginResponse refreshToken(String token) {
@@ -145,26 +159,36 @@ public class AuthService {
             throw new RuntimeException("Refresh token 无效或已过期");
         }
 
+        String tokenType = jwtTokenProvider.getTokenTypeFromToken(token);
+        if (tokenType != null && !"refresh".equals(tokenType)) {
+            throw new RuntimeException("只允许使用 Refresh token 刷新登录态");
+        }
+        if (tokenType == null && redisTemplate.opsForValue().get("token:" + token) != null) {
+            throw new RuntimeException("访问令牌不能用于刷新登录态");
+        }
+
+        String tenantKey = "token:tenant:" + token;
+        Long tenantId = toLong(redisTemplate.opsForValue().getAndDelete(tenantKey));
+        if (tenantId == null) {
+            throw new RuntimeException("Refresh token 已失效或已被使用");
+        }
+
         String username = jwtTokenProvider.getUsernameFromToken(token);
         Boolean remember = jwtTokenProvider.getRememberFromToken(token);
         long effectiveRefreshExpiration = Boolean.TRUE.equals(remember) ? rememberRefreshExpiration : refreshExpiration;
-        Long tenantId = getRefreshTokenTenantId(token);
-        if (tenantId != null) {
+        try {
             TenantContext.setTenantId(tenantId);
-        }
-        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-        String newToken = jwtTokenProvider.generateToken(userDetails);
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(userDetails, effectiveRefreshExpiration, Boolean.TRUE.equals(remember), tenantId);
+            String newToken = jwtTokenProvider.generateToken(userDetails, tenantId);
+            String newRefreshToken = jwtTokenProvider.generateRefreshToken(userDetails, effectiveRefreshExpiration, Boolean.TRUE.equals(remember), tenantId);
 
-        redisTemplate.opsForValue().set(
-            "token:" + newToken,
-            username,
-            jwtExpiration,
-            TimeUnit.MILLISECONDS
-        );
-
-        if (tenantId != null) {
+            redisTemplate.opsForValue().set(
+                "token:" + newToken,
+                username,
+                jwtExpiration,
+                TimeUnit.MILLISECONDS
+            );
             redisTemplate.opsForValue().set(
                 "token:tenant:" + newToken,
                 tenantId,
@@ -177,18 +201,11 @@ public class AuthService {
                 effectiveRefreshExpiration,
                 TimeUnit.MILLISECONDS
             );
-        }
 
-        return new LoginResponse(newToken, newRefreshToken, jwtExpiration / 1000);
-    }
-
-    private Long getRefreshTokenTenantId(String token) {
-        Object redisTenantId = redisTemplate.opsForValue().get("token:tenant:" + token);
-        Long tenantId = toLong(redisTenantId);
-        if (tenantId != null) {
-            return tenantId;
+            return new LoginResponse(newToken, newRefreshToken, jwtExpiration / 1000);
+        } finally {
+            TenantContext.clear();
         }
-        return jwtTokenProvider.getTenantIdFromToken(token);
     }
 
     private Long toLong(Object value) {

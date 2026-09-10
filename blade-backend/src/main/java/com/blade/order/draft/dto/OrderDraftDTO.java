@@ -18,6 +18,7 @@ public final class OrderDraftDTO {
     @Data
     public static class BatchRequest {
         @NotEmpty(message = "订单批次不能为空")
+        @Size(max = 100, message = "单批最多提交100张订单")
         @Valid
         private List<SaveRequest> orders;
     }
@@ -45,6 +46,7 @@ public final class OrderDraftDTO {
         private String note;
         private List<String> warnings;
         @NotEmpty(message = "草稿明细不能为空")
+        @Size(max = 200, message = "单张订单最多包含200行商品")
         @Valid
         private List<Item> items;
     }

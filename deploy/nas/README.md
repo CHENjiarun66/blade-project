@@ -45,20 +45,23 @@ PATH="/Users/chenjiarun/.local/node-v22/current/bin:$PATH" npm run build
 deploy/nas/deploy_app_from_local.sh
 ```
 
-默认是 dry run，只展示流程，不会上传或修改 NAS。确认发布时执行：
+默认是 dry run，只展示流程，不会上传或修改 NAS。订单大重构发布还需要与当前 commit 匹配的生产副本预演证据和用户维护窗口批准：
 
 ```bash
+ORDER_RELEASE_CONFIRM=YES \
+REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
 deploy/nas/deploy_app_from_local.sh --execute
 ```
 
 脚本会：
 
 - 本地构建后端 jar 和前端 dist
-- 本机按 `linux/amd64` 构建 `blade-backend:prod` 和 `blade-web:prod`
+- 本机按 `linux/amd64` 构建带 release ID 的不可变后端和前端镜像
 - 校验镜像架构必须是 `linux/amd64`
-- 发布前在 NAS 创建数据库备份
+- 发布前创建压缩数据库/schema 备份、SHA-256 和 NAS 外校验副本
 - 上传应用文件和应用镜像
-- 只执行 `docker-compose up -d --no-deps backend web`
+- 启用维护页，只替换应用容器；执行 Flyway、历史订单迁移/重放和 SQL 不变量门禁
+- 外网可信 TLS 与健康检查通过后才解除维护；失败时保持停写
 
 ## 首次部署 / 基础设施重建
 
@@ -124,7 +127,7 @@ deploy/nas/check_platform.sh
 手动备份数据库：
 
 ```bash
-deploy/nas/backup_db.sh
+deploy/nas/backup_db.sh --execute
 ```
 
 首次启动注意：
@@ -144,7 +147,7 @@ Redis 只用于登录态和缓存，建议备份但优先级低于 MySQL 和 upl
 生产发布前必须至少完成数据库备份：
 
 ```bash
-deploy/nas/backup_db.sh
+deploy/nas/backup_db.sh --execute
 ```
 
 涉及 uploads 迁移或覆盖前，必须先单独备份 `/volume2/blade/uploads`，并确认 `file_storage` 元数据与真实文件路径一致。

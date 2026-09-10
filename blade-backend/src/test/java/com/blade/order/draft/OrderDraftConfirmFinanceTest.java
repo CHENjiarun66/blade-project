@@ -16,6 +16,9 @@ import com.blade.order.enums.FinancialRecordType;
 import com.blade.order.mapper.OrderFinancialRecordMapper;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.product.mapper.ProductSkuMapper;
+import com.blade.product.mapper.ProductMapper;
+import com.blade.product.entity.Product;
+import com.blade.product.entity.ProductSku;
 import com.blade.system.user.entity.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,9 +27,11 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -38,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@Transactional
 class OrderDraftConfirmFinanceTest {
 
     @Autowired private OrderDraftMapper draftMapper;
@@ -46,6 +52,7 @@ class OrderDraftConfirmFinanceTest {
     @Autowired private OrderMapper orderMapper;
     @Autowired private OrderFinancialRecordMapper financialRecordMapper;
     @Autowired private ProductSkuMapper productSkuMapper;
+    @Autowired private ProductMapper productMapper;
 
     private void bindContext() {
         TenantContext.setTenantId(1L);
@@ -57,11 +64,29 @@ class OrderDraftConfirmFinanceTest {
     }
 
     private Long seedSku() {
-        var sku = productSkuMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.blade.product.entity.ProductSku>()
-                        .eq(com.blade.product.entity.ProductSku::getTenantId, 1L)
-                        .last("LIMIT 1"))
-                .stream().findFirst().orElseThrow(() -> new IllegalStateException("种子库缺少 SKU"));
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        Product product = new Product();
+        product.setProductCode("IT-" + suffix);
+        product.setName("草稿确认集成测试商品");
+        product.setCategoryId(1L);
+        product.setUnit("件");
+        product.setStatus(1);
+        product.setTenantId(1L);
+        product.setDeleted(0);
+        productMapper.insert(product);
+
+        ProductSku sku = new ProductSku();
+        sku.setProductId(product.getId());
+        sku.setColorId(1L);
+        sku.setSizeId(1L);
+        sku.setSkuCode(product.getProductCode() + "-BLACK-XS");
+        sku.setSkuType("NORMAL");
+        sku.setPrice(new BigDecimal("50.00"));
+        sku.setCostPrice(BigDecimal.ZERO);
+        sku.setStatus(1);
+        sku.setTenantId(1L);
+        sku.setDeleted(0);
+        productSkuMapper.insert(sku);
         return sku.getId();
     }
 

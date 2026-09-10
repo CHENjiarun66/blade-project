@@ -197,8 +197,8 @@ MySQL 数据 > uploads 文件 > .env.prod 密钥 > 应用镜像/前端静态资�
 
 日常发布只应该更新：
 
-- `blade-backend:prod`
-- `blade-web:prod`
+- `blade-backend:<release_id>`（成功后同步兼容 `:prod` 标签）
+- `blade-web:<release_id>`（成功后同步兼容 `:prod` 标签）
 - `/volume2/blade/app/blade-backend/target/blade-backend-1.0.0.jar`
 - `/volume2/blade/app/blade-admin/dist`
 - `/volume2/blade/app/deploy/nas/nginx/default.conf`
@@ -216,6 +216,8 @@ MySQL 数据 > uploads 文件 > .env.prod 密钥 > 应用镜像/前端静态资�
 日常发布必须使用：
 
 ```bash
+ORDER_RELEASE_CONFIRM=YES \
+REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
 deploy/nas/deploy_app_from_local.sh --execute
 ```
 
@@ -413,22 +415,24 @@ cd /Users/chenjiarun/Documents/BladeProject
 deploy/nas/deploy_app_from_local.sh
 ```
 
-默认是 dry run，只展示流程，不会上传或修改 NAS。确认执行：
+默认是 dry run，只展示流程，不会上传或修改 NAS。确认执行时必须提供与当前 commit 匹配的生产副本预演证据：
 
 ```bash
+ORDER_RELEASE_CONFIRM=YES \
+REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
 deploy/nas/deploy_app_from_local.sh --execute
 ```
 
 该脚本会自动完成：
 
-- 记录 Git 分支、commit 和未提交变更。
+- 要求 Git 工作区干净，并核验预演证据中的完整 commit。
 - 本地构建后端 jar 和前端 dist。
-- 只构建 `blade-backend:prod`、`blade-web:prod` 应用镜像。
+- 只构建带 release ID 的后端、前端不可变应用镜像。
 - 校验镜像架构必须为 `linux/amd64`。
-- 在 NAS 上创建发布前数据库备份并校验非空。
+- 在 NAS 上创建压缩全库/schema 备份、SHA-256 和 NAS 外校验副本。
 - 上传应用文件和应用镜像。
-- 执行 `docker-compose up -d --no-deps backend web`，只重启应用容器。
-- 验证容器状态和 `/catalog`。
+- 启用维护页后只替换应用容器，执行历史订单迁移和幂等重放。
+- 通过 SQL 不变量、容器健康、可信外网 TLS 和 `/catalog` 后才解除维护。
 
 以下小节是该脚本的手工等价流程，用于排查或特殊场景。
 
@@ -567,10 +571,10 @@ backend 启动时 Flyway 自动执行尚未执行过的 migration
 
 ```bash
 cd /Users/chenjiarun/Documents/BladeProject
-deploy/nas/backup_db.sh
+deploy/nas/backup_db.sh --execute
 ```
 
-脚本只执行 `mysqldump` 只读导出，并校验备份文件非空。
+脚本使用 `mysqldump --single-transaction` 导出压缩全库和 schema，保存 Flyway 历史，生成 SHA-256，并复制到 NAS 外的本机目录后再次验签。默认不执行，必须显式传入 `--execute`。
 
 手工等价命令：
 
@@ -736,7 +740,31 @@ SELECT \"flyway\", COUNT(*) FROM flyway_schema_history;
 - Flyway 和历史迁移失败时保持停写，不自动继续开放流量。
 - 发布清单记录 Git commit、镜像 digest、migration 范围、备份文件和回滚命令。
 
-当前脚本没有完整实现这些能力，因此在 `BE-1052` 完成前不得用于订单大重构正式发布。
+上述能力已于 2026-09-10 落到脚本，但 `BE-1052` 仍处于“工具完成、生产执行待批准”：
+
+- `backup_db.sh` 默认 dry-run；`--execute` 才会生成压缩全库与 schema、Flyway 历史、SHA-256，并下载到 `LOCAL_BACKUP_DIR` 后再次验签。
+- `deploy_app_from_local.sh` 默认 dry-run；执行前要求工作区干净、`ORDER_RELEASE_CONFIRM=YES`，以及与当前完整 Git commit 一致的 `REHEARSAL_REPORT`。
+- `verify_order_release.sh` 在迁移与幂等重放后检查未迁移订单、状态枚举、金额非负、流水/快照对账和占位 SKU 唯一性；任一项非零即退出。
+- Nginx 通过 `/volume2/blade/maintenance/enabled` 提供 503 中文维护页；发布失败时脚本故意保留该文件，禁止自动恢复写入。
+- release 镜像使用 `blade-backend:<release_id>` / `blade-web:<release_id>`，旧镜像另存 `pre-<release_id>` 标签；全部门禁通过后才更新兼容 `:prod` 标签。
+
+预演证据为简单键值文件，至少包含以下三行，并必须由最终 release commit 的生产副本预演生成，不得手填冒充：
+
+```text
+git_commit=<完整 40 位 commit>
+result=PASS
+manual_review=0
+```
+
+正式命令：
+
+```bash
+ORDER_RELEASE_CONFIRM=YES \
+REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
+deploy/nas/deploy_app_from_local.sh --execute
+```
+
+当前外网入口证书尚未通过系统信任链验证。脚本会在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`，因此 TLS 修复和正式预演证据完成前仍不得执行生产发布。
 
 ---
 
@@ -821,7 +849,7 @@ test "$missing" -eq 0
 #### 发布和补生成门禁
 
 1. 只从已验收 release 合入 `master` 后发布，NAS 不部署 feature/develop。
-2. 发布前运行 `deploy/nas/backup_db.sh`，并确认备份文件非空。
+2. 发布前运行 `deploy/nas/backup_db.sh --execute`，并确认 NAS 与 NAS 外副本 SHA-256 均通过。
 3. 确认 `/volume2/blade/uploads` 已有群晖快照或独立备份，记录文件数和 `du -sh` 结果。
 4. 只更新 `backend` 和 `web`；禁止重建 MySQL/Redis，禁止覆盖 uploads。
 5. 后端启动后确认 Flyway 到 V38，再验证登录、原图 `/preview` 和派生图 `/variant`。

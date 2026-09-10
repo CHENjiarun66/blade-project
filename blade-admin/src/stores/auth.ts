@@ -59,6 +59,19 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    const accessToken = token.value
+    const currentRefreshToken = refreshToken.value
+    if (accessToken) {
+      // 不阻塞本地退出；keepalive 保证 SPA 跳转或关闭页面时仍尽量完成服务端令牌撤销。
+      void fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...(currentRefreshToken ? { 'X-Refresh-Token': `Bearer ${currentRefreshToken}` } : {}),
+        },
+        keepalive: true,
+      }).catch(() => undefined)
+    }
     token.value = null
     refreshToken.value = null
     userInfo.value = null

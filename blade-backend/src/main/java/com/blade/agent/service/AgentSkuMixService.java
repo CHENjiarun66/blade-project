@@ -72,7 +72,10 @@ public class AgentSkuMixService {
 
     private boolean isPlaceholder(AnalyticsRankingDTO row) {
         String skuCode = row.getSkuCode() != null ? row.getSkuCode() : row.getKey();
-        return skuCode != null && skuCode.endsWith("-UNSPEC-UNSPEC");
+        if (skuCode == null) return false;
+        String normalized = skuCode.toUpperCase(java.util.Locale.ROOT);
+        return normalized.endsWith("-UNSPEC-UNSPEC")
+                || normalized.endsWith("-UNSPECIFIED-UNSPEC");
     }
 
     private boolean isUnspecifiedDimension(AnalyticsRankingDTO row) {
