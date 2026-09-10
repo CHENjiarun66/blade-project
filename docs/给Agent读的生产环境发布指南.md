@@ -29,7 +29,8 @@
 5. 按变更范围运行相关测试。
 6. 确认 Docker 镜像是 linux/amd64。
 7. 准备与当前完整 Git commit 一致、`result=PASS` 且 `manual_review=0` 的生产副本预演证据。
-8. 创建 NAS 压缩数据库/schema 备份，确认 SHA-256 与 NAS 外副本校验通过。
+8. 确认 `/volume2/blade/secrets/tls/blade.crt` 和 `blade.key` 已安全配置、未过期且匹配；禁止将私钥打包进镜像或输出到日志。
+9. 创建 NAS 压缩数据库/schema 备份，确认 SHA-256 与 NAS 外副本校验通过。
 
 执行发布：
 - 使用 `ORDER_RELEASE_CONFIRM=YES REHEARSAL_REPORT=<绝对路径> deploy/nas/deploy_app_from_local.sh --execute`。

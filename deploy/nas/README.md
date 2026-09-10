@@ -19,6 +19,7 @@ https://NAS-IP:8899/catalog
 ```text
 /volume2/blade
 ├── app/                  # 上传本项目打包后的应用文件
+├── secrets/tls/          # NAS 私有 TLS 证书与密钥，只读挂载给 Nginx
 ├── mysql/                # MySQL 数据
 ├── redis/                # Redis 持久化
 ├── uploads/              # 文件中心图片/视频
@@ -57,6 +58,7 @@ deploy/nas/deploy_app_from_local.sh --execute
 
 - 本地构建后端 jar 和前端 dist
 - 本机按 `linux/amd64` 构建带 release ID 的不可变后端和前端镜像
+- 校验 NAS `/volume2/blade/secrets/tls/blade.crt` 和 `blade.key` 存在、未过期且相互匹配
 - 校验镜像架构必须是 `linux/amd64`
 - 发布前创建压缩数据库/schema 备份、SHA-256 和 NAS 外校验副本
 - 上传应用文件和应用镜像
@@ -87,6 +89,20 @@ FIRST_DEPLOY_CONFIRM=YES deploy/nas/deploy_from_local.sh
 - 群晖 Docker Hub 访问可能超时，默认走本机离线镜像包部署。
 - 群晖 918+ 为 x86_64，必须使用 `linux/amd64` 镜像；Apple Silicon 本机不能直接导出默认 ARM 镜像给 NAS。
 - Synology SSH 环境可能不支持新版 `scp` 的 SFTP 子系统，脚本固定使用 `scp -O`。
+
+## TLS 密钥
+
+Web 镜像不包含证书或私钥。正式证书只允许保存在 NAS：
+
+```text
+/volume2/blade/secrets/tls/blade.crt
+/volume2/blade/secrets/tls/blade.key
+```
+
+- `blade.crt` 必须是外网域名实际使用的完整证书链，且 SAN 包含该域名。
+- `blade.key` 必须与证书匹配，建议目录权限 `700`、私钥权限 `600`。
+- 两个文件都不得提交 Git、复制进构建上下文、打包进镜像或输出到日志。
+- 局域网 IP 访问可因域名不匹配而仅用 `curl -k` 做容器健康检查；外网发布门禁必须不带 `-k` 通过。
 
 ## 上传到 NAS
 

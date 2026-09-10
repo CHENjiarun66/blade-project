@@ -69,6 +69,9 @@
 │   │   ├── Dockerfile
 │   │   └── dist/
 │   └── deploy/nas/nginx/default.conf
+├── secrets/tls/                  # TLS 密钥，只存 NAS，不进 Git/镜像
+│   ├── blade.crt                  # 完整证书链
+│   └── blade.key                  # 匹配私钥，建议 600
 ├── mysql/                       # MySQL 数据目录，生产数据，不能随意删除
 ├── redis/                       # Redis 持久化目录
 ├── uploads/                     # 文件中心真实文件目录
@@ -264,6 +267,7 @@ FIRST_DEPLOY_CONFIRM=YES deploy/nas/deploy_from_local.sh
 5. 发布命令只更新 `backend` 和 `web`，不更新 MySQL/Redis。
 6. 明确当前是否有未提交代码；有未提交代码时必须向用户说明风险。
 7. 若本次版本包含 Flyway migration，必须确认 migration 文件已提交到 Git，已在本地或测试库验证通过，并在发布说明中列出数据库影响范围。
+8. NAS `secrets/tls/blade.crt` 与 `blade.key` 非空、未过期、公钥匹配；证书私钥不得进入 Git 或 Docker 镜像。
 
 发布后必须验证：
 
@@ -426,6 +430,7 @@ deploy/nas/deploy_app_from_local.sh --execute
 该脚本会自动完成：
 
 - 要求 Git 工作区干净，并核验预演证据中的完整 commit。
+- 在构建前校验 NAS TLS 证书/私钥存在、未过期且匹配；Nginx 以只读方式挂载 `/volume2/blade/secrets/tls`。
 - 本地构建后端 jar 和前端 dist。
 - 只构建带 release ID 的后端、前端不可变应用镜像。
 - 校验镜像架构必须为 `linux/amd64`。
@@ -747,6 +752,7 @@ SELECT \"flyway\", COUNT(*) FROM flyway_schema_history;
 - `verify_order_release.sh` 在迁移与幂等重放后检查未迁移订单、状态枚举、金额非负、流水/快照对账和占位 SKU 唯一性；任一项非零即退出。
 - Nginx 通过 `/volume2/blade/maintenance/enabled` 提供 503 中文维护页；发布失败时脚本故意保留该文件，禁止自动恢复写入。
 - release 镜像使用 `blade-backend:<release_id>` / `blade-web:<release_id>`，旧镜像另存 `pre-<release_id>` 标签；全部门禁通过后才更新兼容 `:prod` 标签。
+- Web 镜像不再内置 TLS 文件；`/volume2/blade/secrets/tls` 以只读卷挂载到 `/etc/nginx/ssl`。证书完整链的 SAN 必须包含外网域名，私钥建议 `600`、目录建议 `700`。
 
 预演证据为简单键值文件，至少包含以下三行，并必须由最终 release commit 的生产副本预演生成，不得手填冒充：
 
@@ -764,7 +770,7 @@ REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
 deploy/nas/deploy_app_from_local.sh --execute
 ```
 
-当前外网入口证书尚未通过系统信任链验证。脚本会在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`，因此 TLS 修复和正式预演证据完成前仍不得执行生产发布。
+当前外网入口实测返回 `CN=blade` 的自签证书，无可用 SAN，尚未通过系统信任链和域名验证。脚本会在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`，因此换入可信证书并为最终 release commit 重生预演证据前，仍不得执行生产发布。
 
 ---
 

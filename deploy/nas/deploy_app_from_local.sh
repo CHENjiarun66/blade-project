@@ -16,6 +16,7 @@ LOCAL_BACKUP_DIR="${LOCAL_BACKUP_DIR:-/private/tmp/blade-production-backups}"
 AGENT_EXTERNAL_URL="${AGENT_EXTERNAL_URL:-https://frp-pen.com:33294}"
 EXPECTED_FLYWAY_VERSION="${EXPECTED_FLYWAY_VERSION:-58}"
 TENANT_ID="${TENANT_ID:-1}"
+TLS_SECRET_DIR="${TLS_SECRET_DIR:-$NAS_DIR/secrets/tls}"
 
 cd "$(dirname "$0")/../.."
 git_commit="$(git rev-parse HEAD)"
@@ -50,6 +51,21 @@ require_release_evidence() {
   }
 }
 
+require_remote_tls_secret() {
+  ssh "$NAS_USER@$NAS_HOST" "set -eu; \
+    test -s '$TLS_SECRET_DIR/blade.crt'; \
+    test -s '$TLS_SECRET_DIR/blade.key'; \
+    /usr/bin/openssl x509 -in '$TLS_SECRET_DIR/blade.crt' -noout -checkend 86400; \
+    cert_key=\$(/usr/bin/openssl x509 -in '$TLS_SECRET_DIR/blade.crt' -pubkey -noout | /usr/bin/openssl pkey -pubin -outform DER 2>/dev/null | sha256sum | cut -d ' ' -f1); \
+    private_key=\$(/usr/bin/openssl pkey -in '$TLS_SECRET_DIR/blade.key' -pubout -outform DER 2>/dev/null | sha256sum | cut -d ' ' -f1); \
+    test -n \"\$cert_key\"; \
+    test \"\$cert_key\" = \"\$private_key\"" || {
+      echo "ERROR: NAS TLS secret is missing, expired, or its certificate/private key do not match."
+      echo "Expected: $TLS_SECRET_DIR/blade.crt and blade.key"
+      exit 1
+    }
+}
+
 on_failure() {
   if [ "$maintenance_enabled" -eq 1 ]; then
     set +e
@@ -72,6 +88,7 @@ Order-refactor release gates:
   - immutable linux/amd64 image tags ($backend_image, $web_image)
   - compressed DB backup + SHA-256 + verified NAS-external copy
   - maintenance mode before backend migration
+  - NAS-mounted TLS certificate/private key secret (never baked into the image)
   - Flyway V$EXPECTED_FLYWAY_VERSION, legacy migrator execute/replay, and SQL invariants
   - trusted TLS check at $AGENT_EXTERNAL_URL before reopening traffic
 
@@ -93,6 +110,7 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 require_release_evidence
 resolve_nas_host
+require_remote_tls_secret
 
 echo "Release $RELEASE_ID from $git_commit"
 echo "Build and package application..."
