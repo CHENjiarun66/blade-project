@@ -770,7 +770,7 @@ REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
 deploy/nas/deploy_app_from_local.sh --execute
 ```
 
-当前外网入口实测返回 `CN=blade` 的自签证书，无可用 SAN，尚未通过系统信任链和域名验证。脚本会在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`，因此换入可信证书并为最终 release commit 重生预演证据前，仍不得执行生产发布。
+当前外网入口实测返回 `CN=blade` 的自签证书，无可用 SAN，尚未通过系统信任链和域名验证。脚本会在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`，因此换入可信证书前仍不得执行生产发布。当前最终候选提交已生成精确匹配的预演 PASS 证据；若候选 commit 发生任何变更，必须重跑预演。
 
 ---
 
