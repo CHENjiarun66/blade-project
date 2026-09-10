@@ -56,7 +56,12 @@ ssh "$NAS_USER@$NAS_HOST" "set -eu; mkdir -p '$remote_backup_dir'; \
   sha256sum -c SHA256SUMS"
 
 mkdir -p "$local_backup_dir"
-scp -O -r "$NAS_USER@$NAS_HOST:$remote_backup_dir/." "$local_backup_dir/"
+scp -O \
+  "$NAS_USER@$NAS_HOST:$remote_backup_dir/database.sql.gz" \
+  "$NAS_USER@$NAS_HOST:$remote_backup_dir/schema.sql.gz" \
+  "$NAS_USER@$NAS_HOST:$remote_backup_dir/SHA256SUMS" \
+  "$NAS_USER@$NAS_HOST:$remote_backup_dir/flyway-history.tsv" \
+  "$local_backup_dir/"
 (cd "$local_backup_dir" && shasum -a 256 -c SHA256SUMS)
 
 echo "Backup verified on NAS and outside NAS."
