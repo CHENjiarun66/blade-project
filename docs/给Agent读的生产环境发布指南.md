@@ -9,7 +9,7 @@
 - NAS：192.168.1.10
 - 生产目录：/volume2/blade
 - 局域网入口：https://192.168.1.10:8899/catalog
-- 外网入口：https://frp-pen.com:33294（可由 `AGENT_EXTERNAL_URL` 覆盖）
+- 外网入口：https://www.chenjianas.asia:33294（可由 `AGENT_EXTERNAL_URL` 覆盖）
 
 严格限制：
 - 只能发布 backend/web 应用容器。

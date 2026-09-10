@@ -151,7 +151,7 @@ Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴
 本机识别 Agent 使用绑定租户的 Agent Key 调用 NAS 生产环境：
 
 - API 入口由 Agent 运行环境的 `BLADE_AGENT_API_BASE_URL` 配置，不写死在客户端代码中。
-- 当前外网生产入口为 `https://frp-pen.com:33294`，接口实际地址由该入口拼接 `/api/agent/...`。
+- 当前外网生产入口为 `https://www.chenjianas.asia:33294`，接口实际地址由该入口拼接 `/api/agent/...`。
 - 地址只解决 Mac 到 NAS 的网络可达性；租户和权限仍由 `X-Agent-Key` 绑定，不允许请求参数自行指定租户。
 - 纸单图片识别与 Excel 整理由本机 Agent 完成。BladeProject 主流程只接收结构化 JSON 或标准 Excel 转换后的结构化数据，不要求上传原图。
 

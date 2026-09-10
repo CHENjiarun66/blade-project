@@ -12,12 +12,12 @@
 - 后端全量回归 496/496，`OrderDraftConfirmFinanceTest` 已改为事务内自建真实 SKU，不再依赖历史测试数据，并增加 100 单/每单 200 行硬上限反例；共享类型、PC、移动端生产构建全部通过。真实 HTTP 验证：受保护接口注销前 200、注销 200、复用同一 JWT 后 403。一次性空库完成 Flyway V1→V58、3 条内置旧订单迁移（人工核对 0）、幂等重放和全部发布 SQL 不变量检查，验证库已删除。
 - `BE-1052` 发布工具已实现：要求干净 Git、同 commit 生产副本预演证据、不可变镜像、维护页、压缩备份+SHA-256+NAS 外副本、历史迁移执行与幂等重放、迁移后 SQL 不变量校验。Web TLS 证书/私钥改为 NAS 私有目录只读挂载，不再进入 Git 和镜像。
 - 2026-09-10 已将 NAS V42 生产库以一致性快照只读拉取到本地隔离库，完成 145 单 V42→V58 迁移、幂等重放和全部 SQL 门禁；人工核对 0，订单总额 367811.00、收款 367145.00 前后一致。隔离库与含业务数据的临时文件已删除，生产仍保持 Flyway V42 且未写入。
-- 当前最终候选提交已重跑 V42→V58 生产副本预演，并在本机临时目录留存 `result=PASS/manual_review=0` 的非敏感证据；若 Git commit 再变更，该证据立即失效并必须重跑。正式上线剩余硬门禁：为 `frp-pen.com:33294` 配置包含正确 SAN 的可信 TLS（当前是 `CN=blade` 自签证书）；用户批准维护窗口后才允许执行发布脚本。
+- 2026-09-10 已将 TrustAsia 证书以 NAS 私有目录只读挂载到 `blade-web`，`https://chenjianas.asia:33294/catalog` 和 `https://www.chenjianas.asia:33294/catalog` 均不带 `-k` 返回 200，TLS 门禁已关闭。证书 2026-11-26 到期且尚无自动续期，最迟需在 2026-11-19 前替换。2026-09-11 已基于外网地址同步后的最终候选重跑 V42→V58 生产副本预演并生成精确 commit 绑定的 PASS 证据；正式订单重构上线只剩用户批准维护窗口，候选 commit 再变更则必须重跑预演。
 
 ## 2026-09-05 最新基线（优先于下方历史快照）
 
 - `feature/order-lifecycle-finance-refactor` 在 V57 基础上新增 V58 Agent Key 生命周期管理：Owner 可在系统管理页签签发、轮换和不可逆停用当前租户 Key；完整密钥仅返回一次，数据库只存 BCrypt 哈希，并记录签发用户、停用时间和轮换来源。
-- Mac 纸单 Agent 的 NAS 入口通过 `BLADE_AGENT_API_BASE_URL` 配置，当前外网值为 `https://frp-pen.com:33294`；租户和 scope 仍由 `X-Agent-Key` 决定，接口请求不能自选租户。
+- Mac 纸单 Agent 的 NAS 入口通过 `BLADE_AGENT_API_BASE_URL` 配置，当前外网值为 `https://www.chenjianas.asia:33294`；租户和 scope 仍由 `X-Agent-Key` 决定，接口请求不能自选租户。
 - 纸单原图不再是草稿创建前置条件；结构化批次没有 `sourceFileId` 时不再产生缺图警告。现有 source-files 接口只保留为可选凭证兼容。
 - 新增 Key 管理与无原图草稿测试通过，后端跳过测试打包和 PC 生产构建通过。全量后端测试因本机 Docker/MySQL 测试库未运行而无法完成，需恢复隔离测试库后重新执行；未连接或修改 NAS 生产环境。
 

@@ -93,7 +93,7 @@
         </div>
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">Mac Agent API 地址</label>
-          <el-input v-model="agentBaseUrl" placeholder="https://frp-pen.com:33294" @change="saveBaseUrl" />
+          <el-input v-model="agentBaseUrl" placeholder="https://www.chenjianas.asia:33294" @change="saveBaseUrl" />
           <p class="mt-1 text-xs text-slate-400">仅用于生成下面的配置片段，保存在当前浏览器；不会写入 Key 或服务器。</p>
         </div>
         <div>
@@ -123,7 +123,7 @@ import {
 } from '@/api/agentKey'
 import { formatDate } from '@/utils/format'
 
-const DEFAULT_EXTERNAL_URL = 'https://frp-pen.com:33294'
+const DEFAULT_EXTERNAL_URL = 'https://www.chenjianas.asia:33294'
 const BASE_URL_STORAGE_KEY = 'bladeAgentApiBaseUrl'
 const keys = ref<AgentKeyView[]>([])
 const availableScopes = ref<string[]>([])

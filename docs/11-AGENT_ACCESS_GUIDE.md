@@ -34,7 +34,7 @@
 
 | 信息 | 说明 |
 |------|------|
-| `baseUrl` | BladeProject 可访问入口；由 Agent 运行环境配置，不得写死。当前外网生产入口为 `https://frp-pen.com:33294` |
+| `baseUrl` | BladeProject 可访问入口；由 Agent 运行环境配置，不得写死。当前外网生产入口为 `https://www.chenjianas.asia:33294` |
 | `agentKey` | 绑定租户的 Agent Key 原文，只在创建时交付 |
 | `scopes` | 该 key 可访问的 Agent 权限范围 |
 | 调用频率约束 | 避免 Agent 循环重试或高频轮询聚合接口 |
@@ -67,7 +67,7 @@ X-Agent-Key: {agent_key}
 纸单识别 Agent 通常运行在用户的 Mac，而 BladeProject 运行在 NAS。Agent 客户端必须从运行环境读取入口：
 
 ```bash
-BLADE_AGENT_API_BASE_URL=https://frp-pen.com:33294
+BLADE_AGENT_API_BASE_URL=https://www.chenjianas.asia:33294
 BLADE_AGENT_KEY=prefix.secret
 ```
 
@@ -75,7 +75,7 @@ BLADE_AGENT_KEY=prefix.secret
 
 1. `BLADE_AGENT_API_BASE_URL` 只填写协议、主机和端口，不包含 `/api`，保存时移除末尾 `/`。
 2. Agent 在该地址后拼接 `/api/agent/...`，例如 `${BLADE_AGENT_API_BASE_URL}/api/agent/order-drafts/batch`。
-3. 当前外网生产默认配置为 `https://frp-pen.com:33294`；地址变化时只改运行配置，不改代码、提示词或 Excel 模板。
+3. 当前外网生产默认配置为 `https://www.chenjianas.asia:33294`；地址变化时只改运行配置，不改代码、提示词或 Excel 模板。
 4. 本地开发、测试、局域网生产和外网生产使用不同配置文件及不同 Agent Key，不得共用生产密钥。
 5. 外网入口只暴露 Nginx HTTPS 网关，不开放后端容器、MySQL、Redis 或 NAS 管理端口。
 6. 发布前必须从实际运行 Agent 的 Mac 验证 DNS、TLS 证书、健康检查、批量写入和幂等重试；不得通过关闭证书校验长期运行。
@@ -85,7 +85,7 @@ BLADE_AGENT_KEY=prefix.secret
 ```text
 开发：BLADE_AGENT_API_BASE_URL=http://127.0.0.1:8080
 局域网生产：BLADE_AGENT_API_BASE_URL=https://192.168.1.10:8899
-外网生产：BLADE_AGENT_API_BASE_URL=https://frp-pen.com:33294
+外网生产：BLADE_AGENT_API_BASE_URL=https://www.chenjianas.asia:33294
 ```
 
 Agent Key 应存放在 macOS 钥匙串或受保护的进程环境中；URL 可以进入普通配置，但密钥不能写入仓库、提示词、Excel 或日志。

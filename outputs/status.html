@@ -221,7 +221,7 @@
         <td class="td-name">NAS 生产发布与 30 单联调</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">备份后部署对应迁移和前后端；在实际 Mac 配置 `BLADE_AGENT_API_BASE_URL=https://frp-pen.com:33294` 及最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对 TLS、断线幂等、审计、库存、财务和统计隔离 |</td>
+        <td class="td-remark">备份后部署对应迁移和前后端；在实际 Mac 配置 `BLADE_AGENT_API_BASE_URL=https://www.chenjianas.asia:33294` 及最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对 TLS、断线幂等、审计、库存、财务和统计隔离 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">FE-005</td>
@@ -936,7 +936,7 @@
         <td class="td-name">订单状态重构全链路验证</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
-        <td class="td-remark">2026-09-10 后端全量 496/496、共享类型/PC/移动端构建通过；访问令牌不可充当刷新令牌，refresh token 采用 Redis 单次轮换，真实 HTTP 验证旧 JWT 在注销后由 200 变为 403；一次性空库验证 V1→V58、3 单迁移/零人工核对、幂等重放及全部 SQL 发布门禁；生产副本曾只读恢复并验证 V42→V58 与 145 单迁移/重放，正式 release commit 仍须重新生成可留档证据 |</td>
+        <td class="td-remark">2026-09-11 后端全量 496/496、共享类型/PC/移动端构建通过；访问令牌不可充当刷新令牌，refresh token 采用 Redis 单次轮换，真实 HTTP 验证旧 JWT 在注销后由 200 变为 403；一次性空库验证 V1→V58、3 单迁移/零人工核对、幂等重放及全部 SQL 发布门禁；生产副本验证 V42→V58 与 145 单迁移/重放通过，当前最终候选已生成可留档证据 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-401</td>

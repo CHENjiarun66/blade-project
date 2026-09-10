@@ -36,7 +36,7 @@
 | docker-compose | `/usr/local/bin/docker-compose`，旧版 compose v1 |
 | 生产端口 | `8899` |
 | 访问入口 | `https://192.168.1.10:8899/catalog` |
-| 外网业务入口 | `https://frp-pen.com:33294`（Agent 运行配置，可变，不写死） |
+| 外网业务入口 | `https://www.chenjianas.asia:33294`（Agent 运行配置，可变，不写死） |
 
 不要在文档或日志中打印 NAS 密码、`.env.prod`、JWT secret、数据库密码。
 
@@ -46,7 +46,7 @@
 - 如果本地环境无法访问 `192.168.1.10:22`，发布脚本会自动切换到 WireGuard 地址 `10.13.13.1` 继续连接 NAS。
 - 如需强制使用某个地址，可传入 `NAS_HOST=<host> NAS_HOST_FIXED=1`。
 - 生产入口文档仍以局域网地址 `https://192.168.1.10:8899/catalog` 记录；通过 WireGuard 验证时可访问 `https://10.13.13.1:8899/catalog`。
-- 外部 Mac Agent 当前通过 `https://frp-pen.com:33294` 访问业务 API；Agent 端使用 `BLADE_AGENT_API_BASE_URL` 配置，实际接口拼接 `/api/agent/...`。该外网地址与 SSH 发布地址相互独立，变更外网入口不得影响 NAS 发布脚本的 `NAS_HOST`。
+- 外部 Mac Agent 当前通过 `https://www.chenjianas.asia:33294` 访问业务 API；Agent 端使用 `BLADE_AGENT_API_BASE_URL` 配置，实际接口拼接 `/api/agent/...`。该外网地址与 SSH 发布地址相互独立，变更外网入口不得影响 NAS 发布脚本的 `NAS_HOST`。
 - 外网业务入口只允许转发 Nginx HTTPS，不得公开 MySQL、Redis、后端容器端口、SSH 或 DSM 管理入口。正式联调需从 Agent 所在 Mac 验证证书、限流、审计和断线幂等重试。
 
 ### 1.2 生产部署目录
@@ -770,7 +770,9 @@ REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
 deploy/nas/deploy_app_from_local.sh --execute
 ```
 
-当前外网入口实测返回 `CN=blade` 的自签证书，无可用 SAN，尚未通过系统信任链和域名验证。脚本会在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`，因此换入可信证书前仍不得执行生产发布。当前最终候选提交已生成精确匹配的预演 PASS 证据；若候选 commit 发生任何变更，必须重跑预演。
+2026-09-10 已将 `chenjianas.asia` TrustAsia 完整证书链以 NAS 私有目录只读挂载到 `blade-web`，`https://chenjianas.asia:33294/catalog` 和 `https://www.chenjianas.asia:33294/catalog` 均以系统信任链返回 200。发布脚本仍必须在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`。2026-09-11 已基于外网默认地址同步后的最终候选重跑生产副本预演，并生成精确 commit 绑定的非敏感 PASS 证据；候选 commit 再变更时必须重跑。
+
+当前证书于 2026-11-26 03:59:59 GMT 到期，尚未建立自动续期。运维人员必须于 2026-11-19 前完成替换，使用新证书覆盖 NAS 密钥目录后仅重建 `web`，并重复证书/私钥匹配、裸域名和 `www` 外网信任链验证。
 
 ---
 

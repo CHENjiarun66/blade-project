@@ -20,7 +20,7 @@
 - 以 NAS V42 生产一致性副本完成 145 张订单的 V42→V58 真实迁移预演：人工核对 0，幂等重放迁移 0，订单总额 367811.00 和收款 367145.00 前后一致，所有 SQL 门禁为 0。该操作未写入生产，隔离库和业务数据临时文件已删除。
 - 修正 Web 镜像 TLS 安全边界：从 Dockerfile 移除证书复制，删除仓库内自签公钥，改为 NAS `/volume2/blade/secrets/tls` 只读挂载；发布前强制校验证书未过期且与私钥匹配。
 
-**尚未完成**：未部署 NAS、未改生产数据；外网 `https://frp-pen.com:33294` 当前返回 `CN=blade` 且无可用 SAN 的自签证书，发布脚本会在解除维护前强制拦截。当前最终候选提交已重生 V42→V58 非敏感 PASS 证据，仍需换入可信 TLS 证书并由用户批准维护窗口。任何后续 commit 都会使当前证据失效。
+**发布状态**：2026-09-10 已将 `chenjianas.asia` TrustAsia 完整证书链和匹配私钥安全存放于 NAS `/volume2/blade/secrets/tls`，以只读卷挂载到原 `blade-web:prod`，仅重建 Web，未重启 backend/MySQL/Redis，生产仍为 Flyway V42、145 单。`chenjianas.asia:33294` 与 `www.chenjianas.asia:33294` 均通过系统信任链并返回 200。2026-09-11 已基于默认外网地址同步后的最终候选重跑生产副本预演并生成精确 commit 绑定的 PASS 证据；正式重构发布只剩用户批准维护窗口，候选 commit 再变更则必须重新预演。
 
 ## 2026-09-05 变更记录
 
@@ -28,7 +28,7 @@
 
 - 新增 V58 Agent Key 生命周期审计字段和 Owner 专属 `agent-key:manage` 权限；系统管理新增 Agent Key 页签，支持 scope 白名单、1～365 天有效期、一次性密钥交付、不可逆停用和原子轮换。
 - 完整 Key 只在创建或轮换响应中返回；数据库只保存 BCrypt 哈希。列表仅展示前缀、状态、有效期、最近使用时间/IP、签发用户和轮换关系。
-- Mac Agent API 地址通过 `BLADE_AGENT_API_BASE_URL` 配置，当前外网生产入口为 `https://frp-pen.com:33294`；地址和 Key 分离，页面只在当前浏览器保存地址以生成可复制配置片段。
+- Mac Agent API 地址通过 `BLADE_AGENT_API_BASE_URL` 配置，当前外网生产入口为 `https://www.chenjianas.asia:33294`；地址和 Key 分离，页面只在当前浏览器保存地址以生成可复制配置片段。
 - 纸单草稿不再要求上传原图，结构化批次缺少 `sourceFileId` 不产生 `SOURCE_IMAGE_MISSING` 警告，source-files 接口仅保留为可选凭证兼容。
 - 验证：新增 Agent Key 管理、V58 schema 和无原图草稿测试通过；后端 `-DskipTests package` 与 PC `npm run build` 通过。全量后端测试因本机 Docker/MySQL 未运行而在既有 Spring 上下文阶段失败，未连接或修改 NAS 生产环境。
 
