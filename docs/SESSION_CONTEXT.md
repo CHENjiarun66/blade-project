@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-09-11 本机 Agent Key 管理基线
+
+- 新增 `tools/blade-agent-key-manager` 原生 macOS 工具：用户可双击应用录入 Key、选择所属 Agent/环境/scope/到期日并查看剩余时间；完整 Key 只进入 macOS 钥匙串，普通元数据不保存密钥。
+- 应用附带 `blade-agent-request`，首次启动安装到用户 Application Support。支持 stdio MCP 和一次性命令调用；只开放商品候选、订单草稿、款式趋势和 SKU 结构四类白名单工具，远程 HTTP、任意 URL、任意写操作和跨主机重定向均被拒绝。
+- Agent 请求时由用户选择符合 scope 的 Key 并授权；10 分钟授权只留在当前 MCP 进程。模型只得到 API 响应，不得到 Key。v1 的 Agent 名称为本机配置声明，调用进程强身份和服务器状态同步列为后续增强。
+- 接入文档新增 [16-AGENT_LOCAL_KEY_MANAGER.md](./16-AGENT_LOCAL_KEY_MANAGER.md) 和 [17-AGENT_ORDER_DRAFT_RUNBOOK.md](./17-AGENT_ORDER_DRAFT_RUNBOOK.md)。
+
 ## 2026-09-11 最新基线（优先于下方历史快照）
 
 - 生产已以 commit `12e1eb91c19401dde3919afec0b3d80cbc910750`、release `20260911_032005` 从 Flyway V42 升级至 V58。NAS 与 Mac 双份备份均通过 SHA-256；维护模式已关闭，内外网恢复访问，可信外网入口为 `https://www.chenjianas.asia:33294`。

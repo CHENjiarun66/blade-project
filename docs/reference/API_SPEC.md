@@ -1051,6 +1051,8 @@ X-Agent-Key: {agent_key}
 
 V58 默认仅向 `ROLE_OWNER` 授予 `agent-key:manage`。接口不接受 `tenantId`，目标租户由登录用户上下文确定；可签发 scope 受服务端白名单限制。数据库仅保存 BCrypt 哈希、前缀、签发用户、有效期、停用时间和轮换来源。
 
+Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通过 [本机 Agent Key 管理器与授权代理](../16-AGENT_LOCAL_KEY_MANAGER.md) 保存到 macOS 钥匙串，并让 Agent 使用白名单 MCP 工具；纸单批量字段和操作顺序见 [Agent 订单草稿操作手册](../17-AGENT_ORDER_DRAFT_RUNBOOK.md)。
+
 ### Agent 纸单订单草稿
 
 | Method | Path | 鉴权 / scope | 说明 |

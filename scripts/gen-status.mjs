@@ -10,7 +10,7 @@
  * 用法：
  *   node scripts/gen-status.mjs
  *
- * 维护约定（AGENTS.md 规则 8）：
+ * 维护约定（docs/reference/AGENT_COLLABORATION.md 收工协议）：
  *   - 每次 AI 任务交接 / 收工时运行本脚本刷新看板，并把 docs/STATUS.md 提交入库。
  *   - 本脚本只读 03-TASKS.md，不修改任何业务数据。
  */

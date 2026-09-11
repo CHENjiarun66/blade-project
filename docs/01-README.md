@@ -27,6 +27,7 @@ BladeProject/
 ├── blade-mobile/         # 移动端 PWA
 ├── blade-admin/          # PC 管理端
 ├── packages/types/       # 共享类型
+├── tools/                # 本机辅助工具（含 Agent Key 管理器）
 └── stitch/               # 原型工程
 ```
 
@@ -55,6 +56,8 @@ BladeProject/
 | 查 NAS 生产环境发布/运维 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
 | 查外部 AI Agent 对接设计 | [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md) |
 | 接入外部 AI Agent | [11-AGENT_ACCESS_GUIDE.md](./11-AGENT_ACCESS_GUIDE.md) |
+| 在 Mac 上录入、管理和授权使用 Agent Key | [16-AGENT_LOCAL_KEY_MANAGER.md](./16-AGENT_LOCAL_KEY_MANAGER.md) |
+| 让 Agent 从纸单/Excel 批量创建订单草稿 | [17-AGENT_ORDER_DRAFT_RUNBOOK.md](./17-AGENT_ORDER_DRAFT_RUNBOOK.md) |
 | 多 Agent 协作、认领与 worktree 隔离 | [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) |
 | 排查问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
 | 查看技术决策 | [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md) |

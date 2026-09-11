@@ -90,6 +90,16 @@ BLADE_AGENT_KEY=prefix.secret
 
 Agent Key 应存放在 macOS 钥匙串或受保护的进程环境中；URL 可以进入普通配置，但密钥不能写入仓库、提示词、Excel 或日志。
 
+对于当前 Mac 使用场景，首选 [Blade Agent Key Manager 本机管理与授权方案](./16-AGENT_LOCAL_KEY_MANAGER.md)：用户通过桌面应用粘贴一次完整 Key，应用将密钥写入 macOS 钥匙串；外部 Agent 通过本机 MCP/调用工具请求授权，由本机工具注入 `X-Agent-Key`，模型只获得 API 结果。上面的环境变量方式保留给无人值守服务端进程，不再作为普通用户首选。
+
+### 2.4 Key 命名、有效期和多 Agent 隔离
+
+1. 一把 Key 只分配给一个 Agent 和一个环境，例如“DeepSeek 生产纸单录入”；不要让 DeepSeek、ZCode、Codex 共用同一把 Key。
+2. 本机管理器记录 Key 名称、Agent、公开前缀、scope、API 地址和到期日期，完整 Key 只存钥匙串。
+3. 本机显示的剩余时间是提醒；服务器 `expires_time/status` 是最终真相。轮换、停用后要同步清理本机记录。
+4. Agent 需要调用时由用户在系统弹窗中选择 Key 并授权，可对同一 Agent + scope 临时授权 10 分钟。
+5. 纯网页聊天没有本机 MCP/命令能力时不能调用本机 Key，不得把生产 Key 粘贴进聊天窗口。
+
 ---
 
 ## 三、调用规则
@@ -338,10 +348,12 @@ until multi-period trend facts and inventory reasons are available.
 
 接入完成前至少确认：
 
-1. Agent Key 保存在服务端密钥环境中，模型和前端不可见。
+1. Agent Key 保存在服务端密钥环境或 macOS 钥匙串中，模型和前端不可见。
 2. 使用 `X-Agent-Key` 调用，不混用用户 JWT。
 3. key 只能访问绑定租户的数据。
 4. 工具只暴露当前已实现接口。
 5. 工具描述写清当前事实边界，不把规划能力说成已上线能力。
 6. 对认证失败、权限失败、参数失败和 5xx 做区分处理。
 7. 有测试用例验证成功调用和失败路径。
+8. Mac 用户优先通过本机授权代理调用；每个 Agent 使用独立 Key，Key 选择和授权由用户完成。
+9. 涉及纸单或 Excel 草稿时，Agent 已完整阅读 [17-AGENT_ORDER_DRAFT_RUNBOOK.md](./17-AGENT_ORDER_DRAFT_RUNBOOK.md)。

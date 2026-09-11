@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/11 03:26:47　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/11 12:39:05　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,10 +73,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">174 完成 · 0 进行中 · 16 待办 · 0 部分 · 6 暂缓</span>
+          <span class="card-nums">175 完成 · 0 进行中 · 17 待办 · 0 部分 · 6 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:92%"></div></div>
-        <div class="bar-label">92% 完成（活跃 190 项，暂缓 6 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
+        <div class="bar-label">91% 完成（活跃 192 项，暂缓 6 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -102,7 +102,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">25</span></h2>
+      <h2>🟡 还没做 <span class="count">26</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -194,6 +194,13 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
         <td class="td-remark">增加并回归 `agent:analytics:profit`；未授权时所有 Agent 数据包禁止返回成本、毛利和毛利率 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">AGENT-KEY-002</td>
+        <td class="td-name">本机 Agent 强身份与服务器状态同步</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">对调用进程做签名/配对证明；可选使用 Owner 授权同步服务器 Key 状态和到期日，禁止在本机保存 Owner 密码或长期 JWT |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">TEST-WA-NAS-001</td>
@@ -362,7 +369,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 279 项） <span class="count">279</span></h2>
+      <h2>✅ 已完成（共 280 项） <span class="count">280</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1308,6 +1315,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
         <td class="td-remark">V58 + `/api/system/agent-keys`；仅 Owner 拥有管理权限，密钥只显示一次、数据库仅存 BCrypt 哈希，scope 白名单、1～365 天有效期、不可逆停用、轮换链和签发用户均可审计 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">AGENT-KEY-001</td>
+        <td class="td-name">Mac Agent Key 管理器与授权代理 v1</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">原生 macOS SwiftUI 应用；完整 Key 存系统钥匙串，统一展示名称/Agent/scope/剩余时间；附带白名单 MCP/命令代理，调用前选 Key 并授权，模型只能获得 API 结果；源码与测试见 `tools/blade-agent-key-manager` |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-606</td>

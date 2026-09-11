@@ -346,6 +346,8 @@
 | BE-583 | WhatsApp 客户详情工作区接口 | ✅ 已完成（Codex，2026-08-26） | 按租户/customerId 返回绑定、账号、真实号码、聊天与缺失媒体上下文；待确认/已绑定状态明确，禁止前端猜测号码 |
 | BE-585 | Agent 毛利 scope 与字段脱敏 | ⏳ TODO | 增加并回归 `agent:analytics:profit`；未授权时所有 Agent 数据包禁止返回成本、毛利和毛利率 |
 | BE-586 | Agent Key 安全签发与轮换 | ✅ 完成 | V58 + `/api/system/agent-keys`；仅 Owner 拥有管理权限，密钥只显示一次、数据库仅存 BCrypt 哈希，scope 白名单、1～365 天有效期、不可逆停用、轮换链和签发用户均可审计 |
+| AGENT-KEY-001 | Mac Agent Key 管理器与授权代理 v1 | ✅ 完成 | 原生 macOS SwiftUI 应用；完整 Key 存系统钥匙串，统一展示名称/Agent/scope/剩余时间；附带白名单 MCP/命令代理，调用前选 Key 并授权，模型只能获得 API 结果；源码与测试见 `tools/blade-agent-key-manager` |
+| AGENT-KEY-002 | 本机 Agent 强身份与服务器状态同步 | ⏳ TODO | 对调用进程做签名/配对证明；可选使用 Owner 授权同步服务器 Key 状态和到期日，禁止在本机保存 Owner 密码或长期 JWT |
 | TEST-WA-NAS-001 | WhatsApp Mac → NAS 生产联调 | ⏳ TODO | 备份生产库后部署 V43-V47 和前后端；配置 Collector/Worker Key，验证增量同步、客户绑定、媒体预览、定向扫描和回滚 |
 
 ### Phase 6: 外部纸单识别 Agent 与订单草稿（P0）

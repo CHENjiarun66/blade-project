@@ -163,6 +163,10 @@ Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴
 
 管理端使用 JWT 调用 `/api/order-drafts` 读取、编辑和确认。确认动作不属于 Agent API；只有用户确认后才调用既有订单领域服务创建正式订单。
 
+Mac 普通用户接入增加“本机 Key 管理器 + 授权代理”层：完整 Key 由用户粘贴到原生桌面应用并存入 macOS 钥匙串；DeepSeek、ZCode、Codex 等 Agent 通过受白名单约束的本机 MCP/调用工具发请求。工具在调用前显示 Agent、接口、scope 和候选 Key，由用户选择并授权，再由本机进程注入 Header。模型不得读取或持有 Key 原文。详细契约见 [16-AGENT_LOCAL_KEY_MANAGER.md](./16-AGENT_LOCAL_KEY_MANAGER.md)。
+
+本机代理不是新的业务网关：它只负责本机凭证保管、用户授权和网络转发，租户隔离、scope、过期/停用判断及调用审计仍由 NAS 上的 Agent Gateway 执行。纯网页 Agent 无本机工具能力时不得直接使用生产 Key。
+
 数据优先级固定为：纸单数量、纸单销售价、纸单金额和总额优先；商品主档只负责识别 SKU 与提供参考价。未匹配 SKU、金额不一致和字段歧义以警告形式保留，不阻止草稿落库。
 
 #### SPU 款号与 SKU 颗粒度处理
