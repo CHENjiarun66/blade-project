@@ -1,6 +1,9 @@
 package com.blade.order.draft;
 
 import com.blade.common.tenant.TenantContext;
+import com.blade.file.entity.FileStorage;
+import com.blade.file.mapper.FileStorageMapper;
+import com.blade.file.service.FileService;
 import com.blade.order.draft.dto.OrderDraftDTO;
 import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.draft.entity.OrderDraftItem;
@@ -20,6 +23,8 @@ import com.blade.product.mapper.ProductMapper;
 import com.blade.product.entity.Product;
 import com.blade.product.entity.ProductSku;
 import com.blade.system.user.entity.User;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -53,6 +58,9 @@ class OrderDraftConfirmFinanceTest {
     @Autowired private OrderFinancialRecordMapper financialRecordMapper;
     @Autowired private ProductSkuMapper productSkuMapper;
     @Autowired private ProductMapper productMapper;
+    @Autowired private FileStorageMapper fileStorageMapper;
+    @Autowired private FileService fileService;
+    @Autowired private ObjectMapper objectMapper;
 
     private void bindContext() {
         TenantContext.setTenantId(1L);
@@ -116,6 +124,22 @@ class OrderDraftConfirmFinanceTest {
         return draft.getId();
     }
 
+    private Long seedSourceImage(String name) {
+        FileStorage file = new FileStorage();
+        file.setFileKey("draft-test/" + UUID.randomUUID());
+        file.setOriginalName(name);
+        file.setFileName(UUID.randomUUID() + ".jpg");
+        file.setContentType("image/jpeg");
+        file.setFileSize(100L);
+        file.setStorageType("local");
+        file.setStoragePath("draft-test/" + UUID.randomUUID() + ".jpg");
+        file.setFileType("IMAGE");
+        file.setStatus(1);
+        file.setTenantId(1L);
+        fileStorageMapper.insert(file);
+        return file.getId();
+    }
+
     @Test
     void confirmDraft_writesDepositAsFirstReceipt_andPaperTotalWins() {
         bindContext();
@@ -167,6 +191,31 @@ class OrderDraftConfirmFinanceTest {
             Order order = orderMapper.selectById(response.getOrderId());
             assertEquals(CollectionStatus.UNPAID.name(), order.getCollectionStatus());
             assertEquals(0, order.getBalanceAmount().compareTo(new BigDecimal("100.00")));
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void confirmDraft_carriesAllBoundPaperImagesIntoFormalOrder() throws Exception {
+        bindContext();
+        try {
+            Long draftId = seedDraft("SOWB-DRAFT-IMAGES", BigDecimal.ZERO, new BigDecimal("100.00"));
+            List<Long> fileIds = List.of(seedSourceImage("paper-1.jpg"), seedSourceImage("paper-2.jpg"));
+            fileService.bindFiles("order_draft", draftId, fileIds);
+            OrderDraft draft = draftMapper.selectById(draftId);
+            draft.setSourceFileId(fileIds.get(0));
+            draftMapper.updateById(draft);
+
+            assertEquals(fileIds, draftService.get(draftId).getSourceFileIds());
+
+            OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();
+            request.setAcknowledgeWarnings(true);
+            Long orderId = draftService.confirm(draftId, request).getOrderId();
+            List<String> formalOrderImages = objectMapper.readValue(
+                    orderMapper.selectById(orderId).getImages(), new TypeReference<>() {});
+            assertEquals(fileIds.stream().map(String::valueOf).toList(), formalOrderImages);
         } finally {
             TenantContext.clear();
             SecurityContextHolder.clearContext();

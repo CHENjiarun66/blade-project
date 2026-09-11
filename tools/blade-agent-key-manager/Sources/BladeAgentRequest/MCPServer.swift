@@ -93,6 +93,16 @@ final class MCPServer {
                 path: "/api/agent/order-drafts/batch",
                 body: try JSONSerialization.data(withJSONObject: payload)
             )
+        case "blade_order_draft_source_upload":
+            guard let filePath = arguments["filePath"] as? String, filePath.hasPrefix("/") else {
+                throw MCPToolError.invalidArguments("filePath 必须是纸单图片的本机绝对路径")
+            }
+            return AgentAPIRequest(
+                agentName: agentName,
+                method: "POST",
+                path: "/api/agent/order-drafts/source-files",
+                fileURL: URL(fileURLWithPath: filePath)
+            )
         case "blade_style_trends":
             var query: [String: Any] = [:]
             for key in ["periodType", "startDate", "endDate", "comparePeriods", "limit"] {
@@ -149,8 +159,20 @@ final class MCPServer {
                 ]
             ],
             [
+                "name": "blade_order_draft_source_upload",
+                "description": "上传一张纸质订单原图，返回 fileId。创建草稿时把同一订单的 fileId 按纸张顺序写入 sourceFileIds；最多 10 张。",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "filePath": ["type": "string", "description": "JPG、PNG 或 WEBP 图片的本机绝对路径"]
+                    ],
+                    "required": ["filePath"],
+                    "additionalProperties": false
+                ]
+            ],
+            [
                 "name": "blade_order_drafts_create",
-                "description": "批量创建待人工复核的订单草稿。只能创建草稿，不能确认正式订单、收款或变更库存。externalRefNo 必须稳定并用于幂等。",
+                "description": "批量创建待人工复核的订单草稿。先上传原图，再把返回的 fileId 写入各订单 sourceFileIds。只能创建草稿，不能确认正式订单、收款或变更库存。externalRefNo 必须稳定并用于幂等。",
                 "inputSchema": [
                     "type": "object",
                     "properties": [

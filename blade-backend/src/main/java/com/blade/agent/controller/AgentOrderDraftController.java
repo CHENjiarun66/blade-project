@@ -1,6 +1,7 @@
 package com.blade.agent.controller;
 
 import com.blade.agent.auth.AgentPrincipal;
+import com.blade.common.exception.BusinessException;
 import com.blade.common.result.R;
 import com.blade.file.dto.FileUploadVO;
 import com.blade.file.service.FileService;
@@ -32,6 +33,9 @@ public class AgentOrderDraftController {
     @Operation(summary = "上传纸质订单原图")
     public R<FileUploadVO> uploadSource(@RequestParam("file") MultipartFile file,
                                        @AuthenticationPrincipal AgentPrincipal principal) {
+        if (file.getContentType() == null || !file.getContentType().startsWith("image/")) {
+            throw BusinessException.of(400, "纸单原图只支持图片文件");
+        }
         return R.ok(fileService.upload(file, "order_draft", null, principal.getKeyId()));
     }
 

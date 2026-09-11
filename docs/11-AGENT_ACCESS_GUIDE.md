@@ -7,7 +7,7 @@
 
 ## 一、当前接入状态
 
-截至 2026-09-05，BladeProject 已落地 Agent Gateway 鉴权、订单草稿窄写入和 Owner 凭证管理：
+截至 2026-09-11，BladeProject 已落地 Agent Gateway 鉴权、订单草稿窄写入、纸单原图关联和 Owner 凭证管理：
 
 | 能力 | 状态 | 接口 |
 |------|------|------|
@@ -15,7 +15,8 @@
 | 租户绑定和 scope 鉴权 | 已实现 | Agent Key 认证后写入租户上下文 |
 | 调用审计和最近使用信息 | 已实现 | 成功请求记录路径、状态、耗时、IP、User-Agent |
 | Owner 签发、轮换与停用 | 已实现 | 系统管理 → Agent Key；完整密钥仅显示一次 |
-| 纸单批量订单草稿 | 已实现 | `POST /api/agent/order-drafts/batch`，不要求上传原图 |
+| 纸单原图上传 | 已实现 | `POST /api/agent/order-drafts/source-files`；本机工具 `blade_order_draft_source_upload`，使用 `agent:orders:write` |
+| 纸单批量订单草稿 | 已实现 | `POST /api/agent/order-drafts/batch`；每单通过 `sourceFileIds` 关联最多 10 张原图 |
 | 款式趋势数据包 | 已实现 | `GET /api/agent/analytics/style-trends` |
 | 多周期趋势标签、建议依据 | 已实现 | `GROWING` / `STABLE` / `DECLINING` / `INSUFFICIENT_DATA` |
 | 颜色尺码结构事实包 | 已实现 | `GET /api/agent/analytics/sku-mix` |

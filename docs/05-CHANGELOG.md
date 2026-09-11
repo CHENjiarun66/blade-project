@@ -8,6 +8,14 @@
 
 ## 2026-09-11 变更记录
 
+### [草稿核单提效] - Agent 多图上传与左右对照编辑
+
+- Agent 订单草稿支持每单关联最多 10 张纸单原图：先通过 `POST /api/agent/order-drafts/source-files` 逐张上传，再将返回的 `fileId` 按纸单顺序写入草稿的 `sourceFileIds`；继续兼容旧字段 `sourceFileId`。
+- 文件绑定升级为 `file_business_bind` 多图关系并保留旧字段兼容读取；草稿确认成正式订单时，全部纸单图片会继承到订单图片，避免只保留第一张。
+- 本机 Key 管理器新增 MCP 工具 `blade_order_draft_source_upload` 和 CLI `--file` 参数。图片从 Mac 本地直传，支持 JPG、PNG、WEBP、最大 25MB；密钥仍由钥匙串和授权代理管理，不暴露给 Agent。
+- 草稿编辑页在宽屏使用“左侧编辑、右侧原单”布局，原图区域支持大图适配、多图缩略图、前后切换和点击放大；中等及窄屏回退为抽屉查看，商品表格仍可横向滚动，不固定时间、类型、金额等列。
+- 校验覆盖多图写入、租户与图片类型约束、正式订单图片继承、Mac 上传白名单，以及 1920/1280 两档草稿页面交互。
+
 ### [本机 Agent 接入] - Key 管理器、用户授权代理与纸单执行手册
 
 - 新增原生 macOS `Blade Agent Key Manager.app` 源码和打包脚本：用户可通过桌面界面粘贴 Key，记录名称、所属 Agent、API 地址、scope 和到期日，并查看剩余时间；完整 Key 只存 macOS 钥匙串，元数据不含 secret，保存后可自动清理仍含该 Key 的剪贴板。

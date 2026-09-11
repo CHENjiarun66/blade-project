@@ -88,6 +88,33 @@ final class BladeAgentKeyKitTests: XCTestCase {
         }
     }
 
+    func testRequestPolicyAllowsPaperImageUploadOnlyForSafeLocalImages() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+        try Data([0xff, 0xd8, 0xff, 0xd9]).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let upload = try AgentRequestPolicy.validate(AgentAPIRequest(
+            agentName: "DeepSeek",
+            method: "POST",
+            path: "/api/agent/order-drafts/source-files",
+            fileURL: file
+        ))
+        XCTAssertEqual(upload.requiredScope, .ordersWrite)
+        XCTAssertEqual(upload.fileURL, file)
+
+        let json = file.deletingPathExtension().appendingPathExtension("json")
+        try Data("{}".utf8).write(to: json)
+        defer { try? FileManager.default.removeItem(at: json) }
+        XCTAssertThrowsError(try AgentRequestPolicy.validate(AgentAPIRequest(
+            agentName: "DeepSeek",
+            method: "POST",
+            path: "/api/agent/order-drafts/source-files",
+            fileURL: json
+        ))) { error in
+            XCTAssertEqual(error as? AgentRequestPolicyError, .invalidUploadFile)
+        }
+    }
+
     func testRequestPolicyRejectsAbsoluteAndTraversalPaths() {
         for path in ["https://evil.example/api/agent/catalog/skus", "/api/agent/../system/users"] {
             XCTAssertThrowsError(try AgentRequestPolicy.validate(AgentAPIRequest(

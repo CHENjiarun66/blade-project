@@ -12,13 +12,14 @@
 3. 客户无法可靠匹配时使用散客，不自动创建客户。
 4. 未匹配、歧义和金额不一致必须保留原值并写入 warning，不能猜测后静默提交为已匹配。
 5. 一张纸单对应一个稳定 `externalRefNo`。重试必须复用同一个值，不能通过改编号制造重复草稿。
-6. 图片不是前置条件。可把原图文件名写进 `note`，但不要为了创建草稿强制上传图片。
+6. 纸单图片存在时，必须先通过本机授权工具逐张上传，并把返回的 `fileId` 按页序写入该草稿的 `sourceFileIds`。纯 Excel 来源或原图确实缺失时仍允许创建草稿，但必须写入 `SOURCE_IMAGE_MISSING` warning，不能用备注中的文件名冒充已上传原图。
 
 ## 二、执行顺序
 
 ```text
 读取图片/Excel
   → 逐张纸单分组
+  → 调 blade_order_draft_source_upload 上传每张原图并记录 fileId
   → 逐行保留原始字段
   → 调 blade_catalog_search 查询候选
   → 按规则选择 DEFAULT / PLACEHOLDER / NORMAL 或保留未匹配
@@ -63,6 +64,7 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
       "externalRefNo": "paper-batch-33-0000471",
       "sourceBatchNo": "33",
       "sourceOrderNo": "0000471",
+      "sourceFileIds": [9001, 9002],
       "rawCustomerName": "纸单原客户名",
       "rawCustomerPhone": "纸单原电话",
       "customerId": null,
@@ -108,6 +110,7 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
 | `externalRefNo` | 必填；建议 `paper-batch-{批次}-{纸单号}`，同一来源永不变化 |
 | `sourceBatchNo` | 原册/批次号 |
 | `sourceOrderNo` | 纸单号；不要用 Excel 行号替代已有纸单号 |
+| `sourceFileIds` | 纸单原图上传返回的 fileId 数组，按页序排列；最多 10 张。兼容字段 `sourceFileId` 只表示第一张主图，新接入统一使用数组 |
 | `raw*` | 保存识别到的原始文本，即使无法解析也不丢失 |
 | `orderDate` | 只有日期可靠时填写；原文本始终放 `rawOrderDate` |
 | `customerId` | 只有可靠命中既有客户时填写；否则留空并使用散客 |
@@ -162,5 +165,6 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
 - `MATCHED`、`AMBIGUOUS`、`UNMATCHED` 行数；
 - 纸单总额、解析明细合计和差额；
 - 是否执行了幂等重试；
+- 原图应上传张数、成功张数，以及每张草稿关联的 fileId；
 - 明确说明没有确认正式订单、没有产生收款、没有改库存；
 - 草稿复核入口：`/orders/drafts`。

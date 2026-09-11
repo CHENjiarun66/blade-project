@@ -51,10 +51,7 @@ public class OrderDraftWriter {
             return duplicate(request.getExternalRefNo(), duplicate == null ? null : duplicate.getId());
         }
         insertItems(draft.getId(), tenantId, request.getItems(), warnings);
-        if (request.getSourceFileId() != null) {
-            fileService.getActiveFile(request.getSourceFileId());
-            fileService.bindFiles("order_draft", draft.getId(), List.of(request.getSourceFileId()));
-        }
+        bindSourceFiles(draft.getId(), request);
         draft.setWarnings(writeJson(warnings));
         draftMapper.updateById(draft);
 
@@ -81,10 +78,7 @@ public class OrderDraftWriter {
         insertItems(id, requiredTenantId(), request.getItems(), warnings);
         draft.setWarnings(writeJson(warnings));
         draftMapper.updateById(draft);
-        if (request.getSourceFileId() != null) {
-            fileService.getActiveFile(request.getSourceFileId());
-            fileService.bindFiles("order_draft", id, List.of(request.getSourceFileId()));
-        }
+        bindSourceFiles(id, request);
     }
 
     private OrderDraft toDraft(OrderDraftDTO.SaveRequest request,
@@ -106,7 +100,8 @@ public class OrderDraftWriter {
                              Set<String> warnings) {
         draft.setSourceBatchNo(trim(request.getSourceBatchNo()));
         draft.setSourceOrderNo(trim(request.getSourceOrderNo()));
-        draft.setSourceFileId(request.getSourceFileId());
+        List<Long> sourceFileIds = normalizedSourceFileIds(request);
+        draft.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));
         draft.setRawCustomerName(trim(request.getRawCustomerName()));
         draft.setRawCustomerPhone(trim(request.getRawCustomerPhone()));
         draft.setCustomerId(request.getCustomerId());
@@ -161,6 +156,33 @@ public class OrderDraftWriter {
             item.setWarnings(writeJson(source.getWarnings()));
             itemMapper.insert(item);
         }
+    }
+
+    private void bindSourceFiles(Long draftId, OrderDraftDTO.SaveRequest request) {
+        List<Long> sourceFileIds = normalizedSourceFileIds(request);
+        for (Long fileId : sourceFileIds) {
+            var file = fileService.getActiveFile(fileId);
+            boolean image = "IMAGE".equals(file.getFileType())
+                    || (file.getContentType() != null && file.getContentType().startsWith("image/"));
+            if (!image) {
+                throw BusinessException.of(400, "纸单原图只支持图片文件");
+            }
+        }
+        fileService.bindFiles("order_draft", draftId, sourceFileIds);
+    }
+
+    private List<Long> normalizedSourceFileIds(OrderDraftDTO.SaveRequest request) {
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        if (request.getSourceFileId() != null) {
+            ids.add(request.getSourceFileId());
+        }
+        if (request.getSourceFileIds() != null) {
+            request.getSourceFileIds().stream().filter(java.util.Objects::nonNull).forEach(ids::add);
+        }
+        if (ids.size() > 10) {
+            throw BusinessException.of(400, "每张草稿最多上传10张纸单原图");
+        }
+        return new ArrayList<>(ids);
     }
 
     private Set<String> collectWarnings(OrderDraftDTO.SaveRequest request) {

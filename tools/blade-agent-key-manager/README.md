@@ -46,11 +46,14 @@ blade-agent-request --mcp --agent DeepSeek
 MCP 暴露以下受控工具：
 
 - `blade_catalog_search`
+- `blade_order_draft_source_upload`
 - `blade_order_drafts_create`
 - `blade_style_trends`
 - `blade_sku_mix`
 
 调用时用户必须从弹窗选择符合 scope 的 Key 并授权。可选择对同一 Agent、同一 scope 记住 1 小时；授权只保存在当前 MCP 进程内，退出 Agent 后自动失效。
+
+纸单草稿的标准顺序是：Agent 对每张 JPG/PNG/WEBP 调用 `blade_order_draft_source_upload`，收集返回的 `fileId`，再把同一订单的 fileId 按页序写入 `blade_order_drafts_create` 的 `sourceFileIds`（最多 10 张）。图片上传与草稿创建都会要求 `agent:orders:write` 授权；Key 原文不会返回给 Agent。
 
 ## 安全边界
 

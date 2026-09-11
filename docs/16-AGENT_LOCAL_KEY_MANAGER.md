@@ -95,6 +95,7 @@ BladeProject /api/agent/*
 | 工具 | scope | 用途 |
 |------|-------|------|
 | `blade_catalog_search` | `catalog:read` | 查询商品/SKU 候选 |
+| `blade_order_draft_source_upload` | `orders:write` | 上传 JPG/PNG/WEBP 纸单原图并返回 fileId |
 | `blade_order_drafts_create` | `orders:write` | 批量创建订单草稿 |
 | `blade_style_trends` | `analytics:read` | 查询款式趋势 |
 | `blade_sku_mix` | `analytics:read` | 查询颜色尺码结构 |
@@ -109,6 +110,7 @@ BladeProject /api/agent/*
 
 ```text
 blade-agent-request --agent <Agent名称> --method GET --path </api/agent/...>
+blade-agent-request --agent <Agent名称> --method POST --path </api/agent/order-drafts/source-files> --file <本机图片绝对路径>
 blade-agent-request --agent <Agent名称> --method POST --path </api/agent/order-drafts/batch> --body-file <JSON文件>
 ```
 
@@ -175,5 +177,5 @@ swift test
 4. scope 不足或过期 Key 不出现在选择列表；
 5. 用户拒绝后不发出 API 请求；
 6. Agent 只能得到 API 响应，不能得到 Key；
-7. MCP 初始化、工具列表和四个工具契约可被客户端识别；
+7. MCP 初始化、工具列表和五个工具契约可被客户端识别；
 8. 非白名单路径、远程 HTTP 和跨主机重定向被拒绝。

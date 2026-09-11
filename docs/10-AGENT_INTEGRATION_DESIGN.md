@@ -153,13 +153,15 @@ Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴
 - API 入口由 Agent 运行环境的 `BLADE_AGENT_API_BASE_URL` 配置，不写死在客户端代码中。
 - 当前外网生产入口为 `https://www.chenjianas.asia:33294`，接口实际地址由该入口拼接 `/api/agent/...`。
 - 地址只解决 Mac 到 NAS 的网络可达性；租户和权限仍由 `X-Agent-Key` 绑定，不允许请求参数自行指定租户。
-- 纸单图片识别与 Excel 整理由本机 Agent 完成。BladeProject 主流程只接收结构化 JSON 或标准 Excel 转换后的结构化数据，不要求上传原图。
+- 纸单图片识别与 Excel 整理由本机 Agent 完成。存在纸单图片时，标准流程同时上传原图，BladeProject 接收结构化数据并以 `sourceFileIds` 关联最多 10 张原图；纯 Excel 或原图缺失仍可降级创建草稿，但必须保留缺图 warning。
 
 | 接口 | scope | 用途 |
 |------|-------|------|
 | `GET /api/agent/catalog/skus` | `agent:catalog:read` | 按款号、SKU、名称、颜色查询候选；系统售价仅作参考 |
-| `POST /api/agent/order-drafts/source-files` | `agent:orders:write` | 可选兼容接口；需要留存凭证时上传原图，不是批量草稿前置条件 |
-| `POST /api/agent/order-drafts/batch` | `agent:orders:write` | 批量创建草稿；每单隔离结果，按 externalRefNo 幂等 |
+| `POST /api/agent/order-drafts/source-files` | `agent:orders:write` | 上传一张纸单原图，返回 fileId；JPG/PNG/WEBP，单图受文件服务大小限制 |
+| `POST /api/agent/order-drafts/batch` | `agent:orders:write` | 批量创建草稿；每单用 `sourceFileIds` 关联原图，每单隔离结果，按 externalRefNo 幂等 |
+
+本机 Key 管理器对应工具为 `blade_order_draft_source_upload`。它只接收本机图片绝对路径，执行时沿用 `agent:orders:write` 的选 Key 与授权流程；Agent 无法读取 Key 原文。上传成功后再调用 `blade_order_drafts_create`，不得把本机路径或图片二进制直接塞入批量 JSON。
 
 管理端使用 JWT 调用 `/api/order-drafts` 读取、编辑和确认。确认动作不属于 Agent API；只有用户确认后才调用既有订单领域服务创建正式订单。
 

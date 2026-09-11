@@ -25,6 +25,14 @@ public interface FileService {
 
     void bindFilesFromJson(String businessType, Long businessId, String imagesJson);
 
+    /**
+     * 按绑定顺序返回当前租户下某个业务对象的有效文件。
+     * 兼容仍只写 file_storage.business_* 的历史数据。
+     */
+    default List<Long> getActiveFileIds(String businessType, Long businessId) {
+        return List.of();
+    }
+
     // === BE-1002: 文件中心分页/详情 ===
 
     PageResult<FileVO> pageList(FilePageDTO dto);

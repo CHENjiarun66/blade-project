@@ -6,20 +6,17 @@
           <h2 class="text-2xl font-bold tracking-tight text-gray-900">订单草稿录入</h2>
           <el-tag type="warning" effect="light">Agent 草稿</el-tag>
         </div>
-        <p class="mt-1 text-sm text-gray-500">按照快速录单方式修改，纸单原图需要时再打开对照。</p>
+        <p class="mt-1 text-sm text-gray-500">左侧核对并修改草稿，右侧同步对照 Agent 上传的纸单原图。</p>
       </div>
       <div class="flex flex-wrap gap-3">
         <el-button class="!rounded-xl !font-bold" @click="router.push('/orders/quick')">
           <span class="material-symbols-outlined mr-1 text-sm">edit_note</span>
           手工快速录单
         </el-button>
-        <el-button
-          v-if="current?.sourceFileId"
-          class="!rounded-xl !font-bold"
-          @click="imageDrawerVisible = true"
-        >
+        <el-button v-if="current" class="!rounded-xl !font-bold" @click="togglePaperImages">
           <span class="material-symbols-outlined mr-1 text-sm">image</span>
-          查看纸单原图
+          {{ imagePanelVisible && isWideViewport ? '隐藏原单' : '查看原单' }}
+          <span v-if="paperFileIds.length" class="ml-1 text-xs text-gray-400">({{ paperFileIds.length }})</span>
         </el-button>
         <el-button
           v-if="current?.confirmedOrderId"
@@ -102,7 +99,8 @@
     <main v-loading="detailLoading" class="min-w-0">
       <el-empty v-if="!current" class="form-panel py-24" description="暂无符合条件的订单草稿" />
 
-      <div v-else class="space-y-6">
+      <div v-else class="draft-workspace" :class="{ 'paper-hidden': !imagePanelVisible }">
+        <div class="draft-editor space-y-6">
         <section v-if="current.warnings.length || unresolvedCount || totalMismatch" class="review-strip">
           <div class="flex flex-wrap items-center gap-2">
             <span class="material-symbols-outlined text-amber-600">warning</span>
@@ -308,6 +306,82 @@
             </div>
           </section>
         </div>
+        </div>
+
+        <aside v-show="imagePanelVisible" class="paper-preview-aside" aria-label="纸单原图对照栏">
+          <section class="paper-preview-card">
+            <div class="paper-preview-header">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-[#408aee]">document_scanner</span>
+                  <h3>纸单原图</h3>
+                  <el-tag v-if="paperFileIds.length" size="small" effect="plain">
+                    {{ activePaperIndex + 1 }} / {{ paperFileIds.length }}
+                  </el-tag>
+                </div>
+                <p>{{ current.sourceOrderNo || current.externalRefNo }} · 批次 {{ current.sourceBatchNo || '-' }}</p>
+              </div>
+              <el-tooltip content="隐藏对照栏">
+                <el-button circle aria-label="隐藏纸单原图对照栏" @click="imagePanelVisible = false">
+                  <span class="material-symbols-outlined">close</span>
+                </el-button>
+              </el-tooltip>
+            </div>
+
+            <div v-if="paperFileIds.length" class="paper-canvas">
+              <el-image
+                :key="activePaperFileId"
+                :src="activePaperImageUrl"
+                :preview-src-list="paperImageUrls"
+                :initial-index="activePaperIndex"
+                fit="contain"
+                class="paper-main-image"
+                preview-teleported
+                :alt="`纸单 ${current.sourceOrderNo || current.externalRefNo} 第 ${activePaperIndex + 1} 张`"
+              >
+                <template #placeholder>
+                  <div class="paper-image-state">原图加载中…</div>
+                </template>
+                <template #error>
+                  <div class="paper-image-state text-red-300">原图加载失败，请检查文件权限</div>
+                </template>
+              </el-image>
+              <div class="paper-canvas-hint">
+                <span class="material-symbols-outlined">zoom_in</span>
+                点击图片可放大、旋转和查看细节
+              </div>
+            </div>
+            <el-empty v-else class="paper-empty" description="该草稿尚未上传纸单原图">
+              <template #image>
+                <span class="material-symbols-outlined text-5xl text-slate-500">image_not_supported</span>
+              </template>
+            </el-empty>
+
+            <div v-if="paperFileIds.length > 1" class="paper-navigation">
+              <el-button aria-label="上一张纸单" :disabled="activePaperIndex === 0" @click="movePaper(-1)">
+                <span class="material-symbols-outlined">chevron_left</span>
+              </el-button>
+              <div class="paper-thumbnails" aria-label="纸单缩略图列表">
+                <button
+                  v-for="(url, index) in paperImageUrls"
+                  :key="paperFileIds[index]"
+                  type="button"
+                  class="paper-thumbnail"
+                  :class="{ active: index === activePaperIndex }"
+                  :aria-label="`查看第 ${index + 1} 张纸单`"
+                  :aria-current="index === activePaperIndex ? 'true' : undefined"
+                  @click="activePaperIndex = index"
+                >
+                  <img :src="url" :alt="`第 ${index + 1} 张纸单缩略图`" loading="lazy" />
+                  <span>{{ index + 1 }}</span>
+                </button>
+              </div>
+              <el-button aria-label="下一张纸单" :disabled="activePaperIndex >= paperFileIds.length - 1" @click="movePaper(1)">
+                <span class="material-symbols-outlined">chevron_right</span>
+              </el-button>
+            </div>
+          </section>
+        </aside>
       </div>
     </main>
 
@@ -318,9 +392,10 @@
           <span>批次 {{ current.sourceBatchNo || '-' }}</span>
         </div>
         <el-image
-          v-if="current.sourceFileId"
-          :src="filePreviewUrl(current.sourceFileId)"
-          :preview-src-list="[filePreviewUrl(current.sourceFileId)]"
+          v-if="paperFileIds.length"
+          :src="activePaperImageUrl"
+          :preview-src-list="paperImageUrls"
+          :initial-index="activePaperIndex"
           fit="contain"
           class="h-[calc(100vh-150px)] w-full rounded-xl bg-slate-950"
           preview-teleported
@@ -332,7 +407,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { filePreviewUrl } from '@/api/file'
@@ -375,6 +450,9 @@ const detailLoading = ref(false)
 const saving = ref(false)
 const confirming = ref(false)
 const imageDrawerVisible = ref(false)
+const imagePanelVisible = ref(true)
+const activePaperIndex = ref(0)
+const isWideViewport = ref(typeof window !== 'undefined' && window.innerWidth >= 1500)
 const skuOptions = ref<SkuOption[]>([])
 const filteredSkuOptions = ref<SkuOption[]>([])
 const statusOptions = [
@@ -396,6 +474,15 @@ const balanceAmount = computed(() => Math.max(
   Number(current.value?.paperTotalAmount || 0) - Number(current.value?.deposit || 0),
   0,
 ))
+const paperFileIds = computed(() => {
+  const ids = current.value?.sourceFileIds?.length
+    ? current.value.sourceFileIds
+    : current.value?.sourceFileId ? [current.value.sourceFileId] : []
+  return [...new Set(ids)]
+})
+const paperImageUrls = computed(() => paperFileIds.value.map(filePreviewUrl))
+const activePaperFileId = computed(() => paperFileIds.value[activePaperIndex.value])
+const activePaperImageUrl = computed(() => activePaperFileId.value ? filePreviewUrl(activePaperFileId.value) : '')
 
 async function loadDrafts() {
   listLoading.value = true
@@ -429,12 +516,32 @@ function moveDraft(offset: number) {
   if (target) selectDraft(target.id)
 }
 
+function togglePaperImages() {
+  if (!isWideViewport.value) {
+    imageDrawerVisible.value = true
+    return
+  }
+  imagePanelVisible.value = !imagePanelVisible.value
+}
+
+function movePaper(offset: number) {
+  activePaperIndex.value = Math.min(
+    Math.max(activePaperIndex.value + offset, 0),
+    Math.max(paperFileIds.value.length - 1, 0),
+  )
+}
+
+function handleViewportResize() {
+  isWideViewport.value = window.innerWidth >= 1500
+}
+
 async function selectDraft(id: number) {
   selectedId.value = id
   detailLoading.value = true
   try {
     const response = await getOrderDraft(id)
     current.value = response.data
+    activePaperIndex.value = 0
   } finally {
     detailLoading.value = false
   }
@@ -558,6 +665,7 @@ function toSaveRequest(draft: OrderDraftView): DraftSaveRequest {
     sourceBatchNo: draft.sourceBatchNo,
     sourceOrderNo: draft.sourceOrderNo,
     sourceFileId: draft.sourceFileId,
+    sourceFileIds: draft.sourceFileIds,
     rawCustomerName: draft.rawCustomerName,
     rawCustomerPhone: draft.rawCustomerPhone,
     customerId: draft.customerId,
@@ -660,8 +768,11 @@ function warningLabel(value: string) {
 }
 
 onMounted(async () => {
+  window.addEventListener('resize', handleViewportResize)
   await Promise.all([loadProducts(), loadDrafts()])
 })
+
+onBeforeUnmount(() => window.removeEventListener('resize', handleViewportResize))
 </script>
 
 <style scoped>
@@ -681,6 +792,175 @@ onMounted(async () => {
 .draft-switcher {
   padding-top: 18px;
   padding-bottom: 18px;
+}
+
+.draft-workspace,
+.draft-editor {
+  min-width: 0;
+}
+
+.draft-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+
+.paper-preview-aside {
+  display: none;
+  min-width: 0;
+}
+
+.paper-preview-card {
+  overflow: hidden;
+  border: 1px solid #dbe3ee;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 10%);
+}
+
+.paper-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 15px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.paper-preview-header h3 {
+  color: #111827;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.paper-preview-header p {
+  overflow: hidden;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paper-canvas {
+  position: relative;
+  display: flex;
+  min-height: 560px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    linear-gradient(45deg, rgb(255 255 255 / 3%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(255 255 255 / 3%) 25%, transparent 25%),
+    #151a22;
+  background-position: 0 0, 12px 12px;
+  background-size: 24px 24px;
+}
+
+.paper-main-image {
+  width: 100%;
+  height: min(720px, calc(100vh - 260px));
+  min-height: 560px;
+  cursor: zoom-in;
+}
+
+.paper-main-image :deep(.el-image__inner) {
+  padding: 14px;
+}
+
+.paper-image-state {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.paper-canvas-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #e2e8f0;
+  background: rgb(15 23 42 / 78%);
+  font-size: 11px;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.paper-canvas-hint .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.paper-empty {
+  min-height: 560px;
+  background: #f8fafc;
+}
+
+.paper-navigation {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.paper-thumbnails {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+
+.paper-thumbnail {
+  position: relative;
+  flex: 0 0 58px;
+  width: 58px;
+  height: 64px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 0;
+  background: #e2e8f0;
+  cursor: pointer;
+}
+
+.paper-thumbnail.active {
+  border-color: #408aee;
+  box-shadow: 0 0 0 2px rgb(64 138 238 / 16%);
+}
+
+.paper-thumbnail:focus-visible {
+  outline: 3px solid rgb(64 138 238 / 30%);
+  outline-offset: 2px;
+}
+
+.paper-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.paper-thumbnail span {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  min-width: 18px;
+  border-radius: 999px;
+  padding: 1px 4px;
+  color: #fff;
+  background: rgb(15 23 42 / 80%);
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .review-strip {
@@ -821,6 +1101,24 @@ onMounted(async () => {
 
 .paper-drawer {
   min-height: calc(100vh - 100px);
+}
+
+@media (min-width: 1500px) {
+  .draft-workspace {
+    grid-template-columns: minmax(760px, 1fr) minmax(420px, 34%);
+    align-items: start;
+  }
+
+  .draft-workspace.paper-hidden {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .paper-preview-aside {
+    position: sticky;
+    top: 80px;
+    display: block;
+    align-self: start;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

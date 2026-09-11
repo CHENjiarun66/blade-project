@@ -5,12 +5,14 @@ public struct AgentAPIRequest: Sendable {
     public var method: String
     public var path: String
     public var body: Data?
+    public var fileURL: URL?
 
-    public init(agentName: String, method: String, path: String, body: Data? = nil) {
+    public init(agentName: String, method: String, path: String, body: Data? = nil, fileURL: URL? = nil) {
         self.agentName = agentName
         self.method = method
         self.path = path
         self.body = body
+        self.fileURL = fileURL
     }
 }
 
@@ -20,6 +22,7 @@ public struct ValidatedAgentRequest: Sendable {
     public let path: String
     public let requiredScope: AgentScope
     public let body: Data?
+    public let fileURL: URL?
 }
 
 public enum AgentRequestPolicyError: LocalizedError, Equatable {
@@ -28,6 +31,7 @@ public enum AgentRequestPolicyError: LocalizedError, Equatable {
     case invalidPath
     case unsupportedEndpoint
     case bodyTooLarge
+    case invalidUploadFile
 
     public var errorDescription: String? {
         switch self {
@@ -41,12 +45,16 @@ public enum AgentRequestPolicyError: LocalizedError, Equatable {
             return "该接口尚未加入本机授权代理的白名单"
         case .bodyTooLarge:
             return "请求体超过 10 MB 限制"
+        case .invalidUploadFile:
+            return "纸单原图必须是本机可读取且不超过 25 MB 的 JPG、PNG 或 WEBP 图片"
         }
     }
 }
 
 public enum AgentRequestPolicy {
     public static let maximumBodySize = 10 * 1024 * 1024
+    public static let maximumUploadSize = 25 * 1024 * 1024
+    private static let allowedImageExtensions = Set(["jpg", "jpeg", "png", "webp"])
 
     public static func validate(_ request: AgentAPIRequest) throws -> ValidatedAgentRequest {
         let agentName = request.agentName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -74,10 +82,28 @@ public enum AgentRequestPolicy {
             requiredScope = .catalogRead
         case ("POST", "/api/agent/order-drafts/batch"):
             requiredScope = .ordersWrite
+        case ("POST", "/api/agent/order-drafts/source-files"):
+            requiredScope = .ordersWrite
         case ("GET", "/api/agent/analytics/style-trends"),
              ("GET", "/api/agent/analytics/sku-mix"):
             requiredScope = .analyticsRead
         default:
+            throw AgentRequestPolicyError.unsupportedEndpoint
+        }
+
+        if pathOnly == "/api/agent/order-drafts/source-files" {
+            guard request.body == nil,
+                  let fileURL = request.fileURL,
+                  fileURL.isFileURL,
+                  allowedImageExtensions.contains(fileURL.pathExtension.lowercased()),
+                  let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  values.isRegularFile == true,
+                  let fileSize = values.fileSize,
+                  fileSize > 0,
+                  fileSize <= maximumUploadSize else {
+                throw AgentRequestPolicyError.invalidUploadFile
+            }
+        } else if request.fileURL != nil {
             throw AgentRequestPolicyError.unsupportedEndpoint
         }
 
@@ -86,7 +112,8 @@ public enum AgentRequestPolicy {
             method: method,
             path: path,
             requiredScope: requiredScope,
-            body: request.body
+            body: request.body,
+            fileURL: request.fileURL
         )
     }
 
@@ -114,6 +141,7 @@ public enum AgentAPIClientError: LocalizedError {
     case invalidRequestURL
     case invalidResponse
     case unsafeRedirect
+    case unreadableUploadFile
 
     public var errorDescription: String? {
         switch self {
@@ -125,6 +153,8 @@ public enum AgentAPIClientError: LocalizedError {
             return "Agent API 没有返回有效的 HTTP 响应"
         case .unsafeRedirect:
             return "服务器尝试把请求重定向到其他主机，已阻止 Key 外泄"
+        case .unreadableUploadFile:
+            return "无法读取要上传的纸单原图"
         }
     }
 }
@@ -159,7 +189,19 @@ public final class AgentAPIClient: NSObject, URLSessionTaskDelegate, @unchecked 
         urlRequest.httpMethod = request.method
         urlRequest.setValue(rawKey, forHTTPHeaderField: "X-Agent-Key")
         urlRequest.setValue("BladeAgentKeyManager/1.0", forHTTPHeaderField: "User-Agent")
-        if let body = request.body {
+        if let fileURL = request.fileURL {
+            guard let data = try? Data(contentsOf: fileURL, options: .mappedIfSafe) else {
+                throw AgentAPIClientError.unreadableUploadFile
+            }
+            let boundary = "BladeAgentBoundary-\(UUID().uuidString)"
+            urlRequest.httpBody = multipartBody(
+                data: data,
+                filename: safeFilename(fileURL.lastPathComponent),
+                contentType: imageContentType(for: fileURL.pathExtension),
+                boundary: boundary
+            )
+            urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        } else if let body = request.body {
             urlRequest.httpBody = body
             urlRequest.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         }
@@ -169,6 +211,31 @@ public final class AgentAPIClient: NSObject, URLSessionTaskDelegate, @unchecked 
             throw AgentAPIClientError.invalidResponse
         }
         return AgentAPIResponse(statusCode: http.statusCode, data: data)
+    }
+
+    private func multipartBody(data: Data, filename: String, contentType: String, boundary: String) -> Data {
+        var body = Data()
+        body.append(Data("--\(boundary)\r\n".utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".utf8))
+        body.append(Data("Content-Type: \(contentType)\r\n\r\n".utf8))
+        body.append(data)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+        return body
+    }
+
+    private func safeFilename(_ value: String) -> String {
+        value.replacingOccurrences(of: "\"", with: "_")
+            .replacingOccurrences(of: "\r", with: "_")
+            .replacingOccurrences(of: "\n", with: "_")
+    }
+
+    private func imageContentType(for fileExtension: String) -> String {
+        switch fileExtension.lowercased() {
+        case "jpg", "jpeg": return "image/jpeg"
+        case "png": return "image/png"
+        case "webp": return "image/webp"
+        default: return "application/octet-stream"
+        }
     }
 
     public func urlSession(

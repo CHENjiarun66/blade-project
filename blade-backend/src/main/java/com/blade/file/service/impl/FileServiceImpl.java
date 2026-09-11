@@ -33,6 +33,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -183,18 +184,90 @@ public class FileServiceImpl implements FileService {
             return;
         }
         Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        List<Long> uniqueFileIds = new ArrayList<>(new LinkedHashSet<>(fileIds));
+        Long activeCount = fileStorageMapper.selectCount(new LambdaQueryWrapper<FileStorage>()
+                .in(FileStorage::getId, uniqueFileIds)
+                .eq(FileStorage::getTenantId, tenantId)
+                .eq(FileStorage::getStatus, 1));
+        if (activeCount != uniqueFileIds.size()) {
+            throw new RuntimeException("文件不存在");
+        }
+
         LambdaUpdateWrapper<FileStorage> wrapper = new LambdaUpdateWrapper<>();
-        wrapper.in(FileStorage::getId, fileIds);
+        wrapper.in(FileStorage::getId, uniqueFileIds);
         wrapper.eq(FileStorage::getTenantId, tenantId);
         wrapper.eq(FileStorage::getStatus, 1);
         wrapper.set(FileStorage::getBusinessType, businessType);
         wrapper.set(FileStorage::getBusinessId, businessId);
         fileStorageMapper.update(null, wrapper);
+
+        int sort = 0;
+        for (Long fileId : uniqueFileIds) {
+            Long existing = fileBusinessBindMapper.selectCount(new LambdaQueryWrapper<FileBusinessBind>()
+                    .eq(FileBusinessBind::getFileId, fileId)
+                    .eq(FileBusinessBind::getBusinessType, businessType)
+                    .eq(FileBusinessBind::getBusinessId, businessId)
+                    .eq(FileBusinessBind::getTenantId, tenantId)
+                    .eq(FileBusinessBind::getDeleted, 0));
+            if (existing == 0) {
+                FileBusinessBind bind = new FileBusinessBind();
+                bind.setFileId(fileId);
+                bind.setBusinessType(businessType);
+                bind.setBusinessId(businessId);
+                bind.setBindRole("order_draft".equals(businessType) ? "source" : "attachment");
+                bind.setSort(sort);
+                bind.setIsPrimary(sort == 0 ? 1 : 0);
+                bind.setTenantId(tenantId);
+                bind.setDeleted(0);
+                fileBusinessBindMapper.insert(bind);
+            }
+            sort++;
+        }
     }
 
     @Override
     public void bindFilesFromJson(String businessType, Long businessId, String imagesJson) {
         bindFiles(businessType, businessId, parseFileIds(imagesJson));
+    }
+
+    @Override
+    public List<Long> getActiveFileIds(String businessType, Long businessId) {
+        if (businessType == null || businessType.isBlank() || businessId == null) {
+            return List.of();
+        }
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        List<Long> boundIds = fileBusinessBindMapper.selectList(
+                        new LambdaQueryWrapper<FileBusinessBind>()
+                                .eq(FileBusinessBind::getBusinessType, businessType)
+                                .eq(FileBusinessBind::getBusinessId, businessId)
+                                .eq(FileBusinessBind::getTenantId, tenantId)
+                                .eq(FileBusinessBind::getDeleted, 0)
+                                .orderByAsc(FileBusinessBind::getSort)
+                                .orderByAsc(FileBusinessBind::getId))
+                .stream()
+                .map(FileBusinessBind::getFileId)
+                .distinct()
+                .toList();
+        if (!boundIds.isEmpty()) {
+            Set<Long> activeIds = fileStorageMapper.selectList(new LambdaQueryWrapper<FileStorage>()
+                            .in(FileStorage::getId, boundIds)
+                            .eq(FileStorage::getTenantId, tenantId)
+                            .eq(FileStorage::getStatus, 1))
+                    .stream()
+                    .map(FileStorage::getId)
+                    .collect(Collectors.toSet());
+            return boundIds.stream().filter(activeIds::contains).toList();
+        }
+
+        return fileStorageMapper.selectList(new LambdaQueryWrapper<FileStorage>()
+                        .eq(FileStorage::getBusinessType, businessType)
+                        .eq(FileStorage::getBusinessId, businessId)
+                        .eq(FileStorage::getTenantId, tenantId)
+                        .eq(FileStorage::getStatus, 1)
+                        .orderByAsc(FileStorage::getId))
+                .stream()
+                .map(FileStorage::getId)
+                .toList();
     }
 
     // ==================== BE-1002: 分页列表 ====================

@@ -22,7 +22,8 @@ struct BladeAgentRequestMain {
                 agentName: options.agentName,
                 method: options.method,
                 path: options.path,
-                body: body
+                body: body,
+                fileURL: options.filePath.map { URL(fileURLWithPath: $0) }
             )
             let runner = RequestRunner()
             guard let response = try await runner.execute(request, preferredKey: options.preferredKey) else {
@@ -50,6 +51,7 @@ private struct CommandLineOptions {
     let method: String
     let path: String
     let bodyFile: String?
+    let filePath: String?
 
     init(arguments: [String]) throws {
         var values: [String: String] = [:]
@@ -79,8 +81,11 @@ private struct CommandLineOptions {
         self.method = values["--method"] ?? "GET"
         self.path = values["--path"] ?? ""
         self.bodyFile = values["--body-file"]
+        self.filePath = values["--file"]
 
-        if !mcpMode && path.isEmpty {
+        if !mcpMode && (path.isEmpty
+            || (bodyFile != nil && filePath != nil)
+            || (filePath != nil && filePath?.hasPrefix("/") != true)) {
             throw CommandLineError.invalidUsage
         }
     }
@@ -95,7 +100,7 @@ private enum CommandLineError: LocalizedError {
         case .missingAgent:
             return "必须通过 --agent 声明调用方，例如 --agent DeepSeek"
         case .invalidUsage:
-            return "用法：blade-agent-request --agent <名称> --method GET|POST --path </api/agent/...> [--body-file <json>] [--key <名称或前缀>]，或使用 --mcp 模式"
+            return "用法：blade-agent-request --agent <名称> --method GET|POST --path </api/agent/...> [--body-file <json> | --file <图片>] [--key <名称或前缀>]，或使用 --mcp 模式"
         }
     }
 }

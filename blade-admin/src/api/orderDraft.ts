@@ -45,6 +45,7 @@ export interface OrderDraftView {
   sourceBatchNo?: string
   sourceOrderNo?: string
   sourceFileId?: number
+  sourceFileIds?: number[]
   rawCustomerName?: string
   rawCustomerPhone?: string
   customerId?: number
@@ -71,6 +72,7 @@ export interface OrderDraftSummary {
   externalRefNo: string
   sourceOrderNo?: string
   sourceFileId?: number
+  sourceFileCount?: number
   customerName: string
   orderDate?: string
   paperTotalAmount?: number
@@ -86,6 +88,7 @@ export interface DraftSaveRequest {
   sourceBatchNo?: string
   sourceOrderNo?: string
   sourceFileId?: number
+  sourceFileIds?: number[]
   rawCustomerName?: string
   rawCustomerPhone?: string
   customerId?: number

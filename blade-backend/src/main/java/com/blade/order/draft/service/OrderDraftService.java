@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.exception.BusinessException;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
+import com.blade.file.service.FileService;
 import com.blade.order.draft.dto.OrderDraftDTO;
 import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.draft.entity.OrderDraftItem;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Service
@@ -41,6 +43,7 @@ public class OrderDraftService {
     private final OrderFinanceSnapshotService snapshotService;
     private final OrderMapper orderMapper;
     private final UserMapper userMapper;
+    private final FileService fileService;
     private final ObjectMapper objectMapper;
 
     public PageResult<OrderDraftDTO.Summary> page(int current,
@@ -150,8 +153,9 @@ public class OrderDraftService {
         dto.setPaidAmount(BigDecimal.ZERO);
         dto.setNeedDelivery(0);
         dto.setRemark(draft.getNote());
-        if (draft.getSourceFileId() != null) {
-            dto.setImages(writeJson(List.of(String.valueOf(draft.getSourceFileId()))));
+        List<Long> sourceFileIds = sourceFileIds(draft);
+        if (!sourceFileIds.isEmpty()) {
+            dto.setImages(writeJson(sourceFileIds.stream().map(String::valueOf).toList()));
         }
         List<OrderCreateDTO.OrderItemDTO> orderItems = new ArrayList<>();
         for (OrderDraftItem source : items) {
@@ -171,7 +175,9 @@ public class OrderDraftService {
         summary.setId(draft.getId());
         summary.setExternalRefNo(draft.getExternalRefNo());
         summary.setSourceOrderNo(draft.getSourceOrderNo());
-        summary.setSourceFileId(draft.getSourceFileId());
+        List<Long> sourceFileIds = sourceFileIds(draft);
+        summary.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));
+        summary.setSourceFileCount(sourceFileIds.size());
         summary.setCustomerName(blankToWalkIn(draft.getCustomerName()));
         summary.setOrderDate(draft.getOrderDate());
         summary.setPaperTotalAmount(draft.getPaperTotalAmount());
@@ -189,7 +195,9 @@ public class OrderDraftService {
         view.setExternalRefNo(draft.getExternalRefNo());
         view.setSourceBatchNo(draft.getSourceBatchNo());
         view.setSourceOrderNo(draft.getSourceOrderNo());
-        view.setSourceFileId(draft.getSourceFileId());
+        List<Long> sourceFileIds = sourceFileIds(draft);
+        view.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));
+        view.setSourceFileIds(sourceFileIds);
         view.setRawCustomerName(draft.getRawCustomerName());
         view.setRawCustomerPhone(draft.getRawCustomerPhone());
         view.setCustomerId(draft.getCustomerId());
@@ -242,6 +250,15 @@ public class OrderDraftService {
                 .eq(OrderDraftItem::getDraftId, draftId)
                 .orderByAsc(OrderDraftItem::getSourceRowNo)
                 .orderByAsc(OrderDraftItem::getId));
+    }
+
+    private List<Long> sourceFileIds(OrderDraft draft) {
+        List<Long> boundIds = fileService.getActiveFileIds("order_draft", draft.getId());
+        if (draft.getSourceFileId() == null) return boundIds;
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        ids.add(draft.getSourceFileId());
+        ids.addAll(boundIds);
+        return new ArrayList<>(ids);
     }
 
     private List<String> readStringList(String json) {

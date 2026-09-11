@@ -31,6 +31,8 @@ public final class OrderDraftDTO {
         private String sourceBatchNo;
         private String sourceOrderNo;
         private Long sourceFileId;
+        @Size(max = 10, message = "每张草稿最多上传10张纸单原图")
+        private List<Long> sourceFileIds;
         private String rawCustomerName;
         private String rawCustomerPhone;
         private Long customerId;
@@ -93,6 +95,7 @@ public final class OrderDraftDTO {
         private String sourceBatchNo;
         private String sourceOrderNo;
         private Long sourceFileId;
+        private List<Long> sourceFileIds;
         private String rawCustomerName;
         private String rawCustomerPhone;
         private Long customerId;
@@ -120,6 +123,7 @@ public final class OrderDraftDTO {
         private String externalRefNo;
         private String sourceOrderNo;
         private Long sourceFileId;
+        private Integer sourceFileCount;
         private String customerName;
         private LocalDate orderDate;
         private BigDecimal paperTotalAmount;
