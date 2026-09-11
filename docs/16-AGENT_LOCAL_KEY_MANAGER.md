@@ -99,9 +99,9 @@ BladeProject /api/agent/*
 | `blade_style_trends` | `analytics:read` | 查询款式趋势 |
 | `blade_sku_mix` | `analytics:read` | 查询颜色尺码结构 |
 
-第一次调用或授权失效后，Mac 会弹出窗口，显示声明的 Agent、HTTP 方法、接口、所需 scope 和符合条件的 Key。用户选择 Key 后可以仅允许本次，或对同一 Agent + 同一 scope 记住 10 分钟。
+第一次调用或授权失效后，Mac 会先弹出 Key 选择窗口，显示声明的 Agent、HTTP 方法、接口、所需 scope 和符合条件的 Key；随后由独立的系统确认窗口提供“拒绝”“允许一次”和“允许 1 小时”。授权 UI 与持有 Key、执行网络请求的主进程相互隔离，系统窗口只接收非敏感的 Key 名称、Agent 名称、剩余天数和请求说明。
 
-10 分钟授权只保存在当前 MCP 进程内；Agent 退出后立即消失，不写入磁盘。完整 Key 始终不会通过 MCP 返回给模型。
+1 小时授权只保存在当前 MCP 进程内；Agent 退出后立即消失，不写入磁盘。完整 Key 始终不会通过 MCP 返回给模型。
 
 ### 3.2 一次性命令模式
 

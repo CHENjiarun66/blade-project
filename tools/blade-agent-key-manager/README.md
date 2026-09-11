@@ -50,7 +50,7 @@ MCP 暴露以下受控工具：
 - `blade_style_trends`
 - `blade_sku_mix`
 
-调用时用户必须从弹窗选择符合 scope 的 Key 并授权。可选择对同一 Agent、同一 scope 记住 10 分钟；授权只保存在当前 MCP 进程内，退出 Agent 后自动失效。
+调用时用户必须从弹窗选择符合 scope 的 Key 并授权。可选择对同一 Agent、同一 scope 记住 1 小时；授权只保存在当前 MCP 进程内，退出 Agent 后自动失效。
 
 ## 安全边界
 

@@ -1,5 +1,4 @@
 import Foundation
-import LocalAuthentication
 import Security
 
 public protocol AgentKeySecretStoring {
@@ -56,19 +55,17 @@ public final class KeychainSecretStore: AgentKeySecretStoring {
         }
     }
 
-    public func read(for id: UUID, operationPrompt: String? = nil) throws -> String {
-        var query: [String: Any] = [
+    public func read(for id: UUID, operationPrompt _: String? = nil) throws -> String {
+        // The caller has already shown the explicit authorization dialog. Let
+        // Security create authentication UI only if the Keychain item requires it;
+        // attaching a fresh LAContext here can terminate a standalone CLI helper.
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.service,
             kSecAttrAccount as String: id.uuidString,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true
         ]
-        if let operationPrompt, !operationPrompt.isEmpty {
-            let context = LAContext()
-            context.localizedReason = operationPrompt
-            query[kSecUseAuthenticationContext as String] = context
-        }
 
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)

@@ -1,13 +1,11 @@
-import AppKit
 import BladeAgentKeyKit
 import Foundation
 
 struct AuthorizationDecision {
     let key: StoredAgentKey
-    let rememberForTenMinutes: Bool
+    let grantDuration: TimeInterval?
 }
 
-@MainActor
 enum AuthorizationPrompt {
     static func chooseKey(
         for request: ValidatedAgentRequest,
@@ -22,10 +20,6 @@ enum AuthorizationPrompt {
             return nil
         }
 
-        let app = NSApplication.shared
-        app.setActivationPolicy(.accessory)
-        app.activate(ignoringOtherApps: true)
-
         let sorted = candidates.sorted { lhs, rhs in
             let lhsPreferred = matchesPreferred(lhs, value: preferredKey)
             let rhsPreferred = matchesPreferred(rhs, value: preferredKey)
@@ -36,63 +30,65 @@ enum AuthorizationPrompt {
             return lhs.name.localizedCompare(rhs.name) == .orderedAscending
         }
 
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.icon = NSImage(systemSymbolName: "person.badge.key.fill", accessibilityDescription: nil)
-        alert.messageText = "\(request.agentName) 请求使用 BladeProject"
-        alert.informativeText = "接口：\(request.method) \(request.path)\n需要权限：\(request.requiredScope.displayName)\n\n请选择 Key 并确认。Agent 只能获得接口结果，不会看到 Key 原文。"
-        alert.addButton(withTitle: "允许")
-        alert.addButton(withTitle: "拒绝")
-
-        let accessory = NSStackView()
-        accessory.orientation = .vertical
-        accessory.alignment = .leading
-        accessory.spacing = 10
-        accessory.translatesAutoresizingMaskIntoConstraints = false
-
-        let label = NSTextField(labelWithString: "使用哪一把 Key")
-        label.font = .systemFont(ofSize: 12, weight: .semibold)
-        accessory.addArrangedSubview(label)
-
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 430, height: 28), pullsDown: false)
-        for key in sorted {
-            popup.addItem(withTitle: "\(key.name) · \(key.agentName) · 剩余 \(max(0, key.remainingDays())) 天")
+        let labels = sorted.enumerated().map { index, key in
+            "\(index + 1). \(singleLine(key.name)) · \(singleLine(key.agentName)) · 剩余 \(max(0, key.remainingDays())) 天"
         }
-        popup.selectItem(at: 0)
-        accessory.addArrangedSubview(popup)
+        let title = "\(request.agentName) 请求使用 BladeProject"
+        let prompt = "接口：\(request.method) \(request.path)\n需要权限：\(request.requiredScope.displayName)\n\n请选择 Key。这里显示的 Agent 名称来自本机工具配置，只授权你主动启动并信任的 Agent。"
+        guard let output = runAppleScript(
+            authorizationScript,
+            arguments: [title, prompt] + labels
+        ) else {
+            return nil
+        }
 
-        let remember = NSButton(checkboxWithTitle: "同一 Agent 和权限在接下来的 10 分钟内不再询问", target: nil, action: nil)
-        remember.state = .off
-        accessory.addArrangedSubview(remember)
+        let parts = output.split(separator: "\t", maxSplits: 1).map(String.init)
+        guard parts.count == 2,
+              let oneBasedIndex = Int(parts[0]),
+              sorted.indices.contains(oneBasedIndex - 1) else {
+            return nil
+        }
 
-        let warning = NSTextField(wrappingLabelWithString: "提示：这里显示的 Agent 名称来自本机工具配置，首版不对调用进程做密码学身份校验。只给你主动启动并信任的本机 Agent 授权。")
-        warning.textColor = .secondaryLabelColor
-        warning.font = .systemFont(ofSize: 11)
-        warning.maximumNumberOfLines = 3
-        warning.preferredMaxLayoutWidth = 430
-        accessory.addArrangedSubview(warning)
-
-        alert.accessoryView = accessory
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else { return nil }
-
-        let selectedIndex = max(0, popup.indexOfSelectedItem)
         return AuthorizationDecision(
-            key: sorted[selectedIndex],
-            rememberForTenMinutes: remember.state == .on
+            key: sorted[oneBasedIndex - 1],
+            grantDuration: parts[1] == "允许 1 小时" ? 60 * 60 : nil
         )
     }
 
     static func showInformation(title: String, message: String) {
-        let app = NSApplication.shared
-        app.setActivationPolicy(.accessory)
-        app.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = title
-        alert.informativeText = message
-        alert.addButton(withTitle: "知道了")
-        alert.runModal()
+        _ = runAppleScript(informationScript, arguments: [title, message])
+    }
+
+    private static func runAppleScript(_ source: String, arguments: [String]) -> String? {
+        let process = Process()
+        let standardOutput = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", source, "--"] + arguments
+        process.standardOutput = standardOutput
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+
+        let outputData: Data
+        do {
+            outputData = try standardOutput.fileHandleForReading.readToEnd() ?? Data()
+        } catch {
+            return nil
+        }
+
+        guard process.terminationStatus == 0,
+              let value = String(data: outputData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty,
+              value != "DENY" else {
+            return nil
+        }
+        return value
     }
 
     private static func matchesPreferred(_ key: StoredAgentKey, value: String?) -> Bool {
@@ -101,4 +97,46 @@ enum AuthorizationPrompt {
             key.name.localizedCaseInsensitiveCompare(value) == .orderedSame ||
             key.keyPrefix.localizedCaseInsensitiveCompare(value) == .orderedSame
     }
+
+    private static func singleLine(_ value: String) -> String {
+        value.replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+    }
+
+    private static let authorizationScript = """
+    on run argv
+        if (count argv) < 3 then return "DENY"
+        set dialogTitle to item 1 of argv
+        set dialogPrompt to item 2 of argv
+        set choices to items 3 thru -1 of argv
+        tell application "System Events"
+            activate
+            set picked to choose from list choices with title dialogTitle with prompt dialogPrompt OK button name "选择" cancel button name "拒绝"
+            if picked is false then return "DENY"
+            set selectedLabel to item 1 of picked
+            set confirmation to display dialog ("使用：" & selectedLabel & return & return & "Agent 只能获得接口结果，不会看到 Key 原文。") with title dialogTitle buttons {"拒绝", "允许一次", "允许 1 小时"} default button "允许一次" with icon caution
+            set actionName to button returned of confirmation
+            if actionName is "拒绝" then return "DENY"
+            set selectedIndex to 0
+            repeat with i from 1 to count choices
+                if item i of choices is selectedLabel then
+                    set selectedIndex to i
+                    exit repeat
+                end if
+            end repeat
+            return (selectedIndex as text) & tab & actionName
+        end tell
+    end run
+    """
+
+    private static let informationScript = """
+    on run argv
+        if (count argv) < 2 then return
+        tell application "System Events"
+            activate
+            display dialog (item 2 of argv) with title (item 1 of argv) buttons {"知道了"} default button "知道了" with icon note
+        end tell
+    end run
+    """
 }

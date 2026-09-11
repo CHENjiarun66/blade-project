@@ -32,7 +32,7 @@ final class RequestRunner {
             selectedKey = grantedKey
         } else {
             sessionGrants.removeValue(forKey: grantKey)
-            guard let decision = await AuthorizationPrompt.chooseKey(
+            guard let decision = AuthorizationPrompt.chooseKey(
                 for: request,
                 candidates: candidates,
                 preferredKey: preferredKey
@@ -40,10 +40,10 @@ final class RequestRunner {
                 return nil
             }
             selectedKey = decision.key
-            if decision.rememberForTenMinutes {
+            if let grantDuration = decision.grantDuration {
                 sessionGrants[grantKey] = SessionGrant(
                     keyID: selectedKey.id,
-                    expiresAt: Date().addingTimeInterval(10 * 60)
+                    expiresAt: Date().addingTimeInterval(grantDuration)
                 )
             }
         }

@@ -97,7 +97,7 @@ Agent Key 应存放在 macOS 钥匙串或受保护的进程环境中；URL 可�
 1. 一把 Key 只分配给一个 Agent 和一个环境，例如“DeepSeek 生产纸单录入”；不要让 DeepSeek、ZCode、Codex 共用同一把 Key。
 2. 本机管理器记录 Key 名称、Agent、公开前缀、scope、API 地址和到期日期，完整 Key 只存钥匙串。
 3. 本机显示的剩余时间是提醒；服务器 `expires_time/status` 是最终真相。轮换、停用后要同步清理本机记录。
-4. Agent 需要调用时由用户在系统弹窗中选择 Key 并授权，可对同一 Agent + scope 临时授权 10 分钟。
+4. Agent 需要调用时由用户在系统弹窗中选择 Key 并授权，可对同一 Agent + scope 临时授权 1 小时。
 5. 纯网页聊天没有本机 MCP/命令能力时不能调用本机 Key，不得把生产 Key 粘贴进聊天窗口。
 
 ---

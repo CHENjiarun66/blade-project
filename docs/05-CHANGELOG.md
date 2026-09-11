@@ -11,10 +11,11 @@
 ### [本机 Agent 接入] - Key 管理器、用户授权代理与纸单执行手册
 
 - 新增原生 macOS `Blade Agent Key Manager.app` 源码和打包脚本：用户可通过桌面界面粘贴 Key，记录名称、所属 Agent、API 地址、scope 和到期日，并查看剩余时间；完整 Key 只存 macOS 钥匙串，元数据不含 secret，保存后可自动清理仍含该 Key 的剪贴板。
-- 新增 `blade-agent-request` 本机授权代理，支持 stdio MCP 与一次性命令模式。调用前展示 Agent、方法、接口、所需 scope 和可选 Key；用户可授权一次或在当前 MCP 进程内授权 10 分钟。代理只返回 API 响应，不向模型返回 Key。
+- 新增 `blade-agent-request` 本机授权代理，支持 stdio MCP 与一次性命令模式。调用前展示 Agent、方法、接口、所需 scope 和可选 Key；用户可授权一次或在当前 MCP 进程内授权 1 小时。代理只返回 API 响应，不向模型返回 Key。
+- 授权窗口改由独立系统对话框进程承载，避免命令行辅助程序在关闭窗口时提前终止钥匙串读取和网络请求；系统对话框只接收非敏感元数据，完整 Key 仍由主进程直接从钥匙串读取。
 - 本机代理固定白名单为商品候选、订单草稿、款式趋势和 SKU 结构接口；阻止远程 HTTP、非 `/api/agent` 路径、非登记写操作、超大请求体和跨主机重定向。
 - 新增本机 Key 管理设计与纸单/Excel 草稿 Runbook，补齐多 Agent 独立 Key、轮换/停用、本机与服务器到期口径、SPU/SKU 匹配、金额优先级、幂等、响应汇总及“只建草稿”边界。
-- 验证：`swift test` 8/8 通过；release `.app` 构建和 ad-hoc 深度签名校验通过；应用可在 macOS 13.6 双击启动并自动安装权限为 `700` 的调用工具；MCP `initialize` 与 `tools/list` 握手通过；非白名单 `/api/agent/action` 被拒绝且标准输出为空。
+- 验证：`swift test` 8/8 通过；release `.app` 构建和 ad-hoc 深度签名校验通过；应用可在 macOS 13.6 双击启动并自动安装权限为 `700` 的调用工具；MCP `initialize` 与 `tools/list` 握手通过；生产 Agent 商品查询经用户授权后返回 HTTP 200，同一 MCP 会话第二次请求不再弹窗并正确返回整款录入占位 SKU；非白名单 `/api/agent/action` 被拒绝且标准输出为空。
 
 ### [生产发布完成] - 订单生命周期、纸单 Agent 与占位 SKU 上线
 

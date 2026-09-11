@@ -16,8 +16,7 @@ let package = Package(
         .target(
             name: "BladeAgentKeyKit",
             linkerSettings: [
-                .linkedFramework("Security"),
-                .linkedFramework("LocalAuthentication")
+                .linkedFramework("Security")
             ]
         ),
         .executableTarget(
