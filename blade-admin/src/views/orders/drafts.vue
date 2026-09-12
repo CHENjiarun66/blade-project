@@ -4,9 +4,9 @@
       <div>
         <div class="flex items-center gap-3">
           <h2 class="text-2xl font-bold tracking-tight text-gray-900">订单草稿录入</h2>
-          <el-tag type="warning" effect="light">Agent 草稿</el-tag>
+          <el-tag type="warning" effect="light">订单草稿</el-tag>
         </div>
-        <p class="mt-1 text-sm text-gray-500">左侧核对并修改草稿，右侧同步对照 Agent 上传的纸单原图。</p>
+        <p class="mt-1 text-sm text-gray-500">可继续填写手工暂存或 Agent 导入的草稿，确认后生成正式订单。</p>
       </div>
       <div class="flex flex-wrap gap-3">
         <el-button class="!rounded-xl !font-bold" @click="router.push('/orders/quick')">
@@ -15,7 +15,7 @@
         </el-button>
         <el-button v-if="current" class="!rounded-xl !font-bold" @click="togglePaperImages">
           <span class="material-symbols-outlined mr-1 text-sm">image</span>
-          {{ imagePanelVisible ? '隐藏原单' : '查看原单' }}
+          {{ imagePanelVisible ? '隐藏图片' : '查看图片' }}
           <span v-if="paperFileIds.length" class="ml-1 text-xs text-gray-400">({{ paperFileIds.length }})</span>
         </el-button>
         <el-button
@@ -52,12 +52,12 @@
           <el-segmented v-model="statusFilter" :options="statusOptions" class="!w-full" @change="loadDrafts" />
         </div>
         <label class="field-block">
-          <span>选择需要修改的纸单</span>
+          <span>选择需要修改的草稿</span>
           <el-select
             v-model="selectedId"
             filterable
             :loading="listLoading"
-            placeholder="选择纸单号 / 客户"
+            placeholder="选择单据号 / 客户"
             class="!w-full"
             @change="onDraftSelect"
           >
@@ -121,10 +121,13 @@
               <el-tag class="ml-auto" :type="current.status === 'CONFIRMED' ? 'success' : 'warning'">
                 {{ current.status === 'CONFIRMED' ? '已确认' : '编辑中' }}
               </el-tag>
+              <el-tag effect="plain" :type="manualDraft ? 'primary' : 'info'">
+                {{ manualDraft ? '手工暂存' : 'Agent 导入' }}
+              </el-tag>
             </div>
             <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
               <label class="field-block">
-                <span>纸质单号</span>
+                <span>{{ manualDraft ? '单据号' : '纸质单号' }}</span>
                 <el-input v-model="current.sourceOrderNo" :disabled="readonly" placeholder="纸质订单编号" />
                 <small>外部编号：{{ current.externalRefNo }}</small>
               </label>
@@ -137,9 +140,17 @@
                 <span>交货日期</span>
                 <el-date-picker v-model="current.deliveryDate" value-format="YYYY-MM-DD" type="date" class="!w-full" :disabled="readonly" />
               </label>
-              <label class="field-block">
+              <label v-if="!manualDraft" class="field-block">
                 <span>纸单批次</span>
                 <el-input v-model="current.sourceBatchNo" :disabled="readonly" placeholder="如 42" />
+              </label>
+              <label class="field-block">
+                <span>订单类型</span>
+                <el-segmented v-model="current.orderType" :options="orderTypeOptions" :disabled="readonly" class="!w-full" />
+              </label>
+              <label class="field-block">
+                <span>来源档口/店铺</span>
+                <el-input v-model="current.sourceShop" :disabled="readonly" placeholder="如 御龙、档口或线上店铺" />
               </label>
             </div>
           </section>
@@ -178,14 +189,24 @@
                 <small>识别原文：{{ current.rawCustomerPhone || '空' }}</small>
               </label>
               <label class="field-block">
-                <span>定金</span>
-                <el-input-number v-model="current.deposit" :min="0" :precision="2" :controls="false" class="!w-full" :disabled="readonly" />
-                <small>识别原文：{{ current.rawDeposit || '空' }}</small>
+                <span>{{ manualDraft ? '实收金额' : '定金' }}</span>
+                <el-input-number v-if="manualDraft" v-model="current.paidAmount" :min="0" :precision="2" :controls="false" class="!w-full" :disabled="readonly" />
+                <el-input-number v-else v-model="current.deposit" :min="0" :precision="2" :controls="false" class="!w-full" :disabled="readonly" />
+                <small v-if="!manualDraft">识别原文：{{ current.rawDeposit || '空' }}</small>
               </label>
               <label class="field-block">
-                <span>纸单总金额</span>
-                <el-input-number v-model="current.paperTotalAmount" :min="0" :precision="2" :controls="false" class="!w-full" :disabled="readonly" />
-                <small :class="totalMismatch ? '!text-orange-600' : ''">系统计算：{{ money(calculatedTotal) }}</small>
+                <span>{{ manualDraft ? '订单应收' : '纸单总金额' }}</span>
+                <el-input-number v-if="!manualDraft" v-model="current.paperTotalAmount" :min="0" :precision="2" :controls="false" class="!w-full" :disabled="readonly" />
+                <el-input v-else :model-value="money(currentOrderTotal)" disabled />
+                <small :class="totalMismatch ? '!text-orange-600' : ''">系统计算：{{ money(currentOrderTotal) }}</small>
+              </label>
+              <label class="field-block">
+                <span>国家区号</span>
+                <CountryCodeSelect v-model="current.customerCountryCode" :disabled="readonly" class="!w-full" />
+              </label>
+              <label class="field-block">
+                <span>客户地址</span>
+                <el-input v-model="current.customerAddress" :disabled="readonly" clearable placeholder="客户地址" />
               </label>
             </div>
           </section>
@@ -252,6 +273,11 @@
                   <p class="cell-hint">系统参考 {{ money(row.systemReferencePrice) }}</p>
                 </template>
               </el-table-column>
+              <el-table-column v-if="manualDraft" label="成本价" width="130">
+                <template #default="{ row }">
+                  <el-input-number v-model="row.costPrice" :min="0" :precision="2" :controls="false" :disabled="readonly" class="!w-full" />
+                </template>
+              </el-table-column>
               <el-table-column label="纸单金额" width="130">
                 <template #default="{ row }">
                   <el-input-number v-model="row.paperAmount" :min="0" :precision="2" :controls="false" :disabled="readonly" class="!w-full" />
@@ -286,6 +312,31 @@
           </div>
         </section>
 
+        <section v-if="manualDraft" class="form-panel">
+          <div class="panel-title">
+            <span class="material-symbols-outlined text-[#408aee]">local_shipping</span>
+            <h3>结算与配送</h3>
+          </div>
+          <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+            <label class="field-block">
+              <span>客户运费收入</span>
+              <el-input-number v-model="current.freightAmount" :min="0" :precision="2" :controls="false" :disabled="readonly" class="!w-full" />
+            </label>
+            <label class="field-block">
+              <span>实际运费成本</span>
+              <el-input-number v-model="current.freightCost" :min="0" :precision="2" :controls="false" :disabled="readonly" class="!w-full" />
+            </label>
+            <div class="field-block">
+              <span>配送方式</span>
+              <el-switch v-model="current.needDelivery" :active-value="1" :inactive-value="0" active-text="需要送货" inactive-text="自取" :disabled="readonly" />
+            </div>
+            <label v-if="current.needDelivery === 1" class="field-block md:col-span-3">
+              <span>送货地址</span>
+              <el-input v-model="current.deliveryAddress" type="textarea" :rows="2" :disabled="readonly" />
+            </label>
+          </div>
+        </section>
+
         <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <section class="form-panel">
             <div class="panel-title">
@@ -298,9 +349,10 @@
           <section class="summary-panel">
             <h3 class="mb-5 text-lg font-bold">金额汇总</h3>
             <div class="space-y-3 text-sm">
-              <div class="summary-row"><span>纸单总额</span><strong>{{ money(current.paperTotalAmount) }}</strong></div>
-              <div class="summary-row"><span>明细计算</span><strong :class="totalMismatch ? 'text-orange-300' : 'text-emerald-400'">{{ money(calculatedTotal) }}</strong></div>
-              <div class="summary-row"><span>已收定金</span><strong class="text-blue-300">{{ money(current.deposit) }}</strong></div>
+              <div class="summary-row"><span>{{ manualDraft ? '订单应收' : '纸单总额' }}</span><strong>{{ money(currentOrderTotal) }}</strong></div>
+              <div class="summary-row"><span>商品明细</span><strong :class="totalMismatch ? 'text-orange-300' : 'text-emerald-400'">{{ money(calculatedTotal) }}</strong></div>
+              <div v-if="manualDraft" class="summary-row"><span>客户运费</span><strong>{{ money(current.freightAmount) }}</strong></div>
+              <div class="summary-row"><span>{{ manualDraft ? '实收金额' : '已收定金' }}</span><strong class="text-blue-300">{{ money(currentReceivedAmount) }}</strong></div>
               <div class="summary-divider"></div>
               <div class="summary-row"><span>待收余额</span><strong class="text-xl text-white">{{ money(balanceAmount) }}</strong></div>
             </div>
@@ -308,13 +360,13 @@
         </div>
         </div>
 
-        <aside v-show="imagePanelVisible" class="paper-preview-aside" aria-label="纸单原图对照栏">
+        <aside v-show="imagePanelVisible" class="paper-preview-aside" :aria-label="manualDraft ? '订单图片对照栏' : '纸单原图对照栏'">
           <section class="paper-preview-card">
             <div class="paper-preview-header">
               <div class="min-w-0">
                 <div class="flex items-center gap-2">
                   <span class="material-symbols-outlined text-[#408aee]">document_scanner</span>
-                  <h3>纸单原图</h3>
+                  <h3>{{ manualDraft ? '订单图片' : '纸单原图' }}</h3>
                   <el-tag v-if="paperFileIds.length" size="small" effect="plain">
                     {{ activePaperIndex + 1 }} / {{ paperFileIds.length }}
                   </el-tag>
@@ -337,7 +389,7 @@
                 fit="contain"
                 class="paper-main-image"
                 preview-teleported
-                :alt="`纸单 ${current.sourceOrderNo || current.externalRefNo} 第 ${activePaperIndex + 1} 张`"
+                :alt="`${manualDraft ? '订单图片' : '纸单'} ${current.sourceOrderNo || current.externalRefNo} 第 ${activePaperIndex + 1} 张`"
               >
                 <template #placeholder>
                   <div class="paper-image-state">原图加载中…</div>
@@ -351,7 +403,7 @@
                 点击图片可放大、旋转和查看细节
               </div>
             </div>
-            <el-empty v-else class="paper-empty" description="该草稿尚未上传纸单原图">
+            <el-empty v-else class="paper-empty" :description="manualDraft ? '该草稿尚未上传订单图片' : '该草稿尚未上传纸单原图'">
               <template #image>
                 <span class="material-symbols-outlined text-5xl text-slate-500">image_not_supported</span>
               </template>
@@ -396,6 +448,7 @@ import { filePreviewUrl } from '@/api/file'
 import { getCustomerPage, type CustomerVO } from '@/api/customer'
 import { getProductPage, type ProductVO } from '@/api/product'
 import { hasFriendlySkuName, skuFriendlyName } from '@/utils/skuDisplay'
+import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
 import {
   confirmOrderDraft,
   getOrderDraft,
@@ -419,6 +472,7 @@ interface SkuOption {
   sizeName: string
   label: string
   price: number
+  costPrice: number
 }
 
 const router = useRouter()
@@ -439,19 +493,33 @@ const statusOptions = [
   { label: '待处理', value: 'EDITING' },
   { label: '已确认', value: 'CONFIRMED' },
 ]
+const orderTypeOptions = [
+  { label: '现货订单', value: 'SPOT' },
+  { label: '订货订单', value: 'PREORDER' },
+]
 
 const readonly = computed(() => current.value?.status !== 'EDITING')
+const manualDraft = computed(() => current.value?.entrySource === 'MANUAL')
 const currentDraftIndex = computed(() => drafts.value.findIndex(draft => draft.id === selectedId.value))
 const unresolvedCount = computed(() => current.value?.items.filter(item => !item.skuId).length || 0)
 const calculatedTotal = computed(() =>
   (current.value?.items || []).reduce((sum, item) => sum + lineAmount(item), 0)
 )
+const currentOrderTotal = computed(() => manualDraft.value
+  ? calculatedTotal.value + Number(current.value?.freightAmount || 0)
+  : Number(current.value?.paperTotalAmount ?? calculatedTotal.value)
+)
+const currentReceivedAmount = computed(() => manualDraft.value
+  ? Number(current.value?.paidAmount || 0)
+  : Number(current.value?.deposit || 0)
+)
 const totalMismatch = computed(() =>
-  current.value?.paperTotalAmount != null
+  !manualDraft.value
+  && current.value?.paperTotalAmount != null
   && Math.abs(calculatedTotal.value - Number(current.value.paperTotalAmount)) > 0.01
 )
 const balanceAmount = computed(() => Math.max(
-  Number(current.value?.paperTotalAmount || 0) - Number(current.value?.deposit || 0),
+  currentOrderTotal.value - currentReceivedAmount.value,
   0,
 ))
 const paperFileIds = computed(() => {
@@ -539,6 +607,7 @@ async function loadProducts() {
           ? skuFriendlyName(sku)
           : [sku.colorName, sku.sizeName].filter(Boolean).join(' · ') || sku.skuCode}`,
         price: Number(sku.price || product.wholesalePrice || 0),
+        costPrice: Number(sku.costPrice || product.costPrice || 0),
       }))
   ).sort((a, b) => Number(b.placeholder) - Number(a.placeholder))
   filteredSkuOptions.value = skuOptions.value.slice(0, 50)
@@ -575,6 +644,7 @@ function onSkuSelect(row: OrderDraftItem) {
   }
   row.productId = sku.productId
   row.systemReferencePrice = sku.price
+  if (manualDraft.value && row.costPrice == null) row.costPrice = sku.costPrice
   row.matchStatus = 'MATCHED'
 }
 
@@ -597,6 +667,8 @@ function onCustomerSelect(customer: CustomerVO) {
   current.value.customerId = customer.id
   current.value.customerName = customer.name
   current.value.customerPhone = customer.phones?.[0] || current.value.customerPhone
+  current.value.customerCountryCode = customer.countryCode || current.value.customerCountryCode
+  current.value.customerAddress = customer.address || current.value.customerAddress
 }
 
 function onCustomerNameInput() {
@@ -636,6 +708,8 @@ function toSaveRequest(draft: OrderDraftView): DraftSaveRequest {
     externalRefNo: draft.externalRefNo,
     sourceBatchNo: draft.sourceBatchNo,
     sourceOrderNo: draft.sourceOrderNo,
+    sourceShop: draft.sourceShop,
+    orderType: draft.orderType,
     sourceFileId: draft.sourceFileId,
     sourceFileIds: draft.sourceFileIds,
     rawCustomerName: draft.rawCustomerName,
@@ -643,12 +717,19 @@ function toSaveRequest(draft: OrderDraftView): DraftSaveRequest {
     customerId: draft.customerId,
     customerName: draft.customerName || '散客',
     customerPhone: draft.customerPhone,
+    customerCountryCode: draft.customerCountryCode,
+    customerAddress: draft.customerAddress,
     rawOrderDate: draft.rawOrderDate,
     orderDate: draft.orderDate,
     deliveryDate: draft.deliveryDate,
     rawDeposit: draft.rawDeposit,
     deposit: draft.deposit,
+    paidAmount: draft.paidAmount,
     paperTotalAmount: draft.paperTotalAmount,
+    freightAmount: draft.freightAmount,
+    freightCost: draft.freightCost,
+    needDelivery: draft.needDelivery,
+    deliveryAddress: draft.needDelivery === 1 ? draft.deliveryAddress : undefined,
     note: draft.note,
     warnings: draft.warnings,
     items: draft.items,

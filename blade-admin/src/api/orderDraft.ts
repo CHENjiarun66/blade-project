@@ -32,6 +32,7 @@ export interface OrderDraftItem {
   skuId?: number
   quantity?: number
   salePrice?: number
+  costPrice?: number
   paperAmount?: number
   systemReferencePrice?: number
   matchStatus?: MatchStatus
@@ -42,8 +43,11 @@ export interface OrderDraftItem {
 export interface OrderDraftView {
   id: number
   externalRefNo: string
+  entrySource?: 'AGENT' | 'MANUAL'
   sourceBatchNo?: string
   sourceOrderNo?: string
+  sourceShop?: string
+  orderType?: 'SPOT' | 'PREORDER'
   sourceFileId?: number
   sourceFileIds?: number[]
   rawCustomerName?: string
@@ -51,12 +55,19 @@ export interface OrderDraftView {
   customerId?: number
   customerName: string
   customerPhone?: string
+  customerCountryCode?: string
+  customerAddress?: string
   rawOrderDate?: string
   orderDate?: string
   deliveryDate?: string
   rawDeposit?: string
   deposit?: number
+  paidAmount?: number
   paperTotalAmount?: number
+  freightAmount?: number
+  freightCost?: number
+  needDelivery?: number
+  deliveryAddress?: string
   calculatedTotalAmount?: number
   note?: string
   warnings: string[]
@@ -70,6 +81,7 @@ export interface OrderDraftView {
 export interface OrderDraftSummary {
   id: number
   externalRefNo: string
+  entrySource?: 'AGENT' | 'MANUAL'
   sourceOrderNo?: string
   sourceFileId?: number
   sourceFileCount?: number
@@ -87,6 +99,8 @@ export interface DraftSaveRequest {
   externalRefNo: string
   sourceBatchNo?: string
   sourceOrderNo?: string
+  sourceShop?: string
+  orderType?: 'SPOT' | 'PREORDER'
   sourceFileId?: number
   sourceFileIds?: number[]
   rawCustomerName?: string
@@ -94,15 +108,30 @@ export interface DraftSaveRequest {
   customerId?: number
   customerName?: string
   customerPhone?: string
+  customerCountryCode?: string
+  customerAddress?: string
   rawOrderDate?: string
   orderDate?: string
   deliveryDate?: string
   rawDeposit?: string
   deposit?: number
+  paidAmount?: number
   paperTotalAmount?: number
+  freightAmount?: number
+  freightCost?: number
+  needDelivery?: number
+  deliveryAddress?: string
   note?: string
   warnings?: string[]
   items: OrderDraftItem[]
+}
+
+export interface DraftCreateResult {
+  externalRefNo: string
+  status: 'CREATED' | 'CREATED_WITH_WARNINGS' | 'DUPLICATE'
+  draftId: number
+  warnings: string[]
+  message?: string
 }
 
 export function getOrderDraftPage(params: {
@@ -125,6 +154,10 @@ export function getOrderDraftPage(params: {
 
 export function getOrderDraft(id: number) {
   return client.get(`/order-drafts/${id}`) as Promise<{ code: number; data: OrderDraftView }>
+}
+
+export function createOrderDraft(data: DraftSaveRequest) {
+  return client.post('/order-drafts', data) as Promise<{ code: number; data: DraftCreateResult }>
 }
 
 export function saveOrderDraft(id: number, data: DraftSaveRequest) {

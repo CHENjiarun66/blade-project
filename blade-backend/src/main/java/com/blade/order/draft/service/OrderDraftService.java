@@ -71,6 +71,10 @@ public class OrderDraftService {
         return toView(draft, items(id));
     }
 
+    public OrderDraftDTO.BatchResult create(OrderDraftDTO.SaveRequest request) {
+        return writer.create(request, null);
+    }
+
     public void update(Long id, OrderDraftDTO.SaveRequest request) {
         writer.update(id, request);
     }
@@ -103,13 +107,13 @@ public class OrderDraftService {
         if (!warnings.isEmpty() && !request.isAcknowledgeWarnings()) {
             throw BusinessException.of(400, "草稿仍有警告，请确认后再提交");
         }
-        if (draft.getPaperTotalAmount() != null && draft.getDeposit() != null
+        if (!isManual(draft) && draft.getPaperTotalAmount() != null && draft.getDeposit() != null
                 && draft.getDeposit().compareTo(draft.getPaperTotalAmount()) > 0) {
             throw BusinessException.of(400, "定金不能大于纸单总金额");
         }
 
         OrderCreateDTO create = toOrderCreate(draft, items);
-        create.setPaidAmount(zero(draft.getDeposit()));
+        create.setPaidAmount(initialPaidAmount(draft));
         Long orderId = orderService.create(create);
         applyPaperTotalOverride(orderId, draft);
 
@@ -127,7 +131,7 @@ public class OrderDraftService {
      * 再由统一快照服务重算收款快照（定金已在 create 内写为首笔 RECEIPT）。
      */
     private void applyPaperTotalOverride(Long orderId, OrderDraft draft) {
-        if (draft.getPaperTotalAmount() == null) {
+        if (isManual(draft) || draft.getPaperTotalAmount() == null) {
             return;
         }
         Order order = orderMapper.selectById(orderId);
@@ -147,11 +151,15 @@ public class OrderDraftService {
         dto.setSourceDocNo(draft.getSourceOrderNo() == null
                 ? draft.getExternalRefNo()
                 : draft.getSourceOrderNo());
-        dto.setSourceShop(draft.getSourceBatchNo());
-        dto.setOrderType("PREORDER");
+        dto.setSourceShop(draft.getSourceShop() == null ? draft.getSourceBatchNo() : draft.getSourceShop());
+        dto.setOrderType(draft.getOrderType() == null ? "PREORDER" : draft.getOrderType());
         dto.setPaymentStatus(0);
         dto.setPaidAmount(BigDecimal.ZERO);
-        dto.setNeedDelivery(0);
+        dto.setCustomerAddress(draft.getCustomerAddress());
+        dto.setFreightAmount(zero(draft.getFreightAmount()));
+        dto.setFreightCost(zero(draft.getFreightCost()));
+        dto.setNeedDelivery(draft.getNeedDelivery() == null ? 0 : draft.getNeedDelivery());
+        dto.setDeliveryAddress(draft.getDeliveryAddress());
         dto.setRemark(draft.getNote());
         List<Long> sourceFileIds = sourceFileIds(draft);
         if (!sourceFileIds.isEmpty()) {
@@ -163,6 +171,7 @@ public class OrderDraftService {
             target.setSkuId(source.getSkuId());
             target.setQuantity(source.getQuantity());
             target.setPrice(source.getSalePrice());
+            target.setCostPrice(source.getCostPrice());
             orderItems.add(target);
         }
         dto.setItems(orderItems);
@@ -174,13 +183,14 @@ public class OrderDraftService {
         OrderDraftDTO.Summary summary = new OrderDraftDTO.Summary();
         summary.setId(draft.getId());
         summary.setExternalRefNo(draft.getExternalRefNo());
+        summary.setEntrySource(draft.getEntrySource());
         summary.setSourceOrderNo(draft.getSourceOrderNo());
         List<Long> sourceFileIds = sourceFileIds(draft);
         summary.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));
         summary.setSourceFileCount(sourceFileIds.size());
         summary.setCustomerName(blankToWalkIn(draft.getCustomerName()));
         summary.setOrderDate(draft.getOrderDate());
-        summary.setPaperTotalAmount(draft.getPaperTotalAmount());
+        summary.setPaperTotalAmount(displayTotalAmount(draft, items));
         summary.setStatus(draft.getStatus());
         summary.setItemCount(items.size());
         summary.setUnresolvedCount((int) items.stream().filter(item -> item.getSkuId() == null).count());
@@ -193,8 +203,11 @@ public class OrderDraftService {
         OrderDraftDTO.View view = new OrderDraftDTO.View();
         view.setId(draft.getId());
         view.setExternalRefNo(draft.getExternalRefNo());
+        view.setEntrySource(draft.getEntrySource());
         view.setSourceBatchNo(draft.getSourceBatchNo());
         view.setSourceOrderNo(draft.getSourceOrderNo());
+        view.setSourceShop(draft.getSourceShop());
+        view.setOrderType(draft.getOrderType());
         List<Long> sourceFileIds = sourceFileIds(draft);
         view.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));
         view.setSourceFileIds(sourceFileIds);
@@ -203,12 +216,19 @@ public class OrderDraftService {
         view.setCustomerId(draft.getCustomerId());
         view.setCustomerName(blankToWalkIn(draft.getCustomerName()));
         view.setCustomerPhone(draft.getCustomerPhone());
+        view.setCustomerCountryCode(draft.getCustomerCountryCode());
+        view.setCustomerAddress(draft.getCustomerAddress());
         view.setRawOrderDate(draft.getRawOrderDate());
         view.setOrderDate(draft.getOrderDate());
         view.setDeliveryDate(draft.getDeliveryDate());
         view.setRawDeposit(draft.getRawDeposit());
         view.setDeposit(draft.getDeposit());
+        view.setPaidAmount(draft.getPaidAmount());
         view.setPaperTotalAmount(draft.getPaperTotalAmount());
+        view.setFreightAmount(draft.getFreightAmount());
+        view.setFreightCost(draft.getFreightCost());
+        view.setNeedDelivery(draft.getNeedDelivery());
+        view.setDeliveryAddress(draft.getDeliveryAddress());
         view.setCalculatedTotalAmount(rows.stream()
                 .filter(item -> item.getQuantity() != null && item.getSalePrice() != null)
                 .map(item -> item.getSalePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
@@ -237,6 +257,7 @@ public class OrderDraftService {
         item.setSkuId(row.getSkuId());
         item.setQuantity(row.getQuantity());
         item.setSalePrice(row.getSalePrice());
+        item.setCostPrice(row.getCostPrice());
         item.setPaperAmount(row.getPaperAmount());
         item.setSystemReferencePrice(row.getSystemReferencePrice());
         item.setMatchStatus(row.getMatchStatus());
@@ -317,5 +338,24 @@ public class OrderDraftService {
 
     private BigDecimal zero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private boolean isManual(OrderDraft draft) {
+        return "MANUAL".equals(draft.getEntrySource());
+    }
+
+    private BigDecimal initialPaidAmount(OrderDraft draft) {
+        return zero(isManual(draft) ? draft.getPaidAmount() : draft.getDeposit());
+    }
+
+    private BigDecimal displayTotalAmount(OrderDraft draft, List<OrderDraftItem> rows) {
+        if (!isManual(draft)) {
+            return draft.getPaperTotalAmount();
+        }
+        BigDecimal itemTotal = rows.stream()
+                .filter(item -> item.getQuantity() != null && item.getSalePrice() != null)
+                .map(item -> item.getSalePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return itemTotal.add(zero(draft.getFreightAmount()));
     }
 }

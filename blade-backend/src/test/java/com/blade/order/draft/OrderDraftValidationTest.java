@@ -5,6 +5,7 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,6 +45,20 @@ class OrderDraftValidationTest {
                     assertThat(violation.getPropertyPath().toString()).isEqualTo("items");
                     assertThat(violation.getMessage()).contains("200");
                 });
+    }
+
+    @Test
+    void manualDraftRejectsInvalidOrderTypeAndNegativeAmounts() {
+        OrderDraftDTO.SaveRequest order = validOrder("INVALID-MANUAL");
+        order.setOrderType("OTHER");
+        order.setPaidAmount(new BigDecimal("-1.00"));
+        order.setFreightAmount(new BigDecimal("-2.00"));
+        order.setNeedDelivery(2);
+        order.getItems().get(0).setCostPrice(new BigDecimal("-3.00"));
+
+        assertThat(validator.validate(order))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("orderType", "paidAmount", "freightAmount", "needDelivery", "items[0].costPrice");
     }
 
     private OrderDraftDTO.SaveRequest validOrder(String externalRefNo) {

@@ -163,7 +163,7 @@ Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴
 
 本机 Key 管理器对应工具为 `blade_order_draft_source_upload`。它只接收本机图片绝对路径，执行时沿用 `agent:orders:write` 的选 Key 与授权流程；Agent 无法读取 Key 原文。上传成功后再调用 `blade_order_drafts_create`，不得把本机路径或图片二进制直接塞入批量 JSON。
 
-管理端使用 JWT 调用 `/api/order-drafts` 读取、编辑和确认。确认动作不属于 Agent API；只有用户确认后才调用既有订单领域服务创建正式订单。
+管理端使用 JWT 调用 `/api/order-drafts` 读取、编辑和确认。确认动作不属于 Agent API；只有用户确认后才调用既有订单领域服务创建正式订单。快速录单也可通过 JWT `POST /api/order-drafts` 保存为 `MANUAL` 草稿；这与 Agent Key 批量导入的 `AGENT` 草稿共用草稿中心，但金额语义分开：手工草稿按明细和运费计算，Agent 草稿继续以纸单金额为准。
 
 Mac 普通用户接入增加“本机 Key 管理器 + 授权代理”层：完整 Key 由用户粘贴到原生桌面应用并存入 macOS 钥匙串；DeepSeek、ZCode、Codex 等 Agent 通过受白名单约束的本机 MCP/调用工具发请求。工具在调用前显示 Agent、接口、scope 和候选 Key，由用户选择并授权，再由本机进程注入 Header。模型不得读取或持有 Key 原文。详细契约见 [16-AGENT_LOCAL_KEY_MANAGER.md](./16-AGENT_LOCAL_KEY_MANAGER.md)。
 

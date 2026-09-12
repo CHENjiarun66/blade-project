@@ -12,12 +12,14 @@ import com.blade.order.draft.mapper.OrderDraftMapper;
 import com.blade.order.draft.service.OrderDraftService;
 import com.blade.order.entity.Order;
 import com.blade.order.entity.OrderFinancialRecord;
+import com.blade.order.entity.OrderItem;
 import com.blade.order.enums.CollectionStatus;
 import com.blade.order.enums.FulfillmentMode;
 import com.blade.order.enums.FulfillmentStatus;
 import com.blade.order.enums.FinancialRecordType;
 import com.blade.order.mapper.OrderFinancialRecordMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.mapper.OrderItemMapper;
 import com.blade.product.mapper.ProductSkuMapper;
 import com.blade.product.mapper.ProductMapper;
 import com.blade.product.entity.Product;
@@ -55,6 +57,7 @@ class OrderDraftConfirmFinanceTest {
     @Autowired private OrderDraftItemMapper draftItemMapper;
     @Autowired private OrderDraftService draftService;
     @Autowired private OrderMapper orderMapper;
+    @Autowired private OrderItemMapper orderItemMapper;
     @Autowired private OrderFinancialRecordMapper financialRecordMapper;
     @Autowired private ProductSkuMapper productSkuMapper;
     @Autowired private ProductMapper productMapper;
@@ -216,6 +219,111 @@ class OrderDraftConfirmFinanceTest {
             List<String> formalOrderImages = objectMapper.readValue(
                     orderMapper.selectById(orderId).getImages(), new TypeReference<>() {});
             assertEquals(fileIds.stream().map(String::valueOf).toList(), formalOrderImages);
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void createManualDraft_acceptsPartialQuickEntryWithoutCreatingFormalOrder() {
+        bindContext();
+        try {
+            OrderDraftDTO.SaveRequest request = new OrderDraftDTO.SaveRequest();
+            request.setExternalRefNo("manual-partial-" + UUID.randomUUID());
+            request.setSourceOrderNo("手工单-半成品");
+            request.setSourceShop("御龙");
+            request.setOrderType("SPOT");
+            request.setCustomerName("临时客户");
+            request.setCustomerCountryCode("+86");
+            request.setPaidAmount(new BigDecimal("30.00"));
+            request.setFreightAmount(new BigDecimal("10.00"));
+            request.setNeedDelivery(1);
+            request.setDeliveryAddress("待补充详细门牌");
+            request.setItems(List.of(new OrderDraftDTO.Item()));
+
+            OrderDraftDTO.BatchResult result = draftService.create(request);
+            OrderDraftDTO.View view = draftService.get(result.getDraftId());
+
+            assertEquals("MANUAL", view.getEntrySource());
+            assertEquals("手工单-半成品", view.getSourceOrderNo());
+            assertEquals("御龙", view.getSourceShop());
+            assertEquals("SPOT", view.getOrderType());
+            assertEquals("+86", view.getCustomerCountryCode());
+            assertEquals(0, view.getPaidAmount().compareTo(new BigDecimal("30.00")));
+            assertEquals(1, view.getNeedDelivery());
+            assertEquals(1, view.getItems().size());
+            assertNull(view.getItems().get(0).getSkuId());
+            assertNull(view.getConfirmedOrderId());
+
+            OrderDraftDTO.Item completedItem = new OrderDraftDTO.Item();
+            completedItem.setSkuId(seedSku());
+            completedItem.setQuantity(1);
+            completedItem.setSalePrice(new BigDecimal("50.00"));
+            completedItem.setCostPrice(new BigDecimal("10.00"));
+            completedItem.setPaperAmount(new BigDecimal("50.00"));
+            request.setItems(List.of(completedItem));
+            request.setWarnings(view.getWarnings());
+            draftService.update(result.getDraftId(), request);
+
+            OrderDraftDTO.View completed = draftService.get(result.getDraftId());
+            assertTrue(completed.getWarnings().isEmpty(), "补齐字段后系统计算警告必须自动消失");
+            assertEquals(0, completed.getItems().get(0).getCostPrice().compareTo(new BigDecimal("10.00")));
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void confirmManualDraft_preservesQuickEntryFinanceDeliveryAndCostFields() {
+        bindContext();
+        try {
+            Long skuId = seedSku();
+            OrderDraftDTO.Item item = new OrderDraftDTO.Item();
+            item.setSkuId(skuId);
+            item.setQuantity(2);
+            item.setSalePrice(new BigDecimal("50.00"));
+            item.setCostPrice(new BigDecimal("12.00"));
+            item.setPaperAmount(new BigDecimal("100.00"));
+
+            OrderDraftDTO.SaveRequest request = new OrderDraftDTO.SaveRequest();
+            request.setExternalRefNo("manual-complete-" + UUID.randomUUID());
+            request.setSourceOrderNo("手工单-完整");
+            request.setSourceShop("御龙");
+            request.setOrderType("SPOT");
+            request.setCustomerName("手工草稿客户");
+            request.setCustomerPhone("13800138000");
+            request.setCustomerAddress("客户地址");
+            request.setPaidAmount(new BigDecimal("40.00"));
+            request.setFreightAmount(new BigDecimal("8.00"));
+            request.setFreightCost(new BigDecimal("3.00"));
+            request.setNeedDelivery(1);
+            request.setDeliveryAddress("送货地址");
+            request.setNote("手工暂存备注");
+            request.setItems(List.of(item));
+            Long draftId = draftService.create(request).getDraftId();
+
+            OrderDraftDTO.ConfirmRequest confirm = new OrderDraftDTO.ConfirmRequest();
+            confirm.setAcknowledgeWarnings(true);
+            Long orderId = draftService.confirm(draftId, confirm).getOrderId();
+            Order order = orderMapper.selectById(orderId);
+
+            assertEquals("SPOT", order.getOrderType());
+            assertEquals("御龙", order.getSourceShop());
+            assertEquals("客户地址", order.getCustomerAddress());
+            assertEquals("送货地址", order.getDeliveryAddress());
+            assertEquals(1, order.getNeedDelivery());
+            assertEquals(0, order.getTotalAmount().compareTo(new BigDecimal("108.00")));
+            assertEquals(0, order.getTotalCostAmount().compareTo(new BigDecimal("27.00")));
+            assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("40.00")));
+            assertEquals(CollectionStatus.PARTIAL.name(), order.getCollectionStatus());
+
+            List<OrderItem> orderItems = orderItemMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<OrderItem>()
+                            .eq(OrderItem::getOrderId, orderId));
+            assertEquals(1, orderItems.size());
+            assertEquals(0, orderItems.get(0).getCostPrice().compareTo(new BigDecimal("12.00")));
         } finally {
             TenantContext.clear();
             SecurityContextHolder.clearContext();

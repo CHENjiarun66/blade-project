@@ -43,6 +43,14 @@ public class OrderDraftController {
         return R.ok(service.get(id));
     }
 
+    @PostMapping
+    @PreAuthorize("hasAuthority('btn:order:create')")
+    @Operation(summary = "从手工快速录单创建草稿")
+    public R<OrderDraftDTO.BatchResult> create(
+            @RequestBody @Valid OrderDraftDTO.SaveRequest request) {
+        return R.ok(service.create(request));
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('btn:order:create')")
     @Operation(summary = "保存订单草稿")

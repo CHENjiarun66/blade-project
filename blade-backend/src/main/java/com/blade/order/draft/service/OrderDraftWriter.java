@@ -88,6 +88,7 @@ public class OrderDraftWriter {
         OrderDraft draft = new OrderDraft();
         draft.setTenantId(tenantId);
         draft.setExternalRefNo(request.getExternalRefNo().trim());
+        draft.setEntrySource(agentKeyId == null ? "MANUAL" : "AGENT");
         draft.setStatus("EDITING");
         draft.setCreatedByAgentKeyId(agentKeyId);
         draft.setWarningAcknowledged(0);
@@ -100,6 +101,8 @@ public class OrderDraftWriter {
                              Set<String> warnings) {
         draft.setSourceBatchNo(trim(request.getSourceBatchNo()));
         draft.setSourceOrderNo(trim(request.getSourceOrderNo()));
+        draft.setSourceShop(trim(request.getSourceShop()));
+        draft.setOrderType(trim(request.getOrderType()));
         List<Long> sourceFileIds = normalizedSourceFileIds(request);
         draft.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));
         draft.setRawCustomerName(trim(request.getRawCustomerName()));
@@ -107,12 +110,19 @@ public class OrderDraftWriter {
         draft.setCustomerId(request.getCustomerId());
         draft.setCustomerName(trim(request.getCustomerName()) == null ? "散客" : request.getCustomerName().trim());
         draft.setCustomerPhone(trim(request.getCustomerPhone()));
+        draft.setCustomerCountryCode(trim(request.getCustomerCountryCode()));
+        draft.setCustomerAddress(trim(request.getCustomerAddress()));
         draft.setRawOrderDate(trim(request.getRawOrderDate()));
         draft.setOrderDate(request.getOrderDate());
         draft.setDeliveryDate(request.getDeliveryDate());
         draft.setRawDeposit(trim(request.getRawDeposit()));
         draft.setDeposit(request.getDeposit());
+        draft.setPaidAmount(request.getPaidAmount());
         draft.setPaperTotalAmount(request.getPaperTotalAmount());
+        draft.setFreightAmount(request.getFreightAmount());
+        draft.setFreightCost(request.getFreightCost());
+        draft.setNeedDelivery(request.getNeedDelivery());
+        draft.setDeliveryAddress(trim(request.getDeliveryAddress()));
         draft.setNote(trim(request.getNote()));
         draft.setWarnings(writeJson(warnings));
     }
@@ -147,6 +157,7 @@ public class OrderDraftWriter {
             item.setSkuId(source.getSkuId());
             item.setQuantity(source.getQuantity());
             item.setSalePrice(source.getSalePrice());
+            item.setCostPrice(source.getCostPrice());
             item.setPaperAmount(source.getPaperAmount());
             item.setSystemReferencePrice(sku != null ? sku.getPrice() : source.getSystemReferencePrice());
             item.setMatchStatus(source.getSkuId() != null
@@ -187,7 +198,11 @@ public class OrderDraftWriter {
 
     private Set<String> collectWarnings(OrderDraftDTO.SaveRequest request) {
         Set<String> warnings = new LinkedHashSet<>();
-        if (request.getWarnings() != null) warnings.addAll(request.getWarnings());
+        if (request.getWarnings() != null) {
+            request.getWarnings().stream()
+                    .filter(warning -> !isCalculatedWarning(warning))
+                    .forEach(warnings::add);
+        }
         if (request.getOrderDate() == null && trim(request.getRawOrderDate()) != null) {
             warnings.add("ORDER_DATE_UNPARSED");
         }
@@ -219,6 +234,14 @@ public class OrderDraftWriter {
             warnings.add("ORDER_TOTAL_MISMATCH");
         }
         return warnings;
+    }
+
+    private boolean isCalculatedWarning(String warning) {
+        if (warning == null) return false;
+        return "ORDER_DATE_UNPARSED".equals(warning)
+                || "DEPOSIT_UNPARSED".equals(warning)
+                || "ORDER_TOTAL_MISMATCH".equals(warning)
+                || warning.matches("ITEM_\\d+_(SKU_UNMATCHED|SKU_INVALID|QUANTITY_MISSING|SALE_PRICE_MISSING|AMOUNT_MISMATCH)");
     }
 
     private OrderDraft findByExternalRef(String externalRefNo) {

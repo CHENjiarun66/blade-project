@@ -6,9 +6,9 @@
         <p class="text-sm text-gray-500">按纸质单据逐张录入，保存后进入标准订单流程。</p>
       </div>
       <div class="flex flex-wrap gap-3">
-        <el-button type="warning" plain class="!rounded-xl !font-bold" @click="router.push('/orders/drafts')">
+        <el-button type="warning" plain class="!rounded-xl !font-bold" :loading="draftSaving" @click="saveAsDraft">
           <span class="material-symbols-outlined text-sm mr-1">draft_orders</span>
-          Agent 草稿箱
+          添加到草稿
         </el-button>
         <el-button class="!rounded-xl !font-bold" @click="router.push('/orders')">
           <span class="material-symbols-outlined text-sm mr-1">arrow_back</span>
@@ -453,6 +453,7 @@ import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createOrder } from '@/api/order'
+import { confirmOrderDraft, createOrderDraft, saveOrderDraft, type DraftSaveRequest } from '@/api/orderDraft'
 import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO } from '@/api/customer'
 import { fileVariantUrl, parseImageSources, uploadFile } from '@/api/file'
 import { getProductFileBindings, getProductPage, type ProductVO, type ProductSku, type ProductFileBindingsVO } from '@/api/product'
@@ -520,6 +521,9 @@ const defaultSourceShop = '御龙'
 const walkInCustomerName = '散客用户'
 const walkInCustomerPhone = '88888888'
 const saving = ref(false)
+const draftSaving = ref(false)
+const savedDraftId = ref<number>()
+const draftExternalRefNo = ref('')
 const needDelivery = ref(false)
 const skuOptions = ref<SkuOption[]>([])
 const filteredSkuOptions = ref<SkuOption[]>([])
@@ -880,6 +884,93 @@ function paymentStatusFromPaid() {
   return Number(form.paidAmount || 0) >= totalAmount.value ? 2 : 1
 }
 
+function manualDraftExternalRef() {
+  if (!draftExternalRefNo.value) {
+    const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2)
+    draftExternalRefNo.value = `manual-${Date.now()}-${randomPart}`
+  }
+  return draftExternalRefNo.value
+}
+
+function hasDraftLineContent(item: QuickLine) {
+  return !isEmptyLine(item)
+}
+
+function toDraftRequest(): DraftSaveRequest {
+  const lines = form.items.filter(hasDraftLineContent)
+  const sourceLines: QuickLine[] = lines.length ? lines : [form.items[0] || {
+    price: 0,
+    costPrice: 0,
+  }]
+  const draftLines = sourceLines.map((item, index) => {
+    const quantity = getLineQuantity(item)
+    const salePrice = parsePlainAmount(item.priceText ?? String(item.price || 0))
+    const paperAmount = quantity > 0 && salePrice > 0 ? quantity * salePrice : undefined
+    return {
+      sourceRowNo: index + 1,
+      rawProductCode: item.productCode || item.skuCode || undefined,
+      rawDescription: item.productName || undefined,
+      rawColor: [item.colorName, item.sizeName].filter(Boolean).join(' / ') || undefined,
+      rawQuantity: item.quantityText || undefined,
+      rawSalePrice: item.priceText || undefined,
+      rawAmount: paperAmount == null ? undefined : String(paperAmount),
+      skuId: item.skuId,
+      quantity: quantity > 0 ? quantity : undefined,
+      salePrice: salePrice > 0 ? salePrice : undefined,
+      costPrice: parsePlainAmount(item.costPriceText ?? String(item.costPrice || 0)),
+      paperAmount,
+      matchStatus: item.skuId ? 'MATCHED' as const : 'UNMATCHED' as const,
+      warnings: [],
+    }
+  })
+
+  return {
+    externalRefNo: manualDraftExternalRef(),
+    sourceOrderNo: form.sourceDocNo || undefined,
+    sourceShop: form.sourceShop || undefined,
+    orderType: form.orderType as 'SPOT' | 'PREORDER',
+    sourceFileIds: imageFileIds.value.map(Number).filter(Number.isFinite),
+    rawCustomerName: form.customerName || undefined,
+    rawCustomerPhone: form.customerPhone || undefined,
+    customerId: form.customerId,
+    customerName: form.customerName || '散客',
+    customerPhone: form.customerPhone || undefined,
+    customerCountryCode: form.countryCode || undefined,
+    customerAddress: form.customerAddress || undefined,
+    rawOrderDate: form.orderDate || undefined,
+    orderDate: form.orderDate || undefined,
+    paidAmount: Number(form.paidAmount || 0),
+    freightAmount: Number(form.freightAmount || 0),
+    freightCost: Number(form.freightCost || 0),
+    needDelivery: needDelivery.value ? 1 : 0,
+    deliveryAddress: needDelivery.value ? form.deliveryAddress || undefined : undefined,
+    note: form.remark || undefined,
+    warnings: [],
+    items: draftLines,
+  }
+}
+
+async function saveAsDraft() {
+  draftSaving.value = true
+  try {
+    const request = toDraftRequest()
+    if (savedDraftId.value) {
+      await saveOrderDraft(savedDraftId.value, request)
+      ElMessage.success('草稿已更新，可从左侧“订单草稿”继续填写')
+      return
+    }
+    const response = await createOrderDraft(request)
+    savedDraftId.value = response.data.draftId
+    ElMessage.success('已添加到草稿，可从左侧“订单草稿”继续填写')
+  } catch (error: any) {
+    ElMessage.error(error.message || '保存草稿失败')
+  } finally {
+    draftSaving.value = false
+  }
+}
+
 async function ensureCustomer() {
   if (form.customerId) return form.customerId
 
@@ -931,6 +1022,17 @@ async function submit(next: boolean) {
   try {
     const currentSourceDocNo = form.sourceDocNo
     const customerId = await ensureCustomer()
+    if (savedDraftId.value) {
+      await saveOrderDraft(savedDraftId.value, toDraftRequest())
+      const confirmed = await confirmOrderDraft(savedDraftId.value, true)
+      ElMessage.success('草稿已确认并生成正式订单')
+      if (next) {
+        resetForNext(currentSourceDocNo)
+      } else {
+        router.push(`/orders/${confirmed.data.orderId}`)
+      }
+      return
+    }
     const data = {
       customerId,
       orderDate: form.orderDate,
@@ -1010,6 +1112,8 @@ function resetForNext(previousSourceDocNo = '') {
   imageSources.value = []
   imageFileIds.value = []
   needDelivery.value = false
+  savedDraftId.value = undefined
+  draftExternalRefNo.value = ''
   selectedProductId.value = undefined
   selectedProduct.value = null
   hoveredProduct.value = null

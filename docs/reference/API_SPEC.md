@@ -1060,12 +1060,15 @@ Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通�
 | GET | `/api/agent/catalog/skus?keyword=...&limit=...` | `X-Agent-Key` / `agent:catalog:read` | 返回 SKU 候选与系统参考价，不返回成本价 |
 | POST | `/api/agent/order-drafts/source-files` | `X-Agent-Key` / `agent:orders:write` | 可选凭证兼容；原图不是创建草稿的前置条件 |
 | POST | `/api/agent/order-drafts/batch` | `X-Agent-Key` / `agent:orders:write` | 批量创建草稿；按租户 + externalRefNo 幂等，每单返回 CREATED、CREATED_WITH_WARNINGS、DUPLICATE 或 ERROR |
-| GET | `/api/order-drafts` | JWT / `menu:order` | 草稿分页列表 |
-| GET | `/api/order-drafts/{id}` | JWT / `menu:order` | 草稿详情、纸单原值、警告和明细 |
-| PUT | `/api/order-drafts/{id}` | JWT / `menu:order` | 保存人工修改，未匹配 SKU 可继续保留 |
-| POST | `/api/order-drafts/{id}/confirm` | JWT / `menu:order` | 人工确认并幂等创建正式订单 |
+| GET | `/api/order-drafts` | JWT / `btn:order:view` | 草稿分页列表 |
+| GET | `/api/order-drafts/{id}` | JWT / `btn:order:view` | 草稿详情、纸单原值、警告和明细 |
+| POST | `/api/order-drafts` | JWT / `btn:order:create` | 将快速录单当前内容创建为手工草稿；允许保留未匹配、未完成明细 |
+| PUT | `/api/order-drafts/{id}` | JWT / `btn:order:create` | 保存人工修改，未匹配 SKU 可继续保留 |
+| POST | `/api/order-drafts/{id}/confirm` | JWT / `btn:order:create` | 人工确认并幂等创建正式订单 |
 
 约束：`salePrice`、`quantity`、`paperAmount`、`paperTotalAmount` 和 `deposit` 来自纸单识别或人工修正；`systemReferencePrice` 仅用于对照，不能覆盖纸单售价。客户无法匹配时使用“散客”。没有 `sourceFileId` 不产生缺图警告。草稿确认前不进入正式订单、库存、财务和经营统计。
+
+V59 起草稿响应增加 `entrySource`：`AGENT` 保持上述纸单语义，`MANUAL` 表示快速录单手工暂存。手工草稿可额外保存 `sourceShop`、`orderType`、`customerCountryCode`、`customerAddress`、`paidAmount`、`freightAmount`、`freightCost`、`needDelivery`、`deliveryAddress` 和明细 `costPrice`。手工草稿确认时订单应收按商品明细加客户运费计算，`paperTotalAmount` 不覆盖正式订单金额；Agent 草稿仍按纸单总额优先。
 
 SKU 候选补充规则：候选返回 `skuType` 和 `placeholder`。只按款号查询任何显式规格商品时，`PLACEHOLDER` 以 `matchScore=1.00` 优先返回，即使当前只有一个具体 `NORMAL` SKU；请求包含 `colorName` 或 `sizeCode` 时不返回占位 SKU。只有纯无规格 `DEFAULT` 商品按款号直接返回实际 SKU。英文 SKU 编码是接口稳定标识，前端应将 `DEFAULT/NA-NA` 显示为“无规格商品（实际 SKU）”，将 `PLACEHOLDER/UNSPEC-UNSPEC` 显示为“整款录入（颜色/尺码未指定）”。`GET /api/agent/analytics/sku-mix` 的款号总量包含占位销量，真实 `skus/colors/sizes` 排名排除占位量，并通过 `unspecified`、`historicalNoVariant`、`variantCoverageRate`、`variantDataQuality` 分别描述当前整款录入量、商品升级规格前的历史无规格量及规格覆盖质量。
 

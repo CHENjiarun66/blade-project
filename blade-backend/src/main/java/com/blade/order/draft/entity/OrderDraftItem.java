@@ -29,6 +29,7 @@ public class OrderDraftItem {
     private Long skuId;
     private Integer quantity;
     private BigDecimal salePrice;
+    private BigDecimal costPrice;
     private BigDecimal paperAmount;
     private BigDecimal systemReferencePrice;
     private String matchStatus;

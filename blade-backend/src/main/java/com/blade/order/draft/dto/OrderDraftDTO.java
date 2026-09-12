@@ -3,6 +3,10 @@ package com.blade.order.draft.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -30,6 +34,10 @@ public final class OrderDraftDTO {
         private String externalRefNo;
         private String sourceBatchNo;
         private String sourceOrderNo;
+        @Size(max = 100)
+        private String sourceShop;
+        @Pattern(regexp = "SPOT|PREORDER", message = "orderType只支持SPOT或PREORDER")
+        private String orderType;
         private Long sourceFileId;
         @Size(max = 10, message = "每张草稿最多上传10张纸单原图")
         private List<Long> sourceFileIds;
@@ -38,12 +46,27 @@ public final class OrderDraftDTO {
         private Long customerId;
         private String customerName;
         private String customerPhone;
+        @Size(max = 10)
+        private String customerCountryCode;
+        @Size(max = 255)
+        private String customerAddress;
         private String rawOrderDate;
         private LocalDate orderDate;
         private LocalDate deliveryDate;
         private String rawDeposit;
         private BigDecimal deposit;
+        @DecimalMin(value = "0.00", message = "实收金额不能为负数")
+        private BigDecimal paidAmount;
         private BigDecimal paperTotalAmount;
+        @DecimalMin(value = "0.00", message = "客户运费不能为负数")
+        private BigDecimal freightAmount;
+        @DecimalMin(value = "0.00", message = "运费成本不能为负数")
+        private BigDecimal freightCost;
+        @Min(0)
+        @Max(1)
+        private Integer needDelivery;
+        @Size(max = 255)
+        private String deliveryAddress;
         @Size(max = 1000)
         private String note;
         private List<String> warnings;
@@ -67,6 +90,8 @@ public final class OrderDraftDTO {
         private Long skuId;
         private Integer quantity;
         private BigDecimal salePrice;
+        @DecimalMin(value = "0.00", message = "成本价不能为负数")
+        private BigDecimal costPrice;
         private BigDecimal paperAmount;
         private BigDecimal systemReferencePrice;
         private String matchStatus;
@@ -92,8 +117,11 @@ public final class OrderDraftDTO {
     public static class View {
         private Long id;
         private String externalRefNo;
+        private String entrySource;
         private String sourceBatchNo;
         private String sourceOrderNo;
+        private String sourceShop;
+        private String orderType;
         private Long sourceFileId;
         private List<Long> sourceFileIds;
         private String rawCustomerName;
@@ -101,12 +129,19 @@ public final class OrderDraftDTO {
         private Long customerId;
         private String customerName;
         private String customerPhone;
+        private String customerCountryCode;
+        private String customerAddress;
         private String rawOrderDate;
         private LocalDate orderDate;
         private LocalDate deliveryDate;
         private String rawDeposit;
         private BigDecimal deposit;
+        private BigDecimal paidAmount;
         private BigDecimal paperTotalAmount;
+        private BigDecimal freightAmount;
+        private BigDecimal freightCost;
+        private Integer needDelivery;
+        private String deliveryAddress;
         private BigDecimal calculatedTotalAmount;
         private String note;
         private List<String> warnings;
@@ -121,6 +156,7 @@ public final class OrderDraftDTO {
     public static class Summary {
         private Long id;
         private String externalRefNo;
+        private String entrySource;
         private String sourceOrderNo;
         private Long sourceFileId;
         private Integer sourceFileCount;
