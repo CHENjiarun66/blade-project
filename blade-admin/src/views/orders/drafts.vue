@@ -15,7 +15,7 @@
         </el-button>
         <el-button v-if="current" class="!rounded-xl !font-bold" @click="togglePaperImages">
           <span class="material-symbols-outlined mr-1 text-sm">image</span>
-          {{ imagePanelVisible && isWideViewport ? '隐藏原单' : '查看原单' }}
+          {{ imagePanelVisible ? '隐藏原单' : '查看原单' }}
           <span v-if="paperFileIds.length" class="ml-1 text-xs text-gray-400">({{ paperFileIds.length }})</span>
         </el-button>
         <el-button
@@ -385,29 +385,11 @@
       </div>
     </main>
 
-    <el-drawer v-model="imageDrawerVisible" title="纸单原图" size="min(760px, 92vw)" destroy-on-close>
-      <div v-if="current" class="paper-drawer">
-        <div class="mb-3 flex items-center justify-between text-sm text-gray-500">
-          <span>纸单 {{ current.sourceOrderNo || current.externalRefNo }}</span>
-          <span>批次 {{ current.sourceBatchNo || '-' }}</span>
-        </div>
-        <el-image
-          v-if="paperFileIds.length"
-          :src="activePaperImageUrl"
-          :preview-src-list="paperImageUrls"
-          :initial-index="activePaperIndex"
-          fit="contain"
-          class="h-[calc(100vh-150px)] w-full rounded-xl bg-slate-950"
-          preview-teleported
-        />
-        <el-empty v-else description="Agent 未上传原图" />
-      </div>
-    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { filePreviewUrl } from '@/api/file'
@@ -449,10 +431,8 @@ const listLoading = ref(false)
 const detailLoading = ref(false)
 const saving = ref(false)
 const confirming = ref(false)
-const imageDrawerVisible = ref(false)
 const imagePanelVisible = ref(true)
 const activePaperIndex = ref(0)
-const isWideViewport = ref(typeof window !== 'undefined' && window.innerWidth >= 1500)
 const skuOptions = ref<SkuOption[]>([])
 const filteredSkuOptions = ref<SkuOption[]>([])
 const statusOptions = [
@@ -517,10 +497,6 @@ function moveDraft(offset: number) {
 }
 
 function togglePaperImages() {
-  if (!isWideViewport.value) {
-    imageDrawerVisible.value = true
-    return
-  }
   imagePanelVisible.value = !imagePanelVisible.value
 }
 
@@ -529,10 +505,6 @@ function movePaper(offset: number) {
     Math.max(activePaperIndex.value + offset, 0),
     Math.max(paperFileIds.value.length - 1, 0),
   )
-}
-
-function handleViewportResize() {
-  isWideViewport.value = window.innerWidth >= 1500
 }
 
 async function selectDraft(id: number) {
@@ -768,11 +740,8 @@ function warningLabel(value: string) {
 }
 
 onMounted(async () => {
-  window.addEventListener('resize', handleViewportResize)
   await Promise.all([loadProducts(), loadDrafts()])
 })
-
-onBeforeUnmount(() => window.removeEventListener('resize', handleViewportResize))
 </script>
 
 <style scoped>
@@ -801,13 +770,21 @@ onBeforeUnmount(() => window.removeEventListener('resize', handleViewportResize)
 
 .draft-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(640px, 1fr) minmax(360px, 34%);
   gap: 24px;
+  align-items: start;
 }
 
 .paper-preview-aside {
-  display: none;
+  position: sticky;
+  top: 80px;
+  display: block;
   min-width: 0;
+  align-self: start;
+}
+
+.draft-workspace.paper-hidden {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .paper-preview-card {
@@ -1099,25 +1076,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', handleViewportResize)
   border-top: 1px solid #334155;
 }
 
-.paper-drawer {
-  min-height: calc(100vh - 100px);
-}
-
 @media (min-width: 1500px) {
   .draft-workspace {
     grid-template-columns: minmax(760px, 1fr) minmax(420px, 34%);
-    align-items: start;
-  }
-
-  .draft-workspace.paper-hidden {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .paper-preview-aside {
-    position: sticky;
-    top: 80px;
-    display: block;
-    align-self: start;
   }
 }
 

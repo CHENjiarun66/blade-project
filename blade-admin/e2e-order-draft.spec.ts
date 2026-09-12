@@ -37,6 +37,10 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({ json: ok({ records: [], total: 0, size: 1000, current: 1, pages: 0 }) })
       return
     }
+    if (url.pathname === '/api/customers') {
+      await route.fulfill({ json: ok({ records: [], total: 0, size: 10, current: 1, pages: 0 }) })
+      return
+    }
     if (url.pathname === '/api/order-drafts/1') {
       await route.fulfill({ json: ok({
         id: 1,
@@ -100,7 +104,7 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('宽屏并排显示多张纸单，窄屏改用抽屉且不影响编辑', async ({ page }) => {
+test('宽屏和中屏都持续并排显示多张纸单且不影响编辑', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 })
   await page.goto('/orders/drafts')
 
@@ -122,8 +126,13 @@ test('宽屏并排显示多张纸单，窄屏改用抽屉且不影响编辑', as
   await page.screenshot({ path: path.resolve('../outputs/order-draft-paper-side-by-side.png') })
 
   await page.setViewportSize({ width: 1280, height: 900 })
-  await expect(aside).toBeHidden()
-  await page.getByRole('button', { name: /查看原单/ }).click()
-  await expect(page.locator('.el-drawer')).toBeVisible()
-  await expect(page.locator('.el-drawer img')).toHaveAttribute('src', /\/api\/files\/9002\/preview/)
+  await expect(aside).toBeVisible()
+  await expect(aside.getByText('2 / 2')).toBeVisible()
+  await expect(aside.locator('img').first()).toHaveAttribute('src', /\/api\/files\/9002\/preview/)
+  await customerName.fill('中屏继续编辑')
+  await expect(customerName).toHaveValue('中屏继续编辑')
+  await expect(aside).toBeVisible()
+  await expect(page.locator('.el-drawer')).toHaveCount(0)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({ path: path.resolve('../outputs/order-draft-paper-side-by-side-1280.png') })
 })
