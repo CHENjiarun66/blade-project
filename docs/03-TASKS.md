@@ -196,7 +196,7 @@
 
 ### Phase 3.4: 订单状态、金额、收款与履约重构（P0）
 
-> 业务方案见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) 和 [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)，实施分工见[订单大重构 ROM/SOW](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。本阶段代码已通过最终审核，尚未执行生产迁移与 NAS 发布。
+> 业务方案见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) 和 [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)，实施分工见[订单大重构 ROM/SOW](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。本阶段代码、生产迁移和 NAS 首发已经完成；2026-09-12 又完成 Agent Key、纸单多图和草稿并排核单增量发布。
 >
 > 本阶段由 Z Code 实现，Codex 不认领编码任务。`ORDER-SOW-0` 已在 `d800ec4` 完成并获准进入实施；后续按[Z Code 长任务](./superpowers/plans/2026-08-30-order-refactor-zcode-long-run-task.md)连续完成、自测和分系列提交，中间不再逐工作包等待 Codex，全部完成后统一进行代码审核。生产与 NAS 门禁不变。
 
@@ -363,7 +363,7 @@
 | BE-605 | ERP 内置识别置信度 | ⏸ 转外部 Agent | 外部 Agent 可提交候选和警告；ERP 继续显示待匹配与差异警告 |
 | BE-606 | Agent 订单草稿数据模型与幂等写入 | ✅ 完成 | V48 独立草稿主表/明细表；租户 + externalRefNo 幂等，允许未匹配 SKU，保留纸单原值与警告 |
 | BE-607 | Agent 商品候选与批量草稿 API | ✅ 完成 | `agent:catalog:read` 查询候选，`agent:orders:write` 接收结构化批次并创建草稿；客户缺失默认散客 |
-| BE-614 | Agent 纸单原图多图上传与草稿关联 | ✅ 完成（2026-09-11） | 本机授权代理新增 `blade_order_draft_source_upload` multipart 工具；批量草稿支持 `sourceFileIds` 最多 10 张并保留单图字段兼容；文件按租户校验并绑定，确认后全部继承到正式订单 |
+| BE-614 | Agent 纸单原图多图上传与草稿关联 | ✅ 完成并发布（2026-09-12） | 本机授权代理新增 `blade_order_draft_source_upload` multipart 工具；批量草稿支持 `sourceFileIds` 最多 10 张并保留单图字段兼容；文件按租户校验并绑定，确认后全部继承到正式订单；随 release `20260912_220631` 上线 |
 | BE-608 | 草稿确认转正式订单 | ✅ 完成 | JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计 |
 | BE-609 | SPU 纸单占位 SKU 与分析隔离 | ✅ 完成 | V49/V50/V56 增加并校正 NORMAL/DEFAULT/PLACEHOLDER；任何显式规格商品（含单一具体 SKU）自动维护占位 SKU，Agent 按规格信息选择候选；Agent/PC 分析计入款号总量并把未指定规格与覆盖率单列 |
 | BE-610 | 占位数量拆分到真实 SKU | ✅ 完成 | 长任务系列 C；原子拆分并保持数量、金额和来源追溯守恒 |
@@ -371,7 +371,7 @@
 | BE-612 | 占位拆分审计与分析回算 | ✅ 完成 | 长任务系列 C/E；拆分审计并防止占位与真实规格重复统计 |
 | BE-613 | 历史无规格 SKU 兼容与语义化显示 | ✅ 完成 | `NA-NA` 作为无规格实际 SKU、`UNSPEC-UNSPEC` 作为整款占位；历史 DEFAULT 保留引用并与当前规格排名隔离，库存履约前可拆分 |
 | TEST-PHASE2-001 | 真实纸单批次本地验收 | ⏳ TODO | 使用“单据收纳/42”的图片和 Excel 验证候选、原值、散客、幂等、编辑保存、占位拆分和确认链路 |
-| TEST-PHASE2-002 | NAS 生产发布与 30 单联调 | ⏳ TODO | V43-V58 和前后端已于 2026-09-11 发布；剩余工作是在实际 Mac 配置 `BLADE_AGENT_API_BASE_URL=https://www.chenjianas.asia:33294` 及最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |
+| TEST-PHASE2-002 | NAS 生产发布与 30 单联调 | ⏳ TODO | V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |
 | OPS-TLS-001 | `chenjianas.asia` 证书续期 | ⏳ 待续期 | 当前 TrustAsia 证书 2026-11-26 到期，尚无自动续期；最迟 2026-11-19 前替换 NAS `/volume2/blade/secrets/tls` 证书并验证裸域名/`www` 均可信 200 |
 
 ### Phase 6.5: 统一文件存储（P1）
@@ -531,7 +531,7 @@
 |---------|------|------|------|
 | BA-801 | ERP 内置半自动拍照录单页 | ⏸ 转外部 Agent | 外部 Agent 负责识别和批量录入，PC 端统一在草稿工作台复核 |
 | BA-802 | ERP 内置 AI 拍照录单页 | ⏸ 转外部 Agent | 不在 ERP 内重复建设识别页；候选、警告和人工修改由 BA-803 承接 |
-| BA-803 | 快速录单草稿工作台 | ✅ 完成 | `/orders/drafts` 已改为快速录单式编辑：左侧录单、右侧粘性原图持续并排，支持多图翻页/缩略图/点击放大/隐藏；中屏不使用抽屉，编辑时原图不关闭，商品表格在自身区域横向滚动 |
+| BA-803 | 快速录单草稿工作台 | ✅ 完成并发布 | `/orders/drafts` 已改为快速录单式编辑：左侧录单、右侧粘性原图持续并排，支持多图翻页/缩略图/点击放大/隐藏；中屏不使用抽屉，编辑时原图不关闭，商品表格在自身区域横向滚动；2026-09-12 随 release `20260912_220631` 上线 |
 | BA-804 | 草稿工作台占位 SKU 标识 | ✅ 完成 | 商品选择器优先显示占位 SKU，并明确标记“整款（未指定颜色/尺码）”，避免与真实颜色尺码混淆 |
 | BA-805 | 占位 SKU 拆分界面 | ✅ 完成并终审通过 | 长任务系列 C/D；按真实颜色/尺码拆分并显示守恒校验和历史 |
 

@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-09-12 变更记录
+
+### [生产增量发布完成] - Agent Key 管理、纸单多图与草稿并排核单上线
+
+- 以 commit `9722ca8ce37579cb19147cff00826d55318db3bc`、release `20260912_220631` 发布 Agent Key 本机管理/授权代理、纸单多图上传与草稿左右并排核单；中屏继续保持原图可见，不再切换抽屉。
+- 发布前完成后端全量 498/498、Key 管理器 9/9、共享类型/PC/移动端构建和 1920/1280 Playwright 回归；使用生产副本完成 V42→V58、145 单迁移、0 人工核对、幂等重放与 SQL 不变量复验。
+- 正式发布只替换 `blade-backend` 和 `blade-web`，MySQL、Redis、uploads 与 `.env.prod` 未重建或覆盖；Flyway 保持 V58。
+- 最新生产备份位于 NAS `/volume2/blade/db-backups/nas_blade_project_prod_20260912_220631`，NAS 外副本位于 Mac `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260912_220631`，全库与 schema 的 SHA-256 均通过。
+- 发布后四个容器正常，维护模式已解除；生产保留 145 张正式订单和 43 张草稿，订单总额 `367811.00`、实收 `367145.00`、余额 `666.00`，全部状态/金额/流水/占位 SKU 门禁通过；外网 `https://www.chenjianas.asia:33294/catalog` 可信 TLS 返回 200。
+
 ## 2026-09-11 变更记录
 
 ### [草稿核单提效] - Agent 多图上传与左右对照编辑

@@ -7,18 +7,18 @@
 
 ## 1. 当前生产环境事实
 
-> 2026-08-30 只读核对：NAS 生产数据库最新 Flyway 为 V42，四个生产容器均在运行；当前发布候选已到 V58。V43-V47 包含 WhatsApp，V48-V50 包含纸单草稿和占位 SKU，V51-V57 包含订单重构与后续修正，V58 包含 Agent Key 管理，均尚未部署生产。发布前仍必须重新只读确认，不得仅依赖本文快照。
+> 2026-09-12 发布后核对：NAS 生产数据库为 Flyway V58，四个生产容器均在运行；当前应用 release 为 `20260912_220631`，commit 为 `9722ca8ce37579cb19147cff00826d55318db3bc`。V43-V58、订单重构、Agent Key、纸单多图和草稿并排核单均已部署；30 单真实联调等运行验收仍按任务文档继续。
 
-### 1.0 待发布能力与前置验收
+### 1.0 已发布能力与剩余运行验收
 
-以下能力已经在本地开发，但尚未记录为 NAS 生产完成：
+以下能力已部署到 NAS；表中保留的条件是上线后的运行验收，不代表需要再次发布：
 
-| 能力 | 迁移范围 | 发布前置条件 |
+| 能力 | 迁移范围 | 剩余运行验收 |
 |------|------|------|
-| WhatsApp 本地归档与客户工作区 | V43-V47 | Collector/Worker Key、Mac → NAS 网络、增量同步与回滚验收 |
-| 纸单 Agent 批量草稿 | V48 | 最小 scope Agent Key、真实批次本地验收、30 单联调方案 |
-| SPU 占位 SKU | V49-V50 | 占位拆分、拆分审计和履约保护完成 |
-| Agent Key 生命周期管理 | V58 | Owner 权限、一次性密钥交付、轮换/停用、Mac 外网地址和调用审计联调 |
+| WhatsApp 本地归档与客户工作区 | V43-V47 | 已发布；继续完成 Collector/Worker Key、Mac → NAS 增量同步与回滚验收 |
+| 纸单 Agent 批量草稿 | V48 + 应用增量 | 已发布多图上传和并排核单；继续完成真实 30 单外网联调 |
+| SPU 占位 SKU | V49-V50/V56 | 已发布；发布门禁确认所有显式规格商品恰有一个启用占位 SKU |
+| Agent Key 生命周期管理 | V58 + 本机应用 | 已发布服务端和本机管理器；继续按不同 Agent 验收授权、轮换、停用与调用审计 |
 
 不得只发布数据库或只发布前端。每组能力需要同时部署匹配的后端、前端和迁移，再执行健康检查。
 
@@ -773,6 +773,8 @@ deploy/nas/deploy_app_from_local.sh --execute
 2026-09-10 已将 `chenjianas.asia` TrustAsia 完整证书链以 NAS 私有目录只读挂载到 `blade-web`，`https://chenjianas.asia:33294/catalog` 和 `https://www.chenjianas.asia:33294/catalog` 均以系统信任链返回 200。发布脚本仍必须在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`。2026-09-11 已基于外网默认地址同步后的最终候选重跑生产副本预演，并生成精确 commit 绑定的非敏感 PASS 证据；候选 commit 再变更时必须重跑。
 
 2026-09-11 正式发布记录：commit `12e1eb91c19401dde3919afec0b3d80cbc910750`，release `20260911_032005`，NAS 备份 `/volume2/blade/db-backups/nas_blade_project_prod_20260911_032005`，Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260911_032005`。Flyway V58、145 单迁移、0 人工核对、幂等重放和全部 SQL 门禁通过，维护模式已解除。
+
+2026-09-12 增量发布记录：commit `9722ca8ce37579cb19147cff00826d55318db3bc`，release `20260912_220631`，NAS 备份 `/volume2/blade/db-backups/nas_blade_project_prod_20260912_220631`，Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260912_220631`。Flyway 保持 V58；历史迁移/重放新增 0、人工核对 0，145 张正式订单与 43 张草稿保留，金额、流水、状态和占位 SKU 门禁通过，维护模式已解除，内外网可信 HTTPS 均返回 200。
 
 当前证书于 2026-11-26 03:59:59 GMT 到期，尚未建立自动续期。运维人员必须于 2026-11-19 前完成替换，使用新证书覆盖 NAS 密钥目录后仅重建 `web`，并重复证书/私钥匹配、裸域名和 `www` 外网信任链验证。
 
