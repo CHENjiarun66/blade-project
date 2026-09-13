@@ -1060,6 +1060,12 @@ Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通�
 | GET | `/api/agent/catalog/skus?keyword=...&limit=...` | `X-Agent-Key` / `agent:catalog:read` | 返回 SKU 候选与系统参考价，不返回成本价 |
 | POST | `/api/agent/order-drafts/source-files` | `X-Agent-Key` / `agent:orders:write` | 可选凭证兼容；原图不是创建草稿的前置条件 |
 | POST | `/api/agent/order-drafts/batch` | `X-Agent-Key` / `agent:orders:write` | 批量创建草稿；按租户 + externalRefNo 幂等，每单返回 CREATED、CREATED_WITH_WARNINGS、DUPLICATE 或 ERROR |
+| GET | `/api/agent/products?current=1&size=20&keyword=...` | `X-Agent-Key` / `agent:products:read` | 分页读取商品、颜色尺码及 SKU；最大 100 条，不返回成本价 |
+| GET | `/api/agent/products/{id}` | `X-Agent-Key` / `agent:products:read` | 读取单个脱敏商品详情 |
+| GET | `/api/agent/products/options` | `X-Agent-Key` / `agent:products:read` | 返回可用于新增商品的分类、颜色、尺码；不返回保留编码 |
+| POST | `/api/agent/products` | `X-Agent-Key` / `agent:products:create` | 新增商品；颜色尺码使用已有编码，同款号返回 DUPLICATE，不更新商品或库存 |
+| GET | `/api/agent/orders?current=1&size=20&startDate=...&endDate=...` | `X-Agent-Key` / `agent:orders:read` | 分页读取正式订单；不返回客户电话/地址、成本和毛利 |
+| GET | `/api/agent/orders/{id}` | `X-Agent-Key` / `agent:orders:read` | 读取正式订单与商品明细；不返回高敏字段 |
 | GET | `/api/order-drafts` | JWT / `btn:order:view` | 草稿分页列表 |
 | GET | `/api/order-drafts/{id}` | JWT / `btn:order:view` | 草稿详情、纸单原值、警告和明细 |
 | POST | `/api/order-drafts` | JWT / `btn:order:create` | 将快速录单当前内容创建为手工草稿；允许保留未匹配、未完成明细 |

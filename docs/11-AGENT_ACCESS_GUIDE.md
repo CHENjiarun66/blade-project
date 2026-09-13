@@ -7,7 +7,7 @@
 
 ## 一、当前接入状态
 
-截至 2026-09-11，BladeProject 已落地 Agent Gateway 鉴权、订单草稿窄写入、纸单原图关联和 Owner 凭证管理：
+截至 2026-09-13，BladeProject 已落地 Agent Gateway 鉴权、脱敏商品/订单读取、商品新增、订单草稿窄写入、纸单原图关联和 Owner 凭证管理：
 
 | 能力 | 状态 | 接口 |
 |------|------|------|
@@ -20,10 +20,15 @@
 | 款式趋势数据包 | 已实现 | `GET /api/agent/analytics/style-trends` |
 | 多周期趋势标签、建议依据 | 已实现 | `GROWING` / `STABLE` / `DECLINING` / `INSUFFICIENT_DATA` |
 | 颜色尺码结构事实包 | 已实现 | `GET /api/agent/analytics/sku-mix` |
+| 商品主档查询 | 已实现 | `GET /api/agent/products`、`/{id}`、`/options`；每页最多 100 条，不含成本价 |
+| 正式订单查询 | 已实现 | `GET /api/agent/orders`、`/{id}`；不含电话、地址、成本和毛利 |
+| 新增商品 | 已实现 | `POST /api/agent/products`；同编码不覆盖，不产生库存，不支持修改/删除 |
 | 客户跟进、客户风险、周期报告、搜索 | 规划中 | 不可按已上线接口调用 |
-| WhatsApp 信息接入 | 方案验证阶段 | 当前没有可调用接口 |
+| WhatsApp 分析 Worker | 已实现的专用通道 | `claim/complete/fail`；普通商品/订单 Agent 不应默认勾选 |
 
 外部 Agent 当前只能把已实现接口当成稳定调用入口。规划中的接口可用于工具设计预留，但不能假定已经可访问。
+
+系统管理页面按 Key 勾选 scope。调整既有 Key 权限会签发替代 Key 并立即停用旧 Key；新增权限不会自动授予历史 Key。页面中显示的是不带技术前缀的 scope（例如 `products:read`），Controller 校验的完整 authority 为 `agent:products:read`。
 
 ---
 
@@ -138,6 +143,35 @@ Agent API 复用 BladeProject 统一响应结构：
 | 5xx 或网络失败 | 做有限次数退避重试，并保留错误上下文 |
 
 外部 Agent 不应根据失败结果绕开 Gateway 去访问 CRUD API、数据库、Redis 或文件存储。
+
+### 3.4 商品与订单数据工具
+
+| 本机工具 | scope | HTTP 接口 | 说明 |
+|------|------|------|------|
+| `blade_products_list` | `agent:products:read` | `GET /api/agent/products` | 分页读取商品；`size` 最大 100 |
+| `blade_product_get` | `agent:products:read` | `GET /api/agent/products/{id}` | 商品与 SKU 详情，不含成本价 |
+| `blade_product_options` | `agent:products:read` | `GET /api/agent/products/options` | 可用分类、颜色、尺码 |
+| `blade_orders_list` | `agent:orders:read` | `GET /api/agent/orders` | 分页读取正式订单；草稿不在其中 |
+| `blade_order_get` | `agent:orders:read` | `GET /api/agent/orders/{id}` | 订单商品明细，不含隐私/成本/毛利 |
+| `blade_product_create` | `agent:products:create` | `POST /api/agent/products` | 新增商品；重复款号返回 `DUPLICATE` |
+
+“获取所有”表示按页循环，不能把 `size` 改成无限值。新增商品的 `colorCodes`、`sizeCodes` 必须引用 `blade_product_options` 返回的已启用编码；接口不会顺带创建新颜色/尺码。无规格商品由现有商品服务生成 `DEFAULT/NA-NA`，有规格商品生成真实组合并自动维护 `PLACEHOLDER/UNSPECIFIED-UNSPEC`，Agent 不得直接传系统保留编码。
+
+新增商品请求示例：
+
+```json
+{
+  "productCode": "7000#",
+  "name": "7000#",
+  "categoryId": 12,
+  "unit": "件",
+  "wholesalePrice": 45.00,
+  "colorCodes": ["BLACK", "WHITE"],
+  "sizeCodes": ["S", "M"]
+}
+```
+
+允许字段还包括 `weight`、`description`、`remark`。接口不接收供应商、成本价、库存数量、商品状态、SKU 编码或保留颜色尺码；创建结果为 `CREATED` 或 `DUPLICATE`。需要新建颜色/尺码时，仍由用户在系统中确认后新增，避免 Agent 生成大量重复字典值。
 
 ---
 

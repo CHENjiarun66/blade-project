@@ -54,6 +54,7 @@ public class ProductServiceImpl implements ProductService {
     private static final String COLOR_UNSPECIFIED = "UNSPECIFIED";
     private static final String SIZE_UNSPECIFIED = "UNSPEC";
     private static final String ATTRIBUTE_NOT_APPLICABLE = "NA";
+    private static final String AUTH_AGENT_PRODUCTS_READ = "agent:products:read";
 
     private final ProductMapper productMapper;
     private final ProductCategoryMapper categoryMapper;
@@ -1054,7 +1055,8 @@ public class ProductServiceImpl implements ProductService {
     private ProductVO convertToVO(Product product) {
         Set<String> authorities = currentAuthorities();
         boolean canViewCost = authorities.contains("field:cost_price");
-        boolean canViewSale = authorities.contains("field:sale_price");
+        boolean canViewSale = authorities.contains("field:sale_price")
+                || authorities.contains(AUTH_AGENT_PRODUCTS_READ);
         ProductVO vo = new ProductVO();
         vo.setId(product.getId());
         vo.setProductCode(product.getProductCode());

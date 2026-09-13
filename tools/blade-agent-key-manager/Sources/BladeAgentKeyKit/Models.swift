@@ -2,7 +2,10 @@ import Foundation
 
 public enum AgentScope: String, Codable, CaseIterable, Identifiable, Sendable {
     case catalogRead = "catalog:read"
+    case productsRead = "products:read"
+    case ordersRead = "orders:read"
     case ordersWrite = "orders:write"
+    case productsCreate = "products:create"
     case analyticsRead = "analytics:read"
     case whatsappAnalyze = "whatsapp:analyze"
 
@@ -12,8 +15,14 @@ public enum AgentScope: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .catalogRead:
             return "查询商品候选"
+        case .productsRead:
+            return "读取商品主档"
+        case .ordersRead:
+            return "读取正式订单"
         case .ordersWrite:
             return "创建订单草稿"
+        case .productsCreate:
+            return "新增商品"
         case .analyticsRead:
             return "读取经营分析"
         case .whatsappAnalyze:
@@ -25,8 +34,14 @@ public enum AgentScope: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .catalogRead:
             return "按款号、颜色和尺码匹配 SKU"
+        case .productsRead:
+            return "分页读取商品和 SKU，不包含成本价"
+        case .ordersRead:
+            return "分页读取订单，不包含客户隐私、成本和毛利"
         case .ordersWrite:
             return "只允许创建待人工确认的订单草稿"
+        case .productsCreate:
+            return "只新增商品，不修改同编码商品或库存"
         case .analyticsRead:
             return "读取已授权的经营聚合数据"
         case .whatsappAnalyze:

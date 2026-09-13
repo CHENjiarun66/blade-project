@@ -24,6 +24,7 @@ import java.util.Set;
 public class OrderAccessPolicy {
 
     public static final String AUTH_VIEW_ALL = "btn:order:viewAll";
+    public static final String AUTH_AGENT_ORDERS_READ = "agent:orders:read";
 
     private final UserMapper userMapper;
 
@@ -35,11 +36,11 @@ public class OrderAccessPolicy {
      * 当前用户是否可访问指定订单。不可访问抛 403。
      */
     public void requireAccess(Order order) {
-        Long userId = currentUserId();
         Set<String> authorities = currentAuthorities();
-        if (authorities.contains(AUTH_VIEW_ALL)) {
+        if (authorities.contains(AUTH_VIEW_ALL) || authorities.contains(AUTH_AGENT_ORDERS_READ)) {
             return;
         }
+        Long userId = currentUserId();
         // 无 viewAll：仅本人开单
         if (userId != null && order.getSalesmanId() != null && order.getSalesmanId().equals(userId)) {
             return;
@@ -63,7 +64,8 @@ public class OrderAccessPolicy {
      * 当前用户是否可查看全租户订单（查询过滤用）。
      */
     public boolean hasViewAllScope() {
-        return currentAuthorities().contains(AUTH_VIEW_ALL);
+        Set<String> authorities = currentAuthorities();
+        return authorities.contains(AUTH_VIEW_ALL) || authorities.contains(AUTH_AGENT_ORDERS_READ);
     }
 
     public Long currentUserId() {

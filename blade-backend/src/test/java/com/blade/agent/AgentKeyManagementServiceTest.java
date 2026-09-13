@@ -99,11 +99,29 @@ class AgentKeyManagementServiceTest {
         when(keyMapper.selectById(77L)).thenReturn(previous);
 
         AgentKeyManagementDTO.Credential replacement = service.rotate(
-                77L, new AgentKeyManagementDTO.RotateRequest(30));
+                77L, new AgentKeyManagementDTO.RotateRequest(
+                        List.of("products:read", "orders:read", "products:create"), 30));
 
         assertEquals(77L, replacement.rotatedFromKeyId());
+        assertEquals(List.of("products:read", "orders:read", "products:create"), replacement.scopes());
         assertEquals(AgentKey.STATUS_DISABLED, previous.getStatus());
         assertTrue(previous.getDisabledTime() != null);
         verify(keyMapper).updateById(previous);
+    }
+
+    @Test
+    void rotateRejectsAnExplicitEmptyScopeSelection() {
+        AgentKey previous = new AgentKey();
+        previous.setId(78L);
+        previous.setName("Mac 纸单 Agent");
+        previous.setScopes("catalog:read,orders:write");
+        previous.setStatus(AgentKey.STATUS_ACTIVE);
+        when(keyMapper.selectById(78L)).thenReturn(previous);
+
+        assertThrows(BusinessException.class, () -> service.rotate(
+                78L, new AgentKeyManagementDTO.RotateRequest(List.of(), 30)));
+
+        assertEquals(AgentKey.STATUS_ACTIVE, previous.getStatus());
+        verify(keyMapper, never()).updateById(previous);
     }
 }

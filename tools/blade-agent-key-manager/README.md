@@ -46,6 +46,12 @@ blade-agent-request --mcp --agent DeepSeek
 MCP 暴露以下受控工具：
 
 - `blade_catalog_search`
+- `blade_products_list`
+- `blade_product_get`
+- `blade_product_options`
+- `blade_product_create`
+- `blade_orders_list`
+- `blade_order_get`
 - `blade_order_draft_source_upload`
 - `blade_order_drafts_create`
 - `blade_style_trends`

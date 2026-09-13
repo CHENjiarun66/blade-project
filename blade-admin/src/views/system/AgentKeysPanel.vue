@@ -30,7 +30,9 @@
         <el-table-column label="权限范围" min-width="250">
           <template #default="{ row }">
             <div class="flex flex-wrap gap-1">
-              <el-tag v-for="scope in row.scopes" :key="scope" size="small" type="info">{{ scopeLabel(scope) }}</el-tag>
+              <el-tag v-for="scope in row.scopes" :key="scope" size="small" :type="scopeTagType(scope)">
+                {{ scopeLabel(scope) }}
+              </el-tag>
             </div>
           </template>
         </el-table-column>
@@ -48,9 +50,9 @@
             <div v-if="row.lastUsedIp" class="mt-0.5 text-xs text-slate-400">{{ row.lastUsedIp }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status === 1" link type="primary" @click="handleRotate(row)">轮换</el-button>
+            <el-button v-if="row.status === 1" link type="primary" @click="openRotateDialog(row)">调整权限</el-button>
             <el-button v-if="row.status === 1" link type="danger" @click="handleDisable(row)">停用</el-button>
           </template>
         </el-table-column>
@@ -63,10 +65,11 @@
           <el-input v-model="createForm.name" maxlength="100" show-word-limit placeholder="例如：Mac 纸单录入 Agent" />
         </el-form-item>
         <el-form-item label="权限范围" prop="scopes">
-          <el-checkbox-group v-model="createForm.scopes" class="flex flex-col gap-3">
-            <el-checkbox v-for="scope in availableScopes" :key="scope" :value="scope">
+          <el-checkbox-group v-model="createForm.scopes" class="flex w-full flex-col gap-2">
+            <el-checkbox v-for="scope in availableScopes" :key="scope" :value="scope" border class="!ml-0 !h-auto !w-full !px-3 !py-2">
               <span class="font-medium text-slate-700">{{ scopeLabel(scope) }}</span>
-              <span class="ml-2 text-xs text-slate-400">{{ scopeDescription(scope) }}</span>
+              <el-tag class="ml-2" size="small" :type="scopeTagType(scope)">{{ scopeRiskLabel(scope) }}</el-tag>
+              <span class="ml-2 text-xs text-slate-500">{{ scopeDescription(scope) }}</span>
             </el-checkbox>
           </el-checkbox-group>
         </el-form-item>
@@ -78,6 +81,31 @@
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="creating" @click="submitCreate">创建并显示密钥</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="rotateDialogVisible" title="调整 Agent 权限" width="560px" destroy-on-close>
+      <el-alert type="warning" :closable="false" show-icon title="调整权限会重新签发 Key">
+        旧 Key 会立即停用，新增权限不会静默授予已经流出的旧密钥。请把新 Key 重新保存到 Mac Key 管理器。
+      </el-alert>
+      <el-form ref="rotateFormRef" class="mt-4" :model="rotateForm" :rules="rotateRules" label-position="top">
+        <el-form-item label="权限范围" prop="scopes">
+          <el-checkbox-group v-model="rotateForm.scopes" class="flex w-full flex-col gap-2">
+            <el-checkbox v-for="scope in availableScopes" :key="scope" :value="scope" border class="!ml-0 !h-auto !w-full !px-3 !py-2">
+              <span class="font-medium text-slate-700">{{ scopeLabel(scope) }}</span>
+              <el-tag class="ml-2" size="small" :type="scopeTagType(scope)">{{ scopeRiskLabel(scope) }}</el-tag>
+              <span class="ml-2 text-xs text-slate-500">{{ scopeDescription(scope) }}</span>
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item label="新 Key 有效期" prop="expiresInDays">
+          <el-input-number v-model="rotateForm.expiresInDays" :min="1" :max="365" controls-position="right" />
+          <span class="ml-2 text-sm text-slate-500">天</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="rotateDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="rotating" @click="submitRotate">重新签发并停用旧 Key</el-button>
       </template>
     </el-dialog>
 
@@ -129,10 +157,14 @@ const keys = ref<AgentKeyView[]>([])
 const availableScopes = ref<string[]>([])
 const loading = ref(false)
 const creating = ref(false)
+const rotating = ref(false)
 const createDialogVisible = ref(false)
+const rotateDialogVisible = ref(false)
 const credentialDialogVisible = ref(false)
 const credential = ref<AgentKeyCredential | null>(null)
 const createFormRef = ref<FormInstance>()
+const rotateFormRef = ref<FormInstance>()
+const rotatingKey = ref<AgentKeyView | null>(null)
 const agentBaseUrl = ref(localStorage.getItem(BASE_URL_STORAGE_KEY) || DEFAULT_EXTERNAL_URL)
 
 const createForm = reactive({
@@ -143,6 +175,16 @@ const createForm = reactive({
 
 const createRules: FormRules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
+  scopes: [{ type: 'array', required: true, min: 1, message: '至少选择一个权限', trigger: 'change' }],
+  expiresInDays: [{ required: true, message: '请输入有效期', trigger: 'change' }],
+}
+
+const rotateForm = reactive({
+  scopes: [] as string[],
+  expiresInDays: 90,
+})
+
+const rotateRules: FormRules = {
   scopes: [{ type: 'array', required: true, min: 1, message: '至少选择一个权限', trigger: 'change' }],
   expiresInDays: [{ required: true, message: '请输入有效期', trigger: 'change' }],
 }
@@ -190,19 +232,32 @@ async function submitCreate() {
   }
 }
 
-async function handleRotate(row: AgentKeyView) {
+function openRotateDialog(row: AgentKeyView) {
+  rotatingKey.value = row
+  rotateForm.scopes = [...row.scopes]
+  rotateForm.expiresInDays = 90
+  rotateDialogVisible.value = true
+}
+
+async function submitRotate() {
+  if (!rotateFormRef.value || !rotatingKey.value) return
+  await rotateFormRef.value.validate()
   await ElMessageBox.confirm(
-    `轮换后旧 Key「${row.keyPrefix}」会立即失效。请确认 Mac Agent 可以及时更新新密钥。`,
-    '轮换 Agent Key',
-    { type: 'warning', confirmButtonText: '继续轮换' },
+    `旧 Key「${rotatingKey.value.keyPrefix}」会立即失效，并签发一把具有所选权限的新 Key。`,
+    '确认调整权限',
+    { type: 'warning', confirmButtonText: '确认重新签发' },
   )
+  rotating.value = true
   try {
-    const response = await rotateAgentKey(row.id, 90)
+    const response = await rotateAgentKey(rotatingKey.value.id, { ...rotateForm })
     credential.value = response.data
+    rotateDialogVisible.value = false
     credentialDialogVisible.value = true
     await loadData()
   } catch (error: any) {
-    ElMessage.error(error?.message || 'Agent Key 轮换失败')
+    ElMessage.error(error?.message || 'Agent Key 权限调整失败')
+  } finally {
+    rotating.value = false
   }
 }
 
@@ -251,7 +306,10 @@ async function copyText(value: string, label: string) {
 function scopeLabel(scope: string) {
   return ({
     'catalog:read': '查询商品候选',
+    'products:read': '读取商品主档',
+    'orders:read': '读取正式订单',
     'orders:write': '创建订单草稿',
+    'products:create': '新增商品',
     'analytics:read': '读取经营分析',
     'whatsapp:analyze': 'WhatsApp 分析任务',
   } as Record<string, string>)[scope] || scope
@@ -260,10 +318,24 @@ function scopeLabel(scope: string) {
 function scopeDescription(scope: string) {
   return ({
     'catalog:read': '按款号、颜色和尺码匹配 SKU',
+    'products:read': '分页读取商品、颜色、尺码和 SKU；不含成本价',
+    'orders:read': '分页读取订单和商品明细；不含电话、地址、成本和毛利',
     'orders:write': '仅生成待人工确认的草稿',
+    'products:create': '只新增商品，不修改同编码商品，也不写库存',
     'analytics:read': '读取已授权的聚合数据',
     'whatsapp:analyze': '领取并回传分析结果',
   } as Record<string, string>)[scope] || ''
+}
+
+function scopeRiskLabel(scope: string) {
+  if (scope === 'products:create' || scope === 'orders:write' || scope === 'whatsapp:analyze') return '写入'
+  return '只读'
+}
+
+function scopeTagType(scope: string): 'success' | 'warning' | 'info' {
+  if (scope === 'products:create' || scope === 'orders:write' || scope === 'whatsapp:analyze') return 'warning'
+  if (scope === 'products:read' || scope === 'orders:read' || scope === 'analytics:read') return 'success'
+  return 'info'
 }
 
 function statusText(row: AgentKeyView) {

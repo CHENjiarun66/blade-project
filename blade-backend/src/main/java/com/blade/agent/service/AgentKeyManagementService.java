@@ -28,7 +28,10 @@ public class AgentKeyManagementService {
     private static final int DEFAULT_EXPIRY_DAYS = 90;
     private static final Set<String> ALLOWED_SCOPES = Set.of(
             "catalog:read",
+            "products:read",
+            "orders:read",
             "orders:write",
+            "products:create",
             "analytics:read",
             "whatsapp:analyze"
     );
@@ -58,7 +61,7 @@ public class AgentKeyManagementService {
             throw BusinessException.of(400, "已停用的Key不能轮换，请创建新Key");
         }
         AgentKeyManagementDTO.Credential credential = issue(
-                previous.getName(), splitScopes(previous.getScopes()), request.expiresInDays(), previous.getId());
+                previous.getName(), requestedRotationScopes(previous, request), request.expiresInDays(), previous.getId());
         disableEntity(previous);
         keyMapper.updateById(previous);
         return credential;
@@ -75,7 +78,15 @@ public class AgentKeyManagementService {
     }
 
     public List<String> allowedScopes() {
-        return List.of("catalog:read", "orders:write", "analytics:read", "whatsapp:analyze");
+        return List.of("catalog:read", "products:read", "orders:read", "analytics:read",
+                "orders:write", "products:create", "whatsapp:analyze");
+    }
+
+    private List<String> requestedRotationScopes(AgentKey previous, AgentKeyManagementDTO.RotateRequest request) {
+        if (request.scopes() == null) {
+            return splitScopes(previous.getScopes());
+        }
+        return request.scopes();
     }
 
     private AgentKeyManagementDTO.Credential issue(String rawName,

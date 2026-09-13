@@ -79,6 +79,25 @@ final class BladeAgentKeyKitTests: XCTestCase {
         ))
         XCTAssertEqual(drafts.requiredScope, .ordersWrite)
 
+        let products = try AgentRequestPolicy.validate(AgentAPIRequest(
+            agentName: "Codex", method: "GET", path: "/api/agent/products/42"
+        ))
+        XCTAssertEqual(products.requiredScope, .productsRead)
+
+        let productCreate = try AgentRequestPolicy.validate(AgentAPIRequest(
+            agentName: "Codex", method: "POST", path: "/api/agent/products", body: Data("{}".utf8)
+        ))
+        XCTAssertEqual(productCreate.requiredScope, .productsCreate)
+
+        let orders = try AgentRequestPolicy.validate(AgentAPIRequest(
+            agentName: "Codex", method: "GET", path: "/api/agent/orders?current=1&size=100"
+        ))
+        XCTAssertEqual(orders.requiredScope, .ordersRead)
+
+        XCTAssertThrowsError(try AgentRequestPolicy.validate(AgentAPIRequest(
+            agentName: "Codex", method: "GET", path: "/api/agent/orders/not-a-number"
+        )))
+
         XCTAssertThrowsError(try AgentRequestPolicy.validate(AgentAPIRequest(
             agentName: "DeepSeek",
             method: "POST",

@@ -238,8 +238,9 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void redactSensitiveAmounts(OrderVO vo, java.util.Set<String> authorities) {
-        boolean canViewSale = authorities.contains("field:sale_price");
-        boolean canViewPaid = authorities.contains("field:paid_amount");
+        boolean agentOrdersRead = authorities.contains(OrderAccessPolicy.AUTH_AGENT_ORDERS_READ);
+        boolean canViewSale = authorities.contains("field:sale_price") || agentOrdersRead;
+        boolean canViewPaid = authorities.contains("field:paid_amount") || agentOrdersRead;
         boolean canViewDeposit = authorities.contains("field:deposit_amount");
         boolean canViewCost = authorities.contains("field:cost_price");
         boolean canViewProfit = authorities.contains("field:profit");

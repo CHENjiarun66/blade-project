@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/11 12:39:05　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/13 03:51:12　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,10 +73,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">175 完成 · 0 进行中 · 17 待办 · 0 部分 · 6 暂缓</span>
+          <span class="card-nums">180 完成 · 0 进行中 · 17 待办 · 0 部分 · 6 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
-        <div class="bar-label">91% 完成（活跃 192 项，暂缓 6 项）</div>
+        <div class="bar-label">91% 完成（活跃 197 项，暂缓 6 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -221,7 +221,7 @@
         <td class="td-name">NAS 生产发布与 30 单联调</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">V43-V58 和前后端已于 2026-09-11 发布；剩余工作是在实际 Mac 配置 `BLADE_AGENT_API_BASE_URL=https://www.chenjianas.asia:33294` 及最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
+        <td class="td-remark">V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">FE-005</td>
@@ -308,7 +308,7 @@
         <td class="td-name">ERP 内置 OCR 图片上传</td>
         <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">ERP 不提供拍照识别入口，也不要求上传原图；现有 source-files 仅作可选凭证兼容 |</td>
+        <td class="td-remark">ERP 不提供拍照识别入口；纸单原图由外部 Agent 经受控 source-files 接口上传 |</td>
       </tr>
       <tr data-status="deferred">
         <td class="td-id">BE-602</td>
@@ -369,7 +369,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 280 项） <span class="count">280</span></h2>
+      <h2>✅ 已完成（共 285 项） <span class="count">285</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1317,6 +1317,27 @@
         <td class="td-remark">V58 + `/api/system/agent-keys`；仅 Owner 拥有管理权限，密钥只显示一次、数据库仅存 BCrypt 哈希，scope 白名单、1～365 天有效期、不可逆停用、轮换链和签发用户均可审计 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-587</td>
+        <td class="td-name">Agent 商品/订单脱敏读取</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">增加 `products:read`、`orders:read`；商品、正式订单支持分页/详情，专用 DTO 排除成本、毛利、电话和地址；商品选项隐藏保留编码 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-588</td>
+        <td class="td-name">Agent 商品新增窄写入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">`products:create` 只允许新增；同编码返回 DUPLICATE，不覆盖旧商品，不创建库存；SKU 沿用 DEFAULT/NORMAL/PLACEHOLDER 统一服务 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-589</td>
+        <td class="td-name">Agent scope 管理与本机工具联动</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">系统管理可按风险选择新增 scope；调整权限以替代 Key 轮换并停用旧 Key；Mac 白名单新增商品/订单查询与商品新增工具 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">AGENT-KEY-001</td>
         <td class="td-name">Mac Agent Key 管理器与授权代理 v1</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1335,7 +1356,21 @@
         <td class="td-name">Agent 商品候选与批量草稿 API</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">`agent:catalog:read` 查询候选，`agent:orders:write` 接收结构化批次并创建草稿；原图非必需，客户缺失默认散客 |</td>
+        <td class="td-remark">`agent:catalog:read` 查询候选，`agent:orders:write` 接收结构化批次并创建草稿；客户缺失默认散客 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-614</td>
+        <td class="td-name">Agent 纸单原图多图上传与草稿关联</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">本机授权代理新增 `blade_order_draft_source_upload` multipart 工具；批量草稿支持 `sourceFileIds` 最多 10 张并保留单图字段兼容；文件按租户校验并绑定，确认后全部继承到正式订单；随 release `20260912_220631` 上线 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-615</td>
+        <td class="td-name">快速录单半成品暂存并续填</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">快速录单当前内容保存为 MANUAL 草稿且不跳页；重复点击更新同一草稿，草稿中心可续填完整字段并确认生成正式订单。V59 加法迁移保留 Agent 草稿兼容；后端 502/502、PC 构建及草稿关键路径 Playwright 3/3 通过，待生产发布 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-608</td>
@@ -1958,7 +1993,7 @@
         <td class="td-name">快速录单草稿工作台</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
-        <td class="td-remark">`/orders/drafts` 已改为快速录单式全宽表单：顶部切换草稿、单据/客户分区、全宽商品编辑、金额汇总，原图按需从抽屉打开 |</td>
+        <td class="td-remark">`/orders/drafts` 已改为快速录单式编辑：左侧录单、右侧粘性原图持续并排，支持多图翻页/缩略图/点击放大/隐藏；中屏不使用抽屉，编辑时原图不关闭，商品表格在自身区域横向滚动；2026-09-12 随 release `20260912_220631` 上线 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-804</td>

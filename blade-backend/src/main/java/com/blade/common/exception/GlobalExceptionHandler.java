@@ -1,6 +1,8 @@
 package com.blade.common.exception;
 
 import com.blade.common.result.R;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
@@ -21,7 +23,12 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public R<?> handleAccessDeniedException(AccessDeniedException e) {
+    public R<?> handleAccessDeniedException(AccessDeniedException e,
+                                            HttpServletRequest request,
+                                            HttpServletResponse response) {
+        if (request.getRequestURI() != null && request.getRequestURI().startsWith("/api/agent/")) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        }
         return R.fail(403, "您没有该操作权限，请联系管理员授权");
     }
 

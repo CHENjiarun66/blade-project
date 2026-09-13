@@ -83,6 +83,35 @@ final class MCPServer {
                 method: "GET",
                 path: try path("/api/agent/catalog/skus", query: query)
             )
+        case "blade_products_list":
+            var query: [String: Any] = [:]
+            for key in ["current", "size", "keyword", "categoryId", "status"] {
+                if let value = arguments[key] { query[key] = value }
+            }
+            return AgentAPIRequest(agentName: agentName, method: "GET",
+                                   path: try path("/api/agent/products", query: query))
+        case "blade_product_get":
+            let id = try positiveInteger(arguments["id"], name: "id")
+            return AgentAPIRequest(agentName: agentName, method: "GET", path: "/api/agent/products/\(id)")
+        case "blade_product_options":
+            return AgentAPIRequest(agentName: agentName, method: "GET", path: "/api/agent/products/options")
+        case "blade_product_create":
+            guard let payload = arguments["payload"], JSONSerialization.isValidJSONObject(payload) else {
+                throw MCPToolError.invalidArguments("payload 必须是符合商品新增接口的 JSON 对象")
+            }
+            return AgentAPIRequest(agentName: agentName, method: "POST", path: "/api/agent/products",
+                                   body: try JSONSerialization.data(withJSONObject: payload))
+        case "blade_orders_list":
+            var query: [String: Any] = [:]
+            for key in ["current", "size", "orderNo", "customerName", "fulfillmentStatus",
+                        "collectionStatus", "orderType", "hasBalance", "startDate", "endDate"] {
+                if let value = arguments[key] { query[key] = value }
+            }
+            return AgentAPIRequest(agentName: agentName, method: "GET",
+                                   path: try path("/api/agent/orders", query: query))
+        case "blade_order_get":
+            let id = try positiveInteger(arguments["id"], name: "id")
+            return AgentAPIRequest(agentName: agentName, method: "GET", path: "/api/agent/orders/\(id)")
         case "blade_order_drafts_create":
             guard let payload = arguments["payload"], JSONSerialization.isValidJSONObject(payload) else {
                 throw MCPToolError.invalidArguments("payload 必须是符合订单草稿接口的 JSON 对象")
@@ -141,6 +170,17 @@ final class MCPServer {
         return value
     }
 
+    private func positiveInteger(_ value: Any?, name: String) throws -> Int {
+        let number: Int?
+        if let int = value as? Int { number = int }
+        else if let string = value as? String { number = Int(string) }
+        else { number = nil }
+        guard let number, number > 0 else {
+            throw MCPToolError.invalidArguments("\(name) 必须是正整数")
+        }
+        return number
+    }
+
     private func toolDefinitions() -> [[String: Any]] {
         [
             [
@@ -157,6 +197,56 @@ final class MCPServer {
                     ],
                     "additionalProperties": false
                 ]
+            ],
+            [
+                "name": "blade_products_list",
+                "description": "分页读取 BladeProject 商品主档、颜色尺码和 SKU。响应不含商品或 SKU 成本价。请按页读取，不要请求无上限全量数据。",
+                "inputSchema": listSchema(properties: [
+                    "keyword": ["type": "string"],
+                    "categoryId": ["type": "integer", "minimum": 1],
+                    "status": ["type": "integer", "enum": [0, 1]]
+                ])
+            ],
+            [
+                "name": "blade_product_get",
+                "description": "按商品 ID 读取脱敏商品详情和 SKU。",
+                "inputSchema": idSchema()
+            ],
+            [
+                "name": "blade_product_options",
+                "description": "读取新增商品可使用的分类、颜色和尺码选项；系统保留占位编码不会返回。",
+                "inputSchema": ["type": "object", "properties": [:], "additionalProperties": false]
+            ],
+            [
+                "name": "blade_product_create",
+                "description": "新增一个商品并按已有颜色、尺码编码生成 SKU。相同商品编码只返回 DUPLICATE，不会覆盖；不写入库存，也不允许修改或删除。",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "payload": ["type": "object", "description": "POST /api/agent/products 的完整 JSON 请求体"]
+                    ],
+                    "required": ["payload"],
+                    "additionalProperties": false
+                ]
+            ],
+            [
+                "name": "blade_orders_list",
+                "description": "分页读取正式订单与销售、收款和状态事实；不返回客户电话地址、成本或毛利。草稿不在此接口中。",
+                "inputSchema": listSchema(properties: [
+                    "orderNo": ["type": "string"],
+                    "customerName": ["type": "string"],
+                    "fulfillmentStatus": ["type": "string"],
+                    "collectionStatus": ["type": "string"],
+                    "orderType": ["type": "string"],
+                    "hasBalance": ["type": "boolean"],
+                    "startDate": ["type": "string", "description": "yyyy-MM-dd"],
+                    "endDate": ["type": "string", "description": "yyyy-MM-dd"]
+                ])
+            ],
+            [
+                "name": "blade_order_get",
+                "description": "按订单 ID 读取脱敏正式订单详情和商品明细。",
+                "inputSchema": idSchema()
             ],
             [
                 "name": "blade_order_draft_source_upload",
@@ -192,6 +282,22 @@ final class MCPServer {
                 "description": "读取某款商品的颜色、尺码和整款录入结构事实。",
                 "inputSchema": analyticsSchema(requiresProduct: true)
             ]
+        ]
+    }
+
+    private func listSchema(properties extra: [String: Any]) -> [String: Any] {
+        var properties = extra
+        properties["current"] = ["type": "integer", "minimum": 1]
+        properties["size"] = ["type": "integer", "minimum": 1, "maximum": 100]
+        return ["type": "object", "properties": properties, "additionalProperties": false]
+    }
+
+    private func idSchema() -> [String: Any] {
+        [
+            "type": "object",
+            "properties": ["id": ["type": "integer", "minimum": 1]],
+            "required": ["id"],
+            "additionalProperties": false
         ]
     }
 

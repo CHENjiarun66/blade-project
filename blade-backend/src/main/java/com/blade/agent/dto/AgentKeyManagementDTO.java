@@ -20,6 +20,7 @@ public final class AgentKeyManagementDTO {
     }
 
     public record RotateRequest(
+            @Size(min = 1, message = "至少选择一个scope") List<String> scopes,
             @Min(value = 1, message = "有效期至少1天") @Max(value = 365, message = "有效期不能超过365天") Integer expiresInDays) {
     }
 

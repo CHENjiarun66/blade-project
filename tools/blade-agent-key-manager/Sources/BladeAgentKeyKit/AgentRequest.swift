@@ -80,6 +80,18 @@ public enum AgentRequestPolicy {
         switch (method, pathOnly) {
         case ("GET", "/api/agent/catalog/skus"):
             requiredScope = .catalogRead
+        case ("GET", "/api/agent/products"):
+            requiredScope = .productsRead
+        case ("GET", "/api/agent/products/options"):
+            requiredScope = .productsRead
+        case ("GET", let value) where isNumericDetailPath(value, prefix: "/api/agent/products/"):
+            requiredScope = .productsRead
+        case ("POST", "/api/agent/products"):
+            requiredScope = .productsCreate
+        case ("GET", "/api/agent/orders"):
+            requiredScope = .ordersRead
+        case ("GET", let value) where isNumericDetailPath(value, prefix: "/api/agent/orders/"):
+            requiredScope = .ordersRead
         case ("POST", "/api/agent/order-drafts/batch"):
             requiredScope = .ordersWrite
         case ("POST", "/api/agent/order-drafts/source-files"):
@@ -115,6 +127,12 @@ public enum AgentRequestPolicy {
             body: request.body,
             fileURL: request.fileURL
         )
+    }
+
+    private static func isNumericDetailPath(_ path: String, prefix: String) -> Bool {
+        guard path.hasPrefix(prefix) else { return false }
+        let suffix = path.dropFirst(prefix.count)
+        return !suffix.isEmpty && suffix.allSatisfy(\.isNumber)
     }
 
     public static func eligibleKeys(

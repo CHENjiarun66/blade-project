@@ -32,11 +32,16 @@ export interface CreateAgentKeyRequest {
   expiresInDays: number
 }
 
+export interface RotateAgentKeyRequest {
+  scopes: string[]
+  expiresInDays: number
+}
+
 export const getAgentKeys = () => client.get<AgentKeyView[]>('/system/agent-keys')
 export const getAgentKeyScopes = () => client.get<string[]>('/system/agent-keys/scopes')
 export const createAgentKey = (data: CreateAgentKeyRequest) =>
   client.post<AgentKeyCredential>('/system/agent-keys', data)
-export const rotateAgentKey = (id: number, expiresInDays: number) =>
-  client.post<AgentKeyCredential>(`/system/agent-keys/${id}/rotate`, { expiresInDays })
+export const rotateAgentKey = (id: number, data: RotateAgentKeyRequest) =>
+  client.post<AgentKeyCredential>(`/system/agent-keys/${id}/rotate`, data)
 export const disableAgentKey = (id: number) =>
   client.post(`/system/agent-keys/${id}/disable`)
