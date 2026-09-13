@@ -53,7 +53,9 @@ MySQL + Redis + File Storage
 | 创建订单草稿 | 已开放窄范围能力；`agent:orders:write`，只写草稿，不产生库存/财务影响 |
 | 读取商品主档 | `agent:products:read`；分页返回商品、颜色尺码和 SKU，不返回成本价 |
 | 读取正式订单 | `agent:orders:read`；分页返回销售、收款、状态与商品明细，不返回电话、地址、成本和毛利 |
+| 读取客户资料 | `agent:customers:read`；分页返回客户名称、电话、地址和备注，属于敏感只读 |
 | 新增商品 | `agent:products:create`；同编码返回 `DUPLICATE`，不覆盖旧商品，不写库存 |
+| 新增客户 | `agent:customers:create`；重复电话返回 `DUPLICATE`，不覆盖旧客户 |
 | 确认正式订单、库存调整、收款确认 | Agent 阶段禁止，必须由 JWT 登录用户人工执行 |
 | 增量变更订阅 `/agent/changes` | 待统一业务事件日志后再做 |
 
@@ -166,7 +168,9 @@ Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴
 | `GET /api/agent/products`、`GET /api/agent/products/{id}` | `agent:products:read` | 分页/单项读取脱敏商品主档；每页最多 100 条 |
 | `GET /api/agent/products/options` | `agent:products:read` | 返回新增商品可引用的分类、颜色和尺码；隐藏系统保留编码 |
 | `GET /api/agent/orders`、`GET /api/agent/orders/{id}` | `agent:orders:read` | 分页/单项读取脱敏正式订单；草稿不在本接口内 |
+| `GET /api/agent/customers`、`GET /api/agent/customers/{id}` | `agent:customers:read` | 分页/单项读取客户名称、电话、地址、备注和订单数 |
 | `POST /api/agent/products` | `agent:products:create` | 只新增商品；颜色尺码按已有编码解析，重复款号不修改，库存为零事实 |
+| `POST /api/agent/customers` | `agent:customers:create` | 只新增客户；重复电话不覆盖，并记录实际 Agent Key 来源 |
 
 本机 Key 管理器对应工具为 `blade_order_draft_source_upload`。它只接收本机图片绝对路径，执行时沿用 `agent:orders:write` 的选 Key 与授权流程；Agent 无法读取 Key 原文。上传成功后再调用 `blade_order_drafts_create`，不得把本机路径或图片二进制直接塞入批量 JSON。
 
@@ -177,6 +181,8 @@ Mac 普通用户接入增加“本机 Key 管理器 + 授权代理”层：完�
 本机代理不是新的业务网关：它只负责本机凭证保管、用户授权和网络转发，租户隔离、scope、过期/停用判断及调用审计仍由 NAS 上的 Agent Gateway 执行。纯网页 Agent 无本机工具能力时不得直接使用生产 Key。
 
 Key 权限调整采用“重新签发并停用旧 Key”，不在已经流出的旧 Key 上静默扩权。新增 scope 不会自动进入历史 Key；Owner 必须在系统管理中明确勾选，保存一次性新 Key并更新本机 Key 管理器。查询接口只允许分页，不提供无上限全量下载；Agent 需要完整数据时按 `current/size` 逐页读取。
+
+客户资料是独立高敏边界：`orders:read` 仍不返回客户电话和地址；只有 Owner 明确授予 `customers:read` 后才能读取客户电话、地址与备注。`customers:create` 不隐含读取权限，也不允许客户更新、删除、合并或标签调整。
 
 数据优先级固定为：纸单数量、纸单销售价、纸单金额和总额优先；商品主档只负责识别 SKU 与提供参考价。未匹配 SKU、金额不一致和字段歧义以警告形式保留，不阻止草稿落库。
 

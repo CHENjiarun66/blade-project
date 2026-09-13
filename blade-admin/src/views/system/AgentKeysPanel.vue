@@ -7,7 +7,7 @@
           <h2 class="text-lg font-bold text-slate-800">Agent Key</h2>
         </div>
         <p class="mt-1 text-sm leading-6 text-slate-500">
-          给 Mac 上的 Agent 签发独立凭证。Key 自动绑定当前租户，不能确认订单、收款或操作库存。
+          给 Mac 上的 Agent 签发独立凭证。Key 自动绑定当前租户，不能确认订单、收款、操作库存或修改删除资料。
         </p>
       </div>
       <el-button type="primary" :loading="creating" @click="openCreateDialog">
@@ -308,8 +308,10 @@ function scopeLabel(scope: string) {
     'catalog:read': '查询商品候选',
     'products:read': '读取商品主档',
     'orders:read': '读取正式订单',
+    'customers:read': '读取客户资料',
     'orders:write': '创建订单草稿',
     'products:create': '新增商品',
+    'customers:create': '新增客户',
     'analytics:read': '读取经营分析',
     'whatsapp:analyze': 'WhatsApp 分析任务',
   } as Record<string, string>)[scope] || scope
@@ -320,20 +322,24 @@ function scopeDescription(scope: string) {
     'catalog:read': '按款号、颜色和尺码匹配 SKU',
     'products:read': '分页读取商品、颜色、尺码和 SKU；不含成本价',
     'orders:read': '分页读取订单和商品明细；不含电话、地址、成本和毛利',
+    'customers:read': '读取客户名称、电话、地址和备注；属于敏感资料',
     'orders:write': '仅生成待人工确认的草稿',
     'products:create': '只新增商品，不修改同编码商品，也不写库存',
+    'customers:create': '只新增客户；重复电话不覆盖，不允许修改或删除',
     'analytics:read': '读取已授权的聚合数据',
     'whatsapp:analyze': '领取并回传分析结果',
   } as Record<string, string>)[scope] || ''
 }
 
 function scopeRiskLabel(scope: string) {
-  if (scope === 'products:create' || scope === 'orders:write' || scope === 'whatsapp:analyze') return '写入'
+  if (scope === 'customers:read') return '敏感只读'
+  if (scope === 'products:create' || scope === 'customers:create' || scope === 'orders:write' || scope === 'whatsapp:analyze') return '写入'
   return '只读'
 }
 
-function scopeTagType(scope: string): 'success' | 'warning' | 'info' {
-  if (scope === 'products:create' || scope === 'orders:write' || scope === 'whatsapp:analyze') return 'warning'
+function scopeTagType(scope: string): 'success' | 'warning' | 'danger' | 'info' {
+  if (scope === 'customers:read') return 'danger'
+  if (scope === 'products:create' || scope === 'customers:create' || scope === 'orders:write' || scope === 'whatsapp:analyze') return 'warning'
   if (scope === 'products:read' || scope === 'orders:read' || scope === 'analytics:read') return 'success'
   return 'info'
 }

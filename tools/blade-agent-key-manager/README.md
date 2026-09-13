@@ -52,6 +52,9 @@ MCP 暴露以下受控工具：
 - `blade_product_create`
 - `blade_orders_list`
 - `blade_order_get`
+- `blade_customers_list`
+- `blade_customer_get`
+- `blade_customer_create`
 - `blade_order_draft_source_upload`
 - `blade_order_drafts_create`
 - `blade_style_trends`

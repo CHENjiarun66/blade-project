@@ -17,6 +17,8 @@ public class CustomerOperationLog {
 
     private Long operatorId;
 
+    private Long agentKeyId;
+
     private String detail;
 
     @TableField(fill = FieldFill.INSERT)
@@ -32,6 +34,8 @@ public class CustomerOperationLog {
     public void setOperation(String operation) { this.operation = operation; }
     public Long getOperatorId() { return operatorId; }
     public void setOperatorId(Long operatorId) { this.operatorId = operatorId; }
+    public Long getAgentKeyId() { return agentKeyId; }
+    public void setAgentKeyId(Long agentKeyId) { this.agentKeyId = agentKeyId; }
     public String getDetail() { return detail; }
     public void setDetail(String detail) { this.detail = detail; }
     public LocalDateTime getCreateTime() { return createTime; }

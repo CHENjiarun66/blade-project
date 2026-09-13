@@ -42,6 +42,9 @@ public interface CustomerService {
      */
     Long createCustomer(CustomerCreateDTO dto);
 
+    /** 由受控 Agent Key 新增客户，Agent 来源独立审计。 */
+    Long createCustomerFromAgent(CustomerCreateDTO dto, Long agentKeyId);
+
     /**
      * 更新客户信息
      * @param dto 更新客户DTO

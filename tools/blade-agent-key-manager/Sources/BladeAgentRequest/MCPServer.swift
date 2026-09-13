@@ -112,6 +112,22 @@ final class MCPServer {
         case "blade_order_get":
             let id = try positiveInteger(arguments["id"], name: "id")
             return AgentAPIRequest(agentName: agentName, method: "GET", path: "/api/agent/orders/\(id)")
+        case "blade_customers_list":
+            var query: [String: Any] = [:]
+            for key in ["current", "size", "keyword"] {
+                if let value = arguments[key] { query[key] = value }
+            }
+            return AgentAPIRequest(agentName: agentName, method: "GET",
+                                   path: try path("/api/agent/customers", query: query))
+        case "blade_customer_get":
+            let id = try positiveInteger(arguments["id"], name: "id")
+            return AgentAPIRequest(agentName: agentName, method: "GET", path: "/api/agent/customers/\(id)")
+        case "blade_customer_create":
+            guard let payload = arguments["payload"], JSONSerialization.isValidJSONObject(payload) else {
+                throw MCPToolError.invalidArguments("payload 必须是符合客户新增接口的 JSON 对象")
+            }
+            return AgentAPIRequest(agentName: agentName, method: "POST", path: "/api/agent/customers",
+                                   body: try JSONSerialization.data(withJSONObject: payload))
         case "blade_order_drafts_create":
             guard let payload = arguments["payload"], JSONSerialization.isValidJSONObject(payload) else {
                 throw MCPToolError.invalidArguments("payload 必须是符合订单草稿接口的 JSON 对象")
@@ -247,6 +263,30 @@ final class MCPServer {
                 "name": "blade_order_get",
                 "description": "按订单 ID 读取脱敏正式订单详情和商品明细。",
                 "inputSchema": idSchema()
+            ],
+            [
+                "name": "blade_customers_list",
+                "description": "分页读取客户名称、电话、地址和备注。该工具涉及敏感客户资料，只有显式授予 customers:read 的 Key 才能使用。",
+                "inputSchema": listSchema(properties: [
+                    "keyword": ["type": "string", "description": "按客户名称或电话搜索"]
+                ])
+            ],
+            [
+                "name": "blade_customer_get",
+                "description": "按客户 ID 读取包含电话、地址和备注的客户详情，需要敏感只读权限。",
+                "inputSchema": idSchema()
+            ],
+            [
+                "name": "blade_customer_create",
+                "description": "新增客户。重复电话只返回 DUPLICATE，不覆盖已有资料；不允许修改或删除客户。",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "payload": ["type": "object", "description": "POST /api/agent/customers 的完整 JSON 请求体"]
+                    ],
+                    "required": ["payload"],
+                    "additionalProperties": false
+                ]
             ],
             [
                 "name": "blade_order_draft_source_upload",

@@ -1,7 +1,10 @@
 package com.blade.agent;
 
+import com.blade.agent.auth.AgentPrincipal;
+import com.blade.agent.controller.AgentCustomerController;
 import com.blade.agent.controller.AgentOrderQueryController;
 import com.blade.agent.controller.AgentProductController;
+import com.blade.agent.dto.AgentCustomerDTO;
 import com.blade.agent.dto.AgentOrderDTO;
 import com.blade.agent.dto.AgentProductDTO;
 import org.junit.jupiter.api.Test;
@@ -14,17 +17,23 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentDataAccessContractTest {
 
     @Test
-    void productAndOrderEndpointsUseIndependentScopes() throws Exception {
+    void dataEndpointsUseIndependentScopes() throws Exception {
         assertEquals("hasAuthority('agent:products:read')",
                 annotation(AgentProductController.class, "list", com.blade.product.dto.ProductPageDTO.class).value());
         assertEquals("hasAuthority('agent:products:create')",
                 annotation(AgentProductController.class, "create", AgentProductDTO.CreateRequest.class).value());
         assertEquals("hasAuthority('agent:orders:read')",
                 annotation(AgentOrderQueryController.class, "list", com.blade.order.dto.OrderPageDTO.class).value());
+        assertEquals("hasAuthority('agent:customers:read')",
+                annotation(AgentCustomerController.class, "list", AgentCustomerDTO.PageRequest.class).value());
+        assertEquals("hasAuthority('agent:customers:create')",
+                annotation(AgentCustomerController.class, "create",
+                        AgentCustomerDTO.CreateRequest.class, AgentPrincipal.class).value());
     }
 
     @Test
@@ -46,8 +55,18 @@ class AgentDataAccessContractTest {
         assertFalse(orderItemFields.contains("grossProfit"));
     }
 
-    private PreAuthorize annotation(Class<?> controller, String method, Class<?> parameter) throws Exception {
-        return controller.getMethod(method, parameter).getAnnotation(PreAuthorize.class);
+    @Test
+    void customerViewMakesSensitiveFieldsExplicitWithoutLeakingInternalAttribution() {
+        Set<String> fields = componentNames(AgentCustomerDTO.CustomerView.class);
+
+        assertTrue(fields.containsAll(Set.of("phones", "address", "remark")));
+        assertFalse(fields.contains("tenantId"));
+        assertFalse(fields.contains("createBy"));
+        assertFalse(fields.contains("createdByAgentKeyId"));
+    }
+
+    private PreAuthorize annotation(Class<?> controller, String method, Class<?>... parameters) throws Exception {
+        return controller.getMethod(method, parameters).getAnnotation(PreAuthorize.class);
     }
 
     private Set<String> componentNames(Class<?> type) {

@@ -349,6 +349,8 @@
 | BE-587 | Agent 商品/订单脱敏读取 | ✅ 完成 | 增加 `products:read`、`orders:read`；商品、正式订单支持分页/详情，专用 DTO 排除成本、毛利、电话和地址；商品选项隐藏保留编码 |
 | BE-588 | Agent 商品新增窄写入 | ✅ 完成 | `products:create` 只允许新增；同编码返回 DUPLICATE，不覆盖旧商品，不创建库存；SKU 沿用 DEFAULT/NORMAL/PLACEHOLDER 统一服务 |
 | BE-589 | Agent scope 管理与本机工具联动 | ✅ 完成 | 系统管理可按风险选择新增 scope；调整权限以替代 Key 轮换并停用旧 Key；Mac 白名单新增商品/订单查询与商品新增工具 |
+| BE-590 | Agent 客户列表与详情敏感只读 | ✅ 完成 | `customers:read` 分页/单项读取客户名称、电话、地址、备注和订单数；Key 页面标记“敏感只读”，与脱敏订单读取完全分离 |
+| BE-591 | Agent 客户新增与来源审计 | ✅ 完成 | `customers:create` 只允许新增客户；电话号码规范化并以重复电话返回 `DUPLICATE`，不覆盖旧客户；V60 分别记录创建 Agent Key 与用户来源 |
 | AGENT-KEY-001 | Mac Agent Key 管理器与授权代理 v1 | ✅ 完成 | 原生 macOS SwiftUI 应用；完整 Key 存系统钥匙串，统一展示名称/Agent/scope/剩余时间；附带白名单 MCP/命令代理，调用前选 Key 并授权，模型只能获得 API 结果；源码与测试见 `tools/blade-agent-key-manager` |
 | AGENT-KEY-002 | 本机 Agent 强身份与服务器状态同步 | ⏳ TODO | 对调用进程做签名/配对证明；可选使用 Owner 授权同步服务器 Key 状态和到期日，禁止在本机保存 Owner 密码或长期 JWT |
 | TEST-WA-NAS-001 | WhatsApp Mac → NAS 生产联调 | ⏳ TODO | 备份生产库后部署 V43-V47 和前后端；配置 Collector/Worker Key，验证增量同步、客户绑定、媒体预览、定向扫描和回滚 |

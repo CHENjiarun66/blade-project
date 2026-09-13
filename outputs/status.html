@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/13 03:51:12　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/13 10:15:32　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,10 +73,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">180 完成 · 0 进行中 · 17 待办 · 0 部分 · 6 暂缓</span>
+          <span class="card-nums">182 完成 · 0 进行中 · 17 待办 · 0 部分 · 6 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
-        <div class="bar-label">91% 完成（活跃 197 项，暂缓 6 项）</div>
+        <div class="bar-label">91% 完成（活跃 199 项，暂缓 6 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -369,7 +369,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 285 项） <span class="count">285</span></h2>
+      <h2>✅ 已完成（共 287 项） <span class="count">287</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1336,6 +1336,20 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
         <td class="td-remark">系统管理可按风险选择新增 scope；调整权限以替代 Key 轮换并停用旧 Key；Mac 白名单新增商品/订单查询与商品新增工具 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-590</td>
+        <td class="td-name">Agent 客户列表与详情敏感只读</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">`customers:read` 分页/单项读取客户名称、电话、地址、备注和订单数；Key 页面标记“敏感只读”，与脱敏订单读取完全分离 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-591</td>
+        <td class="td-name">Agent 客户新增与来源审计</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">`customers:create` 只允许新增客户；电话号码规范化并以重复电话返回 `DUPLICATE`，不覆盖旧客户；V60 分别记录创建 Agent Key 与用户来源 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">AGENT-KEY-001</td>

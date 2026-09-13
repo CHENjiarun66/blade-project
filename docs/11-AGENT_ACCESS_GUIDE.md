@@ -7,7 +7,7 @@
 
 ## 一、当前接入状态
 
-截至 2026-09-13，BladeProject 已落地 Agent Gateway 鉴权、脱敏商品/订单读取、商品新增、订单草稿窄写入、纸单原图关联和 Owner 凭证管理：
+截至 2026-09-13，BladeProject 已落地 Agent Gateway 鉴权、商品/订单读取、客户敏感资料读取、商品/客户新增、订单草稿窄写入、纸单原图关联和 Owner 凭证管理：
 
 | 能力 | 状态 | 接口 |
 |------|------|------|
@@ -23,6 +23,8 @@
 | 商品主档查询 | 已实现 | `GET /api/agent/products`、`/{id}`、`/options`；每页最多 100 条，不含成本价 |
 | 正式订单查询 | 已实现 | `GET /api/agent/orders`、`/{id}`；不含电话、地址、成本和毛利 |
 | 新增商品 | 已实现 | `POST /api/agent/products`；同编码不覆盖，不产生库存，不支持修改/删除 |
+| 客户列表与详情 | 已实现 | `GET /api/agent/customers`、`/{id}`；包含电话、地址、备注，需独立敏感只读 scope |
+| 新增客户 | 已实现 | `POST /api/agent/customers`；重复电话不覆盖，不支持修改/删除 |
 | 客户跟进、客户风险、周期报告、搜索 | 规划中 | 不可按已上线接口调用 |
 | WhatsApp 分析 Worker | 已实现的专用通道 | `claim/complete/fail`；普通商品/订单 Agent 不应默认勾选 |
 
@@ -154,6 +156,9 @@ Agent API 复用 BladeProject 统一响应结构：
 | `blade_orders_list` | `agent:orders:read` | `GET /api/agent/orders` | 分页读取正式订单；草稿不在其中 |
 | `blade_order_get` | `agent:orders:read` | `GET /api/agent/orders/{id}` | 订单商品明细，不含隐私/成本/毛利 |
 | `blade_product_create` | `agent:products:create` | `POST /api/agent/products` | 新增商品；重复款号返回 `DUPLICATE` |
+| `blade_customers_list` | `agent:customers:read` | `GET /api/agent/customers` | 分页读取客户名称、电话、地址和备注 |
+| `blade_customer_get` | `agent:customers:read` | `GET /api/agent/customers/{id}` | 读取单个客户敏感资料 |
+| `blade_customer_create` | `agent:customers:create` | `POST /api/agent/customers` | 新增客户；重复电话返回 `DUPLICATE` |
 
 “获取所有”表示按页循环，不能把 `size` 改成无限值。新增商品的 `colorCodes`、`sizeCodes` 必须引用 `blade_product_options` 返回的已启用编码；接口不会顺带创建新颜色/尺码。无规格商品由现有商品服务生成 `DEFAULT/NA-NA`，有规格商品生成真实组合并自动维护 `PLACEHOLDER/UNSPECIFIED-UNSPEC`，Agent 不得直接传系统保留编码。
 
@@ -172,6 +177,22 @@ Agent API 复用 BladeProject 统一响应结构：
 ```
 
 允许字段还包括 `weight`、`description`、`remark`。接口不接收供应商、成本价、库存数量、商品状态、SKU 编码或保留颜色尺码；创建结果为 `CREATED` 或 `DUPLICATE`。需要新建颜色/尺码时，仍由用户在系统中确认后新增，避免 Agent 生成大量重复字典值。
+
+客户读取与订单读取必须分开授权。`orders:read` 不包含电话和地址；`customers:read` 明确允许读取客户名称、电话、地址和备注，属于敏感只读权限。需要全量客户时按 `current`、`size` 分页读取，单页最多 100 条。
+
+新增客户请求示例：
+
+```json
+{
+  "name": "客户名称",
+  "phones": ["+86 138-0000-0000"],
+  "countryCode": "+86",
+  "address": "客户地址",
+  "remark": "人工确认后的备注"
+}
+```
+
+电话号码会移除空格、横杠和加号后保存并查重；同租户任一号码已存在时返回 `DUPLICATE` 和冲突号码，不覆盖原客户。只有同一 Key 还拥有 `customers:read` 时才返回原客户 ID/名称，避免只新增权限绕过敏感读取控制。新增成功返回 `CREATED`，并记录发起操作的 Agent Key。接口不提供客户修改、删除、合并和标签调整。
 
 ---
 

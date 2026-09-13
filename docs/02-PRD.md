@@ -773,6 +773,7 @@ Agent 是 BladeProject 的外部 API 消费者，不替代 PC 管理端和移动
 |------|------|------|
 | `/api/agent/analytics/style-trends` | GET | 多周期款式趋势与建议依据 |
 | `/api/agent/analytics/sku-mix` | GET | 款式颜色/尺码/SKU 结构事实 |
+| `/api/agent/customers` | GET/POST | 分页读取客户资料或只新增客户；详情使用 `/{id}` |
 | `/api/agent/tasks/follow-up` | GET | 需跟进客户清单与提醒依据 |
 | `/api/agent/customers/risk` | GET | 客户流失风险与分层事实 |
 | `/api/agent/inventory/recommendations` | GET | 库存积压、缺货和补货优先级事实 |
@@ -785,10 +786,10 @@ Agent 是 BladeProject 的外部 API 消费者，不替代 PC 管理端和移动
 
 1. Agent 使用独立凭证，不复用前端 JWT 登录态。
 2. 每个 Agent 凭证必须绑定 `tenant_id` 和 scope，认证通过后进入当前多租户隔离链路。
-3. Agent API 默认只读；已批准的窄范围写入只有“创建订单草稿”和“新增商品”，分别使用 `agent:orders:write`、`agent:products:create`。新增商品不得覆盖同编码商品、创建库存事实或顺带修改颜色尺码主档；Agent 仍不能直接创建/确认正式订单、修改/删除商品、调整库存或确认收款。
-4. 商品和正式订单原始事实分别使用 `agent:products:read`、`agent:orders:read`，必须分页并使用 Agent 专用脱敏 DTO；订单不返回电话、地址、成本和毛利，商品不返回成本价。
+3. Agent API 默认只读；已批准的窄范围写入只有“创建订单草稿”“新增商品”和“新增客户”，分别使用 `agent:orders:write`、`agent:products:create`、`agent:customers:create`。新增动作不得覆盖同编码商品或同电话客户，不得创建库存事实；Agent 仍不能直接创建/确认正式订单、修改/删除商品或客户、调整库存或确认收款。
+4. 商品和正式订单原始事实分别使用 `agent:products:read`、`agent:orders:read`，必须分页并使用 Agent 专用脱敏 DTO；订单不返回电话、地址、成本和毛利，商品不返回成本价。客户列表与详情使用独立高敏 `agent:customers:read`，明确包含客户名称、电话、地址和备注，不能因拥有订单读取权限而自动获得。
 5. 成本、毛利、毛利率需单独授权，默认不返回。
-6. 对外开放 Agent 前必须复核客户数据接口认证边界、Agent API 调用审计和限流。
+6. 客户新增必须记录实际 Agent Key 来源；普通用户和 Agent 的创建审计不得互相冒充。对外开放 Agent 前必须复核客户数据接口认证边界、Agent API 调用审计和限流。
 
 ### 10.4 暂缓范围
 

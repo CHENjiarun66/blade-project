@@ -30,8 +30,10 @@ public class AgentKeyManagementService {
             "catalog:read",
             "products:read",
             "orders:read",
+            "customers:read",
             "orders:write",
             "products:create",
+            "customers:create",
             "analytics:read",
             "whatsapp:analyze"
     );
@@ -78,8 +80,8 @@ public class AgentKeyManagementService {
     }
 
     public List<String> allowedScopes() {
-        return List.of("catalog:read", "products:read", "orders:read", "analytics:read",
-                "orders:write", "products:create", "whatsapp:analyze");
+        return List.of("catalog:read", "products:read", "orders:read", "customers:read", "analytics:read",
+                "orders:write", "products:create", "customers:create", "whatsapp:analyze");
     }
 
     private List<String> requestedRotationScopes(AgentKey previous, AgentKeyManagementDTO.RotateRequest request) {

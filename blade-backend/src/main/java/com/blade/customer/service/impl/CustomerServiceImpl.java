@@ -202,8 +202,20 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public Long createCustomer(CustomerCreateDTO dto) {
+        return createCustomerInternal(dto, getCurrentUserId(), null);
+    }
+
+    @Override
+    @Transactional
+    public Long createCustomerFromAgent(CustomerCreateDTO dto, Long agentKeyId) {
+        if (agentKeyId == null) {
+            throw new IllegalArgumentException("Agent Key ID不能为空");
+        }
+        return createCustomerInternal(dto, null, agentKeyId);
+    }
+
+    private Long createCustomerInternal(CustomerCreateDTO dto, Long currentUserId, Long agentKeyId) {
         Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
-        Long currentUserId = getCurrentUserId();
 
         // 0. 检查电话是否重复
         if (dto.getPhones() != null && !dto.getPhones().isEmpty()) {
@@ -220,6 +232,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setCountryCode(dto.getCountryCode());
         customer.setTenantId(tenantId);
         customer.setCreateBy(currentUserId);
+        customer.setCreatedByAgentKeyId(agentKeyId);
         customer.setDeleted(0);
         customerMapper.insert(customer);
 
@@ -238,7 +251,7 @@ public class CustomerServiceImpl implements CustomerService {
         }
 
         // 3. 记录操作日志
-        logOperation(tenantId, customer.getId(), currentUserId, "CREATE",
+        logOperation(tenantId, customer.getId(), currentUserId, agentKeyId, "CREATE",
             "{\"name\":\"" + dto.getName() + "\",\"address\":\"" + (dto.getAddress() != null ? dto.getAddress() : "") + "\"}");
 
         return customer.getId();
@@ -298,7 +311,7 @@ public class CustomerServiceImpl implements CustomerService {
 
         // 3. 记录操作日志
         Long currentUserId = getCurrentUserId();
-        logOperation(tenantId, dto.getId(), currentUserId, "UPDATE",
+        logOperation(tenantId, dto.getId(), currentUserId, null, "UPDATE",
             "{\"name\":\"" + dto.getName() + "\"}");
     }
 
@@ -350,7 +363,7 @@ public class CustomerServiceImpl implements CustomerService {
         // 记录操作日志
         Long currentUserId = getCurrentUserId();
         Long tenantId = customer.getTenantId() != null ? customer.getTenantId() : 1L;
-        logOperation(tenantId, id, currentUserId, "DELETE",
+        logOperation(tenantId, id, currentUserId, null, "DELETE",
             "{\"name\":\"" + customer.getName() + "\"}");
     }
 
@@ -652,11 +665,13 @@ public class CustomerServiceImpl implements CustomerService {
     /**
      * 记录客户操作日志
      */
-    private void logOperation(Long tenantId, Long customerId, Long operatorId, String operation, String detail) {
+    private void logOperation(Long tenantId, Long customerId, Long operatorId, Long agentKeyId,
+                              String operation, String detail) {
         CustomerOperationLog log = new CustomerOperationLog();
         log.setTenantId(tenantId);
         log.setCustomerId(customerId);
         log.setOperatorId(operatorId);
+        log.setAgentKeyId(agentKeyId);
         log.setOperation(operation);
         log.setDetail(detail);
         operationLogMapper.insert(log);

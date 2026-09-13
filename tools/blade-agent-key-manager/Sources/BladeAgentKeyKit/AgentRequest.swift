@@ -92,6 +92,12 @@ public enum AgentRequestPolicy {
             requiredScope = .ordersRead
         case ("GET", let value) where isNumericDetailPath(value, prefix: "/api/agent/orders/"):
             requiredScope = .ordersRead
+        case ("GET", "/api/agent/customers"):
+            requiredScope = .customersRead
+        case ("GET", let value) where isNumericDetailPath(value, prefix: "/api/agent/customers/"):
+            requiredScope = .customersRead
+        case ("POST", "/api/agent/customers"):
+            requiredScope = .customersCreate
         case ("POST", "/api/agent/order-drafts/batch"):
             requiredScope = .ordersWrite
         case ("POST", "/api/agent/order-drafts/source-files"):

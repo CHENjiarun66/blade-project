@@ -1,8 +1,15 @@
 package com.blade.agent;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.blade.agent.entity.AgentKey;
 import com.blade.agent.mapper.AgentKeyMapper;
 import com.blade.common.tenant.TenantContext;
+import com.blade.customer.entity.Customer;
+import com.blade.customer.entity.CustomerOperationLog;
+import com.blade.customer.entity.CustomerPhone;
+import com.blade.customer.mapper.CustomerMapper;
+import com.blade.customer.mapper.CustomerOperationLogMapper;
+import com.blade.customer.mapper.CustomerPhoneMapper;
 import com.blade.order.entity.Order;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.product.entity.Product;
@@ -27,6 +34,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.hamcrest.Matchers.nullValue;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -37,19 +47,34 @@ class AgentDataAccessIntegrationTest {
     @Autowired private AgentKeyMapper keyMapper;
     @Autowired private ProductMapper productMapper;
     @Autowired private OrderMapper orderMapper;
+    @Autowired private CustomerMapper customerMapper;
+    @Autowired private CustomerPhoneMapper customerPhoneMapper;
+    @Autowired private CustomerOperationLogMapper customerOperationLogMapper;
     @Autowired private PasswordEncoder passwordEncoder;
 
     private String rawKey;
     private String readOnlyRawKey;
+    private String customerReadOnlyRawKey;
+    private String customerCreateOnlyRawKey;
+    private Long fullAccessKeyId;
     private String seededProductCode;
     private String seededOrderNo;
+    private Long seededCustomerId;
+    private String seededCustomerName;
+    private String seededCustomerPhone;
 
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(1L);
         String suffix = String.valueOf(System.nanoTime());
-        rawKey = issueKey("agk_data_" + suffix, "products:read,orders:read,products:create");
+        String fullAccessPrefix = "agk_data_" + suffix;
+        rawKey = issueKey(fullAccessPrefix,
+                "products:read,orders:read,products:create,customers:read,customers:create");
+        fullAccessKeyId = keyMapper.selectOne(Wrappers.<AgentKey>lambdaQuery()
+                .eq(AgentKey::getKeyPrefix, fullAccessPrefix)).getId();
         readOnlyRawKey = issueKey("agk_read_" + suffix, "products:read");
+        customerReadOnlyRawKey = issueKey("agk_customer_read_" + suffix, "customers:read");
+        customerCreateOnlyRawKey = issueKey("agk_customer_create_" + suffix, "customers:create");
 
         seededProductCode = "AGENT-READ-" + suffix;
         Product product = new Product();
@@ -90,6 +115,27 @@ class AgentDataAccessIntegrationTest {
         order.setTenantId(1L);
         order.setDeleted(0);
         orderMapper.insert(order);
+
+        seededCustomerPhone = "139" + suffix.substring(Math.max(0, suffix.length() - 8));
+        seededCustomerName = "Agent客户-" + suffix;
+        Customer customer = new Customer();
+        customer.setName(seededCustomerName);
+        customer.setAddress("客户敏感地址");
+        customer.setRemark("客户敏感备注");
+        customer.setCountryCode("+86");
+        customer.setCountryName("中国");
+        customer.setTenantId(1L);
+        customer.setDeleted(0);
+        customerMapper.insert(customer);
+        seededCustomerId = customer.getId();
+
+        CustomerPhone customerPhone = new CustomerPhone();
+        customerPhone.setCustomerId(seededCustomerId);
+        customerPhone.setPhone(seededCustomerPhone);
+        customerPhone.setIsPrimary(1);
+        customerPhone.setTenantId(1L);
+        customerPhone.setDeleted(0);
+        customerPhoneMapper.insert(customerPhone);
         TenantContext.clear();
     }
 
@@ -155,5 +201,81 @@ class AgentDataAccessIntegrationTest {
                         .content("{\"productCode\":\"" + code + "\",\"name\":\"must be denied\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    void customerScopeReadsSensitiveCustomerListAndDetail() throws Exception {
+        mockMvc.perform(get("/api/agent/customers").param("keyword", seededCustomerPhone)
+                        .header("X-Agent-Key", rawKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].id").value(seededCustomerId))
+                .andExpect(jsonPath("$.data.records[0].phones[0]").value(seededCustomerPhone))
+                .andExpect(jsonPath("$.data.records[0].address").value("客户敏感地址"))
+                .andExpect(jsonPath("$.data.records[0].remark").value("客户敏感备注"))
+                .andExpect(jsonPath("$..tenantId").doesNotExist())
+                .andExpect(jsonPath("$..createdByAgentKeyId").doesNotExist());
+
+        mockMvc.perform(get("/api/agent/customers/{id}", seededCustomerId)
+                        .header("X-Agent-Key", rawKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value(seededCustomerName))
+                .andExpect(jsonPath("$.data.phones[0]").value(seededCustomerPhone));
+    }
+
+    @Test
+    void customerCreateIsAdditiveIdempotentAndAttributedToAgentKey() throws Exception {
+        String suffix = String.valueOf(System.nanoTime());
+        String phone = "137" + suffix.substring(Math.max(0, suffix.length() - 8));
+        String name = "Agent新增客户-" + suffix;
+        String body = "{\"name\":\"" + name + "\",\"phones\":[\"" + phone
+                + "\"],\"address\":\"新增地址\",\"remark\":\"新增备注\",\"countryCode\":\"+86\"}";
+
+        mockMvc.perform(post("/api/agent/customers").header("X-Agent-Key", rawKey)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("CREATED"));
+
+        mockMvc.perform(post("/api/agent/customers").header("X-Agent-Key", rawKey)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("DUPLICATE"))
+                .andExpect(jsonPath("$.data.duplicatePhone").value(phone));
+
+        TenantContext.setTenantId(1L);
+        Customer created = customerMapper.selectOne(Wrappers.<Customer>lambdaQuery()
+                .eq(Customer::getName, name));
+        assertEquals(fullAccessKeyId, created.getCreatedByAgentKeyId());
+        assertNull(created.getCreateBy());
+        CustomerOperationLog log = customerOperationLogMapper.selectOne(
+                Wrappers.<CustomerOperationLog>lambdaQuery()
+                        .eq(CustomerOperationLog::getCustomerId, created.getId())
+                        .eq(CustomerOperationLog::getOperation, "CREATE"));
+        assertEquals(fullAccessKeyId, log.getAgentKeyId());
+        assertNull(log.getOperatorId());
+    }
+
+    @Test
+    void customerReadScopeCannotCreateCustomer() throws Exception {
+        mockMvc.perform(get("/api/agent/customers").header("X-Agent-Key", readOnlyRawKey))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        mockMvc.perform(post("/api/agent/customers").header("X-Agent-Key", customerReadOnlyRawKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"禁止新增\",\"phones\":[\"13600000000\"]}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        mockMvc.perform(get("/api/agent/customers").header("X-Agent-Key", customerCreateOnlyRawKey))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        mockMvc.perform(post("/api/agent/customers").header("X-Agent-Key", customerCreateOnlyRawKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"重复探测\",\"phones\":[\"" + seededCustomerPhone + "\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("DUPLICATE"))
+                .andExpect(jsonPath("$.data.customerId").value(nullValue()))
+                .andExpect(jsonPath("$.data.name").value(nullValue()));
     }
 }

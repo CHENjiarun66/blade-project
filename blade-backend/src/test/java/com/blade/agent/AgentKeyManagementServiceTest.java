@@ -90,6 +90,12 @@ class AgentKeyManagementServiceTest {
     }
 
     @Test
+    void customerScopesAreAvailableForExplicitOwnerSelection() {
+        assertTrue(service.allowedScopes().contains("customers:read"));
+        assertTrue(service.allowedScopes().contains("customers:create"));
+    }
+
+    @Test
     void rotateIssuesReplacementAndDisablesPreviousKey() {
         AgentKey previous = new AgentKey();
         previous.setId(77L);

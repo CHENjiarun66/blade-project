@@ -1066,6 +1066,9 @@ Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通�
 | POST | `/api/agent/products` | `X-Agent-Key` / `agent:products:create` | 新增商品；颜色尺码使用已有编码，同款号返回 DUPLICATE，不更新商品或库存 |
 | GET | `/api/agent/orders?current=1&size=20&startDate=...&endDate=...` | `X-Agent-Key` / `agent:orders:read` | 分页读取正式订单；不返回客户电话/地址、成本和毛利 |
 | GET | `/api/agent/orders/{id}` | `X-Agent-Key` / `agent:orders:read` | 读取正式订单与商品明细；不返回高敏字段 |
+| GET | `/api/agent/customers?current=1&size=20&keyword=...` | `X-Agent-Key` / `agent:customers:read` | 分页读取客户名称、电话、地址、备注和订单数；最大 100 条，属于敏感只读 |
+| GET | `/api/agent/customers/{id}` | `X-Agent-Key` / `agent:customers:read` | 读取单个客户详情；包含客户敏感资料 |
+| POST | `/api/agent/customers` | `X-Agent-Key` / `agent:customers:create` | 只新增客户；重复电话返回 DUPLICATE，不覆盖已有资料；无 `customers:read` 时不回显旧客户 ID/名称 |
 | GET | `/api/order-drafts` | JWT / `btn:order:view` | 草稿分页列表 |
 | GET | `/api/order-drafts/{id}` | JWT / `btn:order:view` | 草稿详情、纸单原值、警告和明细 |
 | POST | `/api/order-drafts` | JWT / `btn:order:create` | 将快速录单当前内容创建为手工草稿；允许保留未匹配、未完成明细 |

@@ -37,7 +37,7 @@ BladeProject /api/agent/*
 
 1. 登录 BladeProject，进入“系统管理 → Agent Key”。
 2. 每个 Agent 单独签发一把 Key，不共用。名称建议写成“Agent + 环境 + 用途”，例如“DeepSeek 生产纸单录入”。
-3. 纸单录入只选 `catalog:read`、`orders:write`；经营分析另签 `analytics:read`、`products:read`、`orders:read`；只有确实需要建商品的 Agent 才增加 `products:create`，不要为了方便把所有 scope 放在一把 Key 上。
+3. 纸单录入只选 `catalog:read`、`orders:write`；经营分析另签 `analytics:read`、`products:read`、`orders:read`；只有确实需要建商品或客户的 Agent 才增加 `products:create`、`customers:create`。`customers:read` 会暴露电话、地址和备注，应单独签发并标记用途，不要为了方便把所有 scope 放在一把 Key 上。
 4. 选择有效天数并创建。完整 Key 只显示一次，立即复制。
 
 ### 2.2 Mac 端录入
@@ -101,6 +101,9 @@ BladeProject /api/agent/*
 | `blade_product_create` | `products:create` | 新增商品，不覆盖旧商品或库存 |
 | `blade_orders_list` | `orders:read` | 分页查询脱敏正式订单 |
 | `blade_order_get` | `orders:read` | 查询单个订单和商品明细 |
+| `blade_customers_list` | `customers:read` | 分页查询客户敏感资料 |
+| `blade_customer_get` | `customers:read` | 查询单个客户敏感资料 |
+| `blade_customer_create` | `customers:create` | 新增客户，重复电话不覆盖 |
 | `blade_order_draft_source_upload` | `orders:write` | 上传 JPG/PNG/WEBP 纸单原图并返回 fileId |
 | `blade_order_drafts_create` | `orders:write` | 批量创建订单草稿 |
 | `blade_style_trends` | `analytics:read` | 查询款式趋势 |
@@ -144,7 +147,7 @@ blade-agent-request --agent <Agent名称> --method POST --path </api/agent/order
 6. 请求体上限 10 MB。
 7. Key 不写入 Git、项目文档、Excel、提示词、截图、日志或环境变量。
 8. 元数据目录/文件权限固定为 `700/600`，且代理每次发请求前重新校验保存的 API 地址，不能只依赖录入时校验。
-9. 商品/订单查询只能分页，商品新增只接受既有字典编码；本机白名单不存在商品修改、删除、库存、收款或正式订单动作。
+9. 商品、订单、客户查询只能分页；商品新增只接受既有字典编码，客户新增遇到重复电话不得覆盖。本机白名单不存在商品/客户修改删除、库存、收款或正式订单动作。
 
 当前已知边界：`--agent` 是本机配置声明，v1 尚未对调用进程做代码签名或配对证明。因此只应给用户主动安装并信任的本机 Agent 授权。进程身份签名、持久授权中心和服务器状态同步属于后续增强，不影响当前“Key 不交给模型”的主要安全目标。
 
