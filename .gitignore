@@ -79,6 +79,7 @@ AGENTS.md
 # 不入库，避免每次重建都弄脏工作区、并在切分支时产生冲突
 outputs/cockpit.html
 outputs/ask/
+outputs/cockpit-history/
 
 # Production secrets and private keys
 deploy/nas/nginx/ssl/*.key

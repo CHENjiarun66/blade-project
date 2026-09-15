@@ -506,6 +506,114 @@ for (const [key, v] of Object.entries(model)) {
   };
 }
 
+/* ═══════════════ 8.55 历史快照与进展 ═══════════════ */
+/*
+ * 每次生成顺手把关键指标存成一天一份的小快照，下次生成时和上一份相减，
+ * 得到「这几天变了什么」。纯文件，不起服务，不联网。
+ * 整段包在 try/catch 里：历史记录失败绝不影响看板本身的生成。
+ */
+
+const HIST_DIR = path.join(ROOT, 'outputs', 'cockpit-history');
+const KEEP_SNAPSHOTS = 180;
+const TODAY = new Date().toISOString().slice(0, 10);
+
+function snapshot() {
+  const modules = {};
+  for (const [k, m] of Object.entries(model)) {
+    modules[k] = {
+      done: m.done, total: m.total,
+      eps: m.resources.reduce((a, r) => a + resources[r].endpoints.length, 0),
+      unlive: m.resources.reduce((a, r) => a + resources[r].endpoints.filter((e) => !e.inMaster).length, 0),
+    };
+  }
+  return {
+    date: TODAY, generatedAt: new Date().toISOString(),
+    branch: HEAD_BRANCH, head: trySh('git rev-parse --short HEAD'),
+    vMaster: V_MASTER, vHead: V_HEAD,
+    tasksDone: TOTAL.done, tasksTotal: TOTAL.total,
+    endpoints: TOTAL_ENDPOINTS,
+    endpointsLive: TOTAL_ENDPOINTS - branchOnlyEndpoints.length,
+    endpointsUnlive: branchOnlyEndpoints.length,
+    branches: branches.length, unmerged: unmerged.length,
+    unmergedNames: unmerged.map((b) => b.name),
+    plans: {
+      active: planByState.active.length, pending: planByState.pending.length,
+      planned: planByState.planned.length, done: planByState.done.length,
+    },
+    notStarted: notStartedTotal,
+    modules,
+  };
+}
+const CURRENT = snapshot();
+
+let historyNote = '';
+let priorSnaps = [];
+let weekSnap = null;
+let lastRun = null;
+const LAST_RUN = path.join(HIST_DIR, 'last-run.json');
+try {
+  fs.mkdirSync(HIST_DIR, { recursive: true });
+  try { lastRun = JSON.parse(fs.readFileSync(LAST_RUN, 'utf8')); } catch { lastRun = null; }
+  const files = fs.readdirSync(HIST_DIR).filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
+  priorSnaps = files.filter((f) => f.slice(0, 10) < TODAY).map((f) => {
+    try { return JSON.parse(fs.readFileSync(path.join(HIST_DIR, f), 'utf8')); } catch { return null; }
+  }).filter(Boolean);
+  const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const older = priorSnaps.filter((s) => s.date <= cutoff);
+  weekSnap = older.length ? older[older.length - 1] : null;
+  if (files.length > KEEP_SNAPSHOTS) files.slice(0, files.length - KEEP_SNAPSHOTS).forEach((f) => { try { fs.unlinkSync(path.join(HIST_DIR, f)); } catch { /* ignore */ } });
+  fs.writeFileSync(path.join(HIST_DIR, TODAY + '.json'), JSON.stringify(CURRENT, null, 2));
+  fs.writeFileSync(LAST_RUN, JSON.stringify(CURRENT, null, 2));
+} catch (e) {
+  historyNote = String(e.message || e);
+}
+
+const sub = (a, b) => (Number(a) || 0) - (Number(b) || 0);
+
+function diffWith(base) {
+  if (!base || !base.modules) return null;
+  const modChanges = Object.entries(CURRENT.modules).map(([k, m]) => {
+    const b = base.modules[k] || { done: 0, total: 0, eps: 0, unlive: 0 };
+    return {
+      key: k, name: MODULES[k].name, color: MODULES[k].color,
+      dDone: sub(m.done, b.done), dEps: sub(m.eps, b.eps), dUnlive: sub(m.unlive, b.unlive),
+      now: m.done, total: m.total, before: b.done,
+    };
+  }).filter((x) => x.dDone || x.dEps || x.dUnlive)
+    .sort((a, b) => Math.abs(b.dDone) + Math.abs(b.dEps) - Math.abs(a.dDone) - Math.abs(a.dEps));
+  return {
+    base: base.date,
+    baseLabel: whenLabel(base),
+    days: Math.max(0, Math.round((new Date(CURRENT.date) - new Date(base.date)) / 86400000)),
+    baseBranch: base.branch, baseHead: base.head,
+    tasksDone: sub(CURRENT.tasksDone, base.tasksDone),
+    endpoints: sub(CURRENT.endpoints, base.endpoints),
+    endpointsLive: sub(CURRENT.endpointsLive, base.endpointsLive),
+    endpointsUnlive: sub(CURRENT.endpointsUnlive, base.endpointsUnlive),
+    notStarted: sub(CURRENT.notStarted, base.notStarted),
+    unmerged: sub(CURRENT.unmerged, base.unmerged),
+    vHead: sub(CURRENT.vHead, base.vHead),
+    plansBefore: base.plans || {}, modChanges,
+    closed: (base.unmergedNames || []).filter((n) => !CURRENT.unmergedNames.includes(n)),
+    opened: CURRENT.unmergedNames.filter((n) => !(base.unmergedNames || []).includes(n)),
+  };
+}
+const histPrev = diffWith(lastRun);
+const histWeek = weekSnap && (!histPrev || weekSnap.date !== histPrev.base) ? diffWith(weekSnap) : null;
+const trend = [...priorSnaps, CURRENT].slice(-14);
+
+/** 把快照时间写成「今天 14:30 / 昨天 / N 天前」 */
+function whenLabel(snap) {
+  if (!snap || !snap.generatedAt) return '';
+  const t = new Date(snap.generatedAt);
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  const days = Math.round((d - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000);
+  const hm = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+  if (days <= 0) return '今天 ' + hm;
+  if (days === 1) return '昨天 ' + hm;
+  return days + ' 天前';
+}
+
 /* ═══════════════ 8.6 询问上下文包 ═══════════════ */
 
 const ASK_DIR = path.join(ROOT, 'outputs', 'ask');
@@ -739,8 +847,79 @@ function planSection(title, list, tone, collapsed) {
   return `<h2>${title}（${list.length}）</h2><div class="plans">${cards}</div>`;
 }
 
-function branchRow(b) {
-  const scope = [b.backend ? `后端 ${b.backend}` : '', b.admin ? `admin ${b.admin}` : '', b.mobile ? `mobile ${b.mobile}` : '', b.docs ? `docs ${b.docs}` : ''].filter(Boolean).join(' · ');
+/* ── 进展页渲染 ── */
+
+const dnum = (n, o = {}) => {
+  if (!n) return '<span style="color:var(--dim)">无变化</span>';
+  const good = o.invert ? n < 0 : n > 0;
+  return `<span style="color:${good ? 'var(--ok)' : 'var(--bad)'}">${n > 0 ? '+' : ''}${n}${o.suffix || ''}</span>`;
+};
+
+function deltaCard(label, value, n, o) {
+  return `<div class="stat"><div class="stat-l">${esc(label)}</div><div class="stat-v">${esc(value)}</div>
+  <div class="stat-s">${dnum(n, o)}　相比上次</div></div>`;
+}
+
+function sparkline(points) {
+  if (points.length < 2) return '<p class="note">只有一份快照，还没有趋势可画。下次打开时这里会出现折线。</p>';
+  const W = 620, H = 96, P = 12;
+  const vals = points.map((p) => p.tasksDone);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = max - min || 1;
+  const X = (i) => P + (i * (W - P * 2)) / (points.length - 1);
+  const Y = (v) => H - P - ((v - min) / span) * (H - P * 2);
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.tasksDone).toFixed(1)}`).join(' ');
+  const area = `${line} L${X(points.length - 1).toFixed(1)},${H - P} L${X(0).toFixed(1)},${H - P} Z`;
+  const dots = points.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.tasksDone).toFixed(1)}" r="2.4" fill="#58a6ff"><title>${esc(p.date)}：${p.tasksDone} 项完成</title></circle>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:11px">
+    <path d="${area}" fill="rgba(88,166,255,.10)"/>
+    <path d="${line}" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linejoin="round"/>
+    ${dots}
+    <text x="${P}" y="${H - 2}" fill="#6e7b8b" font-size="10" font-family="ui-monospace,monospace">${esc(points[0].date)}</text>
+    <text x="${W - P}" y="${H - 2}" text-anchor="end" fill="#6e7b8b" font-size="10" font-family="ui-monospace,monospace">${esc(points[points.length - 1].date)}　完成 ${max}</text>
+  </svg>`;
+}
+
+function planStateLine(before, now) {
+  const keys = [['active', '进行中'], ['pending', '待上线'], ['planned', '规划中'], ['done', '已完成']];
+  const parts = keys.filter(([k]) => (before[k] || 0) !== (now[k] || 0))
+    .map(([k, label]) => `${label} ${before[k] || 0} → ${now[k] || 0}`);
+  return parts.length ? parts.join('　·　') : '方案分布无变化';
+}
+
+function progressBlock(h, title) {
+  const now = CURRENT.plans || {};
+  return `<h2>${title}</h2>
+  <div class="stats">
+    ${deltaCard('任务完成', `${CURRENT.tasksDone} / ${CURRENT.tasksTotal}`, h.tasksDone)}
+    ${deltaCard('后端接口', String(CURRENT.endpoints), h.endpoints)}
+    ${deltaCard('已上线接口', String(CURRENT.endpointsLive), h.endpointsLive)}
+    ${deltaCard('未上线接口', String(CURRENT.endpointsUnlive), h.endpointsUnlive, { invert: true })}
+    ${deltaCard('待办任务', String(CURRENT.notStarted), h.notStarted, { invert: true })}
+    ${deltaCard('未合并分支', `${CURRENT.unmerged} / ${CURRENT.branches}`, h.unmerged, { invert: true })}
+  </div>
+  <p class="note">基线：${esc(h.base)} 的 ${esc(h.baseLabel)}（当时在分支 <code>${esc(h.baseBranch || '?')}</code>）　·　
+  迁移版本 V${h.baseHead ? '' : ''}${CURRENT.vMaster} 不变，工作分支迁移 ${h.vHead ? `+${h.vHead}` : '无变化'}　·　
+  方案分布：${esc(planStateLine(h.plansBefore, now))}</p>
+
+  ${h.modChanges.length ? `<div class="tbl-wrap" style="margin-top:14px"><table>
+    <thead><tr><th>模块</th><th>任务完成</th><th>变化</th><th>接口</th><th>未上线</th></tr></thead>
+    <tbody>${h.modChanges.map((c) => `<tr>
+      <td><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c.color};margin-right:8px"></span>${esc(c.name)}</td>
+      <td class="num">${c.before} → <b style="color:var(--text)">${c.now}</b> / ${c.total}</td>
+      <td>${dnum(c.dDone)}</td>
+      <td>${dnum(c.dEps)}</td>
+      <td>${dnum(c.dUnlive, { invert: true })}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>` : '<p class="note">各模块进度和接口数都没有变化。</p>'}
+
+  ${(h.opened.length || h.closed.length) ? `<div class="card" style="margin-top:14px">
+    ${h.closed.length ? `<div style="margin-bottom:8px">✅ 分支已合并或删除：${h.closed.map((n) => `<code>${esc(n)}</code>`).join('　')}</div>` : ''}
+    ${h.opened.length ? `<div>🆕 新增未合并分支：${h.opened.map((n) => `<code>${esc(n)}</code>`).join('　')}</div>` : ''}
+  </div>` : ''}`;
+}
+
+function branchRow(b) {  const scope = [b.backend ? `后端 ${b.backend}` : '', b.admin ? `admin ${b.admin}` : '', b.mobile ? `mobile ${b.mobile}` : '', b.docs ? `docs ${b.docs}` : ''].filter(Boolean).join(' · ');
   const detail = [
     b.ctrls.length ? `控制器：${b.ctrls.slice(0, 6).join(', ')}${b.ctrls.length > 6 ? ` +${b.ctrls.length - 6}` : ''}` : '',
     b.adminViews.length ? `页面：${b.adminViews.join(', ')}` : '',
@@ -993,6 +1172,7 @@ const html = `<!doctype html>
 
   <nav class="tabs">
     <button class="on" data-t="overview">一眼总览<span class="n">${risks.length}</span></button>
+    <button data-t="progress">进展<span class="n">${histPrev ? histPrev.modChanges.length + ' 处变化' : '首次'}</span></button>
     <button data-t="arch">架构图<span class="n">${controllers.length}</span></button>
     <button data-t="features">模块功能地图<span class="n">${Object.keys(MODULES).length}</span></button>
     <button data-t="api">接口与 CRUD<span class="n">${Object.keys(resources).length}</span></button>
@@ -1044,6 +1224,31 @@ const html = `<!doctype html>
       </tbody>
     </table></div>
     <p class="note">任务进度是「文档说的」，控制器与接口数量是「代码里真的有的」。差距越大，说明文档进度越不能当生产状态使用。</p>
+  </section>
+
+  <section class="tab" id="progress">
+    <h2>进展</h2>
+    <p class="note">每次生成看板都会自动存一份当天的指标快照到 <code>outputs/cockpit-history/</code>（一天一份，几 KB）。
+    这里显示和「上一次打开」以及「7 天前」相比的变化。不需要你额外做任何事。</p>
+    ${historyNote ? `<div class="card" style="border-color:#4a2326;color:var(--muted);font-size:12.5px">⚠️ 历史快照读写失败，看板其余部分不受影响：${esc(historyNote)}</div>` : ''}
+    ${histPrev ? progressBlock(histPrev, `与上一次打开相比（${esc(whenLabel(lastRun))}）`)
+      : `<div class="card" style="margin-top:16px">
+        <div style="font-size:14px;margin-bottom:8px">📌 这是第一次记录</div>
+        <div class="sub" style="margin:0;font-size:12.5px;line-height:1.9">
+          今天已经存下第一份快照：<code>outputs/cockpit-history/${TODAY}.json</code>，
+          并且每次打开都会记下「上次打开时的状态」。<br>
+          等你下次打开看板，这里就会告诉你：这期间完成了多少任务、新增了几个接口、上线了几个、
+          哪些模块在动、哪些停了、有没有东西从「已完成」退回「未上线」。<br>
+          不需要你做任何操作，也不用记得存。
+        </div>
+      </div>`}
+
+    ${histWeek ? progressBlock(histWeek, `与 7 天前相比（基线 ${histWeek.base}）`) : ''}
+
+    <h2>任务完成数趋势（最近 ${trend.length} 次记录）</h2>
+    ${sparkline(trend)}
+    <p class="note">只记录「任务完成总数」一个指标，用来快速看出项目是在推进还是停下来了。
+    完整的逐项对比在上面的模块变化表里。</p>
   </section>
 
   <section class="tab" id="arch">
