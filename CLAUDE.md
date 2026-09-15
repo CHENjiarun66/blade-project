@@ -72,11 +72,32 @@ Codex 与 DeepSeek（DSH）在同一工作区联合开发时，必须遵守 [doc
 
 ### 规则 8：交接必须刷新状态看板
 
-每次任务交接 / 收工时运行 `node scripts/gen-status.mjs` 刷新项目状态看板：
+每次任务交接 / 收工时，两个看板都要刷新：
+
+**① 状态总览**（轻量，入库）
+
+```bash
+node scripts/gen-status.mjs
+```
 
 - 数据源：`docs/03-TASKS.md`（脚本只读，不修改业务数据）
 - 产物：`docs/STATUS.md`（提交入库）、`outputs/status.html`（本地可视化看板，浏览器打开）
 - 刷新后必须把 `docs/STATUS.md` 的变更一并 commit + push
+
+**② 项目全景台**（重，派生，不入库）
+
+```bash
+node scripts/gen-cockpit.mjs
+```
+
+- 数据源：git 分支与 `master` tree、后端控制器注解、前端 api 调用、`03-TASKS.md`、`05-CHANGELOG.md`、`docs/superpowers/plans/`
+- 产物：`outputs/cockpit.html`（看板）、`outputs/ask/*.md`（询问 AI 的上下文包）
+- 回答的是 STATUS.md 回答不了的问题：**「文档说完成的功能，生产分支 master 上真的有吗？」**
+- 判定口径（什么算「上线」、增删改查怎么归类、方案状态怎么反推）见 [docs/reference/COCKPIT.md](./docs/reference/COCKPIT.md)
+- 提交 / 合并 / 切换分支后由 `.githooks/` 自动重建；新克隆执行 `sh scripts/install-hooks.sh` 启用
+
+> 进度口径提醒：STATUS.md 的百分比来自人工勾选，代表「某个分支上写完了」，**不代表生产可用**。
+> 对外汇报进度时必须同时说明生产分支状态。
 
 ---
 

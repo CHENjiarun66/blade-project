@@ -1,0 +1,3 @@
+#!/bin/sh
+# 自动重建 Blade 项目全景台（见 docs/reference/COCKPIT.md）
+. "$(git rev-parse --show-toplevel)/.githooks/_cockpit.sh"

@@ -75,5 +75,10 @@ stitch/
 .claude/
 AGENTS.md
 
+# Blade 项目全景台：全部由 scripts/gen-cockpit.mjs 从 git/代码/文档派生
+# 不入库，避免每次重建都弄脏工作区、并在切分支时产生冲突
+outputs/cockpit.html
+outputs/ask/
+
 # Production secrets and private keys
 deploy/nas/nginx/ssl/*.key
