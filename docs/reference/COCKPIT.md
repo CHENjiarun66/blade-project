@@ -42,7 +42,32 @@ sh scripts/install-hooks.sh
 > **刻意不使用 `core.hooksPath`**：本仓库的 `.git/hooks/prepare-commit-msg` 是 lefthook 生成的 shim，
 > 改 hooksPath 会让它失效。
 
-## 三、七个页面各看什么
+### 打开前自动同步（推荐日常使用）
+
+**双击项目根目录的 `打开看板.command`。**
+
+它会先把看板重建到当前工作区的最新状态，再打开浏览器——所以你每次点开拿到的都是最新的，
+不会看到上一次生成的旧快照。
+
+> 首次双击如果被 macOS 拦下，右键 → 打开，允许一次即可。
+
+命令行等价物：
+
+```bash
+sh scripts/open-cockpit.sh     # 先重建，再打开
+```
+
+| 方式 | 行为 |
+|------|------|
+| `打开看板.command` / `sh scripts/open-cockpit.sh` | 先同步到最新，再打开（日常用这个） |
+| `node scripts/gen-cockpit.mjs` | 只重建，不开浏览器 |
+| `open outputs/cockpit.html` | 只打开现有文件，**可能已过期** |
+| git 钩子 | 提交 / 合并 / 切换分支后自动重建 |
+
+钩子负责「保持文件新鲜」，`.command` 负责「打开前一定是最新」。两者不冲突，装了钩子也建议用 `.command` 打开。
+重建失败时脚本会明确报错并且**不会打开旧版本看板**。
+
+## 三、八个页面各看什么
 
 | 页面 | 用途 |
 |------|------|
