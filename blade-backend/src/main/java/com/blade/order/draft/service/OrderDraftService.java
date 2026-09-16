@@ -28,14 +28,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class OrderDraftService {
+    public static final String UNBATCHED = "__UNBATCHED__";
+
     private final OrderDraftMapper draftMapper;
     private final OrderDraftItemMapper itemMapper;
     private final OrderDraftWriter writer;
@@ -49,20 +55,65 @@ public class OrderDraftService {
     public PageResult<OrderDraftDTO.Summary> page(int current,
                                                   int size,
                                                   String status,
-                                                  String keyword) {
+                                                  String keyword,
+                                                  String sourceBatchNo,
+                                                  String entrySource,
+                                                  Boolean unresolvedOnly,
+                                                  LocalDate startDate,
+                                                  LocalDate endDate) {
         Page<OrderDraft> page = new Page<>(Math.max(current, 1), Math.max(1, Math.min(size, 100)));
         LambdaQueryWrapper<OrderDraft> query = new LambdaQueryWrapper<OrderDraft>()
                 .eq(status != null && !status.isBlank(), OrderDraft::getStatus, status)
+                .eq(entrySource != null && !entrySource.isBlank(), OrderDraft::getEntrySource, entrySource)
+                .ge(startDate != null, OrderDraft::getOrderDate, startDate)
+                .le(endDate != null, OrderDraft::getOrderDate, endDate)
                 .and(keyword != null && !keyword.isBlank(), wrapper -> wrapper
                         .like(OrderDraft::getExternalRefNo, keyword.trim())
                         .or().like(OrderDraft::getSourceOrderNo, keyword.trim())
                         .or().like(OrderDraft::getCustomerName, keyword.trim()))
                 .orderByDesc(OrderDraft::getUpdateTime);
+        if (UNBATCHED.equals(sourceBatchNo)) {
+            query.and(wrapper -> wrapper.isNull(OrderDraft::getSourceBatchNo)
+                    .or().eq(OrderDraft::getSourceBatchNo, ""));
+        } else {
+            query.eq(sourceBatchNo != null && !sourceBatchNo.isBlank(),
+                    OrderDraft::getSourceBatchNo, sourceBatchNo);
+        }
+        if (Boolean.TRUE.equals(unresolvedOnly)) {
+            query.exists("SELECT 1 FROM order_draft_item odi "
+                    + "WHERE odi.draft_id = order_draft.id AND odi.deleted = 0 AND odi.sku_id IS NULL");
+        }
         Page<OrderDraft> result = draftMapper.selectPage(page, query);
         List<OrderDraftDTO.Summary> records = result.getRecords().stream()
                 .map(this::toSummary)
                 .toList();
         return PageResult.of(records, result.getTotal(), result.getSize(), result.getCurrent());
+    }
+
+    public List<OrderDraftDTO.BatchSummary> batches() {
+        List<OrderDraft> drafts = draftMapper.selectList(new LambdaQueryWrapper<OrderDraft>()
+                .eq(OrderDraft::getStatus, "EDITING")
+                .orderByDesc(OrderDraft::getUpdateTime));
+        Map<String, OrderDraftDTO.BatchSummary> grouped = new LinkedHashMap<>();
+        for (OrderDraft draft : drafts) {
+            String key = draft.getSourceBatchNo() == null || draft.getSourceBatchNo().isBlank()
+                    ? UNBATCHED : draft.getSourceBatchNo().trim();
+            OrderDraftDTO.BatchSummary batch = grouped.computeIfAbsent(key, ignored -> {
+                OrderDraftDTO.BatchSummary value = new OrderDraftDTO.BatchSummary();
+                value.setSourceBatchNo(UNBATCHED.equals(key) ? null : key);
+                value.setDraftCount(0);
+                return value;
+            });
+            batch.setDraftCount(batch.getDraftCount() + 1);
+            if (batch.getLatestUpdateTime() == null
+                    || (draft.getUpdateTime() != null && draft.getUpdateTime().isAfter(batch.getLatestUpdateTime()))) {
+                batch.setLatestUpdateTime(draft.getUpdateTime());
+            }
+        }
+        return grouped.values().stream()
+                .sorted(Comparator.comparing(OrderDraftDTO.BatchSummary::getLatestUpdateTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
     }
 
     public OrderDraftDTO.View get(Long id) {
@@ -89,6 +140,12 @@ public class OrderDraftService {
         }
         if (!"EDITING".equals(draft.getStatus())) {
             throw BusinessException.of(400, "当前草稿状态不能确认");
+        }
+        if (draft.getSourceBatchNo() == null || draft.getSourceBatchNo().isBlank()) {
+            throw BusinessException.of(400, "请填写单据批次");
+        }
+        if (draft.getSourceOrderNo() == null || draft.getSourceOrderNo().isBlank()) {
+            throw BusinessException.of(400, "请填写单据号");
         }
         List<OrderDraftItem> items = items(id);
         if (items.isEmpty()) throw BusinessException.of(400, "草稿没有商品明细");
@@ -148,9 +205,7 @@ public class OrderDraftService {
         dto.setCustomerName(blankToWalkIn(draft.getCustomerName()));
         dto.setCustomerPhone(draft.getCustomerPhone());
         dto.setOrderDate(draft.getOrderDate());
-        dto.setSourceDocNo(draft.getSourceOrderNo() == null
-                ? draft.getExternalRefNo()
-                : draft.getSourceOrderNo());
+        dto.setSourceDocNo(formalSourceDocNo(draft));
         dto.setSourceShop(draft.getSourceShop() == null ? draft.getSourceBatchNo() : draft.getSourceShop());
         dto.setOrderType(draft.getOrderType() == null ? "PREORDER" : draft.getOrderType());
         dto.setPaymentStatus(0);
@@ -178,12 +233,27 @@ public class OrderDraftService {
         return dto;
     }
 
+    private String formalSourceDocNo(OrderDraft draft) {
+        String batchNo = draft.getSourceBatchNo() == null ? null : draft.getSourceBatchNo().trim();
+        String orderNo = draft.getSourceOrderNo() == null ? null : draft.getSourceOrderNo().trim();
+        if (batchNo != null && !batchNo.isBlank() && orderNo != null && !orderNo.isBlank()) {
+            String combined = batchNo + "_" + orderNo;
+            if (combined.length() > 50) {
+                throw BusinessException.of(400, "单据批次与单据号组合后不能超过50位");
+            }
+            return combined;
+        }
+        if (orderNo != null && !orderNo.isBlank()) return orderNo;
+        return draft.getExternalRefNo();
+    }
+
     private OrderDraftDTO.Summary toSummary(OrderDraft draft) {
         List<OrderDraftItem> items = items(draft.getId());
         OrderDraftDTO.Summary summary = new OrderDraftDTO.Summary();
         summary.setId(draft.getId());
         summary.setExternalRefNo(draft.getExternalRefNo());
         summary.setEntrySource(draft.getEntrySource());
+        summary.setSourceBatchNo(draft.getSourceBatchNo());
         summary.setSourceOrderNo(draft.getSourceOrderNo());
         List<Long> sourceFileIds = sourceFileIds(draft);
         summary.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));

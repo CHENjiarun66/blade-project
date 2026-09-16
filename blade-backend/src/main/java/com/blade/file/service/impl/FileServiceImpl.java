@@ -226,6 +226,100 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
+    @Transactional
+    public void syncFiles(String businessType, Long businessId, List<Long> fileIds) {
+        if (businessType == null || businessType.isBlank() || businessId == null) {
+            throw new IllegalArgumentException("businessType和businessId不能为空");
+        }
+        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        List<Long> targetFileIds = fileIds == null
+                ? List.of()
+                : new ArrayList<>(new LinkedHashSet<>(fileIds));
+        if (!targetFileIds.isEmpty()) {
+            Long activeCount = fileStorageMapper.selectCount(new LambdaQueryWrapper<FileStorage>()
+                    .in(FileStorage::getId, targetFileIds)
+                    .eq(FileStorage::getTenantId, tenantId)
+                    .eq(FileStorage::getStatus, 1));
+            if (activeCount != targetFileIds.size()) {
+                throw new RuntimeException("文件不存在");
+            }
+        }
+
+        List<FileBusinessBind> activeBindings = fileBusinessBindMapper.selectList(
+                new LambdaQueryWrapper<FileBusinessBind>()
+                        .eq(FileBusinessBind::getBusinessType, businessType)
+                        .eq(FileBusinessBind::getBusinessId, businessId)
+                        .eq(FileBusinessBind::getTenantId, tenantId)
+                        .eq(FileBusinessBind::getDeleted, 0)
+                        .orderByAsc(FileBusinessBind::getSort)
+                        .orderByAsc(FileBusinessBind::getId));
+        Set<Long> targetSet = new LinkedHashSet<>(targetFileIds);
+        Set<Long> retainedFileIds = new LinkedHashSet<>();
+        Set<Long> removedFileIds = new LinkedHashSet<>();
+
+        for (FileBusinessBind bind : activeBindings) {
+            boolean retain = targetSet.contains(bind.getFileId()) && retainedFileIds.add(bind.getFileId());
+            if (retain) continue;
+            fileBusinessBindMapper.update(null, new LambdaUpdateWrapper<FileBusinessBind>()
+                    .eq(FileBusinessBind::getId, bind.getId())
+                    .eq(FileBusinessBind::getTenantId, tenantId)
+                    .eq(FileBusinessBind::getDeleted, 0)
+                    .set(FileBusinessBind::getDeleted, 1));
+            if (!targetSet.contains(bind.getFileId())) {
+                removedFileIds.add(bind.getFileId());
+            }
+        }
+
+        String bindRole = "order_draft".equals(businessType) ? "source" : "attachment";
+        for (int sort = 0; sort < targetFileIds.size(); sort++) {
+            Long fileId = targetFileIds.get(sort);
+            FileBusinessBind existing = activeBindings.stream()
+                    .filter(bind -> retainedFileIds.contains(bind.getFileId()))
+                    .filter(bind -> fileId.equals(bind.getFileId()))
+                    .findFirst()
+                    .orElse(null);
+            if (existing == null) {
+                FileBusinessBind bind = new FileBusinessBind();
+                bind.setFileId(fileId);
+                bind.setBusinessType(businessType);
+                bind.setBusinessId(businessId);
+                bind.setBindRole(bindRole);
+                bind.setSort(sort);
+                bind.setIsPrimary(sort == 0 ? 1 : 0);
+                bind.setTenantId(tenantId);
+                bind.setDeleted(0);
+                fileBusinessBindMapper.insert(bind);
+            } else {
+                fileBusinessBindMapper.update(null, new LambdaUpdateWrapper<FileBusinessBind>()
+                        .eq(FileBusinessBind::getId, existing.getId())
+                        .eq(FileBusinessBind::getTenantId, tenantId)
+                        .eq(FileBusinessBind::getDeleted, 0)
+                        .set(FileBusinessBind::getBindRole, bindRole)
+                        .set(FileBusinessBind::getSort, sort)
+                        .set(FileBusinessBind::getIsPrimary, sort == 0 ? 1 : 0));
+            }
+        }
+
+        if (!removedFileIds.isEmpty()) {
+            fileStorageMapper.update(null, new LambdaUpdateWrapper<FileStorage>()
+                    .in(FileStorage::getId, removedFileIds)
+                    .eq(FileStorage::getTenantId, tenantId)
+                    .eq(FileStorage::getBusinessType, businessType)
+                    .eq(FileStorage::getBusinessId, businessId)
+                    .set(FileStorage::getBusinessType, null)
+                    .set(FileStorage::getBusinessId, null));
+        }
+        if (!targetFileIds.isEmpty()) {
+            fileStorageMapper.update(null, new LambdaUpdateWrapper<FileStorage>()
+                    .in(FileStorage::getId, targetFileIds)
+                    .eq(FileStorage::getTenantId, tenantId)
+                    .eq(FileStorage::getStatus, 1)
+                    .set(FileStorage::getBusinessType, businessType)
+                    .set(FileStorage::getBusinessId, businessId));
+        }
+    }
+
+    @Override
     public void bindFilesFromJson(String businessType, Long businessId, String imagesJson) {
         bindFiles(businessType, businessId, parseFileIds(imagesJson));
     }

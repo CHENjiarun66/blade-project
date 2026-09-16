@@ -49,6 +49,7 @@ BladeProject/
 | 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
 | 查订单状态、收款与履约重构方案 | [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) |
 | 查订单金额、结清与统计口径 | [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md) |
+| 查订单全流程回退、冲销和审批规则 | [18-ORDER_REVERSAL_APPROVAL_DESIGN.md](./18-ORDER_REVERSAL_APPROVAL_DESIGN.md) |
 | 领取订单大重构工作包与查看分支/发布边界 | [2026-08-30-order-lifecycle-finance-refactor-rom-sow.md](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md) |
 | 让实现 Agent 领取订单重构任务并等待 Codex 审核 | [2026-08-30-order-refactor-agent-execution-board.md](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md) |
 | 查图片/附件上传与存储设计 | [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md) |

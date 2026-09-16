@@ -1,12 +1,17 @@
 <template>
   <div class="draft-entry-page space-y-6">
     <header class="flex flex-wrap items-center justify-between gap-4">
-      <div>
+      <div class="flex items-start gap-3">
+        <el-button aria-label="返回草稿订单列表" class="!min-h-11 !rounded-xl" @click="router.push('/orders/drafts')">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </el-button>
+        <div>
         <div class="flex items-center gap-3">
-          <h2 class="text-2xl font-bold tracking-tight text-gray-900">订单草稿录入</h2>
-          <el-tag type="warning" effect="light">订单草稿</el-tag>
+          <h2 class="text-2xl font-bold tracking-tight text-gray-900">草稿订单详情</h2>
+          <el-tag type="warning" effect="light">编辑中</el-tag>
         </div>
         <p class="mt-1 text-sm text-gray-500">可继续填写手工暂存或 Agent 导入的草稿，确认后生成正式订单。</p>
+        </div>
       </div>
       <div class="flex flex-wrap gap-3">
         <el-button class="!rounded-xl !font-bold" @click="router.push('/orders/quick')">
@@ -46,18 +51,32 @@
     </header>
 
     <section class="draft-switcher">
-      <div class="grid grid-cols-1 items-end gap-4 lg:grid-cols-[210px_minmax(320px,1fr)_minmax(240px,0.7fr)_auto]">
-        <div class="field-block">
-          <span>草稿状态</span>
-          <el-segmented v-model="statusFilter" :options="statusOptions" class="!w-full" @change="loadDrafts" />
-        </div>
+      <div class="grid grid-cols-1 items-end gap-4 lg:grid-cols-[220px_minmax(340px,1fr)_minmax(240px,0.7fr)_auto]">
         <label class="field-block">
-          <span>选择需要修改的草稿</span>
+          <span>单据批次</span>
+          <el-select
+            v-model="selectedBatchKey"
+            filterable
+            :loading="batchLoading"
+            placeholder="选择单据批次"
+            class="!w-full"
+            @change="onBatchChange"
+          >
+            <el-option
+              v-for="batch in batches"
+              :key="batchKey(batch.sourceBatchNo)"
+              :value="batchKey(batch.sourceBatchNo)"
+              :label="`${batchLabel(batch.sourceBatchNo)}（${batch.draftCount} 张）`"
+            />
+          </el-select>
+        </label>
+        <label class="field-block">
+          <span>当前批次子单</span>
           <el-select
             v-model="selectedId"
             filterable
             :loading="listLoading"
-            placeholder="选择单据号 / 客户"
+            placeholder="选择纸质单号 / 客户"
             class="!w-full"
             @change="onDraftSelect"
           >
@@ -77,8 +96,8 @@
           </el-select>
         </label>
         <label class="field-block">
-          <span>搜索草稿</span>
-          <el-input v-model="keyword" clearable placeholder="纸单号或客户名称" @keyup.enter="loadDrafts">
+          <span>搜索本批次子单</span>
+          <el-input v-model="keyword" clearable placeholder="纸质单号或客户名称" @keyup.enter="searchBatchDrafts">
             <template #prefix><span class="material-symbols-outlined text-base text-gray-400">search</span></template>
           </el-input>
         </label>
@@ -89,7 +108,7 @@
           <el-button aria-label="下一张草稿" :disabled="currentDraftIndex < 0 || currentDraftIndex >= drafts.length - 1" @click="moveDraft(1)">
             <span class="material-symbols-outlined">chevron_right</span>
           </el-button>
-          <el-button aria-label="刷新草稿" @click="loadDrafts">
+          <el-button aria-label="刷新当前批次" @click="refreshWorkspace">
             <span class="material-symbols-outlined">refresh</span>
           </el-button>
         </div>
@@ -118,17 +137,19 @@
             <div class="panel-title">
               <span class="material-symbols-outlined text-[#408aee]">receipt_long</span>
               <h3>单据信息</h3>
-              <el-tag class="ml-auto" :type="current.status === 'CONFIRMED' ? 'success' : 'warning'">
-                {{ current.status === 'CONFIRMED' ? '已确认' : '编辑中' }}
-              </el-tag>
+              <el-tag class="ml-auto" type="warning">可编辑草稿</el-tag>
               <el-tag effect="plain" :type="manualDraft ? 'primary' : 'info'">
                 {{ manualDraft ? '手工暂存' : 'Agent 导入' }}
               </el-tag>
             </div>
             <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
               <label class="field-block">
-                <span>{{ manualDraft ? '单据号' : '纸质单号' }}</span>
-                <el-input v-model="current.sourceOrderNo" :disabled="readonly" placeholder="纸质订单编号" />
+                <span>单据批次 <em class="required-mark">*</em></span>
+                <el-input v-model="current.sourceBatchNo" maxlength="20" :disabled="readonly" placeholder="如 41" />
+              </label>
+              <label class="field-block">
+                <span>单据号 <em class="required-mark">*</em></span>
+                <el-input v-model="current.sourceOrderNo" maxlength="29" :disabled="readonly" placeholder="如 0135" />
                 <small>外部编号：{{ current.externalRefNo }}</small>
               </label>
               <label class="field-block">
@@ -139,10 +160,6 @@
               <label class="field-block">
                 <span>交货日期</span>
                 <el-date-picker v-model="current.deliveryDate" value-format="YYYY-MM-DD" type="date" class="!w-full" :disabled="readonly" />
-              </label>
-              <label v-if="!manualDraft" class="field-block">
-                <span>纸单批次</span>
-                <el-input v-model="current.sourceBatchNo" :disabled="readonly" placeholder="如 42" />
               </label>
               <label class="field-block">
                 <span>订单类型</span>
@@ -380,6 +397,73 @@
               </el-tooltip>
             </div>
 
+            <div v-if="!readonly" class="paper-edit-toolbar">
+              <input
+                ref="paperUploadInput"
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp"
+                class="sr-only"
+                aria-label="选择订单图片"
+                @change="handlePaperUpload"
+              />
+              <el-button
+                type="primary"
+                plain
+                class="!font-bold"
+                :loading="paperUploading"
+                :disabled="paperFileIds.length >= MAX_DRAFT_IMAGES"
+                @click="openPaperUpload"
+              >
+                <span class="material-symbols-outlined mr-1 text-base">add_photo_alternate</span>
+                添加图片
+              </el-button>
+              <div v-if="paperFileIds.length" class="paper-edit-actions" aria-label="当前图片排序操作">
+                <el-tooltip content="设为第一张图片">
+                  <el-button
+                    class="paper-icon-button"
+                    aria-label="设为首图"
+                    :disabled="activePaperIndex === 0"
+                    @click="makeActivePaperPrimary"
+                  >
+                    <span class="material-symbols-outlined">first_page</span>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip content="向前移动一位">
+                  <el-button
+                    class="paper-icon-button"
+                    aria-label="图片前移"
+                    :disabled="activePaperIndex === 0"
+                    @click="reorderActivePaper(-1)"
+                  >
+                    <span class="material-symbols-outlined">arrow_back</span>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip content="向后移动一位">
+                  <el-button
+                    class="paper-icon-button"
+                    aria-label="图片后移"
+                    :disabled="activePaperIndex >= paperFileIds.length - 1"
+                    @click="reorderActivePaper(1)"
+                  >
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip content="从草稿移除，不删除文件中心原文件">
+                  <el-button
+                    type="danger"
+                    plain
+                    class="paper-icon-button"
+                    aria-label="移除当前图片"
+                    @click="removeActivePaper"
+                  >
+                    <span class="material-symbols-outlined">delete</span>
+                  </el-button>
+                </el-tooltip>
+              </div>
+              <p>最多 10 张；调整后点击“存为草稿”生效。</p>
+            </div>
+
             <div v-if="paperFileIds.length" class="paper-canvas">
               <el-image
                 :key="activePaperFileId"
@@ -425,7 +509,7 @@
                   @click="activePaperIndex = index"
                 >
                   <img :src="url" :alt="`第 ${index + 1} 张纸单缩略图`" loading="lazy" />
-                  <span>{{ index + 1 }}</span>
+                  <span>{{ index === 0 ? '首图' : index + 1 }}</span>
                 </button>
               </div>
               <el-button aria-label="下一张纸单" :disabled="activePaperIndex >= paperFileIds.length - 1" @click="movePaper(1)">
@@ -443,8 +527,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useRouter } from 'vue-router'
-import { filePreviewUrl } from '@/api/file'
+import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
+import { filePreviewUrl, uploadFile } from '@/api/file'
 import { getCustomerPage, type CustomerVO } from '@/api/customer'
 import { getProductPage, type ProductVO } from '@/api/product'
 import { hasFriendlySkuName, skuFriendlyName } from '@/utils/skuDisplay'
@@ -452,9 +536,11 @@ import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
 import {
   confirmOrderDraft,
   getOrderDraft,
+  getOrderDraftBatches,
   getOrderDraftPage,
   saveOrderDraft,
   type DraftSaveRequest,
+  type OrderDraftBatchSummary,
   type OrderDraftItem,
   type OrderDraftSummary,
   type OrderDraftView,
@@ -476,23 +562,26 @@ interface SkuOption {
 }
 
 const router = useRouter()
+const route = useRoute()
+const UNBATCHED = '__UNBATCHED__'
 const drafts = ref<OrderDraftSummary[]>([])
+const batches = ref<OrderDraftBatchSummary[]>([])
 const current = ref<OrderDraftView | null>(null)
 const selectedId = ref<number>()
+const selectedBatchKey = ref<string>()
 const keyword = ref('')
-const statusFilter = ref<'EDITING' | 'CONFIRMED'>('EDITING')
+const batchLoading = ref(false)
 const listLoading = ref(false)
 const detailLoading = ref(false)
 const saving = ref(false)
 const confirming = ref(false)
 const imagePanelVisible = ref(true)
 const activePaperIndex = ref(0)
+const paperUploadInput = ref<HTMLInputElement | null>(null)
+const paperUploading = ref(false)
+const MAX_DRAFT_IMAGES = 10
 const skuOptions = ref<SkuOption[]>([])
 const filteredSkuOptions = ref<SkuOption[]>([])
-const statusOptions = [
-  { label: '待处理', value: 'EDITING' },
-  { label: '已确认', value: 'CONFIRMED' },
-]
 const orderTypeOptions = [
   { label: '现货订单', value: 'SPOT' },
   { label: '订货订单', value: 'PREORDER' },
@@ -532,36 +621,79 @@ const paperImageUrls = computed(() => paperFileIds.value.map(filePreviewUrl))
 const activePaperFileId = computed(() => paperFileIds.value[activePaperIndex.value])
 const activePaperImageUrl = computed(() => activePaperFileId.value ? filePreviewUrl(activePaperFileId.value) : '')
 
-async function loadDrafts() {
+function batchKey(value?: string) {
+  return value?.trim() || UNBATCHED
+}
+
+function batchLabel(value?: string) {
+  const normalized = value?.trim()
+  if (!normalized) return '未分批'
+  return /^\d+$/.test(normalized) ? `第 ${normalized} 单` : normalized
+}
+
+async function loadBatches() {
+  batchLoading.value = true
+  try {
+    const response = await getOrderDraftBatches()
+    batches.value = response.data || []
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+async function loadDrafts(selectFirst = false) {
+  if (!selectedBatchKey.value) {
+    drafts.value = []
+    return
+  }
   listLoading.value = true
   try {
     const response = await getOrderDraftPage({
       current: 1,
       size: 100,
-      status: statusFilter.value,
+      status: 'EDITING',
       keyword: keyword.value || undefined,
+      sourceBatchNo: selectedBatchKey.value,
     })
-    drafts.value = response.data.records
-    if (!drafts.value.length) {
-      selectedId.value = undefined
-      current.value = null
-      return
-    }
-    if (!selectedId.value || !drafts.value.some(draft => draft.id === selectedId.value)) {
-      await selectDraft(drafts.value[0].id)
-    }
+    drafts.value = response.data.records || []
+    if (selectFirst && drafts.value.length) navigateDraft(drafts.value[0].id)
   } finally {
     listLoading.value = false
   }
 }
 
+async function onBatchChange() {
+  keyword.value = ''
+  selectedId.value = undefined
+  current.value = null
+  await loadDrafts(true)
+}
+
+async function searchBatchDrafts() {
+  await loadDrafts(false)
+  if (!drafts.value.length) return
+  if (!selectedId.value || !drafts.value.some(draft => draft.id === selectedId.value)) {
+    navigateDraft(drafts.value[0].id)
+  }
+}
+
+async function refreshWorkspace() {
+  await Promise.all([loadBatches(), loadDrafts(false)])
+  if (selectedId.value) await loadDraftDetail(selectedId.value)
+}
+
 function onDraftSelect(id: number) {
-  if (id) selectDraft(id)
+  if (id) navigateDraft(id)
 }
 
 function moveDraft(offset: number) {
   const target = drafts.value[currentDraftIndex.value + offset]
-  if (target) selectDraft(target.id)
+  if (target) navigateDraft(target.id)
+}
+
+function navigateDraft(id: number) {
+  if (Number(route.params.id) === id) return
+  router.push(`/orders/drafts/${id}`)
 }
 
 function togglePaperImages() {
@@ -575,16 +707,155 @@ function movePaper(offset: number) {
   )
 }
 
-async function selectDraft(id: number) {
+function setPaperFileIds(fileIds: number[]) {
+  if (!current.value) return
+  const normalized = [...new Set(fileIds)]
+  current.value.sourceFileIds = normalized
+  current.value.sourceFileId = normalized[0]
+  activePaperIndex.value = Math.min(activePaperIndex.value, Math.max(normalized.length - 1, 0))
+}
+
+function openPaperUpload() {
+  if (readonly.value) return
+  if (paperFileIds.value.length >= MAX_DRAFT_IMAGES) {
+    ElMessage.warning(`每张草稿最多上传 ${MAX_DRAFT_IMAGES} 张图片`)
+    return
+  }
+  paperUploadInput.value?.click()
+}
+
+async function handlePaperUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const selectedFiles = Array.from(input.files || [])
+  input.value = ''
+  if (!current.value || !selectedFiles.length) return
+
+  const supportedTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
+  const supportedFiles = selectedFiles.filter(file => supportedTypes.has(file.type))
+  if (supportedFiles.length !== selectedFiles.length) {
+    ElMessage.warning('仅支持 JPG、PNG、WebP 图片')
+  }
+  const available = MAX_DRAFT_IMAGES - paperFileIds.value.length
+  const pendingFiles = supportedFiles.slice(0, available)
+  if (supportedFiles.length > available) {
+    ElMessage.warning(`每张草稿最多上传 ${MAX_DRAFT_IMAGES} 张图片，本次只添加前 ${available} 张`)
+  }
+  if (!pendingFiles.length) return
+
+  paperUploading.value = true
+  const originalCount = paperFileIds.value.length
+  const nextIds = [...paperFileIds.value]
+  try {
+    for (const file of pendingFiles) {
+      const response = await uploadFile(file, 'order_draft')
+      nextIds.push(Number(response.data.id))
+      setPaperFileIds(nextIds)
+    }
+    activePaperIndex.value = originalCount
+    ElMessage.success(`已添加 ${pendingFiles.length} 张图片，保存草稿后生效`)
+  } catch (error: any) {
+    ElMessage.error(error.message || '订单图片上传失败')
+  } finally {
+    paperUploading.value = false
+  }
+}
+
+function reorderActivePaper(offset: number) {
+  const currentIndex = activePaperIndex.value
+  const targetIndex = currentIndex + offset
+  if (targetIndex < 0 || targetIndex >= paperFileIds.value.length) return
+  const nextIds = [...paperFileIds.value]
+  const [moving] = nextIds.splice(currentIndex, 1)
+  nextIds.splice(targetIndex, 0, moving)
+  setPaperFileIds(nextIds)
+  activePaperIndex.value = targetIndex
+}
+
+function makeActivePaperPrimary() {
+  if (activePaperIndex.value <= 0) return
+  const nextIds = [...paperFileIds.value]
+  const [moving] = nextIds.splice(activePaperIndex.value, 1)
+  nextIds.unshift(moving)
+  setPaperFileIds(nextIds)
+  activePaperIndex.value = 0
+}
+
+async function removeActivePaper() {
+  if (!current.value || !paperFileIds.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      '图片将从当前草稿中移除，但文件中心原文件不会被删除。保存草稿后生效。',
+      '移除订单图片',
+      {
+        type: 'warning',
+        confirmButtonText: '移除图片',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+  const nextIds = [...paperFileIds.value]
+  nextIds.splice(activePaperIndex.value, 1)
+  setPaperFileIds(nextIds)
+}
+
+async function loadDraftDetail(id: number) {
   selectedId.value = id
   detailLoading.value = true
   try {
     const response = await getOrderDraft(id)
-    current.value = response.data
+    if (response.data.status !== 'EDITING') {
+      ElMessage.info('这张草稿已经生成正式订单，已从草稿箱移除')
+      if (response.data.confirmedOrderId) {
+        await router.replace(`/orders/${response.data.confirmedOrderId}`)
+      } else {
+        await router.replace('/orders/drafts')
+      }
+      return
+    }
+    const normalized = normalizeLegacyDocumentIdentity(response.data)
+    current.value = {
+      ...normalized,
+      needDelivery: response.data.needDelivery ?? 0,
+    }
+    const incomingBatchKey = batchKey(normalized.sourceBatchNo)
+    const batchChanged = selectedBatchKey.value !== incomingBatchKey
+    selectedBatchKey.value = incomingBatchKey
     activePaperIndex.value = 0
+    if (batchChanged || !drafts.value.some(draft => draft.id === id)) {
+      await loadDrafts(false)
+    }
   } finally {
     detailLoading.value = false
   }
+}
+
+function normalizeLegacyDocumentIdentity(draft: OrderDraftView): OrderDraftView {
+  if (draft.sourceBatchNo?.trim() || !draft.sourceOrderNo?.trim()) return draft
+  const legacy = draft.sourceOrderNo.trim().match(/^(\d+)[_-](.+)$/)
+  if (!legacy) return draft
+  return {
+    ...draft,
+    sourceBatchNo: legacy[1],
+    sourceOrderNo: legacy[2],
+  }
+}
+
+function validateDocumentIdentity(draft: OrderDraftView) {
+  if (!draft.sourceBatchNo?.trim()) {
+    ElMessage.warning('请填写单据批次')
+    return false
+  }
+  if (!draft.sourceOrderNo?.trim()) {
+    ElMessage.warning('请填写单据号')
+    return false
+  }
+  if (`${draft.sourceBatchNo.trim()}_${draft.sourceOrderNo.trim()}`.length > 50) {
+    ElMessage.warning('单据批次与单据号组合后不能超过 50 个字符')
+    return false
+  }
+  return true
 }
 
 async function loadProducts() {
@@ -626,7 +897,11 @@ function filterSku(keyword: string) {
 }
 
 function lineSkuLabel(row: OrderDraftItem) {
-  return skuOptions.value.find(option => option.skuId === row.skuId)?.label || `SKU ${row.skuId}`
+  const catalogLabel = skuOptions.value.find(option => option.skuId === row.skuId)?.label
+  if (catalogLabel) return catalogLabel
+  return [row.rawProductCode, row.rawDescription || row.rawColor]
+    .filter(Boolean)
+    .join(' · ') || '已选择商品规格'
 }
 
 function recognitionText(row: OrderDraftItem) {
@@ -738,15 +1013,17 @@ function toSaveRequest(draft: OrderDraftView): DraftSaveRequest {
 
 async function saveDraft(showMessage = true) {
   if (!current.value) return
+  if (!validateDocumentIdentity(current.value)) return
   if (!current.value.items.length) {
     ElMessage.warning('请至少保留一行商品明细')
     return
   }
   saving.value = true
   try {
-    await saveOrderDraft(current.value.id, toSaveRequest(current.value))
-    await selectDraft(current.value.id)
-    await loadDrafts()
+    const draftId = current.value.id
+    await saveOrderDraft(draftId, toSaveRequest(current.value))
+    await loadDraftDetail(draftId)
+    await Promise.all([loadBatches(), loadDrafts(false)])
     if (showMessage) ElMessage.success('草稿已保存')
   } finally {
     saving.value = false
@@ -755,6 +1032,7 @@ async function saveDraft(showMessage = true) {
 
 async function confirmDraft() {
   if (!current.value) return
+  if (!validateDocumentIdentity(current.value)) return
   const unresolved = current.value.items.filter(item => !item.skuId)
   if (unresolved.length) {
     ElMessage.warning(`还有 ${unresolved.length} 行没有选择 SKU`)
@@ -779,11 +1057,32 @@ async function confirmDraft() {
 
   confirming.value = true
   try {
-    const response = await confirmOrderDraft(current.value.id, true)
-    ElMessage.success('正式订单已生成')
-    await selectDraft(current.value.id)
-    await loadDrafts()
-    router.push(`/orders/${response.data.orderId}`)
+    const confirmedDraftId = current.value.id
+    const previousIndex = drafts.value.findIndex(draft => draft.id === confirmedDraftId)
+    const response = await confirmOrderDraft(confirmedDraftId, true)
+    await Promise.all([loadBatches(), loadDrafts(false)])
+    const nextDraft = drafts.value[Math.min(Math.max(previousIndex, 0), drafts.value.length - 1)]
+    try {
+      await ElMessageBox.confirm(
+        nextDraft
+          ? `正式订单已生成。本批次还有 ${drafts.value.length} 张草稿待处理。`
+          : '正式订单已生成，当前批次已经处理完成。',
+        '草稿处理完成',
+        {
+          type: 'success',
+          distinguishCancelAndClose: true,
+          confirmButtonText: '查看正式订单',
+          cancelButtonText: nextDraft ? '继续下一张' : '返回草稿列表',
+        },
+      )
+      await router.push(`/orders/${response.data.orderId}`)
+    } catch (action) {
+      if (action === 'cancel' && nextDraft) {
+        await router.push(`/orders/drafts/${nextDraft.id}`)
+      } else {
+        await router.push('/orders/drafts')
+      }
+    }
   } finally {
     confirming.value = false
   }
@@ -820,8 +1119,33 @@ function warningLabel(value: string) {
   return value
 }
 
+onBeforeRouteUpdate(async to => {
+  const nextId = Number(to.params.id)
+  if (Number.isFinite(nextId) && nextId > 0) await loadDraftDetail(nextId)
+})
+
 onMounted(async () => {
-  await Promise.all([loadProducts(), loadDrafts()])
+  const draftId = Number(route.params.id)
+  if (!Number.isFinite(draftId) || draftId <= 0) {
+    await router.replace('/orders/drafts')
+    return
+  }
+  const [detailResult, productResult, batchResult] = await Promise.allSettled([
+    loadDraftDetail(draftId),
+    loadProducts(),
+    loadBatches(),
+  ])
+
+  if (detailResult.status === 'rejected') {
+    ElMessage.error(detailResult.reason?.message || '加载草稿详情失败')
+    return
+  }
+  if (productResult.status === 'rejected') {
+    ElMessage.warning('商品目录加载失败，草稿仍可查看；刷新页面后可重试商品匹配')
+  }
+  if (batchResult.status === 'rejected') {
+    ElMessage.warning('批次导航加载失败，当前草稿仍可继续编辑')
+  }
 })
 </script>
 
@@ -898,6 +1222,43 @@ onMounted(async () => {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.paper-edit-toolbar {
+  display: flex;
+  min-height: 68px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.paper-edit-toolbar > p {
+  flex: 1 0 100%;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.paper-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.paper-icon-button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  margin-left: 0 !important;
+  padding: 0;
+}
+
+.paper-icon-button .material-symbols-outlined {
+  font-size: 19px;
 }
 
 .paper-canvas {
@@ -990,6 +1351,7 @@ onMounted(async () => {
   padding: 0;
   background: #e2e8f0;
   cursor: pointer;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .paper-thumbnail.active {
@@ -1055,6 +1417,11 @@ onMounted(async () => {
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
+}
+
+.required-mark {
+  color: #ef4444;
+  font-style: normal;
 }
 
 .field-block > small {

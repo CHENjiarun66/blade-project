@@ -700,17 +700,17 @@
     <el-dialog v-model="showAddPayDialog" title="加收金额" width="480px" :close-on-click-modal="false">
       <div class="py-2 space-y-5">
         <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2.5">
-          <div class="flex justify-between text-sm"><span class="text-gray-500">订单总额</span><span class="font-semibold">¥ {{ fmt(order?.totalAmount) }}</span></div>
-          <div class="flex justify-between text-sm"><span class="text-gray-500">已收款金额</span><span class="font-semibold text-blue-600">¥ {{ fmt(currentReceived) }}</span></div>
-          <div class="flex justify-between text-sm"><span class="text-gray-500">待收尾款</span><span class="font-semibold text-red-500">¥ {{ fmt(currentBalance) }}</span></div>
+          <div class="flex justify-between text-sm"><span class="text-gray-500">订单总额</span><span class="font-semibold">¥ {{ fmtSingleDecimal(order?.totalAmount) }}</span></div>
+          <div class="flex justify-between text-sm"><span class="text-gray-500">已收款金额</span><span class="font-semibold text-blue-600">¥ {{ fmtSingleDecimal(currentReceived) }}</span></div>
+          <div class="flex justify-between text-sm"><span class="text-gray-500">待收尾款</span><span class="font-semibold text-red-500">¥ {{ fmtSingleDecimal(currentBalance) }}</span></div>
         </div>
         <div>
           <label class="block text-sm font-bold text-gray-700 mb-2">加收金额</label>
           <el-input-number
             v-model="addPayAmount"
-            :min="0.01"
+            :min="0"
             :max="currentBalance"
-            :precision="2"
+            :precision="1"
             :step="1"
             class="!w-full"
           />
@@ -718,11 +718,11 @@
         <div class="grid grid-cols-2 gap-3">
           <div class="rounded-xl border border-blue-100 bg-blue-50 p-3">
             <div class="text-xs text-blue-600">加收后累计实收</div>
-            <div class="mt-1 text-lg font-bold text-blue-700">¥ {{ fmt(addPayResultReceived) }}</div>
+            <div class="mt-1 text-lg font-bold text-blue-700">¥ {{ fmtSingleDecimal(addPayResultReceived) }}</div>
           </div>
           <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
             <div class="text-xs text-gray-500">加收后剩余尾款</div>
-            <div class="mt-1 text-lg font-bold text-gray-800">¥ {{ fmt(addPayResultBalance) }}</div>
+            <div class="mt-1 text-lg font-bold text-gray-800">¥ {{ fmtSingleDecimal(addPayResultBalance) }}</div>
           </div>
         </div>
         <p class="text-xs text-gray-400">此操作只记录一笔新增收款，不会自动核销尾款。</p>
@@ -780,7 +780,12 @@
               <tbody class="divide-y divide-gray-100">
                 <tr v-for="item in deliveryPlanItems" :key="item.orderItemId" class="hover:bg-gray-50">
                   <td class="px-3 py-2.5 font-medium text-gray-900">{{ item.productName }}</td>
-                  <td class="px-3 py-2.5 text-gray-600 text-xs">{{ item.colorName }} / {{ item.sizeName }}</td>
+                  <td class="px-3 py-2.5 text-gray-600 text-xs">
+                    <span v-if="hasFriendlySkuName(item)" class="font-medium text-amber-700">
+                      {{ skuFriendlyName(item) }}
+                    </span>
+                    <span v-else>{{ skuColorDisplay(item) }} / {{ skuSizeDisplay(item) }}</span>
+                  </td>
                   <td class="px-3 py-2.5 font-bold text-center">{{ item.plannedQty }}</td>
                   <td class="px-3 py-2.5">
                     <el-select v-model="item.warehouseId" placeholder="选择仓库" size="small" class="!w-28" @change="onWarehouseChange">
@@ -862,6 +867,9 @@ const deliveryPlanDialogTitle = ref('创建配货计划')
 const deliveryPlanItems = ref<{
   orderItemId: number
   skuId: number
+  skuCode: string
+  skuType?: string
+  variantUnresolved?: boolean
   productName: string
   colorName: string
   sizeName: string
@@ -951,6 +959,10 @@ function hasAction(action: string): boolean {
 
 function fmt(v: number | undefined | null): string {
   return Number(v ?? 0).toFixed(2)
+}
+
+function fmtSingleDecimal(v: number | undefined | null): string {
+  return Number(v ?? 0).toFixed(1)
 }
 
 const collectionLabel = computed(() => {
@@ -1267,6 +1279,13 @@ async function handleCreateDeliveryPlan() {
     await loadOrder()
   }
 
+  // 与后端履约保护保持一致：整款录入或历史待明确规格必须先拆分，
+  // 不让用户填完整张配货表后才在保存阶段收到阻断错误。
+  if (placeholderRows.value.length > 0) {
+    ElMessage.warning(`还有 ${placeholderRows.value.length} 行商品未明确颜色/尺码，请先拆分到具体 SKU 后再创建配货计划`)
+    return
+  }
+
   // 加载仓库列表
   try {
     const res = await getAllWarehouses()
@@ -1283,6 +1302,9 @@ async function handleCreateDeliveryPlan() {
   deliveryPlanItems.value = (order.value?.items || []).map(item => ({
     orderItemId: item.id,
     skuId: item.skuId,
+    skuCode: item.skuCode || '',
+    skuType: item.skuType,
+    variantUnresolved: item.variantUnresolved,
     productName: item.productName,
     colorName: item.colorName || '',
     sizeName: item.sizeName || '',
@@ -1318,6 +1340,7 @@ async function handleEditDeliveryPlan() {
   deliveryPlanItems.value = deliveryPlans.value.map(plan => ({
     orderItemId: plan.orderItemId,
     skuId: plan.skuId,
+    skuCode: plan.skuCode || '',
     productName: plan.productName,
     colorName: plan.colorName || '',
     sizeName: plan.sizeName || '',

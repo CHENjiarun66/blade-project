@@ -33,10 +33,14 @@
               <span class="material-symbols-outlined text-[#408aee]">receipt_long</span>
               <h3>单据信息</h3>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
               <label class="field-block">
-                <span>纸质单号</span>
-                <el-input v-model="form.sourceDocNo" placeholder="如 6月-001" />
+                <span>单据批次 <em class="required-mark">*</em></span>
+                <el-input v-model="form.sourceBatchNo" maxlength="20" placeholder="如 41" />
+              </label>
+              <label class="field-block">
+                <span>单据号 <em class="required-mark">*</em></span>
+                <el-input v-model="form.sourceOrderNo" maxlength="29" placeholder="如 0135" />
               </label>
               <label class="field-block">
                 <span>订单日期</span>
@@ -46,7 +50,7 @@
                 <span>订单类型</span>
                 <el-segmented v-model="form.orderType" :options="orderTypeOptions" class="quick-segmented" />
               </label>
-              <label class="field-block">
+              <label class="field-block md:col-span-2">
                 <span>来源档口/店铺</span>
                 <el-input v-model="form.sourceShop" placeholder="如 杭州四季青A档、线上店铺" clearable />
               </label>
@@ -458,7 +462,7 @@ import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO
 import { fileVariantUrl, parseImageSources, uploadFile } from '@/api/file'
 import { getProductFileBindings, getProductPage, type ProductVO, type ProductSku, type ProductFileBindingsVO } from '@/api/product'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
-import { skuFriendlyName } from '@/utils/skuDisplay'
+import { hasFriendlySkuName, skuFriendlyName, skuSizeDisplay } from '@/utils/skuDisplay'
 
 interface QuickLine {
   skuId?: number
@@ -550,7 +554,10 @@ const matrixColors = computed(() => {
   const seen = new Map<number, { id: number; name: string }>()
   for (const sku of activeSkus.value) {
     if (!seen.has(sku.colorId)) {
-      seen.set(sku.colorId, { id: sku.colorId, name: sku.colorName })
+      seen.set(sku.colorId, {
+        id: sku.colorId,
+        name: hasFriendlySkuName(sku) ? skuFriendlyName(sku) : sku.colorName,
+      })
     }
   }
   return Array.from(seen.values())
@@ -560,7 +567,10 @@ const matrixSizes = computed(() => {
   const seen = new Map<number, { id: number; name: string }>()
   for (const sku of activeSkus.value) {
     if (!seen.has(sku.sizeId)) {
-      seen.set(sku.sizeId, { id: sku.sizeId, name: sku.sizeName })
+      seen.set(sku.sizeId, {
+        id: sku.sizeId,
+        name: hasFriendlySkuName(sku) ? skuSizeDisplay(sku) : sku.sizeName,
+      })
     }
   }
   return Array.from(seen.values()).sort((a, b) => a.id - b.id)
@@ -635,7 +645,8 @@ const orderTypeOptions = [
 ]
 
 const form = reactive({
-  sourceDocNo: '',
+  sourceBatchNo: '',
+  sourceOrderNo: '',
   sourceShop: defaultSourceShop,
   orderDate: today,
   orderType: 'SPOT',
@@ -727,6 +738,28 @@ function incrementSourceDocNo(value: string) {
   const [, prefix, numberPart] = match
   const nextNumber = String(Number(numberPart) + 1).padStart(numberPart.length, '0')
   return `${prefix}${nextNumber}`
+}
+
+function composedSourceDocNo() {
+  const batch = form.sourceBatchNo.trim()
+  const orderNo = form.sourceOrderNo.trim()
+  return batch && orderNo ? `${batch}_${orderNo}` : ''
+}
+
+function validateSourceDocument() {
+  if (!form.sourceBatchNo.trim()) {
+    ElMessage.warning('请填写单据批次')
+    return false
+  }
+  if (!form.sourceOrderNo.trim()) {
+    ElMessage.warning('请填写单据号')
+    return false
+  }
+  if (composedSourceDocNo().length > 50) {
+    ElMessage.warning('单据批次与单据号组合后不能超过 50 个字符')
+    return false
+  }
+  return true
 }
 
 function addLine() {
@@ -928,7 +961,8 @@ function toDraftRequest(): DraftSaveRequest {
 
   return {
     externalRefNo: manualDraftExternalRef(),
-    sourceOrderNo: form.sourceDocNo || undefined,
+    sourceBatchNo: form.sourceBatchNo.trim(),
+    sourceOrderNo: form.sourceOrderNo.trim(),
     sourceShop: form.sourceShop || undefined,
     orderType: form.orderType as 'SPOT' | 'PREORDER',
     sourceFileIds: imageFileIds.value.map(Number).filter(Number.isFinite),
@@ -953,17 +987,18 @@ function toDraftRequest(): DraftSaveRequest {
 }
 
 async function saveAsDraft() {
+  if (!validateSourceDocument()) return
   draftSaving.value = true
   try {
     const request = toDraftRequest()
     if (savedDraftId.value) {
       await saveOrderDraft(savedDraftId.value, request)
-      ElMessage.success('草稿已更新，可从左侧“订单草稿”继续填写')
+      ElMessage.success('草稿已更新，可从左侧“草稿订单列表”继续填写')
       return
     }
     const response = await createOrderDraft(request)
     savedDraftId.value = response.data.draftId
-    ElMessage.success('已添加到草稿，可从左侧“订单草稿”继续填写')
+    ElMessage.success('已添加到草稿，可从左侧“草稿订单列表”继续填写')
   } catch (error: any) {
     ElMessage.error(error.message || '保存草稿失败')
   } finally {
@@ -1003,6 +1038,7 @@ async function applyWalkInCustomerIfEmpty() {
 }
 
 async function submit(next: boolean) {
+  if (!validateSourceDocument()) return
   await applyWalkInCustomerIfEmpty()
 
   if (!form.customerName.trim()) {
@@ -1020,14 +1056,14 @@ async function submit(next: boolean) {
   }
   saving.value = true
   try {
-    const currentSourceDocNo = form.sourceDocNo
+    const currentSourceOrderNo = form.sourceOrderNo
     const customerId = await ensureCustomer()
     if (savedDraftId.value) {
       await saveOrderDraft(savedDraftId.value, toDraftRequest())
       const confirmed = await confirmOrderDraft(savedDraftId.value, true)
       ElMessage.success('草稿已确认并生成正式订单')
       if (next) {
-        resetForNext(currentSourceDocNo)
+        resetForNext(currentSourceOrderNo)
       } else {
         router.push(`/orders/${confirmed.data.orderId}`)
       }
@@ -1036,7 +1072,7 @@ async function submit(next: boolean) {
     const data = {
       customerId,
       orderDate: form.orderDate,
-      sourceDocNo: form.sourceDocNo || undefined,
+      sourceDocNo: composedSourceDocNo(),
       sourceShop: form.sourceShop || undefined,
       orderType: form.orderType,
       customerName: form.customerName,
@@ -1061,7 +1097,7 @@ async function submit(next: boolean) {
     const res = await createOrder(data)
     ElMessage.success('订单创建成功')
     if (next) {
-      resetForNext(currentSourceDocNo)
+      resetForNext(currentSourceOrderNo)
     } else {
       router.push(`/orders/${res.data}`)
     }
@@ -1095,8 +1131,8 @@ function removeImage(index: number) {
   imageFileIds.value.splice(index, 1)
 }
 
-function resetForNext(previousSourceDocNo = '') {
-  form.sourceDocNo = incrementSourceDocNo(previousSourceDocNo)
+function resetForNext(previousSourceOrderNo = '') {
+  form.sourceOrderNo = incrementSourceDocNo(previousSourceOrderNo)
   form.sourceShop = defaultSourceShop
   form.customerId = undefined
   form.countryCode = '+86'
@@ -1334,6 +1370,11 @@ onMounted(async () => {
   line-height: 1;
   font-weight: 800;
   color: #6b7280;
+}
+
+.required-mark {
+  color: #ef4444;
+  font-style: normal;
 }
 
 .quick-order-page :deep(.el-input__wrapper),

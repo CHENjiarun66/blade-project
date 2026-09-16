@@ -1,6 +1,7 @@
 package com.blade.order.draft;
 
 import com.blade.common.tenant.TenantContext;
+import com.blade.common.result.PageResult;
 import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.service.FileService;
@@ -37,6 +38,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -105,6 +107,8 @@ class OrderDraftConfirmFinanceTest {
         OrderDraft draft = new OrderDraft();
         draft.setTenantId(1L);
         draft.setExternalRefNo(ref + System.currentTimeMillis());
+        draft.setSourceBatchNo("TEST");
+        draft.setSourceOrderNo(ref);
         draft.setStatus("EDITING");
         draft.setCustomerName("草稿确认测试客户");
         draft.setDeposit(deposit);
@@ -182,6 +186,57 @@ class OrderDraftConfirmFinanceTest {
     }
 
     @Test
+    void draftList_filtersEditingDraftsByBatch_andBuildsBatchOptions() {
+        bindContext();
+        try {
+            Long batch39First = seedDraft("LIST-39-A", BigDecimal.ZERO, new BigDecimal("100.00"));
+            Long batch39Second = seedDraft("LIST-39-B", BigDecimal.ZERO, new BigDecimal("100.00"));
+            Long batch40 = seedDraft("LIST-40", BigDecimal.ZERO, new BigDecimal("100.00"));
+            draftMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<OrderDraft>()
+                    .set(OrderDraft::getSourceBatchNo, "39")
+                    .set(OrderDraft::getOrderDate, LocalDate.of(2026, 9, 1))
+                    .in(OrderDraft::getId, List.of(batch39First, batch39Second)));
+            draftMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<OrderDraft>()
+                    .set(OrderDraft::getSourceBatchNo, "40")
+                    .set(OrderDraft::getOrderDate, LocalDate.of(2026, 9, 2))
+                    .eq(OrderDraft::getId, batch40));
+            OrderDraftItem unresolved = new OrderDraftItem();
+            unresolved.setTenantId(1L);
+            unresolved.setDraftId(batch40);
+            unresolved.setSourceRowNo(2);
+            unresolved.setMatchStatus("UNMATCHED");
+            unresolved.setDeleted(0);
+            draftItemMapper.insert(unresolved);
+
+            OrderDraftDTO.ConfirmRequest confirm = new OrderDraftDTO.ConfirmRequest();
+            confirm.setAcknowledgeWarnings(true);
+            draftService.confirm(batch39Second, confirm);
+
+            PageResult<OrderDraftDTO.Summary> page = draftService.page(
+                    1, 20, "EDITING", null, "39", null, false, null, null);
+            assertEquals(1, page.getTotal());
+            assertEquals(batch39First, page.getRecords().get(0).getId());
+            assertEquals("39", page.getRecords().get(0).getSourceBatchNo());
+
+            PageResult<OrderDraftDTO.Summary> unresolvedPage = draftService.page(
+                    1, 20, "EDITING", null, null, null, true, null, null);
+            assertTrue(unresolvedPage.getRecords().stream().anyMatch(summary -> batch40.equals(summary.getId())));
+            assertTrue(unresolvedPage.getRecords().stream().allMatch(summary -> summary.getUnresolvedCount() > 0));
+
+            List<OrderDraftDTO.BatchSummary> batches = draftService.batches();
+            OrderDraftDTO.BatchSummary batch39 = batches.stream()
+                    .filter(batch -> "39".equals(batch.getSourceBatchNo()))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals(1, batch39.getDraftCount(), "已生成订单的草稿不能出现在待处理批次计数中");
+            assertTrue(batches.stream().anyMatch(batch -> "40".equals(batch.getSourceBatchNo())));
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
     void confirmDraft_withZeroDeposit_startsUnpaid() {
         bindContext();
         try {
@@ -219,6 +274,56 @@ class OrderDraftConfirmFinanceTest {
             List<String> formalOrderImages = objectMapper.readValue(
                     orderMapper.selectById(orderId).getImages(), new TypeReference<>() {});
             assertEquals(fileIds.stream().map(String::valueOf).toList(), formalOrderImages);
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void updateDraft_reordersAndUnbindsImagesWithoutDeletingFileCenterAssets() {
+        bindContext();
+        try {
+            Long firstFileId = seedSourceImage("paper-first.jpg");
+            Long secondFileId = seedSourceImage("paper-second.jpg");
+            OrderDraftDTO.Item item = new OrderDraftDTO.Item();
+            item.setSkuId(seedSku());
+            item.setQuantity(2);
+            item.setSalePrice(new BigDecimal("50.00"));
+            item.setPaperAmount(new BigDecimal("100.00"));
+
+            OrderDraftDTO.SaveRequest request = new OrderDraftDTO.SaveRequest();
+            request.setExternalRefNo("draft-image-edit-" + UUID.randomUUID());
+            request.setCustomerName("图片编辑测试客户");
+            request.setPaperTotalAmount(new BigDecimal("100.00"));
+            request.setSourceFileIds(List.of(firstFileId, secondFileId));
+            request.setItems(List.of(item));
+            Long draftId = draftService.create(request).getDraftId();
+
+            assertEquals(List.of(firstFileId, secondFileId), draftService.get(draftId).getSourceFileIds());
+
+            request.setSourceFileIds(List.of(secondFileId, firstFileId));
+            draftService.update(draftId, request);
+            OrderDraftDTO.View reordered = draftService.get(draftId);
+            assertEquals(secondFileId, reordered.getSourceFileId());
+            assertEquals(List.of(secondFileId, firstFileId), reordered.getSourceFileIds());
+
+            request.setSourceFileIds(List.of(secondFileId));
+            draftService.update(draftId, request);
+            assertEquals(List.of(secondFileId), draftService.get(draftId).getSourceFileIds());
+            assertTrue(fileService.getActiveBindings(firstFileId).stream()
+                    .noneMatch(bind -> "order_draft".equals(bind.getBusinessType())
+                            && draftId.equals(bind.getBusinessId())));
+            assertEquals(1, fileStorageMapper.selectById(firstFileId).getStatus(),
+                    "从草稿移除图片不能删除文件中心原文件");
+
+            request.setSourceFileIds(List.of());
+            draftService.update(draftId, request);
+            OrderDraftDTO.View withoutImages = draftService.get(draftId);
+            assertNull(withoutImages.getSourceFileId());
+            assertTrue(withoutImages.getSourceFileIds().isEmpty(),
+                    "清空图片后不能从 file_storage 旧业务字段回退出已解绑图片");
+            assertEquals(1, fileStorageMapper.selectById(secondFileId).getStatus());
         } finally {
             TenantContext.clear();
             SecurityContextHolder.clearContext();
@@ -289,6 +394,7 @@ class OrderDraftConfirmFinanceTest {
 
             OrderDraftDTO.SaveRequest request = new OrderDraftDTO.SaveRequest();
             request.setExternalRefNo("manual-complete-" + UUID.randomUUID());
+            request.setSourceBatchNo("41");
             request.setSourceOrderNo("手工单-完整");
             request.setSourceShop("御龙");
             request.setOrderType("SPOT");
@@ -310,6 +416,7 @@ class OrderDraftConfirmFinanceTest {
             Order order = orderMapper.selectById(orderId);
 
             assertEquals("SPOT", order.getOrderType());
+            assertEquals("41_手工单-完整", order.getSourceDocNo());
             assertEquals("御龙", order.getSourceShop());
             assertEquals("客户地址", order.getCustomerAddress());
             assertEquals("送货地址", order.getDeliveryAddress());

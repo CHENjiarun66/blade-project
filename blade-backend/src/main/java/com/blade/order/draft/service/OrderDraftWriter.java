@@ -74,6 +74,10 @@ public class OrderDraftWriter {
         Set<String> warnings = collectWarnings(request);
         applyHeader(draft, request, warnings);
         draftMapper.updateById(draft);
+        // MyBatis-Plus 默认忽略 null 字段，显式同步兼容首图字段，确保清空全部图片时不会回显旧值。
+        draftMapper.update(null, Wrappers.<OrderDraft>lambdaUpdate()
+                .eq(OrderDraft::getId, id)
+                .set(OrderDraft::getSourceFileId, draft.getSourceFileId()));
         itemMapper.delete(Wrappers.<OrderDraftItem>lambdaQuery().eq(OrderDraftItem::getDraftId, id));
         insertItems(id, requiredTenantId(), request.getItems(), warnings);
         draft.setWarnings(writeJson(warnings));
@@ -179,7 +183,7 @@ public class OrderDraftWriter {
                 throw BusinessException.of(400, "纸单原图只支持图片文件");
             }
         }
-        fileService.bindFiles("order_draft", draftId, sourceFileIds);
+        fileService.syncFiles("order_draft", draftId, sourceFileIds);
     }
 
     private List<Long> normalizedSourceFileIds(OrderDraftDTO.SaveRequest request) {

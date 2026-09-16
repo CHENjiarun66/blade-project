@@ -457,7 +457,7 @@
 | id | bigint | PK | 订单ID |
 | order_no | varchar(30) | UNIQUE, NOT NULL | 订单号 |
 | order_date | date | | 订单日期（纸质单据日期） |
-| source_doc_no | varchar(50) | | 纸质单据号/外部单号 |
+| source_doc_no | varchar(50) | | 正式订单兼容纸质单据号；草稿批次与单号按 `批次_单号` 生成 |
 | source_shop | varchar(100) | | 订单来源档口/店铺，不等同于仓库 |
 | order_type | varchar(20) | NOT NULL, DEFAULT 'SPOT' | 订单类型：SPOT现货/PREORDER订货 |
 | customer_id | bigint | | 客户ID |

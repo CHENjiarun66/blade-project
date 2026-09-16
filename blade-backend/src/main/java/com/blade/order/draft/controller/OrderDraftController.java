@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +18,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/order-drafts")
@@ -31,9 +35,22 @@ public class OrderDraftController {
     public R<PageResult<OrderDraftDTO.Summary>> page(
             @RequestParam(defaultValue = "1") int current,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String keyword) {
-        return R.ok(service.page(current, size, status, keyword));
+            @RequestParam(defaultValue = "EDITING") String status,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sourceBatchNo,
+            @RequestParam(required = false) String entrySource,
+            @RequestParam(required = false) Boolean unresolvedOnly,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return R.ok(service.page(current, size, status, keyword, sourceBatchNo,
+                entrySource, unresolvedOnly, startDate, endDate));
+    }
+
+    @GetMapping("/batches")
+    @PreAuthorize("hasAuthority('btn:order:view')")
+    @Operation(summary = "查询待处理草稿批次")
+    public R<List<OrderDraftDTO.BatchSummary>> batches() {
+        return R.ok(service.batches());
     }
 
     @GetMapping("/{id}")

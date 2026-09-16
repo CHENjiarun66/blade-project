@@ -61,9 +61,22 @@ class OrderDraftValidationTest {
                 .contains("orderType", "paidAmount", "freightAmount", "needDelivery", "items[0].costPrice");
     }
 
+    @Test
+    void draftRequiresSeparateBatchAndOrderNumbers() {
+        OrderDraftDTO.SaveRequest order = validOrder("MISSING-DOCUMENT-IDENTITY");
+        order.setSourceBatchNo(" ");
+        order.setSourceOrderNo(null);
+
+        assertThat(validator.validate(order))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("sourceBatchNo", "sourceOrderNo");
+    }
+
     private OrderDraftDTO.SaveRequest validOrder(String externalRefNo) {
         OrderDraftDTO.SaveRequest order = new OrderDraftDTO.SaveRequest();
         order.setExternalRefNo(externalRefNo);
+        order.setSourceBatchNo("TEST");
+        order.setSourceOrderNo("0001");
         order.setItems(List.of(new OrderDraftDTO.Item()));
         return order;
     }

@@ -23,6 +23,14 @@ public interface FileService {
 
     void bindFiles(String businessType, Long businessId, List<Long> fileIds);
 
+    /**
+     * 将业务对象的有效文件绑定同步为指定集合，并按列表顺序更新主图和排序。
+     * 被移除的文件只解除当前业务绑定，不删除文件中心原文件。
+     */
+    default void syncFiles(String businessType, Long businessId, List<Long> fileIds) {
+        bindFiles(businessType, businessId, fileIds);
+    }
+
     void bindFilesFromJson(String businessType, Long businessId, String imagesJson);
 
     /**

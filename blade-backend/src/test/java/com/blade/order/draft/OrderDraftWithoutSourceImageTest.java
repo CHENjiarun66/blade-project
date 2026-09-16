@@ -119,6 +119,6 @@ class OrderDraftWithoutSourceImageTest {
         ArgumentCaptor<OrderDraft> draftCaptor = ArgumentCaptor.forClass(OrderDraft.class);
         verify(draftMapper).insert(draftCaptor.capture());
         assertEquals(101L, draftCaptor.getValue().getSourceFileId());
-        verify(fileService).bindFiles(eq("order_draft"), eq(91L), eq(List.of(101L, 102L)));
+        verify(fileService).syncFiles(eq("order_draft"), eq(91L), eq(List.of(101L, 102L)));
     }
 }

@@ -108,8 +108,8 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
 | 字段 | 规则 |
 |------|------|
 | `externalRefNo` | 必填；建议 `paper-batch-{批次}-{纸单号}`，同一来源永不变化 |
-| `sourceBatchNo` | 原册/批次号 |
-| `sourceOrderNo` | 纸单号；不要用 Excel 行号替代已有纸单号 |
+| `sourceBatchNo` | 必填；原册/批次号，最多 20 位。不要与纸单号拼成一个字段 |
+| `sourceOrderNo` | 必填；纸单号，最多 29 位；不要用 Excel 行号替代已有纸单号 |
 | `sourceFileIds` | 纸单原图上传返回的 fileId 数组，按页序排列；最多 10 张。兼容字段 `sourceFileId` 只表示第一张主图，新接入统一使用数组 |
 | `raw*` | 保存识别到的原始文本，即使无法解析也不丢失 |
 | `orderDate` | 只有日期可靠时填写；原文本始终放 `rawOrderDate` |
@@ -123,6 +123,8 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
 | `matchStatus` | 使用 `MATCHED`、`AMBIGUOUS` 或 `UNMATCHED` |
 | `matchCandidates` | 歧义时保留候选，方便草稿工作台人工选择 |
 | `warnings` | 金额差、字段缺失、多款号一行、低置信度等可读说明 |
+
+草稿中批次和单号必须始终分开传入。人工确认生成正式订单时，系统会以 `sourceBatchNo + "_" + sourceOrderNo` 生成兼容的纸质单据号；Agent 不需要自行重复拼接。
 
 ## 五、金额校验
 

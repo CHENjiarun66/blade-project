@@ -16,6 +16,7 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
     id: 2,
     externalRefNo: 'manual-e2e-2',
     entrySource: 'MANUAL',
+    sourceBatchNo: '41',
     sourceOrderNo: 'QUICK-DRAFT-002',
     sourceShop: '御龙',
     orderType: 'SPOT',
@@ -92,11 +93,16 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
       await route.fulfill({ json: ok({ records: [], total: 0, size: 10, current: 1, pages: 0 }) })
       return
     }
+    if (url.pathname === '/api/order-drafts/batches') {
+      await route.fulfill({ json: ok(confirmed ? [] : [{ sourceBatchNo: '41', draftCount: 1, latestUpdateTime: draft.updateTime }]) })
+      return
+    }
     if (url.pathname === '/api/order-drafts' && route.request().method() === 'GET') {
-      await route.fulfill({ json: ok({ records: [{
+      await route.fulfill({ json: ok({ records: confirmed ? [] : [{
         id: 2,
         externalRefNo: draft.externalRefNo,
         entrySource: 'MANUAL',
+        sourceBatchNo: draft.sourceBatchNo,
         sourceOrderNo: draft.sourceOrderNo,
         customerName: draft.customerName,
         paperTotalAmount: 108,
@@ -105,7 +111,7 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
         unresolvedCount: 0,
         warningCount: 0,
         updateTime: draft.updateTime,
-      }], total: 1, size: 100, current: 1, pages: 1 }) })
+      }], total: confirmed ? 0 : 1, size: 100, current: 1, pages: confirmed ? 0 : 1 }) })
       return
     }
     if (url.pathname === '/api/order-drafts/2' && route.request().method() === 'GET') {
@@ -126,9 +132,13 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
     await route.fulfill({ json: ok(null) })
   })
 
-  await page.goto('/orders/drafts')
+  await page.goto('/orders/drafts/2')
 
   await expect(page.getByText('订单应收').first()).toBeVisible()
+  await expect(page.getByPlaceholder('如 41')).toHaveValue('41')
+  await expect(page.getByPlaceholder('如 0135')).toHaveValue('QUICK-DRAFT-002')
+  await expect(page.getByText('7000# / 测试商品 · 黑色 · S').first()).toBeVisible()
+  await expect(page.getByText('SKU 101')).toHaveCount(0)
   await expect(page.getByText('¥108.00').first()).toBeVisible()
   await expect(page.getByText('实收金额').first()).toBeVisible()
   await expect(page.getByText('结算与配送')).toBeVisible()
@@ -138,9 +148,12 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
 
   await page.getByRole('button', { name: '确认并生成订单' }).click()
   await page.getByRole('button', { name: '确认生成正式订单' }).click()
+  await page.getByRole('button', { name: '查看正式订单' }).click()
 
   await expect(page).toHaveURL(/\/orders\/999$/)
   expect(savePayload).toMatchObject({
+    sourceBatchNo: '41',
+    sourceOrderNo: 'QUICK-DRAFT-002',
     sourceShop: '御龙',
     orderType: 'SPOT',
     paidAmount: 40,

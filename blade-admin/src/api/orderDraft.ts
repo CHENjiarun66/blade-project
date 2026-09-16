@@ -82,6 +82,7 @@ export interface OrderDraftSummary {
   id: number
   externalRefNo: string
   entrySource?: 'AGENT' | 'MANUAL'
+  sourceBatchNo?: string
   sourceOrderNo?: string
   sourceFileId?: number
   sourceFileCount?: number
@@ -93,6 +94,12 @@ export interface OrderDraftSummary {
   unresolvedCount: number
   warningCount: number
   updateTime: string
+}
+
+export interface OrderDraftBatchSummary {
+  sourceBatchNo?: string
+  draftCount: number
+  latestUpdateTime?: string
 }
 
 export interface DraftSaveRequest {
@@ -139,6 +146,11 @@ export function getOrderDraftPage(params: {
   size?: number
   status?: DraftStatus
   keyword?: string
+  sourceBatchNo?: string
+  entrySource?: 'AGENT' | 'MANUAL'
+  unresolvedOnly?: boolean
+  startDate?: string
+  endDate?: string
 }) {
   return client.get('/order-drafts', { params }) as Promise<{
     code: number
@@ -149,6 +161,13 @@ export function getOrderDraftPage(params: {
       current: number
       pages: number
     }
+  }>
+}
+
+export function getOrderDraftBatches() {
+  return client.get('/order-drafts/batches') as Promise<{
+    code: number
+    data: OrderDraftBatchSummary[]
   }>
 }
 

@@ -55,9 +55,15 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'orders/drafts',
-        name: 'OrderDrafts',
+        name: 'OrderDraftList',
+        component: () => import('@/views/orders/draft-list.vue'),
+        meta: { title: '草稿订单列表', permission: 'menu:order' },
+      },
+      {
+        path: 'orders/drafts/:id',
+        name: 'OrderDraftDetail',
         component: () => import('@/views/orders/drafts.vue'),
-        meta: { title: '订单草稿', permission: 'menu:order' },
+        meta: { title: '草稿订单详情', permission: 'menu:order' },
       },
       {
         path: 'orders/:id',

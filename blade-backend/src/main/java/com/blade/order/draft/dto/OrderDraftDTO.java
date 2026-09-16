@@ -32,7 +32,11 @@ public final class OrderDraftDTO {
         @NotBlank(message = "externalRefNo不能为空")
         @Size(max = 100)
         private String externalRefNo;
+        @NotBlank(message = "单据批次不能为空")
+        @Size(max = 20, message = "单据批次最多20位")
         private String sourceBatchNo;
+        @NotBlank(message = "单据号不能为空")
+        @Size(max = 29, message = "单据号最多29位")
         private String sourceOrderNo;
         @Size(max = 100)
         private String sourceShop;
@@ -157,6 +161,7 @@ public final class OrderDraftDTO {
         private Long id;
         private String externalRefNo;
         private String entrySource;
+        private String sourceBatchNo;
         private String sourceOrderNo;
         private Long sourceFileId;
         private Integer sourceFileCount;
@@ -168,6 +173,13 @@ public final class OrderDraftDTO {
         private Integer unresolvedCount;
         private Integer warningCount;
         private LocalDateTime updateTime;
+    }
+
+    @Data
+    public static class BatchSummary {
+        private String sourceBatchNo;
+        private Integer draftCount;
+        private LocalDateTime latestUpdateTime;
     }
 
     @Data
