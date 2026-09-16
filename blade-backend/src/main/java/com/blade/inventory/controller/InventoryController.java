@@ -1,5 +1,6 @@
 package com.blade.inventory.controller;
 
+import com.blade.common.exception.BusinessException;
 import com.blade.common.result.PageResult;
 import com.blade.common.result.R;
 import com.blade.inventory.dto.*;
@@ -98,9 +99,10 @@ public class InventoryController {
     }
 
     @PostMapping("/out-by-plan")
-    @Operation(summary = "按配货计划出库（已关闭：请通过订单确认发货操作出库）")
+    @Operation(summary = "按配货计划出库（已关闭：请通过订单发货操作出库）")
     public R<Void> outByPlan(@RequestBody OutByPlanDTO dto) {
-        throw new RuntimeException("请通过订单确认发货操作出库");
+        // 明确业务拒绝（410 Gone），不进入任何库存扣减逻辑；发货唯一入口为订单动作服务 shipOrder
+        throw BusinessException.of(410, "按计划直接出库已关闭，请通过订单发货操作出库");
     }
 
     private Long getCurrentUserId() {

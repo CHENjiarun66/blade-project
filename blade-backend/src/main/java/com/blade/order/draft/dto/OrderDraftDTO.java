@@ -1,0 +1,213 @@
+package com.blade.order.draft.dto;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+public final class OrderDraftDTO {
+    private OrderDraftDTO() {
+    }
+
+    @Data
+    public static class BatchRequest {
+        @NotEmpty(message = "订单批次不能为空")
+        @Size(max = 100, message = "单批最多提交100张订单")
+        @Valid
+        private List<SaveRequest> orders;
+    }
+
+    @Data
+    public static class SaveRequest {
+        @NotBlank(message = "externalRefNo不能为空")
+        @Size(max = 100)
+        private String externalRefNo;
+        @NotBlank(message = "单据批次不能为空")
+        @Size(max = 20, message = "单据批次最多20位")
+        private String sourceBatchNo;
+        @NotBlank(message = "单据号不能为空")
+        @Size(max = 29, message = "单据号最多29位")
+        private String sourceOrderNo;
+        @Size(max = 100)
+        private String sourceShop;
+        @Pattern(regexp = "SPOT|PREORDER", message = "orderType只支持SPOT或PREORDER")
+        private String orderType;
+        private Long sourceFileId;
+        @Size(max = 10, message = "每张草稿最多上传10张纸单原图")
+        private List<Long> sourceFileIds;
+        private String rawCustomerName;
+        private String rawCustomerPhone;
+        private Long customerId;
+        private String customerName;
+        private String customerPhone;
+        @Size(max = 10)
+        private String customerCountryCode;
+        @Size(max = 255)
+        private String customerAddress;
+        private String rawOrderDate;
+        private LocalDate orderDate;
+        private LocalDate deliveryDate;
+        private String rawDeposit;
+        private BigDecimal deposit;
+        @DecimalMin(value = "0.00", message = "实收金额不能为负数")
+        private BigDecimal paidAmount;
+        private BigDecimal paperTotalAmount;
+        @DecimalMin(value = "0.00", message = "客户运费不能为负数")
+        private BigDecimal freightAmount;
+        @DecimalMin(value = "0.00", message = "运费成本不能为负数")
+        private BigDecimal freightCost;
+        @Min(0)
+        @Max(1)
+        private Integer needDelivery;
+        @Size(max = 255)
+        private String deliveryAddress;
+        @Size(max = 1000)
+        private String note;
+        private List<String> warnings;
+        @NotEmpty(message = "草稿明细不能为空")
+        @Size(max = 200, message = "单张订单最多包含200行商品")
+        @Valid
+        private List<Item> items;
+    }
+
+    @Data
+    public static class Item {
+        private Long id;
+        private Integer sourceRowNo;
+        private String rawProductCode;
+        private String rawDescription;
+        private String rawColor;
+        private String rawQuantity;
+        private String rawSalePrice;
+        private String rawAmount;
+        private Long productId;
+        private Long skuId;
+        private Integer quantity;
+        private BigDecimal salePrice;
+        @DecimalMin(value = "0.00", message = "成本价不能为负数")
+        private BigDecimal costPrice;
+        private BigDecimal paperAmount;
+        private BigDecimal systemReferencePrice;
+        private String matchStatus;
+        private List<CatalogCandidate> matchCandidates;
+        private List<String> warnings;
+    }
+
+    @Data
+    public static class BatchResponse {
+        private List<BatchResult> results;
+    }
+
+    @Data
+    public static class BatchResult {
+        private String externalRefNo;
+        private String status;
+        private Long draftId;
+        private List<String> warnings;
+        private String message;
+    }
+
+    @Data
+    public static class View {
+        private Long id;
+        private String externalRefNo;
+        private String entrySource;
+        private String sourceBatchNo;
+        private String sourceOrderNo;
+        private String sourceShop;
+        private String orderType;
+        private Long sourceFileId;
+        private List<Long> sourceFileIds;
+        private String rawCustomerName;
+        private String rawCustomerPhone;
+        private Long customerId;
+        private String customerName;
+        private String customerPhone;
+        private String customerCountryCode;
+        private String customerAddress;
+        private String rawOrderDate;
+        private LocalDate orderDate;
+        private LocalDate deliveryDate;
+        private String rawDeposit;
+        private BigDecimal deposit;
+        private BigDecimal paidAmount;
+        private BigDecimal paperTotalAmount;
+        private BigDecimal freightAmount;
+        private BigDecimal freightCost;
+        private Integer needDelivery;
+        private String deliveryAddress;
+        private BigDecimal calculatedTotalAmount;
+        private String note;
+        private List<String> warnings;
+        private String status;
+        private Long confirmedOrderId;
+        private LocalDateTime createTime;
+        private LocalDateTime updateTime;
+        private List<Item> items;
+    }
+
+    @Data
+    public static class Summary {
+        private Long id;
+        private String externalRefNo;
+        private String entrySource;
+        private String sourceBatchNo;
+        private String sourceOrderNo;
+        private Long sourceFileId;
+        private Integer sourceFileCount;
+        private String customerName;
+        private LocalDate orderDate;
+        private BigDecimal paperTotalAmount;
+        private String status;
+        private Integer itemCount;
+        private Integer unresolvedCount;
+        private Integer warningCount;
+        private LocalDateTime updateTime;
+    }
+
+    @Data
+    public static class BatchSummary {
+        private String sourceBatchNo;
+        private Integer draftCount;
+        private LocalDateTime latestUpdateTime;
+    }
+
+    @Data
+    public static class ConfirmRequest {
+        private boolean acknowledgeWarnings;
+    }
+
+    @Data
+    public static class ConfirmResponse {
+        private Long draftId;
+        private Long orderId;
+        private boolean alreadyConfirmed;
+    }
+
+    @Data
+    public static class CatalogCandidate {
+        private Long skuId;
+        private String skuCode;
+        private String skuType;
+        private boolean placeholder;
+        private Long productId;
+        private String productCode;
+        private String productName;
+        private String colorCode;
+        private String colorName;
+        private String sizeCode;
+        private BigDecimal systemReferencePrice;
+        private BigDecimal matchScore;
+        private List<String> matchReasons;
+    }
+}

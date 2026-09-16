@@ -16,6 +16,7 @@ import com.blade.inventory.service.impl.InventoryServiceImpl;
 import com.blade.order.entity.OrderDeliveryPlan;
 import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.product.mapper.ProductSkuMapper;
+import com.blade.product.service.InventorySkuEligibilityService;
 import com.blade.system.user.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
@@ -57,6 +58,7 @@ class InventoryOutByPlanSoftCouplingTest {
     @Mock private InventoryLogMapper inventoryLogMapper;
     @Mock private com.blade.inventory.mapper.InventoryGlobalReserveMapper globalReserveMapper;
     @Mock private ProductSkuMapper productSkuMapper;
+    @Mock private InventorySkuEligibilityService inventorySkuEligibilityService;
     @Mock private RedissonClient redissonClient;
     @Mock private OrderDeliveryPlanMapper deliveryPlanMapper;
     @Mock private FileService fileService;
@@ -445,7 +447,8 @@ class InventoryOutByPlanSoftCouplingTest {
 
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> controller.outByPlan(dto));
-        assertTrue(ex.getMessage().contains("请通过订单确认发货操作出库"));
+        // 系列C收口：明确业务拒绝（BusinessException 410），不再以 RuntimeException 500 暴露
+        assertTrue(ex.getMessage().contains("按计划直接出库已关闭"));
 
         // InventoryService.outByPlan must NOT be called
         verifyNoInteractions(noopService);

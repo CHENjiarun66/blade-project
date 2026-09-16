@@ -1,6 +1,5 @@
 package com.blade.agent.auth;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.blade.agent.entity.AgentKey;
 import com.blade.agent.mapper.AgentKeyMapper;
 import com.blade.common.tenant.TenantContext;
@@ -20,9 +19,7 @@ public class AgentKeyAuthenticationService {
 
     public AgentPrincipal authenticate(String rawKey) {
         ParsedAgentKey parsedKey = ParsedAgentKey.from(rawKey);
-        AgentKey key = agentKeyMapper.selectOne(new LambdaQueryWrapper<AgentKey>()
-                .eq(AgentKey::getKeyPrefix, parsedKey.prefix())
-                .eq(AgentKey::getStatus, AgentKey.STATUS_ACTIVE));
+        AgentKey key = agentKeyMapper.selectActiveByPrefixForAuthentication(parsedKey.prefix());
         if (key == null
                 || isExpired(key)
                 || !passwordEncoder.matches(parsedKey.secret(), key.getKeyHash())) {

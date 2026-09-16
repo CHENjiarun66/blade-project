@@ -20,7 +20,7 @@ export default defineConfig({
     proxy: {
       '/api': {
         changeOrigin: true,
-        target: 'http://localhost:8080',
+        target: process.env.BLADE_API_TARGET || 'http://localhost:8080',
         ws: true,
       },
     },

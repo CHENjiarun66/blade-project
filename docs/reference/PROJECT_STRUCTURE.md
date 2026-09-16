@@ -8,7 +8,6 @@
 
 ```text
 BladeProject/
-├── AGENTS.md                  # 根级 AI 协作规范
 ├── README.md                  # 轻量导航页
 ├── docs/                      # 项目文档中心
 ├── blade-backend/             # Spring Boot 3 后端
@@ -16,6 +15,8 @@ BladeProject/
 ├── blade-admin/               # Vue 3 + Element Plus PC 管理端
 ├── packages/
 │   └── types/                 # 共享 TypeScript 类型包
+├── tools/
+│   └── blade-agent-key-manager/ # macOS Key 管理器与本机授权代理
 └── stitch/                    # 历史原型/设计稿工程
 ```
 
@@ -30,6 +31,7 @@ BladeProject/
 | `blade-mobile/` | 员工使用的移动端 PWA |
 | `blade-admin/` | 管理员使用的 PC 后台 |
 | `packages/types/` | 前端共享类型定义，供移动端和其他前端复用 |
+| `tools/blade-agent-key-manager/` | 完整 Key 存钥匙串的 macOS 管理器，以及受控 MCP/命令代理 |
 | `stitch/` | UI 原型和试验工程，不作为生产代码主入口 |
 
 ---
@@ -48,6 +50,17 @@ BladeProject/
 | `docs/reference/GIT_BRANCH_WORKFLOW.md` | Git 分支、GitHub 同步、release 与 NAS 生产发布规范 |
 | `docs/10-AGENT_INTEGRATION_DESIGN.md` | 外部 AI Agent 对接设计与第一版边界 |
 | `docs/11-AGENT_ACCESS_GUIDE.md` | 外部 Agent 接入鉴权、接口调用和工具封装说明 |
+| `docs/16-AGENT_LOCAL_KEY_MANAGER.md` | Mac Key 录入、到期管理、选择与授权方案 |
+| `docs/17-AGENT_ORDER_DRAFT_RUNBOOK.md` | 纸单/Excel 批量订单草稿的字段和执行规则 |
+
+### 本机 Agent 工具入口
+
+| 文件 | 说明 |
+|------|------|
+| `tools/blade-agent-key-manager/Package.swift` | macOS SwiftPM 包入口 |
+| `tools/blade-agent-key-manager/Sources/BladeAgentKeyManager/` | SwiftUI 桌面管理器 |
+| `tools/blade-agent-key-manager/Sources/BladeAgentRequest/` | MCP/命令授权代理 |
+| `tools/blade-agent-key-manager/scripts/build-macos-app.sh` | `.app` 构建和签名脚本 |
 
 ### 后端入口
 

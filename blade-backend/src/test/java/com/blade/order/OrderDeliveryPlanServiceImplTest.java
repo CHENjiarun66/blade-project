@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.core.toolkit.GlobalConfigUtils;
 import com.blade.inventory.entity.Warehouse;
 import com.blade.inventory.mapper.WarehouseMapper;
+import com.blade.common.exception.BusinessException;
+import com.blade.order.dto.DeliveryPlanDTO;
 import com.blade.order.entity.Order;
 import com.blade.order.entity.OrderDeliveryPlan;
 import com.blade.order.entity.OrderItem;
@@ -15,6 +17,10 @@ import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.order.service.impl.OrderDeliveryPlanServiceImpl;
+import com.blade.order.service.OrderAccessPolicy;
+import com.blade.order.service.OrderActionService;
+import com.blade.order.enums.CollectionStatus;
+import com.blade.order.enums.FulfillmentStatus;
 import com.blade.product.mapper.ProductColorMapper;
 import com.blade.product.mapper.ProductMapper;
 import com.blade.product.mapper.ProductSizeMapper;
@@ -59,6 +65,8 @@ class OrderDeliveryPlanServiceImplTest {
     @Mock private ProductSizeMapper sizeMapper;
     @Mock private WarehouseMapper warehouseMapper;
     @Mock private UserMapper userMapper;
+    @Mock private OrderActionService actionService;
+    @Mock private OrderAccessPolicy accessPolicy;
 
     @InjectMocks
     private OrderDeliveryPlanServiceImpl planService;
@@ -82,6 +90,8 @@ class OrderDeliveryPlanServiceImplTest {
         order.setStatus(status);
         order.setWarehouseId(warehouseId);
         order.setTenantId(1L);
+        order.setFulfillmentStatus(FulfillmentStatus.ALLOCATING.name());
+        order.setCollectionStatus(CollectionStatus.PARTIAL.name());
         return order;
     }
 
@@ -98,6 +108,36 @@ class OrderDeliveryPlanServiceImplTest {
         plan.setWarehouseId(warehouseId);
         plan.setStatus(OrderDeliveryPlan.Status.PENDING);
         return plan;
+    }
+
+    private OrderItem stubOrderItem(Long id, Long orderId, Long skuId, int quantity) {
+        OrderItem item = new OrderItem();
+        item.setId(id);
+        item.setOrderId(orderId);
+        item.setSkuId(skuId);
+        item.setQuantity(quantity);
+        return item;
+    }
+
+    private DeliveryPlanDTO planDto(Long orderId, DeliveryPlanDTO.PlanItemDTO... items) {
+        DeliveryPlanDTO dto = new DeliveryPlanDTO();
+        dto.setOrderId(orderId);
+        dto.setItems(List.of(items));
+        return dto;
+    }
+
+    private DeliveryPlanDTO.PlanItemDTO planItem(Long orderItemId, Long skuId, int planned, int allocated) {
+        DeliveryPlanDTO.PlanItemDTO item = new DeliveryPlanDTO.PlanItemDTO();
+        item.setOrderItemId(orderItemId);
+        item.setSkuId(skuId);
+        item.setPlannedQty(planned);
+        item.setAllocatedQty(allocated);
+        return item;
+    }
+
+    private void stubAllocatingOrder(Long orderId, OrderItem... items) {
+        when(orderMapper.selectById(orderId)).thenReturn(stubOrder(orderId, 2, 1L));
+        when(orderItemMapper.selectList(any())).thenReturn(List.of(items));
     }
 
     /**
@@ -138,14 +178,8 @@ class OrderDeliveryPlanServiceImplTest {
 
         planService.confirmAdjustment(orderId);
 
-        // Verify order is updated to READY_TO_SHIP (status=3) + APPROVED
-        LambdaUpdateWrapper<Order> orderWrapper = captureOrderUpdateWrapper();
-        String orderSql = orderWrapper.getSqlSet();
-        assertNotNull(orderSql, "Order update SQL should not be null");
-        assertTrue(orderSql.contains("status"),
-                "Should set order status to READY_TO_SHIP (3): " + orderSql);
-        assertTrue(orderSql.contains("adjustment_status"),
-                "Should set adjustment_status to APPROVED: " + orderSql);
+        verify(actionService).confirmAllocation(orderId, "PC");
+        verify(orderMapper, never()).update(any(), any());
 
         // Verify delivery plans are updated to ALLOCATED (single call — no warehouse sync)
         LambdaUpdateWrapper<OrderDeliveryPlan> planWrapper = capturePlanUpdateWrapper(1);
@@ -181,14 +215,8 @@ class OrderDeliveryPlanServiceImplTest {
 
         planService.confirmAdjustment(orderId);
 
-        // Verify order is updated to READY_TO_SHIP (status=3) + APPROVED
-        LambdaUpdateWrapper<Order> orderWrapper = captureOrderUpdateWrapper();
-        String orderSql = orderWrapper.getSqlSet();
-        assertNotNull(orderSql, "Order update SQL should not be null");
-        assertTrue(orderSql.contains("status"),
-                "Should set order status to READY_TO_SHIP (3): " + orderSql);
-        assertTrue(orderSql.contains("adjustment_status"),
-                "Should set adjustment_status to APPROVED: " + orderSql);
+        verify(actionService).confirmAllocation(orderId, "PC");
+        verify(orderMapper, never()).update(any(), any());
 
         // deliveryPlanMapper.update is called twice:
         //   1) warehouse sync (set warehouseId on plan)
@@ -217,14 +245,8 @@ class OrderDeliveryPlanServiceImplTest {
 
         planService.confirmAdjustment(orderId);
 
-        // Verify order is updated to READY_TO_SHIP (status=3) + APPROVED
-        LambdaUpdateWrapper<Order> orderWrapper = captureOrderUpdateWrapper();
-        String orderSql = orderWrapper.getSqlSet();
-        assertNotNull(orderSql, "Order update SQL should not be null");
-        assertTrue(orderSql.contains("status"),
-                "Should set order status to READY_TO_SHIP (3): " + orderSql);
-        assertTrue(orderSql.contains("adjustment_status"),
-                "Should set adjustment_status to APPROVED: " + orderSql);
+        verify(actionService).confirmAllocation(orderId, "PC");
+        verify(orderMapper, never()).update(any(), any());
 
         // Verify delivery plans are updated to ALLOCATED (single call)
         LambdaUpdateWrapper<OrderDeliveryPlan> planWrapper = capturePlanUpdateWrapper(1);
@@ -232,5 +254,62 @@ class OrderDeliveryPlanServiceImplTest {
         assertNotNull(planSql, "Plan update SQL should not be null");
         assertTrue(planSql.contains("status"),
                 "Should set delivery plan status to ALLOCATED: " + planSql);
+    }
+
+    @Test
+    void updatePlan_rejectsCrossOrderItemBeforeDeletingExistingPlan() {
+        stubAllocatingOrder(1L, stubOrderItem(10L, 1L, 100L, 5));
+
+        assertThrows(BusinessException.class, () -> planService.updateDeliveryPlan(
+                1L, planDto(1L, planItem(99L, 100L, 5, 5))));
+
+        verify(deliveryPlanMapper, never()).delete(any());
+    }
+
+    @Test
+    void updatePlan_rejectsSkuMismatchBeforeDeletingExistingPlan() {
+        stubAllocatingOrder(1L, stubOrderItem(10L, 1L, 100L, 5));
+
+        assertThrows(BusinessException.class, () -> planService.updateDeliveryPlan(
+                1L, planDto(1L, planItem(10L, 999L, 5, 5))));
+
+        verify(deliveryPlanMapper, never()).delete(any());
+    }
+
+    @Test
+    void updatePlan_rejectsInflatedQuantityBeforeDeletingExistingPlan() {
+        stubAllocatingOrder(1L, stubOrderItem(10L, 1L, 100L, 5));
+
+        assertThrows(BusinessException.class, () -> planService.updateDeliveryPlan(
+                1L, planDto(1L, planItem(10L, 100L, 6, 6))));
+
+        verify(deliveryPlanMapper, never()).delete(any());
+    }
+
+    @Test
+    void updatePlan_rejectsDuplicateAndMissingItemsBeforeDeletingExistingPlan() {
+        stubAllocatingOrder(1L,
+                stubOrderItem(10L, 1L, 100L, 5),
+                stubOrderItem(11L, 1L, 101L, 3));
+
+        assertThrows(BusinessException.class, () -> planService.updateDeliveryPlan(
+                1L, planDto(1L,
+                        planItem(10L, 100L, 5, 5),
+                        planItem(10L, 100L, 5, 5))));
+
+        verify(deliveryPlanMapper, never()).delete(any());
+    }
+
+    @Test
+    void updatePlan_acceptsEqualQuantityAboveIntegerCacheRange() {
+        stubAllocatingOrder(1L, stubOrderItem(10L, 1L, 100L, 200));
+        when(productSkuMapper.selectBatchIds(any())).thenReturn(List.of());
+        when(deliveryPlanMapper.selectList(any())).thenReturn(List.of());
+
+        assertDoesNotThrow(() -> planService.updateDeliveryPlan(
+                1L, planDto(1L, planItem(10L, 100L, 200, 200))));
+
+        verify(deliveryPlanMapper).delete(any());
+        verify(deliveryPlanMapper).insert(any(OrderDeliveryPlan.class));
     }
 }

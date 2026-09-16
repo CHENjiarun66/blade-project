@@ -1,6 +1,7 @@
 package com.blade.order.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.blade.common.exception.BusinessException;
 import com.blade.common.tenant.TenantContext;
 import com.blade.order.dto.OrderDeliveryDTO;
 import com.blade.order.dto.OrderDeliveryVO;
@@ -13,6 +14,7 @@ import com.blade.order.mapper.OrderDeliveryMapper;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.order.service.OrderDeliveryService;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.product.entity.Product;
 import com.blade.product.entity.ProductColor;
 import com.blade.product.entity.ProductSku;
@@ -24,6 +26,8 @@ import com.blade.product.mapper.ProductSkuMapper;
 import com.blade.inventory.entity.Warehouse;
 import com.blade.inventory.mapper.WarehouseMapper;
 import com.blade.order.service.OrderService;
+import org.redisson.api.RAtomicLong;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +36,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,6 +52,8 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
     private final ProductSizeMapper productSizeMapper;
     private final ProductMapper productMapper;
     private final OrderService orderService;
+    private final OrderAccessPolicy accessPolicy;
+    private final org.redisson.api.RedissonClient redissonClient;
 
     @Autowired
     public OrderDeliveryServiceImpl(OrderDeliveryMapper deliveryMapper,
@@ -58,7 +65,9 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
                                    ProductColorMapper productColorMapper,
                                    ProductSizeMapper productSizeMapper,
                                    ProductMapper productMapper,
-                                   OrderService orderService) {
+                                   OrderService orderService,
+                                   OrderAccessPolicy accessPolicy,
+                                   org.redisson.api.RedissonClient redissonClient) {
         this.deliveryMapper = deliveryMapper;
         this.deliveryItemMapper = deliveryItemMapper;
         this.orderMapper = orderMapper;
@@ -69,17 +78,35 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         this.productSizeMapper = productSizeMapper;
         this.productMapper = productMapper;
         this.orderService = orderService;
+        this.accessPolicy = accessPolicy;
+        this.redissonClient = redissonClient;
     }
 
     @Override
     @Transactional
     public Long create(OrderDeliveryDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        // 空租户显式拒绝（终审 P0-2）
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw BusinessException.of(403, "缺少租户上下文");
+        }
 
-        // 查询订单
-        Order order = orderMapper.selectById(dto.getOrderId());
+        // 数据范围：订单必须属于当前租户
+        Order order = orderMapper.selectByIdForUpdate(dto.getOrderId(), tenantId);
         if (order == null) {
-            throw new RuntimeException("订单不存在");
+            throw BusinessException.of(404, "订单不存在");
+        }
+        accessPolicy.requireAccess(order);
+        // 履约边界：历史未迁移行不得创建出库单；仅关联库存订单且处于配货中/待发货阶段
+        if (order.getFulfillmentStatus() == null) {
+            throw BusinessException.of(400, "历史订单尚未迁移，不能创建出库单");
+        }
+        if (!"STOCK_LINKED".equals(order.getFulfillmentMode())) {
+            throw BusinessException.of(400, "仅记录订单不能创建出库单");
+        }
+        String status = order.getFulfillmentStatus();
+        if (!"ALLOCATING".equals(status) && !"READY_TO_SHIP".equals(status)) {
+            throw BusinessException.of(400, "订单当前状态不能创建出库单");
         }
 
         // 查询仓库
@@ -103,11 +130,50 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         int totalQuantity = 0;
         List<OrderDeliveryItem> items = new ArrayList<>();
 
+        // 终审三轮 P1-1：按 orderItemId 聚合后校验，重复行合并数量，不绕过可发校验
+        java.util.Map<Long, Integer> aggregatedQty = new java.util.LinkedHashMap<>();
+        java.util.Map<Long, OrderDeliveryDTO.OrderDeliveryItemDTO> aggregatedDto = new java.util.LinkedHashMap<>();
         for (OrderDeliveryDTO.OrderDeliveryItemDTO itemDTO : dto.getItems()) {
-            // 查询订单明细
-            OrderItem orderItem = orderItemMapper.selectById(itemDTO.getOrderItemId());
+            if (itemDTO.getQuantity() == null || itemDTO.getQuantity() <= 0) {
+                throw BusinessException.of(400, "出库数量必须大于0");
+            }
+            aggregatedQty.merge(itemDTO.getOrderItemId(), itemDTO.getQuantity(), Integer::sum);
+            aggregatedDto.putIfAbsent(itemDTO.getOrderItemId(), itemDTO);
+        }
+        for (var entry : aggregatedQty.entrySet()) {
+            OrderDeliveryDTO.OrderDeliveryItemDTO itemDTO = aggregatedDto.get(entry.getKey());
+            // 终审 P1-1：明细完整性（归属、SKU 一致、不超可发）
+            OrderItem orderItem = orderItemMapper.selectOne(
+                    new LambdaQueryWrapper<OrderItem>()
+                            .eq(OrderItem::getId, itemDTO.getOrderItemId())
+                            .eq(OrderItem::getOrderId, dto.getOrderId())
+                            .eq(OrderItem::getTenantId, tenantId));
             if (orderItem == null) {
-                throw new RuntimeException("订单明细不存在: " + itemDTO.getOrderItemId());
+                throw BusinessException.of(400, "出库明细不属于当前订单: " + itemDTO.getOrderItemId());
+            }
+            if (orderItem.getSkuId() != null && !orderItem.getSkuId().equals(itemDTO.getSkuId())) {
+                throw BusinessException.of(400, "出库 SKU 与订单明细不一致");
+            }
+            int shippable = orderItem.getQuantity() - (orderItem.getOutQuantity() == null ? 0 : orderItem.getOutQuantity());
+            if (entry.getValue() > shippable) {
+                throw BusinessException.of(400, "出库数量超过可发数量（剩余 " + shippable + "）");
+            }
+        }
+        for (OrderDeliveryDTO.OrderDeliveryItemDTO itemDTO : dto.getItems()) {
+            OrderItem orderItem = orderItemMapper.selectOne(
+                    new LambdaQueryWrapper<OrderItem>()
+                            .eq(OrderItem::getId, itemDTO.getOrderItemId())
+                            .eq(OrderItem::getOrderId, dto.getOrderId())
+                            .eq(OrderItem::getTenantId, tenantId));
+            if (orderItem == null) {
+                throw BusinessException.of(400, "出库明细不属于当前订单: " + itemDTO.getOrderItemId());
+            }
+            if (orderItem.getSkuId() != null && !orderItem.getSkuId().equals(itemDTO.getSkuId())) {
+                throw BusinessException.of(400, "出库 SKU 与订单明细不一致");
+            }
+            int shippable = orderItem.getQuantity() - (orderItem.getOutQuantity() == null ? 0 : orderItem.getOutQuantity());
+            if (itemDTO.getQuantity() > shippable) {
+                throw BusinessException.of(400, "出库数量超过可发数量（剩余 " + shippable + "）");
             }
 
             // 查询SKU信息
@@ -157,6 +223,11 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
 
     @Override
     public List<OrderDeliveryVO> getByOrderId(Long orderId) {
+        Order order = orderMapper.selectById(orderId);
+        if (order == null) {
+            throw BusinessException.of(404, "订单不存在");
+        }
+        accessPolicy.requireAccess(order);
         LambdaQueryWrapper<OrderDelivery> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderDelivery::getOrderId, orderId);
         wrapper.orderByAsc(OrderDelivery::getCreateTime);
@@ -179,6 +250,11 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
         if (delivery == null) {
             throw new RuntimeException("出库单不存在");
         }
+        Order order = orderMapper.selectById(delivery.getOrderId());
+        if (order == null) {
+            throw BusinessException.of(404, "订单不存在");
+        }
+        accessPolicy.requireAccess(order);
 
         // Status 2: idempotent success (already shipped)
         if (delivery.getStatus() == 2) {
@@ -200,9 +276,19 @@ public class OrderDeliveryServiceImpl implements OrderDeliveryService {
     }
 
     private String generateDeliveryNo() {
+        // Redis 计数器生成连续单号，避免 Math.random 碰撞；跨天自动过期清零
         String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String seq = String.format("%04d", (int) (Math.random() * 10000));
-        return "OUT" + date + seq;
+        String prefix = "OUT" + date;
+        RAtomicLong counter = redissonClient.getAtomicLong("delivery:no:" + TenantContext.getTenantId() + ":" + date);
+        Long dbMax = deliveryMapper.selectMaxDeliveryNoSeq(prefix, TenantContext.getTenantId());
+        if (dbMax != null && counter.get() < dbMax) {
+            counter.set(dbMax);
+        }
+        if (counter.get() == 0) {
+            counter.expire(2, TimeUnit.DAYS);
+        }
+        long seq = counter.incrementAndGet();
+        return prefix + String.format("%04d", seq);
     }
 
     private OrderDeliveryVO convertToVO(OrderDelivery delivery) {

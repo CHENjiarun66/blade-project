@@ -69,7 +69,7 @@ class AgentKeyAuthenticationServiceTest {
                 AgentKeyMapper.class.getClassLoader(),
                 new Class<?>[] { AgentKeyMapper.class },
                 (proxy, method, args) -> switch (method.getName()) {
-                    case "selectOne" -> key;
+                    case "selectActiveByPrefixForAuthentication" -> key;
                     case "toString" -> "FakeAgentKeyMapper";
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];

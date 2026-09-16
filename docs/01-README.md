@@ -27,6 +27,7 @@ BladeProject/
 ├── blade-mobile/         # 移动端 PWA
 ├── blade-admin/          # PC 管理端
 ├── packages/types/       # 共享类型
+├── tools/                # 本机辅助工具（含 Agent Key 管理器）
 └── stitch/               # 原型工程
 ```
 
@@ -46,14 +47,23 @@ BladeProject/
 | 查看项目结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
 | 开发分支、测试集成、上线发布 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
 | 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
+| 查订单状态、收款与履约重构方案 | [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) |
+| 查订单金额、结清与统计口径 | [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md) |
+| 查订单全流程回退、冲销和审批规则 | [18-ORDER_REVERSAL_APPROVAL_DESIGN.md](./18-ORDER_REVERSAL_APPROVAL_DESIGN.md) |
+| 领取订单大重构工作包与查看分支/发布边界 | [2026-08-30-order-lifecycle-finance-refactor-rom-sow.md](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md) |
+| 让实现 Agent 领取订单重构任务并等待 Codex 审核 | [2026-08-30-order-refactor-agent-execution-board.md](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md) |
 | 查图片/附件上传与存储设计 | [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md) |
 | 查文件中心/数字资产/客户展示页设计 | [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md) |
 | 查 NAS 生产环境发布/运维 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
 | 查外部 AI Agent 对接设计 | [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md) |
 | 接入外部 AI Agent | [11-AGENT_ACCESS_GUIDE.md](./11-AGENT_ACCESS_GUIDE.md) |
-| 双 Agent 协作同步（Codex + DeepSeek） | [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) |
+| 在 Mac 上录入、管理和授权使用 Agent Key | [16-AGENT_LOCAL_KEY_MANAGER.md](./16-AGENT_LOCAL_KEY_MANAGER.md) |
+| 让 Agent 从纸单/Excel 批量创建订单草稿 | [17-AGENT_ORDER_DRAFT_RUNBOOK.md](./17-AGENT_ORDER_DRAFT_RUNBOOK.md) |
+| 多 Agent 协作、认领与 worktree 隔离 | [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) |
 | 排查问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
 | 查看技术决策 | [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md) |
+| 查旧 ERP 真实数据与使用度证据 | [reference/legacy-erp-functional-audit.md](./reference/legacy-erp-functional-audit.md) |
+| 查旧 ERP 接替范围、冲突校准与发布阶段 | [reference/legacy-erp-to-blade-optimization-blueprint.md](./reference/legacy-erp-to-blade-optimization-blueprint.md) |
 
 ---
 

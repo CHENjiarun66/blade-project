@@ -9,11 +9,14 @@ import com.blade.inventory.mapper.InventoryMapper;
 import com.blade.inventory.service.InventoryService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class InventoryServiceTest {
 
     @Autowired
@@ -51,6 +55,9 @@ class InventoryServiceTest {
     @Autowired
     private InventoryLogMapper inventoryLogMapper;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     // 测试用仓库ID
     private static final Long TEST_WAREHOUSE_ID = 1L;
     // 测试用租户ID
@@ -59,6 +66,20 @@ class InventoryServiceTest {
     private static final Long TEST_OPERATOR_ID = 1L;
     // 测试用SKU ID（TSTORDER1774200743505-BLACK-XS）
     private static final Long TEST_SKU_ID = 1774200743505001L;
+
+    @BeforeAll
+    void ensureInventorySkuFixture() {
+        jdbc.update("""
+                INSERT IGNORE INTO product
+                  (id, product_code, name, unit, status, tenant_id, deleted)
+                VALUES (?, 'INVENTORY-TEST-SPU', '库存回归测试商品', '件', 1, ?, 0)
+                """, 1774200743505L, TEST_TENANT_ID);
+        jdbc.update("""
+                INSERT IGNORE INTO product_sku
+                  (id, product_id, sku_code, sku_type, status, tenant_id, deleted)
+                VALUES (?, ?, 'INVENTORY-TEST-SKU', 'NORMAL', 1, ?, 0)
+                """, TEST_SKU_ID, 1774200743505L, TEST_TENANT_ID);
+    }
 
     @BeforeEach
     void setUp() {

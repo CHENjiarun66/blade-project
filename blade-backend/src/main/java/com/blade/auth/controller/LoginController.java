@@ -34,8 +34,9 @@ public class LoginController {
 
     @PostMapping("/logout")
     @Operation(summary = "登出")
-    public void logout(@RequestHeader("Authorization") String token) {
-        authService.logout(token);
+    public void logout(@RequestHeader("Authorization") String token,
+                       @RequestHeader(value = "X-Refresh-Token", required = false) String refreshToken) {
+        authService.logout(token, refreshToken);
     }
 
     @PostMapping("/refresh")

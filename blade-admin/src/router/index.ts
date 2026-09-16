@@ -54,6 +54,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '快速录单', permission: 'menu:order' },
       },
       {
+        path: 'orders/drafts',
+        name: 'OrderDraftList',
+        component: () => import('@/views/orders/draft-list.vue'),
+        meta: { title: '草稿订单列表', permission: 'menu:order' },
+      },
+      {
+        path: 'orders/drafts/:id',
+        name: 'OrderDraftDetail',
+        component: () => import('@/views/orders/drafts.vue'),
+        meta: { title: '草稿订单详情', permission: 'menu:order' },
+      },
+      {
         path: 'orders/:id',
         name: 'OrderDetail',
         component: () => import('@/views/orders/detail.vue'),
@@ -114,6 +126,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '文件中心', permission: 'menu:file' },
       },
       {
+        path: 'whatsapp',
+        name: 'WhatsappArchive',
+        component: () => import('@/views/whatsapp/index.vue'),
+        meta: { title: 'WhatsApp 归档', permission: 'menu:whatsapp' },
+      },
+      {
         path: 'personal',
         name: 'Personal',
         component: () => import('@/views/personal/index.vue'),
@@ -142,13 +160,13 @@ router.beforeEach(async (to, _from) => {
     }
   }
 
-  // 刷新页面后 Pinia 内存会清空；如果 token 还在但权限/用户信息缺失，先尝试恢复登录态。
-  if (authStore.token && (authStore.permissions.length === 0 || !authStore.userInfo)) {
+  // localStorage 中的权限可能早于后端菜单变更；每次页面会话至少向服务端刷新一次。
+  if (authStore.token && (!authStore.permissionsLoadedForSession || !authStore.userInfo)) {
     try {
       const { getAuthCodes, getUserInfo } = await import('@/api/auth')
       const [userInfoRes, codesRes] = await Promise.all([
         authStore.userInfo ? Promise.resolve(authStore.userInfo) : getUserInfo(),
-        authStore.permissions.length > 0 ? Promise.resolve(authStore.permissions) : getAuthCodes(),
+        authStore.permissionsLoadedForSession ? Promise.resolve(authStore.permissions) : getAuthCodes(),
       ])
       if (!authStore.userInfo) {
         authStore.setUserInfo({
@@ -159,7 +177,7 @@ router.beforeEach(async (to, _from) => {
           roles: (userInfoRes as any).roles,
         })
       }
-      if (authStore.permissions.length === 0) {
+      if (!authStore.permissionsLoadedForSession) {
         authStore.setPermissions(codesRes as unknown as string[])
       }
     } catch (error) {
@@ -234,6 +252,7 @@ function canAccessPath(path: string, permissions: string[]): boolean {
     '/products': 'menu:product',
     '/clients': 'menu:customer',
     '/files': 'menu:file',
+    '/whatsapp': 'menu:whatsapp',
     '/system': 'menu:system',
     '/catalog': 'data:catalog:view',
   }
@@ -256,11 +275,12 @@ function getFirstAccessiblePage(permissions: string[]): string {
     '/products': 'menu:product',
     '/clients': 'menu:customer',
     '/files': 'menu:file',
+    '/whatsapp': 'menu:whatsapp',
     '/system': 'menu:system',
     '/catalog': 'data:catalog:view',
   }
 
-  const priorityPages = ['/dashboard', '/analytics', '/orders', '/inventory', '/products', '/clients', '/files', '/system', '/catalog']
+  const priorityPages = ['/dashboard', '/analytics', '/orders', '/inventory', '/products', '/clients', '/whatsapp', '/files', '/system', '/catalog']
   for (const page of priorityPages) {
     const requiredPermission = pagePermissionMap[page]
     if (permissions.includes(requiredPermission)) {

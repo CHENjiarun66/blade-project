@@ -1,0 +1,7 @@
+.git
+deploy/nas/nginx/ssl/
+deploy/nas/secrets/
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx

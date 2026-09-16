@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
+import com.blade.order.service.OrderFactsService;
+import com.blade.customer.service.CustomerStatsCacheService;
 import com.blade.customer.dto.CustomerCreateDTO;
 import com.blade.customer.dto.CustomerOrderPageDTO;
 import com.blade.customer.dto.CustomerPageDTO;
@@ -46,15 +48,19 @@ public class CustomerServiceImpl implements CustomerService {
     private final OrderItemMapper orderItemMapper;
     private final CustomerOperationLogMapper operationLogMapper;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final OrderFactsService orderFactsService;
+    private final CustomerStatsCacheService customerStatsCacheService;
 
     @Autowired
-    public CustomerServiceImpl(CustomerMapper customerMapper, CustomerPhoneMapper customerPhoneMapper, OrderMapper orderMapper, OrderItemMapper orderItemMapper, CustomerOperationLogMapper operationLogMapper, RedisTemplate<String, Object> redisTemplate) {
+    public CustomerServiceImpl(CustomerMapper customerMapper, CustomerPhoneMapper customerPhoneMapper, OrderMapper orderMapper, OrderItemMapper orderItemMapper, CustomerOperationLogMapper operationLogMapper, RedisTemplate<String, Object> redisTemplate, OrderFactsService orderFactsService, CustomerStatsCacheService customerStatsCacheService) {
         this.customerMapper = customerMapper;
         this.customerPhoneMapper = customerPhoneMapper;
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.operationLogMapper = operationLogMapper;
         this.redisTemplate = redisTemplate;
+        this.orderFactsService = orderFactsService;
+        this.customerStatsCacheService = customerStatsCacheService;
     }
 
     @Override
@@ -196,8 +202,20 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public Long createCustomer(CustomerCreateDTO dto) {
+        return createCustomerInternal(dto, getCurrentUserId(), null);
+    }
+
+    @Override
+    @Transactional
+    public Long createCustomerFromAgent(CustomerCreateDTO dto, Long agentKeyId) {
+        if (agentKeyId == null) {
+            throw new IllegalArgumentException("Agent Key ID不能为空");
+        }
+        return createCustomerInternal(dto, null, agentKeyId);
+    }
+
+    private Long createCustomerInternal(CustomerCreateDTO dto, Long currentUserId, Long agentKeyId) {
         Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
-        Long currentUserId = getCurrentUserId();
 
         // 0. 检查电话是否重复
         if (dto.getPhones() != null && !dto.getPhones().isEmpty()) {
@@ -214,6 +232,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setCountryCode(dto.getCountryCode());
         customer.setTenantId(tenantId);
         customer.setCreateBy(currentUserId);
+        customer.setCreatedByAgentKeyId(agentKeyId);
         customer.setDeleted(0);
         customerMapper.insert(customer);
 
@@ -232,7 +251,7 @@ public class CustomerServiceImpl implements CustomerService {
         }
 
         // 3. 记录操作日志
-        logOperation(tenantId, customer.getId(), currentUserId, "CREATE",
+        logOperation(tenantId, customer.getId(), currentUserId, agentKeyId, "CREATE",
             "{\"name\":\"" + dto.getName() + "\",\"address\":\"" + (dto.getAddress() != null ? dto.getAddress() : "") + "\"}");
 
         return customer.getId();
@@ -292,7 +311,7 @@ public class CustomerServiceImpl implements CustomerService {
 
         // 3. 记录操作日志
         Long currentUserId = getCurrentUserId();
-        logOperation(tenantId, dto.getId(), currentUserId, "UPDATE",
+        logOperation(tenantId, dto.getId(), currentUserId, null, "UPDATE",
             "{\"name\":\"" + dto.getName() + "\"}");
     }
 
@@ -309,10 +328,13 @@ public class CustomerServiceImpl implements CustomerService {
             throw new RuntimeException("客户不存在");
         }
 
-        // 检查是否有进行中的订单（status NOT IN 4,5）
+        // 检查是否有进行中的订单（统一口径：非取消且未进入已发货/已完成/已取消终态）
         LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
         orderWrapper.eq(Order::getCustomerId, id)
-                   .notIn(Order::getStatus, java.util.Arrays.asList(4, 5)); // 排除已发货、已完成
+                   .notIn(Order::getFulfillmentStatus,
+                           java.util.Arrays.asList("SHIPPED", "COMPLETED", "CANCELLED"))
+                   .and(w -> w.isNull(Order::getStatus)
+                           .or(sub -> sub.notIn(Order::getStatus, java.util.Arrays.asList(4, 5, 6))));
         List<Order> activeOrders = orderMapper.selectList(orderWrapper);
         if (!activeOrders.isEmpty()) {
             String orderNos = activeOrders.stream()
@@ -341,7 +363,7 @@ public class CustomerServiceImpl implements CustomerService {
         // 记录操作日志
         Long currentUserId = getCurrentUserId();
         Long tenantId = customer.getTenantId() != null ? customer.getTenantId() : 1L;
-        logOperation(tenantId, id, currentUserId, "DELETE",
+        logOperation(tenantId, id, currentUserId, null, "DELETE",
             "{\"name\":\"" + customer.getName() + "\"}");
     }
 
@@ -377,12 +399,11 @@ public class CustomerServiceImpl implements CustomerService {
         java.time.LocalDateTime firstOrderTime = null;
 
         for (Order order : orders) {
-            if (order.getStatus() == 5) { // 已完成
+            if (!orderFactsService.isBusinessOrder(order)) continue; // 取消订单不进经营口径
+            if (orderFactsService.isFulfilled(order)) {
                 completedOrders++;
             }
-            if (order.getPaidAmount() != null) {
-                totalSpending = totalSpending.add(order.getPaidAmount());
-            }
+            totalSpending = totalSpending.add(orderFactsService.gross(order));
             java.time.LocalDateTime ct = order.getCreateTime();
             if (ct != null) {
                 if (lastOrderTime == null || ct.isAfter(lastOrderTime)) lastOrderTime = ct;
@@ -444,6 +465,9 @@ public class CustomerServiceImpl implements CustomerService {
             vo.setStatus(order.getStatus());
             vo.setStatusName(getStatusName(order.getStatus()));
             vo.setPaymentStatus(order.getPaymentStatus());
+            vo.setCollectionStatus(order.getCollectionStatus());
+            vo.setFulfillmentStatus(order.getFulfillmentStatus());
+            vo.setLegacyUnmigrated(order.getCollectionStatus() == null);
             vo.setTotalAmount(order.getTotalAmount());
             vo.setPaidAmount(order.getPaidAmount());
             vo.setTotalAmountText(formatMoney(order.getTotalAmount()));
@@ -490,10 +514,12 @@ public class CustomerServiceImpl implements CustomerService {
             return (CustomerPreferenceVO) cached;
         }
 
-        // 查询该客户所有已完成或已发货的订单项
+        // 查询该客户所有已完成或已发货的订单项（统一口径，含 RECORD_ONLY 完成）
         LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
         orderWrapper.eq(Order::getCustomerId, customerId)
-                    .in(Order::getStatus, java.util.Arrays.asList(4, 5)); // 已发货、已完成
+                    .and(w -> w.in(Order::getFulfillmentStatus, java.util.Arrays.asList("SHIPPED", "COMPLETED"))
+                            .or(sub -> sub.isNull(Order::getFulfillmentStatus)
+                                    .in(Order::getStatus, java.util.Arrays.asList(4, 5))));
 
         // 时间范围过滤
         if (dto != null && dto.getStartDate() != null && !dto.getStartDate().isBlank()) {
@@ -639,11 +665,13 @@ public class CustomerServiceImpl implements CustomerService {
     /**
      * 记录客户操作日志
      */
-    private void logOperation(Long tenantId, Long customerId, Long operatorId, String operation, String detail) {
+    private void logOperation(Long tenantId, Long customerId, Long operatorId, Long agentKeyId,
+                              String operation, String detail) {
         CustomerOperationLog log = new CustomerOperationLog();
         log.setTenantId(tenantId);
         log.setCustomerId(customerId);
         log.setOperatorId(operatorId);
+        log.setAgentKeyId(agentKeyId);
         log.setOperation(operation);
         log.setDetail(detail);
         operationLogMapper.insert(log);

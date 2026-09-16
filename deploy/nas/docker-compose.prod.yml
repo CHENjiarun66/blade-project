@@ -31,7 +31,7 @@ services:
   backend:
     build:
       context: /volume2/blade/app/blade-backend
-    image: blade-backend:prod
+    image: ${BLADE_BACKEND_IMAGE:-blade-backend:prod}
     container_name: blade-backend
     restart: unless-stopped
     depends_on:
@@ -59,13 +59,16 @@ services:
     build:
       context: /volume2/blade/app
       dockerfile: blade-admin/Dockerfile
-    image: blade-web:prod
+    image: ${BLADE_WEB_IMAGE:-blade-web:prod}
     container_name: blade-web
     restart: unless-stopped
     depends_on:
       - backend
     ports:
       - "${WEB_PORT}:443"
+    volumes:
+      - /volume2/blade/maintenance:/maintenance:ro
+      - /volume2/blade/secrets/tls:/etc/nginx/ssl:ro
     networks:
       - blade
 

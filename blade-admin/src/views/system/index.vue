@@ -5,6 +5,7 @@
         <el-tab-pane label="用户管理" name="users" />
         <el-tab-pane label="角色管理" name="roles" />
         <el-tab-pane label="权限配置" name="permissions" />
+        <el-tab-pane v-if="canManageAgentKeys" label="Agent Key" name="agentKeys" />
       </el-tabs>
     </el-card>
 
@@ -159,6 +160,8 @@
         </template>
       </el-tree>
     </el-card>
+
+    <AgentKeysPanel v-if="activeTab === 'agentKeys' && canManageAgentKeys" />
 
     <!-- 用户对话框 -->
     <el-dialog v-model="userDialogVisible" :title="userDialogTitle" width="500px">
@@ -344,8 +347,12 @@ import { getUserPage, getAllRoles, createUser, updateUser, deleteUser, resetUser
 import { getRolePage, createRole, updateRole, deleteRole, getRolePermissions, type RoleVO } from '@/api/role'
 import { getPermissionTree, createPermission, updatePermission, deletePermission, assignRolePermissions, type PermissionVO } from '@/api/permission'
 import { formatDate } from '@/utils/format'
+import { useAuthStore } from '@/stores/auth'
+import AgentKeysPanel from './AgentKeysPanel.vue'
 
 const activeTab = ref('users')
+const authStore = useAuthStore()
+const canManageAgentKeys = computed(() => authStore.permissions.includes('agent-key:manage'))
 
 // ==================== 用户管理 ====================
 const userList = ref<UserVO[]>([])

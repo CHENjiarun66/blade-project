@@ -62,6 +62,83 @@ public class OrderVO {
     private LocalDateTime completeTime;
     private List<OrderItemVO> items;
 
+    // ==== 新订单生命周期与财务事实（兼容期与旧字段并存） ====
+    private String fulfillmentStatus;
+    private String collectionStatus;
+    private String fulfillmentMode;
+    private LocalDateTime settledAt;
+    private String settlementMethod;
+    private BigDecimal grossReceivedAmount;
+    private BigDecimal cashRefundAmount;
+    private BigDecimal salesReturnAmount;
+    private BigDecimal netReceivedAmount;
+    /** 历史未迁移行标记：新状态字段为空，展示值来自旧字段回退，不得参与动作与统计 */
+    private Boolean legacyUnmigrated;
+    /** 后端按状态+权限计算的可用动作白名单 */
+    private List<String> allowedActions;
+
+    public String getFulfillmentStatus() { return fulfillmentStatus; }
+    public void setFulfillmentStatus(String fulfillmentStatus) { this.fulfillmentStatus = fulfillmentStatus; }
+    public String getCollectionStatus() { return collectionStatus; }
+    public void setCollectionStatus(String collectionStatus) { this.collectionStatus = collectionStatus; }
+    public String getFulfillmentMode() { return fulfillmentMode; }
+    public void setFulfillmentMode(String fulfillmentMode) { this.fulfillmentMode = fulfillmentMode; }
+    public LocalDateTime getSettledAt() { return settledAt; }
+    public void setSettledAt(LocalDateTime settledAt) { this.settledAt = settledAt; }
+    public String getSettlementMethod() { return settlementMethod; }
+    public void setSettlementMethod(String settlementMethod) { this.settlementMethod = settlementMethod; }
+    public BigDecimal getGrossReceivedAmount() { return grossReceivedAmount; }
+    public void setGrossReceivedAmount(BigDecimal grossReceivedAmount) { this.grossReceivedAmount = grossReceivedAmount; }
+    public BigDecimal getCashRefundAmount() { return cashRefundAmount; }
+    public void setCashRefundAmount(BigDecimal cashRefundAmount) { this.cashRefundAmount = cashRefundAmount; }
+    public BigDecimal getSalesReturnAmount() { return salesReturnAmount; }
+    public void setSalesReturnAmount(BigDecimal salesReturnAmount) { this.salesReturnAmount = salesReturnAmount; }
+    public BigDecimal getNetReceivedAmount() { return netReceivedAmount; }
+    public void setNetReceivedAmount(BigDecimal netReceivedAmount) { this.netReceivedAmount = netReceivedAmount; }
+    public Boolean getLegacyUnmigrated() { return legacyUnmigrated; }
+    public void setLegacyUnmigrated(Boolean legacyUnmigrated) { this.legacyUnmigrated = legacyUnmigrated; }
+    public List<String> getAllowedActions() { return allowedActions; }
+    public void setAllowedActions(List<String> allowedActions) { this.allowedActions = allowedActions; }
+
+    private List<FinancialRecordVO> financialRecords;
+    public List<FinancialRecordVO> getFinancialRecords() { return financialRecords; }
+    public void setFinancialRecords(List<FinancialRecordVO> financialRecords) { this.financialRecords = financialRecords; }
+
+    @Schema(description = "财务流水")
+    public static class FinancialRecordVO {
+        private Long id;
+        private Long orderId;
+        private String recordType;
+        private BigDecimal amount;
+        private String paymentMethod;
+        private LocalDateTime occurredAt;
+        private String operatorName;
+        private String reason;
+        private String source;
+        private Long reversedRecordId;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getOrderId() { return orderId; }
+        public void setOrderId(Long orderId) { this.orderId = orderId; }
+        public String getRecordType() { return recordType; }
+        public void setRecordType(String recordType) { this.recordType = recordType; }
+        public BigDecimal getAmount() { return amount; }
+        public void setAmount(BigDecimal amount) { this.amount = amount; }
+        public String getPaymentMethod() { return paymentMethod; }
+        public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+        public LocalDateTime getOccurredAt() { return occurredAt; }
+        public void setOccurredAt(LocalDateTime occurredAt) { this.occurredAt = occurredAt; }
+        public String getOperatorName() { return operatorName; }
+        public void setOperatorName(String operatorName) { this.operatorName = operatorName; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+        public String getSource() { return source; }
+        public void setSource(String source) { this.source = source; }
+        public Long getReversedRecordId() { return reversedRecordId; }
+        public void setReversedRecordId(Long reversedRecordId) { this.reversedRecordId = reversedRecordId; }
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getOrderNo() { return orderNo; }
@@ -156,6 +233,10 @@ public class OrderVO {
     @Schema(description = "订单明细VO")
     public static class OrderItemVO {
         private Long id;
+        /** NORMAL/DEFAULT/PLACEHOLDER：占位行需要先拆分才能履约 */
+        private String skuType;
+        /** 当前明细需要在库存履约前明确到真实规格；包含 PLACEHOLDER 与历史 DEFAULT。 */
+        private Boolean variantUnresolved;
         private Long skuId;
         private Long warehouseId;
         private String warehouseName;
@@ -210,5 +291,9 @@ public class OrderVO {
         public void setCostAmount(BigDecimal costAmount) { this.costAmount = costAmount; }
         public BigDecimal getGrossProfit() { return grossProfit; }
         public void setGrossProfit(BigDecimal grossProfit) { this.grossProfit = grossProfit; }
+        public String getSkuType() { return skuType; }
+        public void setSkuType(String skuType) { this.skuType = skuType; }
+        public Boolean getVariantUnresolved() { return variantUnresolved; }
+        public void setVariantUnresolved(Boolean variantUnresolved) { this.variantUnresolved = variantUnresolved; }
     }
 }

@@ -59,7 +59,18 @@ export interface CustomerOrderVO {
   orderNo: string
   status: number
   statusName: string
+  /** 兼容字段；新行请优先读 collectionStatus */
   paymentStatus: number
+  collectionStatus?: 'UNPAID' | 'PARTIAL' | 'SETTLED'
+  fulfillmentStatus?:
+    | 'CONFIRMED'
+    | 'WAITING_ALLOCATION'
+    | 'ALLOCATING'
+    | 'READY_TO_SHIP'
+    | 'SHIPPED'
+    | 'COMPLETED'
+    | 'CANCELLED'
+  legacyUnmigrated?: boolean
   totalAmount: number
   paidAmount: number
   totalAmountText: string

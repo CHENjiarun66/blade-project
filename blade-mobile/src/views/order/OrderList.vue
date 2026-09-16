@@ -12,10 +12,13 @@
 
     <v-tabs v-model="statusFilter" color="primary" density="compact" class="mb-4">
       <v-tab value="">全部</v-tab>
-      <v-tab value="0">待处理</v-tab>
-      <v-tab value="1">已确认</v-tab>
-      <v-tab value="2">货中</v-tab>
-      <v-tab value="3">已完成</v-tab>
+      <v-tab value="CONFIRMED">已确认</v-tab>
+      <v-tab value="WAITING_ALLOCATION">待配货</v-tab>
+      <v-tab value="ALLOCATING">配货中</v-tab>
+      <v-tab value="READY_TO_SHIP">待发货</v-tab>
+      <v-tab value="SHIPPED">已发货</v-tab>
+      <v-tab value="COMPLETED">已完成</v-tab>
+      <v-tab value="CANCELLED">已取消</v-tab>
     </v-tabs>
 
     <v-list lines="two">
@@ -92,7 +95,8 @@ async function fetchOrders() {
       params.customerName = search.value
     }
     if (statusFilter.value !== '') {
-      params.status = parseInt(statusFilter.value)
+      // 新模型：按履约状态字符串筛选（不提交数字状态）
+      ;(params as any).fulfillmentStatus = statusFilter.value
     }
     const res = await getOrderList(params)
     orders.value = res.data.records

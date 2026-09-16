@@ -2,6 +2,7 @@ package com.blade.dashboard.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.blade.common.tenant.TenantContext;
+import com.blade.order.service.OrderFactsService;
 import com.blade.dashboard.dto.*;
 import com.blade.dashboard.enums.PeriodType;
 import com.blade.dashboard.service.DashboardService;
@@ -42,6 +43,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final ProductSkuMapper productSkuMapper;
     private final InventoryMapper inventoryMapper;
     private final WarehouseMapper warehouseMapper;
+    private final OrderFactsService orderFactsService;
 
     @Autowired
     public DashboardServiceImpl(OrderMapper orderMapper,
@@ -49,13 +51,15 @@ public class DashboardServiceImpl implements DashboardService {
                                ProductMapper productMapper,
                                ProductSkuMapper productSkuMapper,
                                InventoryMapper inventoryMapper,
-                               WarehouseMapper warehouseMapper) {
+                               WarehouseMapper warehouseMapper,
+                               OrderFactsService orderFactsService) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.productMapper = productMapper;
         this.productSkuMapper = productSkuMapper;
         this.inventoryMapper = inventoryMapper;
         this.warehouseMapper = warehouseMapper;
+        this.orderFactsService = orderFactsService;
     }
 
     @Override
@@ -91,17 +95,10 @@ public class DashboardServiceImpl implements DashboardService {
                 .eq(Product::getDeleted, 0);
         long totalProducts = productMapper.selectCount(productWrapper);
 
-        // 待处理订单数（状态=0创建的订单）
-        LambdaQueryWrapper<Order> pendingWrapper = new LambdaQueryWrapper<>();
-        pendingWrapper.eq(Order::getTenantId, tenantId)
-                .eq(Order::getStatus, 0);
-        long pendingOrders = orderMapper.selectCount(pendingWrapper);
-
+        // 待处理订单数（统一口径：已确认尚未履约的订单）
+        long pendingOrders = countPendingOrders(tenantId, null);
         // 待处理订单趋势（与昨天对比）
-        LambdaQueryWrapper<Order> yesterdayPendingWrapper = new LambdaQueryWrapper<>();
-        yesterdayPendingWrapper.eq(Order::getTenantId, tenantId)
-                .eq(Order::getStatus, 0);
-        long yesterdayPendingOrders = orderMapper.selectCount(yesterdayPendingWrapper);
+        long yesterdayPendingOrders = countPendingOrders(tenantId, LocalDate.now().minusDays(1));
         long pendingOrdersTrend = calculateTrend(pendingOrders, yesterdayPendingOrders);
 
         // 低库存预警数
@@ -260,70 +257,67 @@ public class DashboardServiceImpl implements DashboardService {
         statusLabels.put(7, "退货中");
         statusLabels.put(8, "已退货");
 
+        // 系列 E：一次取数 + 按统一口径的状态映射分组，避免复制状态条件
+        Map<Integer, Long> counts = new java.util.HashMap<>();
+        for (Order order : orderFactsService.ordersByOrderDate(tenantId, currentPeriod[0], currentPeriod[1])) {
+            Integer legacy = legacyStatusOf(order);
+            if (legacy != null) {
+                counts.merge(legacy, 1L, Long::sum);
+            }
+        }
+
         List<OrderStatusDTO> result = new ArrayList<>();
-
         for (Map.Entry<Integer, String> entry : statusLabels.entrySet()) {
-            Integer status = entry.getKey();
-            LambdaQueryWrapper<Order> wrapper = buildPaidOrderPeriodWrapper(tenantId, currentPeriod[0], currentPeriod[1])
-                    .eq(Order::getStatus, status);
-            long count = orderMapper.selectCount(wrapper);
-
             OrderStatusDTO dto = new OrderStatusDTO();
-            dto.setStatus(status);
+            dto.setStatus(entry.getKey());
             dto.setLabel(entry.getValue());
-            dto.setCount(count);
+            dto.setCount(counts.getOrDefault(entry.getKey(), 0L));
             result.add(dto);
         }
 
         return result;
     }
 
+    /** 兼容期状态映射：新行取履约状态投影，历史行保持旧数字 */
+    private Integer legacyStatusOf(Order order) {
+        if (order.getFulfillmentStatus() != null) {
+            switch (order.getFulfillmentStatus()) {
+                case "CONFIRMED": return 0;
+                case "WAITING_ALLOCATION": return 1;
+                case "ALLOCATING": return 2;
+                case "READY_TO_SHIP": return 3;
+                case "SHIPPED": return 4;
+                case "COMPLETED": return 5;
+                case "CANCELLED": return 6;
+                default: return null;
+            }
+        }
+        return order.getStatus();
+    }
+
+    private long countPendingOrders(Long tenantId, LocalDate onDate) {
+        return orderMapper.selectCount(new LambdaQueryWrapper<Order>()
+                .eq(Order::getTenantId, tenantId)
+                .eq(Order::getDeleted, 0)
+                .and(w -> w.eq(Order::getFulfillmentStatus, "CONFIRMED")
+                        .or(sub -> sub.isNull(Order::getFulfillmentStatus).eq(Order::getStatus, 0))));
+    }
+
+    // 系列 E：订单口径与金额公式统一走 OrderFactsService，禁止消费者复制公式
     private List<Order> selectPaidOrdersInPeriod(Long tenantId, LocalDate startDate, LocalDate endDate) {
-        return orderMapper.selectList(buildPaidOrderPeriodWrapper(tenantId, startDate, endDate));
-    }
-
-    private LambdaQueryWrapper<Order> buildPaidOrderPeriodWrapper(Long tenantId, LocalDate startDate, LocalDate endDate) {
-        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Order::getTenantId, tenantId);
-        applyOrderDateRange(wrapper, startDate, endDate);
-        applyPaidOrderCondition(wrapper);
-        return wrapper;
-    }
-
-    private void applyOrderDateRange(LambdaQueryWrapper<Order> wrapper, LocalDate startDate, LocalDate endDate) {
-        wrapper.apply("COALESCE(order_date, DATE(create_time)) BETWEEN {0} AND {1}", startDate, endDate);
-    }
-
-    private void applyPaidOrderCondition(LambdaQueryWrapper<Order> wrapper) {
-        wrapper.and(w -> w.gt(Order::getPaidAmount, BigDecimal.ZERO)
-                .or()
-                .in(Order::getPaymentStatus, PAID_PAYMENT_STATUSES));
+        return orderFactsService.paidBusinessOrdersByOrderDate(tenantId, startDate, endDate);
     }
 
     private BigDecimal sumNetSales(List<Order> orders) {
         return orders.stream()
-                .map(this::netSalesAmount)
+                .map(orderFactsService::netSalesAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private BigDecimal netSalesAmount(Order order) {
-        BigDecimal netAmount = safeAmount(order.getTotalAmount())
-                .subtract(safeAmount(order.getRefundAmount()))
-                .subtract(safeAmount(order.getWriteOffAmount()));
-        return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
     }
 
     private BigDecimal sumNetGrossProfit(List<Order> orders) {
         return orders.stream()
-                .map(this::netGrossProfitAmount)
+                .map(orderFactsService::netGrossProfitAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private BigDecimal netGrossProfitAmount(Order order) {
-        BigDecimal netAmount = safeAmount(order.getGrossProfit())
-                .subtract(safeAmount(order.getRefundAmount()))
-                .subtract(safeAmount(order.getWriteOffAmount()));
-        return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
     }
 
     private long sumSalesQuantity(List<Order> orders) {
@@ -422,10 +416,13 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 找出有已完成订单但最后订单距今 > silentDays 的客户
         // 首先获取有已完成订单的客户及其最后订单日期
-        LambdaQueryWrapper<Order> completedWrapper = new LambdaQueryWrapper<>();
-        completedWrapper.eq(Order::getTenantId, tenantId)
-                .ge(Order::getStatus, 4); // 已发货或已完成
-        List<Order> completedOrders = orderMapper.selectList(completedWrapper);
+        // 统一口径：已发货或已完成（含仅记录完成的订单），不再用 status>=4 数字范围
+        List<Order> allTenantOrders = orderMapper.selectList(new LambdaQueryWrapper<Order>()
+                .eq(Order::getTenantId, tenantId)
+                .eq(Order::getDeleted, 0));
+        List<Order> completedOrders = allTenantOrders.stream()
+                .filter(orderFactsService::isShippedOrBeyond)
+                .toList();
 
         if (completedOrders.isEmpty()) {
             SilentCustomerResultDTO result = new SilentCustomerResultDTO();
@@ -516,12 +513,15 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDateTime startDate = ninetyDaysAgo.atStartOfDay();
         LocalDateTime endDate = today.atTime(LocalTime.MAX);
 
-        // 过去90天已发货/已完成的订单
-        LambdaQueryWrapper<Order> shippedWrapper = new LambdaQueryWrapper<>();
-        shippedWrapper.eq(Order::getTenantId, tenantId)
+        // 过去90天已发货/已完成（统一口径），RECORD_ONLY 完成订单计入销售但不计库存周转
+        List<Order> shippedCandidates = orderMapper.selectList(new LambdaQueryWrapper<Order>()
+                .eq(Order::getTenantId, tenantId)
                 .between(Order::getCreateTime, startDate, endDate)
-                .ge(Order::getStatus, 4);
-        List<Order> shippedOrders = orderMapper.selectList(shippedWrapper);
+                .eq(Order::getDeleted, 0));
+        List<Order> shippedOrders = shippedCandidates.stream()
+                .filter(orderFactsService::isShippedOrBeyond)
+                .filter(o -> !"RECORD_ONLY".equals(o.getFulfillmentMode()))
+                .toList();
 
         long totalSoldQuantity = 0L;
         if (!shippedOrders.isEmpty()) {

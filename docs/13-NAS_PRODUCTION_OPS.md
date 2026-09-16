@@ -7,6 +7,21 @@
 
 ## 1. 当前生产环境事实
 
+> 2026-09-12 发布后核对：NAS 生产数据库为 Flyway V58，四个生产容器均在运行；当前应用 release 为 `20260912_220631`，commit 为 `9722ca8ce37579cb19147cff00826d55318db3bc`。V43-V58、订单重构、Agent Key、纸单多图和草稿并排核单均已部署；30 单真实联调等运行验收仍按任务文档继续。
+
+### 1.0 已发布能力与剩余运行验收
+
+以下能力已部署到 NAS；表中保留的条件是上线后的运行验收，不代表需要再次发布：
+
+| 能力 | 迁移范围 | 剩余运行验收 |
+|------|------|------|
+| WhatsApp 本地归档与客户工作区 | V43-V47 | 已发布；继续完成 Collector/Worker Key、Mac → NAS 增量同步与回滚验收 |
+| 纸单 Agent 批量草稿 | V48 + 应用增量 | 已发布多图上传和并排核单；继续完成真实 30 单外网联调 |
+| SPU 占位 SKU | V49-V50/V56 | 已发布；发布门禁确认所有显式规格商品恰有一个启用占位 SKU |
+| Agent Key 生命周期管理 | V58 + 本机应用 | 已发布服务端和本机管理器；继续按不同 Agent 验收授权、轮换、停用与调用审计 |
+
+不得只发布数据库或只发布前端。每组能力需要同时部署匹配的后端、前端和迁移，再执行健康检查。
+
 ### 1.1 NAS 信息
 
 | 项目 | 值 |
@@ -21,6 +36,7 @@
 | docker-compose | `/usr/local/bin/docker-compose`，旧版 compose v1 |
 | 生产端口 | `8899` |
 | 访问入口 | `https://192.168.1.10:8899/catalog` |
+| 外网业务入口 | `https://www.chenjianas.asia:33294`（Agent 运行配置，可变，不写死） |
 
 不要在文档或日志中打印 NAS 密码、`.env.prod`、JWT secret、数据库密码。
 
@@ -30,6 +46,8 @@
 - 如果本地环境无法访问 `192.168.1.10:22`，发布脚本会自动切换到 WireGuard 地址 `10.13.13.1` 继续连接 NAS。
 - 如需强制使用某个地址，可传入 `NAS_HOST=<host> NAS_HOST_FIXED=1`。
 - 生产入口文档仍以局域网地址 `https://192.168.1.10:8899/catalog` 记录；通过 WireGuard 验证时可访问 `https://10.13.13.1:8899/catalog`。
+- 外部 Mac Agent 当前通过 `https://www.chenjianas.asia:33294` 访问业务 API；Agent 端使用 `BLADE_AGENT_API_BASE_URL` 配置，实际接口拼接 `/api/agent/...`。该外网地址与 SSH 发布地址相互独立，变更外网入口不得影响 NAS 发布脚本的 `NAS_HOST`。
+- 外网业务入口只允许转发 Nginx HTTPS，不得公开 MySQL、Redis、后端容器端口、SSH 或 DSM 管理入口。正式联调需从 Agent 所在 Mac 验证证书、限流、审计和断线幂等重试。
 
 ### 1.2 生产部署目录
 
@@ -51,6 +69,9 @@
 │   │   ├── Dockerfile
 │   │   └── dist/
 │   └── deploy/nas/nginx/default.conf
+├── secrets/tls/                  # TLS 密钥，只存 NAS，不进 Git/镜像
+│   ├── blade.crt                  # 完整证书链
+│   └── blade.key                  # 匹配私钥，建议 600
 ├── mysql/                       # MySQL 数据目录，生产数据，不能随意删除
 ├── redis/                       # Redis 持久化目录
 ├── uploads/                     # 文件中心真实文件目录
@@ -97,7 +118,7 @@ product      164
 product_sku  416
 sale_order   81
 file_storage 22
-flyway       39
+flyway       42（2026-08-30 只读复核）
 ```
 
 注意：`file_storage` 记录已迁移，但真实文件是否完整存在于 `/volume2/blade/uploads` 需要单独核对。
@@ -179,8 +200,8 @@ MySQL 数据 > uploads 文件 > .env.prod 密钥 > 应用镜像/前端静态资�
 
 日常发布只应该更新：
 
-- `blade-backend:prod`
-- `blade-web:prod`
+- `blade-backend:<release_id>`（成功后同步兼容 `:prod` 标签）
+- `blade-web:<release_id>`（成功后同步兼容 `:prod` 标签）
 - `/volume2/blade/app/blade-backend/target/blade-backend-1.0.0.jar`
 - `/volume2/blade/app/blade-admin/dist`
 - `/volume2/blade/app/deploy/nas/nginx/default.conf`
@@ -198,6 +219,8 @@ MySQL 数据 > uploads 文件 > .env.prod 密钥 > 应用镜像/前端静态资�
 日常发布必须使用：
 
 ```bash
+ORDER_RELEASE_CONFIRM=YES \
+REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
 deploy/nas/deploy_app_from_local.sh --execute
 ```
 
@@ -244,6 +267,7 @@ FIRST_DEPLOY_CONFIRM=YES deploy/nas/deploy_from_local.sh
 5. 发布命令只更新 `backend` 和 `web`，不更新 MySQL/Redis。
 6. 明确当前是否有未提交代码；有未提交代码时必须向用户说明风险。
 7. 若本次版本包含 Flyway migration，必须确认 migration 文件已提交到 Git，已在本地或测试库验证通过，并在发布说明中列出数据库影响范围。
+8. NAS `secrets/tls/blade.crt` 与 `blade.key` 非空、未过期、公钥匹配；证书私钥不得进入 Git 或 Docker 镜像。
 
 发布后必须验证：
 
@@ -395,22 +419,25 @@ cd /Users/chenjiarun/Documents/BladeProject
 deploy/nas/deploy_app_from_local.sh
 ```
 
-默认是 dry run，只展示流程，不会上传或修改 NAS。确认执行：
+默认是 dry run，只展示流程，不会上传或修改 NAS。确认执行时必须提供与当前 commit 匹配的生产副本预演证据：
 
 ```bash
+ORDER_RELEASE_CONFIRM=YES \
+REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
 deploy/nas/deploy_app_from_local.sh --execute
 ```
 
 该脚本会自动完成：
 
-- 记录 Git 分支、commit 和未提交变更。
+- 要求 Git 工作区干净，并核验预演证据中的完整 commit。
+- 在构建前校验 NAS TLS 证书/私钥存在、未过期且匹配；Nginx 以只读方式挂载 `/volume2/blade/secrets/tls`。
 - 本地构建后端 jar 和前端 dist。
-- 只构建 `blade-backend:prod`、`blade-web:prod` 应用镜像。
+- 只构建带 release ID 的后端、前端不可变应用镜像。
 - 校验镜像架构必须为 `linux/amd64`。
-- 在 NAS 上创建发布前数据库备份并校验非空。
+- 在 NAS 上创建压缩全库/schema 备份、SHA-256 和 NAS 外校验副本。
 - 上传应用文件和应用镜像。
-- 执行 `docker-compose up -d --no-deps backend web`，只重启应用容器。
-- 验证容器状态和 `/catalog`。
+- 启用维护页后只替换应用容器，执行历史订单迁移和幂等重放。
+- 通过 SQL 不变量、容器健康、可信外网 TLS 和 `/catalog` 后才解除维护。
 
 以下小节是该脚本的手工等价流程，用于排查或特殊场景。
 
@@ -549,10 +576,10 @@ backend 启动时 Flyway 自动执行尚未执行过的 migration
 
 ```bash
 cd /Users/chenjiarun/Documents/BladeProject
-deploy/nas/backup_db.sh
+deploy/nas/backup_db.sh --execute
 ```
 
-脚本只执行 `mysqldump` 只读导出，并校验备份文件非空。
+脚本使用 `mysqldump --single-transaction` 导出压缩全库和 schema，保存 Flyway 历史，生成 SHA-256，并复制到 NAS 外的本机目录后再次验签。默认不执行，必须显式传入 `--execute`。
 
 手工等价命令：
 
@@ -640,6 +667,117 @@ SELECT \"flyway\", COUNT(*) FROM flyway_schema_history;
 '
 ```
 
+### 7.7 订单大重构的备份集
+
+普通日常发布只要求生成非空 `mysqldump`；订单生命周期和财务重构必须使用 release ID 建立完整备份集，不能只留下 NAS 同一磁盘上的一份 SQL。
+
+每个备份集至少包含：
+
+| 内容 | 要求 |
+|------|------|
+| 数据库逻辑备份 | `--single-transaction --routines --triggers`；压缩后生成 SHA-256 |
+| 数据库结构备份 | 单独导出 schema，便于核对迁移前结构 |
+| Flyway 历史 | 导出完整 `flyway_schema_history` |
+| 业务基线报告 | 订单数、明细数、实收、退款、核销、尾款、配货计划、出库和库存汇总 |
+| uploads | 群晖快照或只读文件备份，并生成文件路径、大小和数量清单 |
+| 发布制品 | Git commit、migration 列表、compose/nginx、前后端不可变镜像 ID 和镜像 tar |
+| 私密配置 | `.env.prod` 只做受控加密备份，不写入 Git、日志或普通 release 目录 |
+| 恢复说明 | 恢复顺序、旧镜像 ID、验证命令、负责人和停止条件 |
+
+数据库备份至少保留两份：NAS `db-backups` 一份，NAS 之外的受控介质一份。推荐遵守 3-2-1 原则，但不得为了复制备份而在日志中暴露密钥或真实业务数据。
+
+备份完成不代表可恢复。正式发布前必须在隔离 MySQL 中实际恢复一次，确认：SQL 可导入、Flyway 版本正确、关键表数量和金额汇总一致、应用旧版本可以读取。只做 `test -s` 不足以作为大重构发布门禁。
+
+### 7.8 分阶段无损切换
+
+“无损替换”指业务事实、订单金额、财务流水、库存和附件不丢失，不承诺完全零停机。当前单实例架构建议使用短暂停写窗口，而不是在生产库上直接尝试一键替换。
+
+#### 阶段 A：兼容底座
+
+1. migration 只新增表、字段和索引，不删除、不改写旧字段含义。
+2. 新服务同时返回新旧字段，旧前端仍能读取。
+3. 状态、财务和履约写入集中到统一服务；过渡期按设计维护必要兼容快照。
+4. 仪表盘、客户、Agent 等消费者先进行影子计算和差异报告，不立即切换展示口径。
+
+#### 阶段 B：生产副本预演
+
+1. 只读导出 V42 生产库，恢复到隔离测试库。
+2. 连续执行 V43-V50 和订单重构的新 migration。
+3. 运行历史订单迁移，输出逐单旧值、新值、判定证据和异常原因。
+4. 核对订单数、金额、收款、退款、核销、尾款、配货、出库和库存不变量。
+5. 使用同一份脚本至少重复预演一次，结果必须确定且幂等。
+
+#### 阶段 C：最终切换
+
+1. 发布维护公告并进入短暂停写；所有 PC、移动端、Agent、Collector 和后台任务停止产生订单相关写入。
+2. 停止 `backend`，保留维护页；确认数据库连接中没有业务写事务。
+3. 创建最终数据库与 uploads 一致性备份集，计算哈希并复制一份到 NAS 外。
+4. 记录最终业务基线和 Flyway V42 状态。
+5. 加载按 release ID 标记的新镜像，执行 migration 和历史数据迁移。
+6. 运行自动不变量校验、登录和订单关键路径冒烟。
+7. 校验全部通过后切换 web/backend 并解除停写；失败则在仍未开放写入时回滚。
+
+#### 阶段 D：观察与清理
+
+1. 首个观察期保留旧字段、旧镜像、备份和兼容读取。
+2. 持续比对旧口径与新事实层，监控金额差异、失败动作、库存异常和缓存一致性。
+3. 至少稳定一个发布周期后，才评估删除旧接口或字段；物理删除必须是单独 release。
+
+### 7.9 回滚边界
+
+| 时点 | 回滚方式 | 数据损失风险 |
+|------|------|------|
+| 尚未解除停写 | 切回旧镜像；必要时恢复最终数据库/uploads 备份 | 可做到不丢业务写入，因为窗口内没有新写入 |
+| 已解除停写，但 migration 为加法且旧应用兼容 | 关闭新功能开关或切回旧读取/旧镜像，不恢复数据库 | 新写入保留，推荐方式 |
+| 已解除停写且已有新模型写入 | 优先前向修复、冲销流水或兼容转换 | 直接恢复旧 SQL 会丢失切换后的新订单，禁止盲目覆盖 |
+| 发生不可逆数据破坏 | 再次停写，保存事故现场和增量数据，评审后恢复备份并人工合并增量 | 必须单独获得用户确认 |
+
+只要重新开放录单，就不能再把发布前 SQL 整库覆盖回来并声称“无损”。因此首发必须坚持加法 migration、兼容读取、不可变流水和延迟删除，使应用回滚不依赖数据库回滚。
+
+### 7.10 发布脚本升级要求
+
+订单大重构正式 release 前，`backup_db.sh` 和 `deploy_app_from_local.sh` 至少补齐：
+
+- 数据库备份压缩、SHA-256 和 NAS 外副本校验。
+- 隔离库恢复演练结果和业务基线报告门禁。
+- `blade-backend:<release_id>`、`blade-web:<release_id>` 不可变标签，保留上一个稳定镜像。
+- 明确的 maintenance/停写步骤，以及 migration 前后检查点。
+- Flyway 和历史迁移失败时保持停写，不自动继续开放流量。
+- 发布清单记录 Git commit、镜像 digest、migration 范围、备份文件和回滚命令。
+
+上述能力已于 2026-09-10 落到脚本，并在 2026-09-11 release `20260911_032005` 的 V42→V58 正式发布中全部通过：
+
+- `backup_db.sh` 默认 dry-run；`--execute` 才会生成压缩全库与 schema、Flyway 历史、SHA-256，并下载到 `LOCAL_BACKUP_DIR` 后再次验签。
+- `deploy_app_from_local.sh` 默认 dry-run；执行前要求工作区干净、`ORDER_RELEASE_CONFIRM=YES`，以及与当前完整 Git commit 一致的 `REHEARSAL_REPORT`。
+- `verify_order_release.sh` 在迁移与幂等重放后检查未迁移订单、状态枚举、金额非负、流水/快照对账和占位 SKU 唯一性；任一项非零即退出。
+- Nginx 通过 `/volume2/blade/maintenance/enabled` 提供 503 中文维护页；发布失败时脚本故意保留该文件，禁止自动恢复写入。
+- release 镜像使用 `blade-backend:<release_id>` / `blade-web:<release_id>`，旧镜像另存 `pre-<release_id>` 标签；全部门禁通过后才更新兼容 `:prod` 标签。
+- Web 镜像不再内置 TLS 文件；`/volume2/blade/secrets/tls` 以只读卷挂载到 `/etc/nginx/ssl`。证书完整链的 SAN 必须包含外网域名，私钥建议 `600`、目录建议 `700`。
+
+预演证据为简单键值文件，至少包含以下三行，并必须由最终 release commit 的生产副本预演生成，不得手填冒充：
+
+```text
+git_commit=<完整 40 位 commit>
+result=PASS
+manual_review=0
+```
+
+正式命令：
+
+```bash
+ORDER_RELEASE_CONFIRM=YES \
+REHEARSAL_REPORT=/absolute/path/order-release-rehearsal.env \
+deploy/nas/deploy_app_from_local.sh --execute
+```
+
+2026-09-10 已将 `chenjianas.asia` TrustAsia 完整证书链以 NAS 私有目录只读挂载到 `blade-web`，`https://chenjianas.asia:33294/catalog` 和 `https://www.chenjianas.asia:33294/catalog` 均以系统信任链返回 200。发布脚本仍必须在解除维护前以不带 `-k` 的方式验证 `AGENT_EXTERNAL_URL`。2026-09-11 已基于外网默认地址同步后的最终候选重跑生产副本预演，并生成精确 commit 绑定的非敏感 PASS 证据；候选 commit 再变更时必须重跑。
+
+2026-09-11 正式发布记录：commit `12e1eb91c19401dde3919afec0b3d80cbc910750`，release `20260911_032005`，NAS 备份 `/volume2/blade/db-backups/nas_blade_project_prod_20260911_032005`，Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260911_032005`。Flyway V58、145 单迁移、0 人工核对、幂等重放和全部 SQL 门禁通过，维护模式已解除。
+
+2026-09-12 增量发布记录：commit `9722ca8ce37579cb19147cff00826d55318db3bc`，release `20260912_220631`，NAS 备份 `/volume2/blade/db-backups/nas_blade_project_prod_20260912_220631`，Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260912_220631`。Flyway 保持 V58；历史迁移/重放新增 0、人工核对 0，145 张正式订单与 43 张草稿保留，金额、流水、状态和占位 SKU 门禁通过，维护模式已解除，内外网可信 HTTPS 均返回 200。
+
+当前证书于 2026-11-26 03:59:59 GMT 到期，尚未建立自动续期。运维人员必须于 2026-11-19 前完成替换，使用新证书覆盖 NAS 密钥目录后仅重建 `web`，并重复证书/私钥匹配、裸域名和 `www` 外网信任链验证。
+
 ---
 
 ## 8. uploads 文件迁移流程
@@ -723,7 +861,7 @@ test "$missing" -eq 0
 #### 发布和补生成门禁
 
 1. 只从已验收 release 合入 `master` 后发布，NAS 不部署 feature/develop。
-2. 发布前运行 `deploy/nas/backup_db.sh`，并确认备份文件非空。
+2. 发布前运行 `deploy/nas/backup_db.sh --execute`，并确认 NAS 与 NAS 外副本 SHA-256 均通过。
 3. 确认 `/volume2/blade/uploads` 已有群晖快照或独立备份，记录文件数和 `du -sh` 结果。
 4. 只更新 `backend` 和 `web`；禁止重建 MySQL/Redis，禁止覆盖 uploads。
 5. 后端启动后确认 Flyway 到 V38，再验证登录、原图 `/preview` 和派生图 `/variant`。

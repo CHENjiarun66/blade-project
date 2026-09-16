@@ -195,7 +195,7 @@
 
 ### 2.1 product_category 商品分类表
 
-**来源迁移**：`V3__product_module.sql`
+**来源迁移**：`V3__product_module.sql`、`V49__product_sku_types_and_placeholder.sql`、`V50__correct_default_sku_classification.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -310,6 +310,7 @@
 | color_id | bigint | NOT NULL | 颜色ID |
 | size_id | bigint | NOT NULL | 尺码ID |
 | sku_code | varchar(50) | UNIQUE, NOT NULL | SKU编码（系统自动生成） |
+| sku_type | varchar(20) | NOT NULL, DEFAULT NORMAL | `NORMAL` 真实规格、`DEFAULT` 无规格默认、`PLACEHOLDER` 款号占位 |
 | price | decimal(12,2) | NOT NULL | 单价 |
 | cost_price | decimal(12,2) | DEFAULT 0 | 成本价 |
 | bar_code | varchar(50) | | 条形码 |
@@ -318,7 +319,9 @@
 | deleted | tinyint | DEFAULT 0 | 删除标记 |
 | create_time | datetime | DEFAULT | 创建时间 |
 
-**索引**：`uk_sku_code(sku_code, tenant_id)`, `idx_product_id(product_id)`, `idx_color_id(color_id)`, `idx_size_id(size_id)`, `idx_tenant_id(tenant_id)`
+**索引**：`uk_sku_code(sku_code, tenant_id)`, `idx_product_id(product_id)`, `idx_color_id(color_id)`, `idx_size_id(size_id)`, `idx_tenant_id(tenant_id)`, `idx_product_sku_type(tenant_id, product_id, sku_type, status, deleted)`
+
+系统保留属性 `UNSPECIFIED/UNSPEC` 用于 `PLACEHOLDER`，`NA/NA` 用于无规格 `DEFAULT`；保留属性状态为禁用且不写入商品颜色/尺码关联，因此不会出现在普通属性维护列表。任何存在启用 `NORMAL` SKU 的显式规格商品最多一个有效占位 SKU，即使只有一个具体组合也必须生成；新建编码为 `{product_code}-UNSPECIFIED-UNSPEC`，并兼容 V49 既有 `{product_code}-UNSPEC-UNSPEC`。编码是后端稳定标识，不直接作为业务文案：前端分别显示“整款录入（颜色/尺码未指定）”和“无规格商品（实际 SKU）”。商品增加真实规格后，历史 `DEFAULT` 行仅禁用、不删除，保证既有订单外键和销售事实不变。
 
 ---
 
@@ -454,7 +457,7 @@
 | id | bigint | PK | 订单ID |
 | order_no | varchar(30) | UNIQUE, NOT NULL | 订单号 |
 | order_date | date | | 订单日期（纸质单据日期） |
-| source_doc_no | varchar(50) | | 纸质单据号/外部单号 |
+| source_doc_no | varchar(50) | | 正式订单兼容纸质单据号；草稿批次与单号按 `批次_单号` 生成 |
 | source_shop | varchar(100) | | 订单来源档口/店铺，不等同于仓库 |
 | order_type | varchar(20) | NOT NULL, DEFAULT 'SPOT' | 订单类型：SPOT现货/PREORDER订货 |
 | customer_id | bigint | | 客户ID |

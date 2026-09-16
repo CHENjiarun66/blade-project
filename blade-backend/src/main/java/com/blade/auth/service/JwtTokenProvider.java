@@ -28,6 +28,15 @@ public class JwtTokenProvider {
         return generateToken(new HashMap<>(), userDetails);
     }
 
+    public String generateToken(UserDetails userDetails, Long tenantId) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("tokenType", "access");
+        if (tenantId != null) {
+            claims.put("tenantId", tenantId);
+        }
+        return buildToken(claims, userDetails, jwtExpiration);
+    }
+
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
         return buildToken(extraClaims, userDetails, jwtExpiration);
     }
@@ -43,6 +52,7 @@ public class JwtTokenProvider {
     public String generateRefreshToken(UserDetails userDetails, long expiration, boolean remember, Long tenantId) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("remember", remember);
+        claims.put("tokenType", "refresh");
         if (tenantId != null) {
             claims.put("tenantId", tenantId);
         }
@@ -64,6 +74,10 @@ public class JwtTokenProvider {
             }
             return null;
         });
+    }
+
+    public String getTokenTypeFromToken(String token) {
+        return extractClaim(token, claims -> claims.get("tokenType", String.class));
     }
 
     private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration) {

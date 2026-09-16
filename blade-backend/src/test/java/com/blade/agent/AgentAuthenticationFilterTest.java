@@ -10,7 +10,6 @@ import com.blade.agent.mapper.AgentKeyMapper;
 import com.blade.common.tenant.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,9 +17,12 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.lang.reflect.Proxy;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentAuthenticationFilterTest {
 
@@ -44,11 +46,17 @@ class AgentAuthenticationFilterTest {
         request.addHeader("User-Agent", "Hermes-Agent/1.0");
         request.setRemoteAddr("10.0.0.8");
 
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        AtomicReference<String> authenticatedName = new AtomicReference<>();
+        AtomicLong tenantInsideChain = new AtomicLong();
+        filter.doFilter(request, new MockHttpServletResponse(), (servletRequest, servletResponse) -> {
+            authenticatedName.set(SecurityContextHolder.getContext().getAuthentication().getName());
+            tenantInsideChain.set(TenantContext.getTenantId());
+        });
 
-        assertEquals("agent_demo", SecurityContextHolder.getContext().getAuthentication().getName());
-        assertNull(SecurityContextHolder.getContext().getAuthentication().getCredentials());
-        assertEquals(7L, TenantContext.getTenantId());
+        assertEquals("agent_demo", authenticatedName.get());
+        assertEquals(7L, tenantInsideChain.get());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        assertNull(TenantContext.getTenantId());
         assertEquals(15L, auditRecorder.principal.getKeyId());
         assertEquals("GET", auditRecorder.event.getMethod());
         assertEquals("/api/agent/analytics/style-trends", auditRecorder.event.getPath());
@@ -56,6 +64,42 @@ class AgentAuthenticationFilterTest {
         assertEquals("10.0.0.8", auditRecorder.event.getIp());
         assertEquals("Hermes-Agent/1.0", auditRecorder.event.getUserAgent());
         assertNull(auditRecorder.event.getRawKey());
+    }
+
+    @Test
+    void filterReturnsJson401WhenAgentKeyIsMissing() throws Exception {
+        AgentAuthenticationFilter filter = new AgentAuthenticationFilter(
+                new AgentKeyAuthenticationService(fakeMapper(activeKey()), passwordEncoder),
+                new CapturingAuditRecorder());
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/api/agent/catalog/skus");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            throw new AssertionError("missing key must not enter the application");
+        });
+
+        assertEquals(401, response.getStatus());
+        assertTrue(response.getContentType().startsWith("application/json"));
+        assertTrue(response.getContentAsString().contains("\"code\":401"));
+    }
+
+    @Test
+    void filterReturnsJson401WhenAgentKeyIsInvalid() throws Exception {
+        AgentAuthenticationFilter filter = new AgentAuthenticationFilter(
+                new AgentKeyAuthenticationService(fakeMapper(activeKey()), passwordEncoder),
+                new CapturingAuditRecorder());
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/api/agent/catalog/skus");
+        request.addHeader(AgentAuthenticationFilter.AGENT_KEY_HEADER, "agent_demo.wrong-secret");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            throw new AssertionError("invalid key must not enter the application");
+        });
+
+        assertEquals(401, response.getStatus());
+        assertTrue(response.getContentAsString().contains("Agent Key无效"));
     }
 
     private AgentKey activeKey() {
@@ -76,7 +120,7 @@ class AgentAuthenticationFilterTest {
                 AgentKeyMapper.class.getClassLoader(),
                 new Class<?>[] { AgentKeyMapper.class },
                 (proxy, method, args) -> switch (method.getName()) {
-                    case "selectOne" -> key;
+                    case "selectActiveByPrefixForAuthentication" -> key;
                     case "toString" -> "FakeAgentKeyMapper";
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];

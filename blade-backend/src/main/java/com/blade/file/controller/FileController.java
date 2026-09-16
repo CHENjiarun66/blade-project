@@ -44,8 +44,10 @@ public class FileController {
             "product", "menu:product",
             "sku", "menu:product",
             "order", "btn:order:view",
+            "order_draft", "menu:order",
             "inventory_log", "btn:inventory:viewLog",
-            "ocr_document", "menu:file"
+            "ocr_document", "menu:file",
+            "whatsapp_message", "menu:whatsapp"
     );
 
     public FileController(FileService fileService, FileDerivativeService derivativeService) {

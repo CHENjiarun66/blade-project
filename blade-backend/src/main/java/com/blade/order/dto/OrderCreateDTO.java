@@ -44,9 +44,11 @@ public class OrderCreateDTO {
     @Schema(description = "客户地址")
     private String customerAddress;
 
-    // 支付状态: 0未付款 1部分收款 2已结清
-    @NotNull(message = "支付状态不能为空")
-    @Schema(description = "支付状态: 0未付款 1部分收款 2已结清")
+    /**
+     * 旧兼容字段：新建提交不再要求携带、不再作为业务依据；
+     * 收款经创建后的统一财务动作入账并重算快照。
+     */
+    @Schema(description = "旧兼容字段（可省略）：收款经创建后的统一动作入账")
     private Integer paymentStatus;
 
     @Schema(description = "定金金额（当 paymentStatus=1 时必填）")

@@ -189,6 +189,11 @@
           </div>
         </div>
       </el-tab-pane>
+
+      <!-- Tab 4: WhatsApp -->
+      <el-tab-pane v-if="canViewWhatsapp" label="WhatsApp" name="whatsapp" lazy>
+        <CustomerWhatsappWorkspace :customer-id="customerId" :customer-name="customer?.name || '客户'" />
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -200,9 +205,13 @@ import { getCustomerById, getCustomerOrders, getCustomerPreference } from '@/api
 import type { CustomerVO } from '@/api/customer'
 import { getCountryNameZh } from '@/data/countries'
 import { formatDate } from '@/utils/format'
+import CustomerWhatsappWorkspace from '@/components/whatsapp/CustomerWhatsappWorkspace.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const customerId = Number(route.params.id)
+const canViewWhatsapp = computed(() => authStore.permissions.includes('menu:whatsapp'))
 
 const activeTab = ref('info')
 const infoLoading = ref(false)

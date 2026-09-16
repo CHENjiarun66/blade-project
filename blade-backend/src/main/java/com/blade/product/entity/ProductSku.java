@@ -17,6 +17,8 @@ public class ProductSku {
     private Long sizeId;
     @TableField("sku_code")
     private String skuCode;
+    @TableField("sku_type")
+    private String skuType;
     private BigDecimal price;
     @TableField("cost_price")
     private BigDecimal costPrice;
@@ -40,6 +42,8 @@ public class ProductSku {
     public void setSizeId(Long sizeId) { this.sizeId = sizeId; }
     public String getSkuCode() { return skuCode; }
     public void setSkuCode(String skuCode) { this.skuCode = skuCode; }
+    public String getSkuType() { return skuType; }
+    public void setSkuType(String skuType) { this.skuType = skuType; }
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal price) { this.price = price; }
     public BigDecimal getCostPrice() { return costPrice; }

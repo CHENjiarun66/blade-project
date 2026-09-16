@@ -6,6 +6,10 @@
         <p class="text-sm text-gray-500">按纸质单据逐张录入，保存后进入标准订单流程。</p>
       </div>
       <div class="flex flex-wrap gap-3">
+        <el-button type="warning" plain class="!rounded-xl !font-bold" :loading="draftSaving" @click="saveAsDraft">
+          <span class="material-symbols-outlined text-sm mr-1">draft_orders</span>
+          添加到草稿
+        </el-button>
         <el-button class="!rounded-xl !font-bold" @click="router.push('/orders')">
           <span class="material-symbols-outlined text-sm mr-1">arrow_back</span>
           返回订单
@@ -29,10 +33,14 @@
               <span class="material-symbols-outlined text-[#408aee]">receipt_long</span>
               <h3>单据信息</h3>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
               <label class="field-block">
-                <span>纸质单号</span>
-                <el-input v-model="form.sourceDocNo" placeholder="如 6月-001" />
+                <span>单据批次 <em class="required-mark">*</em></span>
+                <el-input v-model="form.sourceBatchNo" maxlength="20" placeholder="如 41" />
+              </label>
+              <label class="field-block">
+                <span>单据号 <em class="required-mark">*</em></span>
+                <el-input v-model="form.sourceOrderNo" maxlength="29" placeholder="如 0135" />
               </label>
               <label class="field-block">
                 <span>订单日期</span>
@@ -42,7 +50,7 @@
                 <span>订单类型</span>
                 <el-segmented v-model="form.orderType" :options="orderTypeOptions" class="quick-segmented" />
               </label>
-              <label class="field-block">
+              <label class="field-block md:col-span-2">
                 <span>来源档口/店铺</span>
                 <el-input v-model="form.sourceShop" placeholder="如 杭州四季青A档、线上店铺" clearable />
               </label>
@@ -449,14 +457,17 @@ import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createOrder } from '@/api/order'
+import { confirmOrderDraft, createOrderDraft, saveOrderDraft, type DraftSaveRequest } from '@/api/orderDraft'
 import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO } from '@/api/customer'
 import { fileVariantUrl, parseImageSources, uploadFile } from '@/api/file'
 import { getProductFileBindings, getProductPage, type ProductVO, type ProductSku, type ProductFileBindingsVO } from '@/api/product'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
+import { hasFriendlySkuName, skuFriendlyName, skuSizeDisplay } from '@/utils/skuDisplay'
 
 interface QuickLine {
   skuId?: number
   skuCode?: string
+  skuType?: string
   productName?: string
   productCode?: string
   colorName?: string
@@ -474,6 +485,7 @@ interface SkuOption {
   skuId: number
   productId: number
   skuCode: string
+  skuType?: string
   productCode: string
   productName: string
   colorName: string
@@ -513,6 +525,9 @@ const defaultSourceShop = '御龙'
 const walkInCustomerName = '散客用户'
 const walkInCustomerPhone = '88888888'
 const saving = ref(false)
+const draftSaving = ref(false)
+const savedDraftId = ref<number>()
+const draftExternalRefNo = ref('')
 const needDelivery = ref(false)
 const skuOptions = ref<SkuOption[]>([])
 const filteredSkuOptions = ref<SkuOption[]>([])
@@ -539,7 +554,10 @@ const matrixColors = computed(() => {
   const seen = new Map<number, { id: number; name: string }>()
   for (const sku of activeSkus.value) {
     if (!seen.has(sku.colorId)) {
-      seen.set(sku.colorId, { id: sku.colorId, name: sku.colorName })
+      seen.set(sku.colorId, {
+        id: sku.colorId,
+        name: hasFriendlySkuName(sku) ? skuFriendlyName(sku) : sku.colorName,
+      })
     }
   }
   return Array.from(seen.values())
@@ -549,7 +567,10 @@ const matrixSizes = computed(() => {
   const seen = new Map<number, { id: number; name: string }>()
   for (const sku of activeSkus.value) {
     if (!seen.has(sku.sizeId)) {
-      seen.set(sku.sizeId, { id: sku.sizeId, name: sku.sizeName })
+      seen.set(sku.sizeId, {
+        id: sku.sizeId,
+        name: hasFriendlySkuName(sku) ? skuSizeDisplay(sku) : sku.sizeName,
+      })
     }
   }
   return Array.from(seen.values()).sort((a, b) => a.id - b.id)
@@ -624,7 +645,8 @@ const orderTypeOptions = [
 ]
 
 const form = reactive({
-  sourceDocNo: '',
+  sourceBatchNo: '',
+  sourceOrderNo: '',
   sourceShop: defaultSourceShop,
   orderDate: today,
   orderType: 'SPOT',
@@ -682,13 +704,23 @@ function sanitizeMoneyText(value: string) {
     .replace(/(\..*)\./g, '$1')
 }
 
-function formatSkuDisplay(sku: Pick<SkuOption, 'productName' | 'productCode' | 'colorName' | 'sizeName'>) {
-  return `${sku.productName} · ${sku.colorName || '-'} · ${sku.sizeName || '-'}`
+function formatSkuDisplay(sku: Pick<SkuOption, 'productName' | 'productCode' | 'colorName' | 'sizeName' | 'skuCode' | 'skuType'>) {
+  const semanticName = skuFriendlyName(sku)
+  return semanticName === sku.skuCode
+    ? `${sku.productName} · ${sku.colorName || '-'} · ${sku.sizeName || '-'}`
+    : `${sku.productName} · ${semanticName}`
 }
 
 function lineSkuLabel(row: QuickLine) {
   return row.productName
-    ? `${row.productName} · ${row.colorName || '-'} · ${row.sizeName || '-'}`
+    ? formatSkuDisplay({
+        productName: row.productName,
+        productCode: row.productCode || '',
+        colorName: row.colorName || '',
+        sizeName: row.sizeName || '',
+        skuCode: row.skuCode || '',
+        skuType: row.skuType,
+      })
     : ''
 }
 
@@ -706,6 +738,28 @@ function incrementSourceDocNo(value: string) {
   const [, prefix, numberPart] = match
   const nextNumber = String(Number(numberPart) + 1).padStart(numberPart.length, '0')
   return `${prefix}${nextNumber}`
+}
+
+function composedSourceDocNo() {
+  const batch = form.sourceBatchNo.trim()
+  const orderNo = form.sourceOrderNo.trim()
+  return batch && orderNo ? `${batch}_${orderNo}` : ''
+}
+
+function validateSourceDocument() {
+  if (!form.sourceBatchNo.trim()) {
+    ElMessage.warning('请填写单据批次')
+    return false
+  }
+  if (!form.sourceOrderNo.trim()) {
+    ElMessage.warning('请填写单据号')
+    return false
+  }
+  if (composedSourceDocNo().length > 50) {
+    ElMessage.warning('单据批次与单据号组合后不能超过 50 个字符')
+    return false
+  }
+  return true
 }
 
 function addLine() {
@@ -779,6 +833,7 @@ async function onSkuChange(row: QuickLine) {
   const sku = skuOptions.value.find(item => item.skuId === row.skuId)
   if (!sku) return
   row.skuCode = sku.skuCode
+  row.skuType = sku.skuType
   row.productCode = sku.productCode
   row.productName = sku.productName
   row.colorName = sku.colorName
@@ -801,6 +856,7 @@ function ensureSkuOption(product: ProductVO, sku: ProductSku) {
     skuId: sku.id,
     productId: product.id,
     skuCode: sku.skuCode,
+    skuType: sku.skuType,
     productCode: product.productCode,
     productName: product.name,
     colorName: sku.colorName || '',
@@ -861,6 +917,95 @@ function paymentStatusFromPaid() {
   return Number(form.paidAmount || 0) >= totalAmount.value ? 2 : 1
 }
 
+function manualDraftExternalRef() {
+  if (!draftExternalRefNo.value) {
+    const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2)
+    draftExternalRefNo.value = `manual-${Date.now()}-${randomPart}`
+  }
+  return draftExternalRefNo.value
+}
+
+function hasDraftLineContent(item: QuickLine) {
+  return !isEmptyLine(item)
+}
+
+function toDraftRequest(): DraftSaveRequest {
+  const lines = form.items.filter(hasDraftLineContent)
+  const sourceLines: QuickLine[] = lines.length ? lines : [form.items[0] || {
+    price: 0,
+    costPrice: 0,
+  }]
+  const draftLines = sourceLines.map((item, index) => {
+    const quantity = getLineQuantity(item)
+    const salePrice = parsePlainAmount(item.priceText ?? String(item.price || 0))
+    const paperAmount = quantity > 0 && salePrice > 0 ? quantity * salePrice : undefined
+    return {
+      sourceRowNo: index + 1,
+      rawProductCode: item.productCode || item.skuCode || undefined,
+      rawDescription: item.productName || undefined,
+      rawColor: [item.colorName, item.sizeName].filter(Boolean).join(' / ') || undefined,
+      rawQuantity: item.quantityText || undefined,
+      rawSalePrice: item.priceText || undefined,
+      rawAmount: paperAmount == null ? undefined : String(paperAmount),
+      skuId: item.skuId,
+      quantity: quantity > 0 ? quantity : undefined,
+      salePrice: salePrice > 0 ? salePrice : undefined,
+      costPrice: parsePlainAmount(item.costPriceText ?? String(item.costPrice || 0)),
+      paperAmount,
+      matchStatus: item.skuId ? 'MATCHED' as const : 'UNMATCHED' as const,
+      warnings: [],
+    }
+  })
+
+  return {
+    externalRefNo: manualDraftExternalRef(),
+    sourceBatchNo: form.sourceBatchNo.trim(),
+    sourceOrderNo: form.sourceOrderNo.trim(),
+    sourceShop: form.sourceShop || undefined,
+    orderType: form.orderType as 'SPOT' | 'PREORDER',
+    sourceFileIds: imageFileIds.value.map(Number).filter(Number.isFinite),
+    rawCustomerName: form.customerName || undefined,
+    rawCustomerPhone: form.customerPhone || undefined,
+    customerId: form.customerId,
+    customerName: form.customerName || '散客',
+    customerPhone: form.customerPhone || undefined,
+    customerCountryCode: form.countryCode || undefined,
+    customerAddress: form.customerAddress || undefined,
+    rawOrderDate: form.orderDate || undefined,
+    orderDate: form.orderDate || undefined,
+    paidAmount: Number(form.paidAmount || 0),
+    freightAmount: Number(form.freightAmount || 0),
+    freightCost: Number(form.freightCost || 0),
+    needDelivery: needDelivery.value ? 1 : 0,
+    deliveryAddress: needDelivery.value ? form.deliveryAddress || undefined : undefined,
+    note: form.remark || undefined,
+    warnings: [],
+    items: draftLines,
+  }
+}
+
+async function saveAsDraft() {
+  if (!validateSourceDocument()) return
+  draftSaving.value = true
+  try {
+    const request = toDraftRequest()
+    if (savedDraftId.value) {
+      await saveOrderDraft(savedDraftId.value, request)
+      ElMessage.success('草稿已更新，可从左侧“草稿订单列表”继续填写')
+      return
+    }
+    const response = await createOrderDraft(request)
+    savedDraftId.value = response.data.draftId
+    ElMessage.success('已添加到草稿，可从左侧“草稿订单列表”继续填写')
+  } catch (error: any) {
+    ElMessage.error(error.message || '保存草稿失败')
+  } finally {
+    draftSaving.value = false
+  }
+}
+
 async function ensureCustomer() {
   if (form.customerId) return form.customerId
 
@@ -893,6 +1038,7 @@ async function applyWalkInCustomerIfEmpty() {
 }
 
 async function submit(next: boolean) {
+  if (!validateSourceDocument()) return
   await applyWalkInCustomerIfEmpty()
 
   if (!form.customerName.trim()) {
@@ -910,12 +1056,23 @@ async function submit(next: boolean) {
   }
   saving.value = true
   try {
-    const currentSourceDocNo = form.sourceDocNo
+    const currentSourceOrderNo = form.sourceOrderNo
     const customerId = await ensureCustomer()
+    if (savedDraftId.value) {
+      await saveOrderDraft(savedDraftId.value, toDraftRequest())
+      const confirmed = await confirmOrderDraft(savedDraftId.value, true)
+      ElMessage.success('草稿已确认并生成正式订单')
+      if (next) {
+        resetForNext(currentSourceOrderNo)
+      } else {
+        router.push(`/orders/${confirmed.data.orderId}`)
+      }
+      return
+    }
     const data = {
       customerId,
       orderDate: form.orderDate,
-      sourceDocNo: form.sourceDocNo || undefined,
+      sourceDocNo: composedSourceDocNo(),
       sourceShop: form.sourceShop || undefined,
       orderType: form.orderType,
       customerName: form.customerName,
@@ -940,7 +1097,7 @@ async function submit(next: boolean) {
     const res = await createOrder(data)
     ElMessage.success('订单创建成功')
     if (next) {
-      resetForNext(currentSourceDocNo)
+      resetForNext(currentSourceOrderNo)
     } else {
       router.push(`/orders/${res.data}`)
     }
@@ -974,8 +1131,8 @@ function removeImage(index: number) {
   imageFileIds.value.splice(index, 1)
 }
 
-function resetForNext(previousSourceDocNo = '') {
-  form.sourceDocNo = incrementSourceDocNo(previousSourceDocNo)
+function resetForNext(previousSourceOrderNo = '') {
+  form.sourceOrderNo = incrementSourceDocNo(previousSourceOrderNo)
   form.sourceShop = defaultSourceShop
   form.customerId = undefined
   form.countryCode = '+86'
@@ -991,6 +1148,8 @@ function resetForNext(previousSourceDocNo = '') {
   imageSources.value = []
   imageFileIds.value = []
   needDelivery.value = false
+  savedDraftId.value = undefined
+  draftExternalRefNo.value = ''
   selectedProductId.value = undefined
   selectedProduct.value = null
   hoveredProduct.value = null
@@ -1012,6 +1171,7 @@ async function loadProducts() {
         skuId: sku.id,
         productId: product.id,
         skuCode: sku.skuCode,
+        skuType: sku.skuType,
         productCode: product.productCode,
         productName: product.name,
         colorName: sku.colorName || '',
@@ -1210,6 +1370,11 @@ onMounted(async () => {
   line-height: 1;
   font-weight: 800;
   color: #6b7280;
+}
+
+.required-mark {
+  color: #ef4444;
+  font-style: normal;
 }
 
 .quick-order-page :deep(.el-input__wrapper),

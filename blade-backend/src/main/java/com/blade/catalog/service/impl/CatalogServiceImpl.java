@@ -130,6 +130,7 @@ public class CatalogServiceImpl implements CatalogService {
             new LambdaQueryWrapper<ProductSku>()
                 .in(ProductSku::getProductId, productIds)
                 .eq(ProductSku::getStatus, 1)
+                .ne(ProductSku::getSkuType, "PLACEHOLDER")
                 .eq(ProductSku::getDeleted, 0));
         Map<Long, List<ProductSku>> skusByProduct = allSkus.stream()
             .collect(Collectors.groupingBy(ProductSku::getProductId));
@@ -202,6 +203,7 @@ public class CatalogServiceImpl implements CatalogService {
             new LambdaQueryWrapper<ProductSku>()
                 .eq(ProductSku::getProductId, id)
                 .eq(ProductSku::getStatus, 1)
+                .ne(ProductSku::getSkuType, "PLACEHOLDER")
                 .eq(ProductSku::getDeleted, 0));
         Map<Long, List<ProductSku>> skusByProduct = Map.of(id, allSkus);
 
@@ -411,6 +413,7 @@ public class CatalogServiceImpl implements CatalogService {
             new LambdaQueryWrapper<ProductSku>()
                 .in(ProductSku::getId, stockSkuIds)
                 .eq(ProductSku::getStatus, 1)
+                .ne(ProductSku::getSkuType, "PLACEHOLDER")
                 .eq(ProductSku::getDeleted, 0));
         return skus.stream()
             .map(ProductSku::getProductId)

@@ -11,6 +11,8 @@ public class TenantLineHandler implements com.baomidou.mybatisplus.extension.plu
     // 不需要租户过滤的表（无 tenant_id 字段的关联表）
     private static final List<String> IGNORE_TABLES = Arrays.asList(
         "sys_tenant",
+        // 权限定义按 V54 确认为全局共享；租户差异位于角色及角色-权限关联。
+        "sys_permission",
         "product_color_rel",
         "product_size_rel",
         "sys_role_permission",

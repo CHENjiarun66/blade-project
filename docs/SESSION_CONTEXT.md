@@ -5,14 +5,127 @@
 
 ---
 
+## 2026-09-15 录单字段与 SKU 显示修正基线
+
+- 订单全流程回退设计已形成 `18-ORDER_REVERSAL_APPROVAL_DESIGN.md`：禁止任意状态编辑，按未过账路径纠错、业务撤销和库存/财务事实冲销分层；R0 二次确认、R1 负责人审批、R2 强制职责分离、R3 禁止直接回退。当前仅完成设计和任务拆分，回退与审批代码尚未开发。
+- 订单详情配货流程已补齐占位 SKU 前端保护：仍含整款录入/历史待明确规格时，“创建配货计划”只提示先拆分，不加载仓库、不打开弹窗；后端 `startAllocation` 继续承担最终阻断。遗留配货计划弹窗也统一显示“整款录入（颜色/尺码未指定）”，不暴露乱码和 `UNSPEC`。
+- 订单详情“加收金额”默认 `0.0`，按钮按 1 元步进，允许手工录入 1 位小数；该弹窗金额统一显示 1 位小数，后端金额存储精度和历史数据不变。
+- 快速录单、手工草稿和 Agent 草稿统一使用独立的“单据批次 + 单据号”，两个字段均为必填；草稿分别保存，转正式订单时生成兼容值 `批次_单号` 写入 `sale_order.source_doc_no`。
+- 快速录单“保存并录下一单”保留批次，仅递增单据号末尾数字。旧手工草稿若仍是 `数字批次-单号` 或 `数字批次_单号` 且没有批次字段，详情页会兼容拆分，保存后规范化；不批量修改生产历史数据。
+- 批量录单的 `PLACEHOLDER` SKU 固定显示“整款录入（颜色/尺码未指定）”，不再暴露占位属性乱码；草稿详情、商品/SKU 字典和批次导航并行加载，详情不受约 9 秒的全量商品请求阻塞，目录未就绪时以识别款号作友好回退，不显示 `SKU {id}` 临时标签。
+- 当前改动已完成本地 PC 构建与专项 Playwright 验证；真实订单 1131 的占位配货前置阻断也已只读验证。尚未提交、推送或部署 NAS 生产。
+
+## 2026-09-14 草稿订单列表与批次工作台开发基线
+
+- 订单管理左侧入口改为“草稿订单列表”。列表只显示 `EDITING` 草稿，提供服务端分页以及批次、关键字、来源、待匹配和日期筛选；点击行进入 `/orders/drafts/{id}` 详情。
+- 详情页不再让用户切换“待处理/已确认”，而是按“单据批次 + 当前批次子单”切换。确认后草稿从列表消失，用户可查看正式订单或继续同批次下一张。
+- 后台继续保留 `CONFIRMED`、`confirmed_order_id`、确认人和确认时间，用于幂等、防重与审计；它不是用户日常查看的第二个草稿箱状态。
+- 本次无需数据库迁移，不改写既有生产数据；后端批次筛选集成测试、PC 构建和草稿关键路径 Playwright 已覆盖，尚未提交发布 NAS 生产。
+
+## 2026-09-13 Agent 客户权限扩展开发基线
+
+- Agent Gateway 新增 `customers:read` 和 `customers:create`。前者分页/单项读取客户名称、电话、地址、备注和订单数，属于独立敏感只读权限；后者只新增客户，不允许修改、删除、合并或标签调整。
+- 电话会规范化、去重并在同租户查重；已有号码返回 `DUPLICATE`，不覆盖旧客户。V60 为客户和操作日志增加 Agent Key 来源字段，既有客户无需改写。
+- 系统管理 Key 页面、本机 Key 管理器、请求白名单和 MCP 已同步客户列表、详情、新增能力。历史 Key 不自动扩权，必须由 Owner 调整权限并轮换 Key。
+- 本地验证：后端全量 517/517、PC 生产构建、Mac Key 管理器 9/9；真实 Agent Key 链路覆盖客户分页/详情、新增、重复号码幂等、来源审计和最小权限反例。
+- 本项尚未部署 NAS 生产；生产仍为 V58。开发库已迁移到 V60。
+
+## 2026-09-13 Agent 数据权限扩展开发基线
+
+- Agent Gateway 增加 `products:read`、`orders:read`、`products:create`：可分页读取脱敏商品/正式订单，可读取商品新增选项，并可只新增商品。
+- 商品/SKU 查询不返回成本价；订单查询不返回电话、地址、成本和毛利。草稿与正式订单保持不同接口，单页上限 100，不提供无上限全量导出。
+- 新增商品以商品编码作为重复保护：同编码返回 `DUPLICATE`，不覆盖旧数据；颜色尺码只能引用已有启用编码，系统保留编码和 DEFAULT/NORMAL/PLACEHOLDER SKU 由既有商品服务维护；不产生库存事实。
+- 系统管理 Agent Key 页可选择新增 scope。调整权限会轮换 Key并停用旧 Key，历史 Key 不自动扩权；Mac Key 管理器和 MCP 白名单同步增加商品/订单查询与商品新增工具。
+- 修改、删除、库存、收付款、正式订单动作仍未开放给 Agent；成本/毛利独立 scope 与限流分别继续由 BE-585、BE-562 跟进。本项尚未部署 NAS 生产。
+- 本地验证：后端全量 510/510、PC 生产构建、Mac Key 管理器 9/9；MockMvc 真实 Agent Key 链路已覆盖 scope 鉴权、只读 Key 拒绝写入、脱敏查询、商品新增和重复编码幂等。
+
+## 2026-09-13 快速录单暂存开发基线
+
+- 快速录单的“添加到草稿”已改为真实保存动作：允许半成品暂存、停留当前页、重复点击更新同一草稿；之后从左侧“草稿订单列表”继续填写并确认为正式订单。
+- V59 为 `order_draft` 增加 `MANUAL/AGENT` 来源和快速录单完整字段，为草稿明细增加成本价快照。既有 Agent 草稿默认保持 `AGENT`；手工草稿金额按明细+运费计算，Agent 草稿继续遵守纸单总额优先。
+- 手工草稿确认会保留订单类型、来源店铺、客户快照、实收、运费、配送、备注、图片和成本价，并沿用正式订单统一收款流水；未完成草稿不会进入正式订单、库存、财务或统计。
+- 本地门禁：后端全量 502/502、PC 生产构建、草稿关键路径 Playwright 3/3 通过；本地开发库已由 Flyway V58 升至 V59，未连接或修改 NAS 生产。
+- 本项尚未发布生产。生产仍停留在 V58 / release `20260912_220631`，上线必须按 V59 加法迁移和既有生产发布门禁执行。
+
+## 2026-09-11 本机 Agent Key 管理基线
+
+- 新增 `tools/blade-agent-key-manager` 原生 macOS 工具：用户可双击应用录入 Key、选择所属 Agent/环境/scope/到期日并查看剩余时间；完整 Key 只进入 macOS 钥匙串，普通元数据不保存密钥。
+- 应用附带 `blade-agent-request`，首次启动安装到用户 Application Support。支持 stdio MCP 和一次性命令调用；只开放商品候选、订单草稿、款式趋势和 SKU 结构四类白名单工具，远程 HTTP、任意 URL、任意写操作和跨主机重定向均被拒绝。
+- Agent 请求时由用户选择符合 scope 的 Key 并授权；1 小时授权只留在当前 MCP 进程。模型只得到 API 响应，不得到 Key。v1 的 Agent 名称为本机配置声明，调用进程强身份和服务器状态同步列为后续增强。
+- 接入文档新增 [16-AGENT_LOCAL_KEY_MANAGER.md](./16-AGENT_LOCAL_KEY_MANAGER.md) 和 [17-AGENT_ORDER_DRAFT_RUNBOOK.md](./17-AGENT_ORDER_DRAFT_RUNBOOK.md)。
+
+## 2026-09-11 最新基线（优先于下方历史快照）
+
+- 生产已以 commit `12e1eb91c19401dde3919afec0b3d80cbc910750`、release `20260911_032005` 从 Flyway V42 升级至 V58。NAS 与 Mac 双份备份均通过 SHA-256；维护模式已关闭，内外网恢复访问，可信外网入口为 `https://www.chenjianas.asia:33294`。
+- 145 张旧订单全部迁移，人工核对 0，重放新增 0：129 单为 `COMPLETED/RECORD_ONLY/SETTLED`，14 单为 `CONFIRMED/UNDECIDED/PARTIAL`，1 单为 `CONFIRMED/UNDECIDED/UNPAID`，1 单为 `CANCELLED/UNDECIDED/SETTLED`。订单总额 `367811.00`、实收 `367145.00`、余额 `666.00`，迁移前后守恒。
+- 生产现有 144 条历史实收期初流水、187 个商品、699 个 SKU，其中 187 个占位 SKU；全部订单/财务/SKU 发布 SQL 门禁为 0。
+- 备份：NAS `/volume2/blade/db-backups/nas_blade_project_prod_20260911_032005`；Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260911_032005`（目录 `700`、文件 `600`、SHA-256 已验签）。release manifest：`/volume2/blade/releases/20260911_032005/blade-release-manifest-20260911_032005.txt`。
+- `BE-1052` 已完成。下一主线是 `TEST-PHASE2-001` 真实纸单本地验收与 `TEST-PHASE2-002` 外网 30 单联调；完整财务仍后置。
+
+## 2026-09-10 基线
+
+- Codex 发布前复审发现并修复 JWT 租户/注销/刷新缺口：访问令牌携带租户，过滤器要求 Redis 活跃会话、在用户查询前恢复租户，声明与 Redis 不一致时拒绝，并在请求后清理线程上下文；刷新接口拒绝 access token，refresh token 采用 Redis 单次轮换，PC/移动端退出同时撤销两类会话。Agent/Collector 保持独立鉴权链。
+- Agent 草稿批次上限为 100 张、每单 200 行；`AgentSkuMixService` 同时识别两种历史占位编码。
+- 后端全量回归 496/496，`OrderDraftConfirmFinanceTest` 已改为事务内自建真实 SKU，不再依赖历史测试数据，并增加 100 单/每单 200 行硬上限反例；共享类型、PC、移动端生产构建全部通过。真实 HTTP 验证：受保护接口注销前 200、注销 200、复用同一 JWT 后 403。一次性空库完成 Flyway V1→V58、3 条内置旧订单迁移（人工核对 0）、幂等重放和全部发布 SQL 不变量检查，验证库已删除。
+- `BE-1052` 发布工具已实现：要求干净 Git、同 commit 生产副本预演证据、不可变镜像、维护页、压缩备份+SHA-256+NAS 外副本、历史迁移执行与幂等重放、迁移后 SQL 不变量校验。Web TLS 证书/私钥改为 NAS 私有目录只读挂载，不再进入 Git 和镜像。
+- 2026-09-10 将 NAS V42 生产库以一致性快照只读拉取到本地隔离库，完成 145 单 V42→V58 迁移预演、幂等重放和全部 SQL 门禁；人工核对 0，订单总额 367811.00、收款 367145.00 前后一致。该预演随后用于 2026-09-11 正式发布。
+- 2026-09-10 将 TrustAsia 证书以 NAS 私有目录只读挂载到 `blade-web`，`https://chenjianas.asia:33294/catalog` 和 `https://www.chenjianas.asia:33294/catalog` 均不带 `-k` 返回 200。证书 2026-11-26 到期且尚无自动续期，最迟需在 2026-11-19 前替换。
+
+## 2026-09-05 最新基线（优先于下方历史快照）
+
+- `feature/order-lifecycle-finance-refactor` 在 V57 基础上新增 V58 Agent Key 生命周期管理：Owner 可在系统管理页签签发、轮换和不可逆停用当前租户 Key；完整密钥仅返回一次，数据库只存 BCrypt 哈希，并记录签发用户、停用时间和轮换来源。
+- Mac 纸单 Agent 的 NAS 入口通过 `BLADE_AGENT_API_BASE_URL` 配置，当前外网值为 `https://www.chenjianas.asia:33294`；租户和 scope 仍由 `X-Agent-Key` 决定，接口请求不能自选租户。
+- 纸单原图不再是草稿创建前置条件；结构化批次没有 `sourceFileId` 时不再产生缺图警告。现有 source-files 接口只保留为可选凭证兼容。
+- 新增 Key 管理与无原图草稿测试通过，后端跳过测试打包和 PC 生产构建通过。全量后端测试因本机 Docker/MySQL 测试库未运行而无法完成，需恢复隔离测试库后重新执行；未连接或修改 NAS 生产环境。
+
+## 2026-09-03 最新基线（优先于下方历史快照）
+
+- 订单重构 `BE-1040`～`BE-1051` 已完成三轮整改并获 `CODEX_APPROVED_FOR_RELEASE_PREPARATION`；仍未执行生产副本迁移、NAS 部署或生产数据变更。
+- 已并入旧 ERP 只读审计。后续优先顺序是商品/SKU 库存边界与价格隐私 → 生产副本迁移门禁 → 旧 ERP 期初库存/历史档案 → 无价采购收货；完整资金账户、AR/AP、跨单核销和采购付款暂缓。
+- 当前订单财务实现是可追溯的订单专用子账，不等于完整财务模块。后续使用 `ARCH-FIN-002` 设计桥接和加法迁移，不删除、不双写、不把现有订单任务退回 TODO。
+- SKU 库存契约：`NORMAL` 和当前真正无规格的 `DEFAULT` 可产生库存事实；`PLACEHOLDER` 与已有真实规格后的历史 `DEFAULT` 只保留订单/分析引用，必须拆分后才能配货、预留或出库。
+- 旧 ERP 迁移与 Blade V42 订单迁移是两个独立工作包：前者采用真实 SKU×仓期初快照与历史只读档案，后者由现有 `OrderLegacyMigrator` 处理，禁止混用。
+
+## 2026-08-30 项目状态核对结论
+
+- 订单状态、收款与履约重构方案已确认，详见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md)。本次只完成设计和影响面扫描，代码、数据库和生产数据尚未修改。
+- 订单金额与统计口径已补充，详见 [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)。客户实收、现金退款、销售退回和短款核销分开记录；订单、现金、结清和库存指标使用各自业务时间。
+- 目标模型把草稿状态、收款状态、履约方式和履约状态拆开。正式订单结清后选择 `STOCK_LINKED` 进入库存履约，或选择 `RECORD_ONLY` 直接完成且不影响库存。
+- 旧 `sale_order.status` 不原地重解释。实施时新增字符串履约字段、收款流水、状态日志和并发版本，并保留一个发布周期的兼容读取。
+- 旧生产备份中的 81 张订单全部为 `status=0`，其中 74 张已结清、6 张部分收款、1 张未收款，且没有配货计划。正式迁移必须按金额和履约证据分流，不能按旧状态数字批量映射。
+- 最近两条已完成的本地主线是 WhatsApp 只读归档/客户工作区，以及纸单 Agent 批量草稿/SPU 占位 SKU。
+- 纸单草稿的 V48-V50、候选匹配、快速录单式工作台、人工确认和分析隔离已通过本地测试，但尚未部署 NAS 生产，也未完成 30 张真实纸单验收。
+- 占位 SKU 的创建、匹配、展示和分析已完成；占位数量拆到真实 SKU、拆分审计、配货与出库保护尚未实现。正式履约前必须补齐这组联动能力。
+- 旧 OCR 任务已转由本机订单识别 Agent 承担。BladeProject 不再重复建设图片识别和表格解析，只接收原图与结构化结果。
+- WhatsApp 已完成本地真实数据验证，但 Mac → NAS 生产同步、生产凭证和回滚验收仍待执行。
+- 任务状态现在区分功能开发、本地验证、生产部署和真实业务验收，详见 [03-TASKS.md](./03-TASKS.md)。
+- 订单大重构的联动系统、SOW、Agent 文件边界、Git 分支和 NAS 发布门禁已整理到 [2026-08-30-order-lifecycle-finance-refactor-rom-sow.md](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。
+- 实施责任已锁定：`ORDER-SOW-0` 已在 `d800ec4` 完成并由 Codex 放行。Z Code 按[长任务文档](./superpowers/plans/2026-08-30-order-refactor-zcode-long-run-task.md)连续完成原 SOW-1～SOW-7、自测和分系列提交，中间不再逐阶段等待；全部完成后 Codex 一次性审核完整代码 Diff，用户仍负责批准生产发布。
+- 正式订单采用“两旧两新”：保留旧整数 `status`、`payment_status`；新增字符串 `fulfillment_status`、`collection_status`。`fulfillment_mode` 是履约选择，草稿状态仍在独立草稿表，不新增重复的 `order_lifecycle_status`。
+- 本轮整理前，GitHub `codex/phase2-order-drafts` 与本地代码基线同为 `38c969b`，相对 `master` 前进 27 个提交并同时包含 V43-V47 WhatsApp 与 V48-V50 Phase 2；本轮新增设计文档随交接基线提交。已推送功能分支不代表已合入主干或已部署生产。
+- 2026-08-30 只读复核 NAS：四个生产容器均运行，生产 Flyway 为 V42，V43-V50 尚未发布。本次核查未修改生产数据或容器。
+
+## 2026-08-30 订单生命周期、财务与统计大重构（长任务系列 A~G 完成，待终审）
+
+- 在 `feature/order-lifecycle-finance-refactor` 分支完成订单大重构连续实施（基线 `1594a8f` → 最终 tip 见交付报告）：V51/V52 加法迁移、统一动作服务 11 动作、统一财务快照与唯一兼容适配器、占位 SKU 拆分与履约保护、`/api/inventory/out-by-plan` 410 收口、PC/移动端/共享类型/导出切换新契约、`OrderFactsService` 统一统计口径并切换全部消费者、客户偏好缓存按订单/财务动作失效、离线迁移工具（dry-run 默认 + 幂等重放）。
+- 验证：隔离库（Docker `blade-mysql-test`，端口 3307）空库 Flyway V1→V52 连续升级成功；后端全量测试通过；PC/移动端/类型包构建通过；Playwright 结果见交付报告。迁移工具以合成数据预演，**V42 生产副本预演未执行**（本机无备份，留 Codex/发布阶段）。
+- 当时状态曾为 `WAITING_CODEX_FINAL_REVIEW`；此门禁已在后续三轮整改后关闭。BE-1048（旧字段下线）与 BE-1052（V42 迁移 + NAS 发布）仍不在已完成范围。
+
+## 2026-08-27 Phase 2 SPU/SKU 颗粒度补充
+
+- V49/V50/V56 为 `product_sku` 增加并校正 `NORMAL / DEFAULT / PLACEHOLDER`；任何显式规格商品（包括只有一个具体组合）自动维护一个“未指定颜色 / 未指定尺码”占位 SKU，无规格商品使用正常 `DEFAULT` SKU。
+- 纸单 Agent 只识别款号时优先匹配占位 SKU；识别到颜色或尺码时排除占位；草稿工作台明确显示“整款（未指定颜色/尺码）”。
+- 占位销量计入款号总量，但从真实颜色尺码排行中分离；Agent 分析返回未指定汇总、规格覆盖率和数据质量等级。
+- 占位 SKU 不进入对外商品目录和库存可用性判断；生产尚未发布 V49/V50。
+
 ## 项目基本信息
 
 | 项目 | 值 |
 |------|---|
 | 项目名称 | BladeProject |
 | 启动日期 | 2026-03-21 |
-| 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；客户模块国际化升级（国家区号选择器 + 客户详情页 3 Tab）已完成，E2E 测试 12/12 通过；客户模块优化 Phase 4.6 M1~M4 全部完成；看板系统 BA-603 库存统计（周转分析）已完成；订单导出 BA-204 已完成；统一文件上传和文件中心底座已完成；图片派生图第一版 BE-1012、BA-1007、BA-1028 已完成，PC 与 Catalog 已按 thumb/card/original 分层加载；客户 iPad Catalog 现货选款页第一版已完成并已上线 NAS 生产；移动端继续开发中 |
-| 下一步 | **权限页面 BA-701~703 已完成最终验收并于 2026-08-18 上线 NAS 生产**（Release id `20260818_124459`）：`master` 已更新至 `8d19a7a`；发布前生产库备份 `/volume2/blade/db-backups/pre_app_deploy_20260818_124459.sql` 已生成；只重启 `blade-backend`/`blade-web`，MySQL/Redis/uploads 未触碰；生产库 Flyway 已从 V40 迁移到 V42（V41 ROLE_OWNER API 权限 + V42 多租户修正）；`https://10.13.13.1:8899/catalog`、`/orders`、`/system` 均返回 200，登录与权限 API 验证通过，ROLE_OWNER/ROLE_ADMIN 各 11 项 API 权限。建议用户在生产入口做人工复验（系统管理页三 Tab 操作）。开发侧下一步为仪表盘数据权限、移动端真实数据接入和 Agent Gateway 未完成能力。部分发货、分批发货和缺货退款继续排除。 |
+| 当前阶段 | 后端核心模块、PC 管理端主要业务页面、库存并发控制、跨仓总量预留、配货计划、权限基础能力、订单编辑和追加收款均已落地；统一文件上传和文件中心底座已完成；WhatsApp 本地归档与客户工作区已完成；纸单识别 Agent 的 SKU 候选、批量订单草稿、占位 SKU、草稿工作台和人工确认正式订单 MVP 已于 2026-08-27 完成本地验证；移动端继续开发中 |
+| 下一步 | 订单 A～G 已终审通过；先完成商品/SKU 与价格隐私增量回归，再准备 BE-1052 生产副本预演。未经用户生产批准，不部署 NAS。 |
 
 ---
 
@@ -51,6 +164,10 @@
 | 信息类型 | 以此文档为准 |
 |-----------|--------------|
 | 技术栈与业务规则 | [02-PRD.md](./02-PRD.md) |
+| 订单状态、收款与履约重构 | [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) |
+| 订单金额、结清与经营统计 | [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md) |
+| 订单大重构实施分工、Git 与 NAS 门禁 | [2026-08-30-order-lifecycle-finance-refactor-rom-sow.md](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md) |
+| 实现 Agent 任务与 Codex 审核门禁 | [2026-08-30-order-refactor-agent-execution-board.md](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md) |
 | 当前任务进度 | [03-TASKS.md](./03-TASKS.md) |
 | 最近变更历史 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
 | 分支开发与生产发布 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
@@ -59,6 +176,27 @@
 ---
 
 ## 当前摘要
+
+### WhatsApp 本地归档 v1（2026-08-24）
+
+- `BE-564` 方案验证已完成，正式实施契约为 [2026-08-24-whatsapp-local-archive-rom-sow.md](./superpowers/plans/2026-08-24-whatsapp-local-archive-rom-sow.md)。
+- 已锁定“Mac 只读源 → Git 外加密快照 → 独立 Collector → Blade 内部导入 API → `wa_*` 事实表/文件中心 → 只读 Agent Gateway”的链路。
+- v1 保留原 WhatsApp Business 号码，只接 1:1 联系人、会话、文本和已下载媒体；不自动回复、不自动创建 CRM 客户、不让 Agent 直接访问数据库或执行营销。
+- `BE-566～BE-576`、`BA-1101～BA-1102` 已完成：V43～V46 建立事实层、采集链路、缺失媒体诊断、混合 Agent 分析队列、领取时上下文快照和客户跟进工作台。
+- `BA-1104` 已修复 PC 权限缓存过旧导致“WhatsApp归档”入口不显示的问题；新页面会话会自动刷新一次服务端权限。
+- `BE-579`、`BA-1105` 已把缺失媒体改为按聊天号码聚合：首页一个号码一行并显示分类计数，详情抽屉再分页查看该客户全部缺失媒体、打开聊天和重扫。
+- `BE-580`、`BA-1106` 已修复 WhatsApp LID 被误作手机号：聚合、展示和打开聊天均优先使用 `wa_contact.phone_normalized`；本机 355 个 LID 会话全部有真实号码映射。
+- `BE-578`、`BE-581`、`BE-582`、`BA-1107` 已完成双范围重扫：顶部“扫描整个账号”保留全量能力，客户详情“仅扫描此客户”按真实号码覆盖其 phone JID/LID 会话；服务端只要求补传尚未 IMPORTED 的媒体，定向批次不会恢复其他客户的问题。
+- `BA-1103` 已完成 ERP 只读聊天归档：WhatsApp 归档默认进入双栏聊天视图，按真实号码聚合客户，支持文字、图片、视频、音频、贴纸、文档及明确的缺失媒体占位；继续使用 JWT/租户权限且没有发送入口。
+- `BA-1108` 已修复 CRM 国际号码绑定：候选匹配会组合客户国家区号与本地号码，并在 WhatsApp 归档加载时自动重算；真实样本 `+243 + 835453734` 已与 WhatsApp `243835453734` 生成待确认候选。
+- `BA-1109` 已让绑定结果可见：页面分开展示待确认/已绑定，说明绑定与 ERP/Agent 分析的关系，并可跳客户档案或聊天；聊天窗口修复网格高度约束，打开默认在最新消息，向上滚动每次加载 50 条更早消息且保持阅读位置。真实样本 2,595 条聊天已验证 50→100 条连续加载，`Sbk(刚果金) Fashion+243` 已在已绑定列表显示。
+- `BE-583`、`BA-1110` 已把 WhatsApp 正式嵌入 ERP 客户详情：客户档案新增 WhatsApp 页签，直接处理待确认绑定并显示只读聊天、缺失媒体、同步状态和“仅扫描此客户”；真实本地 API 样本 `Sbk(刚果金) Fashion+243` 返回 212 条已归档消息。Mac → NAS 生产接入已记录在 [2026-08-26-whatsapp-nas-production-integration-plan.md](./superpowers/plans/2026-08-26-whatsapp-nas-production-integration-plan.md)，仍明确后置且尚未部署生产。
+- Mac Collector 已升级为 v0.2，支持 `configure`、`sync` 和 `watch`：从一致性快照生成结构化 spool，分块上传 ERP；后台可领取 ERP 发起的重扫任务。
+- 合成端到端验证：首次导入 5 条逻辑消息、4 条媒体元数据和 1 个文件；重复导入总数保持 5/4/1；补载旧图片后保持 5 条消息、4 条媒体并新增第 2 个文件，账号问题状态变为 2 个待处理、1 个已恢复。
+- 混合 Agent 链路已实现：ERP 以独立 scoped Worker Key 提供最近 90 天/最多 200 条的脱敏上下文和订单商品汇总；NAS Worker 可接本地或 OpenAI-compatible 云端模型，结果必须携带有效消息证据，用户只在 ERP 采纳、忽略或完成。
+- 自动化验证通过：Flyway 已到 V47，后端全量测试、前端生产构建和 WhatsApp Playwright 通过，Collector/Worker 15 项测试通过；覆盖脱敏、幂等、非法证据、失败重试、跨租户队列隔离、目标 phone/LID 合并与定向问题恢复隔离。
+- 2026-08-25 已完成本地真实数据部署验证：ERP 后端 `127.0.0.1:18080`、Admin `127.0.0.1:5777`、Mac Assistant 自动同步；成功批次导入 1,527 联系人、989 会话、32,050 消息、17,132 媒体元数据、2,140 已下载媒体和 14,992 待恢复项。真实内容只进入本机测试库/文件中心，未进入 Git、NAS、生产或模型。
+- 真实定向扫描验收：目标客户仅处理 1 条消息（全量基准 32,050 条），全局 14,586 条待恢复记录保持不变；目标客户媒体未下载时其 1 条问题仍正确保持待恢复。只读聊天以 `+234 803 391 2244` 验收，返回 83 条消息，图片和视频预览均为 200，视频 Range 为 206；生产/NAS 尚未部署，上线时仍由运维一次配置，业务用户无需终端操作。
 
 ### 当前 Git / 发布规则
 
@@ -100,7 +238,7 @@
 
 - `TEST-ORDER-INV-001` 已完成：MySQL 8 临时库 V1-V40 累计迁移通过；后端全量 `mvn test` 383 项通过；PC `npm run build` 通过；浏览器关键路径覆盖 UI 登录、订单创建、定金、追加收款、抹零结清、配货计划、确认调整、发货和详情页渲染。
 - 仪表盘数据权限尚未实现。
-- 外部 Agent 对接需求已锁定为只读 Agent Gateway 第一版；安全边界、认证审计、款式趋势和颜色尺码结构已完成，凭证管理与毛利 scope 部分完成，客户跟进/风险、库存建议、周期分析、统一搜索和限流验证尚未完成。
+- 外部 Agent Gateway 默认只读；安全边界、认证审计、款式趋势和颜色尺码结构已完成。2026-08-27 新增唯一已批准的窄范围写入：本机纸单识别 Agent 可用 `agent:orders:write` 批量创建订单草稿，但不能确认正式订单、调整库存或确认收款。客户跟进/风险、库存建议、周期分析、统一搜索和限流验证尚未完成。
 - 文件中心/数字资产中心后端 BE-1001~BE-1011 已完成；PC `/files` 页面 BA-1001~BA-1006 已完成（路由菜单、虚拟入口文件夹树、网格列表视图筛选分页、上传移动删除、商品SKU绑定弹窗、未绑定清理管理），V36 已补齐 `menu:file` 与文件中心按钮权限；Catalog 聚合接口和 `/catalog` 展示页第一版已完成，V37 已补齐 `menu:catalog` 与 `data:catalog:view` 权限。
 - 图片派生图/缩略图性能优化 `BE-1012`、`BA-1007`、`BA-1028` 已完成第一版；本机测试环境 tenant 1 的 89 张历史图片已补齐 178 个 `thumb/card` 派生文件，0 失败、0 缺失。生产环境补生成及后续异步队列、自动重试、视频封面和 NAS/七牛云/CDN Provider 尚未执行。
 - 商品管理 v2 已完成：`BE-1013` 商品素材查询 API、`BE-1014` 删除引用保护与 SKU 精细更新、`BA-407~BA-410` 商品编辑页 v2/SKU 明细/商品素材/删除禁用交互均已落地；ROM/SOW 见 [2026-06-14-product-management-v2-rom-sow.md](./superpowers/plans/2026-06-14-product-management-v2-rom-sow.md)。
@@ -201,6 +339,8 @@
 | 查看最近变更 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
 | 看项目目录结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
 | 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
+| 查订单状态、收款和历史迁移方案 | [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) |
+| 查订单金额、结清和统计口径 | [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md) |
 | 查客户模块优化计划 | [08-CUSTOMER_OPTIMIZATION.md](./08-CUSTOMER_OPTIMIZATION.md) |
 | 查图片/附件上传与存储设计 | [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md) |
 | 查文件中心/数字资产/客户展示页设计 | [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md) |

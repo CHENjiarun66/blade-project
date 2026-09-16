@@ -2,6 +2,8 @@ package com.blade.config;
 
 import com.blade.auth.service.JwtTokenProvider;
 import com.blade.agent.auth.AgentAuthenticationFilter;
+import com.blade.common.tenant.TenantContext;
+import com.blade.whatsapp.auth.CollectorAuthenticationFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -37,6 +40,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                           AgentAuthenticationFilter agentAuthFilter,
+                                          CollectorAuthenticationFilter collectorAuthFilter,
                                           JwtAuthenticationFilter jwtAuthFilter,
                                           AuthenticationProvider authenticationProvider) throws Exception {
         http
@@ -62,6 +66,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider)
+            .addFilterBefore(collectorAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -92,29 +97,71 @@ public class SecurityConfig {
 
         private final JwtTokenProvider jwtTokenProvider;
         private final UserDetailsService userDetailsService;
+        private final RedisTemplate<String, Object> redisTemplate;
 
         @Autowired
-        public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, UserDetailsService userDetailsService) {
+        public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
+                                       UserDetailsService userDetailsService,
+                                       RedisTemplate<String, Object> redisTemplate) {
             this.jwtTokenProvider = jwtTokenProvider;
             this.userDetailsService = userDetailsService;
+            this.redisTemplate = redisTemplate;
+        }
+
+        @Override
+        protected boolean shouldNotFilter(HttpServletRequest request) {
+            String uri = request.getRequestURI();
+            return uri != null && (uri.startsWith("/api/agent/") || uri.startsWith("/api/internal/whatsapp/"));
         }
 
         @Override
         protected void doFilterInternal(HttpServletRequest request,
                                         HttpServletResponse response,
                                         FilterChain filterChain) throws ServletException, IOException {
-            String token = extractToken(request);
-
-            if (token != null && jwtTokenProvider.validateToken(token)) {
-                String username = jwtTokenProvider.getUsernameFromToken(token);
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                    userDetails, null, userDetails.getAuthorities()
-                );
-                SecurityContextHolder.getContext().setAuthentication(auth);
+            try {
+                String token = extractToken(request);
+                if (token != null && jwtTokenProvider.validateToken(token)) {
+                    String username = jwtTokenProvider.getUsernameFromToken(token);
+                    Long tenantId = resolveActiveTenant(token, username);
+                    if (tenantId != null) {
+                        TenantContext.setTenantId(tenantId);
+                        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities()
+                        );
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                    }
+                }
+                filterChain.doFilter(request, response);
+            } finally {
+                SecurityContextHolder.clearContext();
+                TenantContext.clear();
             }
+        }
 
-            filterChain.doFilter(request, response);
+        private Long resolveActiveTenant(String token, String username) {
+            Object activeUsername = redisTemplate.opsForValue().get("token:" + token);
+            if (activeUsername == null || !username.equals(String.valueOf(activeUsername))) {
+                return null;
+            }
+            Long claimTenant = jwtTokenProvider.getTenantIdFromToken(token);
+            Long redisTenant = toLong(redisTemplate.opsForValue().get("token:tenant:" + token));
+            if (claimTenant != null && redisTenant != null && !claimTenant.equals(redisTenant)) {
+                return null;
+            }
+            return claimTenant != null ? claimTenant : redisTenant;
+        }
+
+        private Long toLong(Object value) {
+            if (value instanceof Number number) return number.longValue();
+            if (value instanceof String text && !text.isBlank()) {
+                try {
+                    return Long.valueOf(text);
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
+            }
+            return null;
         }
 
         private String extractToken(HttpServletRequest request) {

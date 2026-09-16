@@ -8,6 +8,7 @@ public class SkuVO {
 
     private Long id;
     private String skuCode;
+    private String skuType;
     private String productName;
     private Long productId;
     private String colorName;
@@ -21,6 +22,8 @@ public class SkuVO {
     public void setId(Long id) { this.id = id; }
     public String getSkuCode() { return skuCode; }
     public void setSkuCode(String skuCode) { this.skuCode = skuCode; }
+    public String getSkuType() { return skuType; }
+    public void setSkuType(String skuType) { this.skuType = skuType; }
     public String getProductName() { return productName; }
     public void setProductName(String productName) { this.productName = productName; }
     public Long getProductId() { return productId; }

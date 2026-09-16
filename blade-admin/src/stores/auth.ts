@@ -27,6 +27,8 @@ export const useAuthStore = defineStore('auth', () => {
   const userInfo = ref<UserInfo | null>(readJson<UserInfo | null>('userInfo', null))
   // 存储用户的权限码列表，如 ['order:create', 'order:update', ...]
   const permissions = ref<string[]>(readJson<string[]>('permissions', []))
+  // localStorage 仅用于首屏兜底；每次页面会话都必须向服务端刷新一次，避免新增菜单后仍使用旧权限。
+  const permissionsLoadedForSession = ref(false)
 
   function setToken(newToken: string) {
     token.value = newToken
@@ -52,14 +54,29 @@ export const useAuthStore = defineStore('auth', () => {
 
   function setPermissions(codes: string[]) {
     permissions.value = codes
+    permissionsLoadedForSession.value = true
     localStorage.setItem('permissions', JSON.stringify(codes))
   }
 
   function logout() {
+    const accessToken = token.value
+    const currentRefreshToken = refreshToken.value
+    if (accessToken) {
+      // 不阻塞本地退出；keepalive 保证 SPA 跳转或关闭页面时仍尽量完成服务端令牌撤销。
+      void fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...(currentRefreshToken ? { 'X-Refresh-Token': `Bearer ${currentRefreshToken}` } : {}),
+        },
+        keepalive: true,
+      }).catch(() => undefined)
+    }
     token.value = null
     refreshToken.value = null
     userInfo.value = null
     permissions.value = []
+    permissionsLoadedForSession.value = false
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('userInfo')
@@ -72,6 +89,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     userInfo,
     permissions,
+    permissionsLoadedForSession,
     setToken,
     setRefreshToken,
     setTokens,

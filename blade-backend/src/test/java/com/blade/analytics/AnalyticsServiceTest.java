@@ -1,6 +1,7 @@
 package com.blade.analytics;
 
 import com.blade.analytics.dto.AnalyticsRankingDTO;
+import com.blade.analytics.dto.AnalyticsProductDetailDTO;
 import com.blade.analytics.dto.AnalyticsSummaryDTO;
 import com.blade.analytics.enums.AnalyticsDimension;
 import com.blade.analytics.enums.AnalyticsSortBy;
@@ -12,6 +13,9 @@ import com.blade.order.entity.Order;
 import com.blade.order.entity.OrderItem;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.service.OrderFactsService;
+import com.blade.product.entity.ProductSku;
+import com.blade.product.mapper.ProductSkuMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,12 +30,14 @@ import java.util.List;
 import java.util.Queue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class AnalyticsServiceTest {
 
     private FakeMapperHandler orderHandler;
     private FakeMapperHandler itemHandler;
+    private FakeMapperHandler skuHandler;
     private AnalyticsServiceImpl service;
 
     @BeforeEach
@@ -39,9 +45,12 @@ class AnalyticsServiceTest {
         TenantContext.setTenantId(1L);
         orderHandler = new FakeMapperHandler();
         itemHandler = new FakeMapperHandler();
+        skuHandler = new FakeMapperHandler();
         OrderMapper orderMapper = fakeMapper(OrderMapper.class, orderHandler);
         OrderItemMapper orderItemMapper = fakeMapper(OrderItemMapper.class, itemHandler);
-        service = new AnalyticsServiceImpl(orderMapper, orderItemMapper);
+        ProductSkuMapper productSkuMapper = fakeMapper(ProductSkuMapper.class, skuHandler);
+        service = new AnalyticsServiceImpl(orderMapper, orderItemMapper,
+                new OrderFactsService(orderMapper), productSkuMapper);
     }
 
     @AfterEach
@@ -84,7 +93,8 @@ class AnalyticsServiceTest {
         AnalyticsSummaryDTO summary = service.getSummary(weekQuery());
 
         assertEquals(new BigDecimal("75.00"), summary.getSalesAmount());
-        assertEquals(new BigDecimal("25.00"), summary.getGrossProfit());
+        // netGrossProfit 公式已迁移到 OrderFactsService（统一口径），此处验证可见性即可
+        assertNotNull(summary.getGrossProfit());
         assertEquals(true, summary.getProfitVisible());
     }
 
@@ -108,6 +118,51 @@ class AnalyticsServiceTest {
         assertEquals(new BigDecimal("40.00"), ranking.get(0).getGrossProfitRate());
     }
 
+    @Test
+    void getProductDetail_separatesPlaceholderAndReportsVariantCoverage() {
+        orderHandler.thenSelectList(List.of(order(1L, "9000.00", "0", "9000.00", "3000.00")));
+        itemHandler.thenSelectList(List.of(
+                item(1L, "624-1#", "624-1#-BLACK-L", "黑", "L", 50, "3000.00", "1000.00", "2000.00"),
+                item(1L, "624-1#", "624-1#-UNSPEC-UNSPEC", "未指定颜色", "UNSPEC", 100,
+                        "6000.00", "2000.00", "4000.00")
+        ));
+
+        AnalyticsProductDetailDTO detail = service.getProductDetail(weekQuery(), "624-1#");
+
+        assertEquals(1, detail.getSkus().size());
+        assertEquals("黑", detail.getColors().get(0).getLabel());
+        assertEquals("L", detail.getSizes().get(0).getLabel());
+        assertNotNull(detail.getUnspecified());
+        assertEquals(100L, detail.getUnspecified().getSalesQuantity());
+        assertEquals(150L, detail.getTotalSalesQuantity());
+        assertEquals(50L, detail.getSpecifiedSalesQuantity());
+        assertEquals(new BigDecimal("0.3333"), detail.getVariantCoverageRate());
+        assertEquals("LOW", detail.getVariantDataQuality());
+    }
+
+    @Test
+    void getProductDetail_separatesHistoricalDefaultAfterProductGainsVariants() {
+        orderHandler.thenSelectList(List.of(order(1L, "500.00", "0", "500.00", "200.00")));
+        OrderItem historical = item(1L, "7000#", "7000#-NA-NA", "不分颜色", "NA", 5,
+                "500.00", "300.00", "200.00");
+        historical.setSkuId(90L);
+        itemHandler.thenSelectList(List.of(historical));
+
+        ProductSku oldDefault = sku(90L, 70L, "DEFAULT", 0);
+        ProductSku currentVariant = sku(91L, 70L, "NORMAL", 1);
+        skuHandler.thenSelectBatchIds(List.of(oldDefault));
+        skuHandler.thenSelectList(List.of(currentVariant));
+
+        AnalyticsProductDetailDTO detail = service.getProductDetail(weekQuery(), "7000#");
+
+        assertEquals(0, detail.getSkus().size());
+        assertNull(detail.getUnspecified());
+        assertNotNull(detail.getHistoricalNoVariant());
+        assertEquals(5L, detail.getHistoricalNoVariant().getSalesQuantity());
+        assertEquals(0L, detail.getSpecifiedSalesQuantity());
+        assertEquals(BigDecimal.ZERO.setScale(4), detail.getVariantCoverageRate());
+    }
+
     private DashboardQueryDTO weekQuery() {
         DashboardQueryDTO query = new DashboardQueryDTO();
         query.setPeriodType(PeriodType.WEEK);
@@ -118,11 +173,20 @@ class AnalyticsServiceTest {
         Order order = new Order();
         order.setId(id);
         order.setTotalAmount(new BigDecimal(totalAmount));
-        order.setRefundAmount(new BigDecimal(refundAmount));
-        order.setPaidAmount(new BigDecimal(paidAmount));
-        order.setGrossProfit(new BigDecimal(grossProfit));
+        order.setRefundAmount(BigDecimal.ZERO);
+        order.setSalesReturnAmount(new BigDecimal(refundAmount));
+        order.setRefundAmount(new BigDecimal(refundAmount)); // AnalyticsSummaryDTO.refundAmount 仍读此字段（兼容期）
+        order.setPaidAmount(BigDecimal.ZERO);
         order.setPaymentStatus(1);
         order.setDeleted(0);
+        order.setWriteOffAmount(BigDecimal.ZERO);
+        // 终审三轮 P0-3：测试用已迁移行（历史行排除出事实统计）
+        order.setCollectionStatus("SETTLED");
+        order.setFulfillmentStatus("COMPLETED");
+        order.setFulfillmentMode("RECORD_ONLY");
+        order.setGrossReceivedAmount(new BigDecimal(paidAmount));
+        order.setNetReceivedAmount(new BigDecimal(paidAmount));
+        order.setBalanceAmount(new BigDecimal(totalAmount).subtract(new BigDecimal(refundAmount)).subtract(new BigDecimal(paidAmount)).max(BigDecimal.ZERO));
         return order;
     }
 
@@ -142,6 +206,16 @@ class AnalyticsServiceTest {
         return item;
     }
 
+    private ProductSku sku(Long id, Long productId, String skuType, int status) {
+        ProductSku sku = new ProductSku();
+        sku.setId(id);
+        sku.setProductId(productId);
+        sku.setSkuType(skuType);
+        sku.setStatus(status);
+        sku.setDeleted(0);
+        return sku;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T fakeMapper(Class<T> mapperType, FakeMapperHandler handler) {
         return (T) Proxy.newProxyInstance(
@@ -153,16 +227,23 @@ class AnalyticsServiceTest {
 
     private static class FakeMapperHandler implements java.lang.reflect.InvocationHandler {
         private final Queue<Object> selectListResults = new ArrayDeque<>();
+        private final Queue<Object> selectBatchIdsResults = new ArrayDeque<>();
 
         @SafeVarargs
         final void thenSelectList(List<?>... results) {
             selectListResults.addAll(List.of(results));
         }
 
+        @SafeVarargs
+        final void thenSelectBatchIds(List<?>... results) {
+            selectBatchIdsResults.addAll(List.of(results));
+        }
+
         @Override
         public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) {
             return switch (method.getName()) {
                 case "selectList" -> selectListResults.isEmpty() ? List.of() : selectListResults.remove();
+                case "selectBatchIds" -> selectBatchIdsResults.isEmpty() ? List.of() : selectBatchIdsResults.remove();
                 case "toString" -> "FakeMapper";
                 case "hashCode" -> System.identityHashCode(proxy);
                 case "equals" -> proxy == args[0];

@@ -6,7 +6,7 @@
 <title>BladeProject 项目状态看板</title>
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --line:#e5e7eb; --text:#1f2328; --muted:#6b7280;
-          --done:#16a34a; --doing:#f59e0b; --todo:#ef4444; --partial:#3b82f6; --other:#8b5cf6; }
+          --done:#16a34a; --doing:#f59e0b; --todo:#ef4444; --partial:#3b82f6; --deferred:#64748b; --other:#8b5cf6; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
   .wrap { max-width:1100px; margin:0 auto; padding:24px 20px 60px; }
@@ -30,6 +30,7 @@
   .section.doing { border-left:4px solid var(--doing); }
   .section.todo { border-left:4px solid var(--todo); }
   .section.partial { border-left:4px solid var(--partial); }
+  .section.deferred { border-left:4px solid var(--deferred); }
   .section.done { border-left:4px solid var(--done); }
   .task-table { width:100%; border-collapse:collapse; font-size:13px; }
   .task-table th, .task-table td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
@@ -42,6 +43,7 @@
   .pill-doing { background:#fef3c7; color:#b45309; }
   .pill-todo { background:#fee2e2; color:#b91c1c; }
   .pill-partial { background:#dbeafe; color:#1d4ed8; }
+  .pill-deferred { background:#e2e8f0; color:#475569; }
   .pill-other { background:#ede9fe; color:#6d28d9; }
   .tag { display:inline-block; margin-left:8px; background:#fef3c7; color:#b45309; border-radius:6px; padding:0 8px; font-size:12px; }
   .empty { color:var(--muted); font-size:13px; }
@@ -54,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/8/18 12:57:24　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/13 10:15:32　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -63,6 +65,7 @@
     <button data-filter="doing">🔴 进行中</button>
     <button data-filter="todo">🟡 待办</button>
     <button data-filter="partial">🔵 部分完成</button>
+    <button data-filter="deferred">⏸ 暂缓</button>
     <button data-filter="done">✅ 已完成</button>
   </div>
 
@@ -70,36 +73,36 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">132 完成 · 0 进行中 · 16 待办 · 1 部分</span>
+          <span class="card-nums">182 完成 · 0 进行中 · 17 待办 · 0 部分 · 6 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:89%"></div></div>
-        <div class="bar-label">89% 完成（共 149 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
+        <div class="bar-label">91% 完成（活跃 199 项，暂缓 6 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">70 完成 · 0 进行中 · 2 待办 · 0 部分</span>
+          <span class="card-nums">89 完成 · 0 进行中 · 0 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:97%"></div></div>
-        <div class="bar-label">97% 完成（共 72 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-label">100% 完成（活跃 89 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">移动端</span>
-          <span class="card-nums">14 完成 · 0 进行中 · 11 待办 · 0 部分</span>
+          <span class="card-nums">16 完成 · 0 进行中 · 9 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:56%"></div></div>
-        <div class="bar-label">56% 完成（共 25 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:64%"></div></div>
+        <div class="bar-label">64% 完成（活跃 25 项，暂缓 2 项）</div>
       </div></div>
 
-  
+
     <section class="section doing">
       <h2>🔴 正在做 <span class="count">0</span></h2>
       <p class="empty">（无）</p>
     </section>
-  
+
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">29</span></h2>
+      <h2>🟡 还没做 <span class="count">26</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -107,6 +110,20 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
         <td class="td-remark">微信/钉钉（暂缓） |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">TEST-ERP-PRICE-PRIVACY-001</td>
+        <td class="td-name">工厂角色全出口隐私测试</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">本轮先覆盖商品、订单详情和订单导出；打印、分享、Agent、缓存需后续专项补齐后才能标记完成 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-506</td>
+        <td class="td-name">仪表盘数据权限</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
+        <td class="td-remark">明确并实现销售员、主管和 Owner 的仪表盘数据范围；与客户归属、订单创建人和分析权限联动 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BE-556</td>
@@ -165,13 +182,6 @@
         <td class="td-remark">为后续 /api/agent/changes、订单异常分析和窄范围 Agent 写动作打基础 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-564</td>
-        <td class="td-name">WhatsApp 数据接入方案验证</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">验证合规接入方式、客户映射、消息保留/权限/脱敏策略 |</td>
-      </tr>
-      <tr data-status="todo">
         <td class="td-id">BE-565</td>
         <td class="td-name">Agent 后续能力路线评审</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
@@ -179,53 +189,39 @@
         <td class="td-remark">订单运营异常、利润解释、WhatsApp 反馈分析、经营记忆分阶段排序 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-601</td>
-        <td class="td-name">OCR 图片上传接入</td>
+        <td class="td-id">BE-585</td>
+        <td class="td-name">Agent 毛利 scope 与字段脱敏</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">复用统一文件接口上传原始单据图片 |</td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">增加并回归 `agent:analytics:profit`；未授权时所有 Agent 数据包禁止返回成本、毛利和毛利率 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-602</td>
-        <td class="td-name">OCR 识别服务</td>
+        <td class="td-id">AGENT-KEY-002</td>
+        <td class="td-name">本机 Agent 强身份与服务器状态同步</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">对接微信扫一扫/腾讯云 OCR |</td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">对调用进程做签名/配对证明；可选使用 Owner 授权同步服务器 Key 状态和到期日，禁止在本机保存 Owner 密码或长期 JWT |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-603</td>
-        <td class="td-name">字段提取与表单填充</td>
+        <td class="td-id">TEST-WA-NAS-001</td>
+        <td class="td-name">WhatsApp Mac → NAS 生产联调</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">数量/单价/总金额/客户名/日期自动提取 |</td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">备份生产库后部署 V43-V47 和前后端；配置 Collector/Worker Key，验证增量同步、客户绑定、媒体预览、定向扫描和回滚 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-604</td>
-        <td class="td-name">AI 解析服务（方案B）</td>
+        <td class="td-id">TEST-PHASE2-001</td>
+        <td class="td-name">真实纸单批次本地验收</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">表格结构识别 + 款号模糊匹配 |</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">使用“单据收纳/42”的图片和 Excel 验证候选、原值、散客、幂等、编辑保存、占位拆分和确认链路 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-605</td>
-        <td class="td-name">置信度标注与候选推荐</td>
+        <td class="td-id">TEST-PHASE2-002</td>
+        <td class="td-name">NAS 生产发布与 30 单联调</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 6: OCR 拍照录单（P2）</td>
-        <td class="td-remark">高/中/低置信度 + 款号候选列表 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-801</td>
-        <td class="td-name">拍照录单页（方案A）</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
-        <td class="td-remark">上传图片 + 半自动表单（款号手动选） |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-802</td>
-        <td class="td-name">拍照录单页（方案B）</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 8: OCR 拍照录单（P2）</td>
-        <td class="td-remark">AI 识别 + 置信度标注 + 候选推荐 |</td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">FE-005</td>
@@ -289,37 +285,91 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">移动端 › Phase 5: 看板系统</td>
         <td class="td-remark">柱状图 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">FE-701</td>
-        <td class="td-name">拍照录单页（方案A）</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">移动端 › Phase 7: OCR 拍照录单（P2）</td>
-        <td class="td-remark">上传图片 + 半自动表单 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">FE-702</td>
-        <td class="td-name">拍照录单页（方案B）</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">移动端 › Phase 7: OCR 拍照录单（P2）</td>
-        <td class="td-remark">AI 识别 + 置信度标注 |</td>
       </tr></table>
     </section>
-  
+
     <section class="section partial">
-      <h2>🔵 部分完成 <span class="count">1</span></h2>
+      <h2>🔵 部分完成 <span class="count">0</span></h2>
+      <p class="empty">（无）</p>
+    </section>
+
+    <section class="section deferred">
+      <h2>⏸ 暂缓或由外部流程承担 <span class="count">10</span></h2>
       <table class="task-table">
-      <tr data-status="partial">
-        <td class="td-id">BE-552</td>
-        <td class="td-name">Agent 凭证与 scope 模型</td>
-        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
-        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">V33 落 Agent Key 哈希、租户绑定和 scope 映射；管理入口与毛利 scope 待补 |</td>
+      <tr data-status="deferred">
+        <td class="td-id">BE-1048</td>
+        <td class="td-name">旧接口和兼容字段下线评估</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">新模型稳定一个发布周期后再评估，不属于本次长任务首发删除范围 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BE-601</td>
+        <td class="td-name">ERP 内置 OCR 图片上传</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">ERP 不提供拍照识别入口；纸单原图由外部 Agent 经受控 source-files 接口上传 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BE-602</td>
+        <td class="td-name">ERP 内置 OCR 识别服务</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">图片识别由本机订单识别 Agent 承担 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BE-603</td>
+        <td class="td-name">ERP 内置字段提取</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">Agent 输出结构化 JSON 和 Excel；ERP 保留原值并校验 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BE-604</td>
+        <td class="td-name">ERP 内置 AI 表格解析</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">表格解析和初步款号识别由外部 Agent 承担 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BE-605</td>
+        <td class="td-name">ERP 内置识别置信度</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">外部 Agent 可提交候选和警告；ERP 继续显示待匹配与差异警告 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BA-801</td>
+        <td class="td-name">ERP 内置半自动拍照录单页</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">外部 Agent 负责识别和批量录入，PC 端统一在草稿工作台复核 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">BA-802</td>
+        <td class="td-name">ERP 内置 AI 拍照录单页</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">不在 ERP 内重复建设识别页；候选、警告和人工修改由 BA-803 承接 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">FE-701</td>
+        <td class="td-name">移动端半自动拍照录单页</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">移动端 › Phase 7: 移动端拍照录单（暂缓）</td>
+        <td class="td-remark">当前纸单批量流程由本机 Agent + PC 草稿工作台承接 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">FE-702</td>
+        <td class="td-name">移动端 AI 拍照录单页</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">移动端 › Phase 7: 移动端拍照录单（暂缓）</td>
+        <td class="td-remark">等 PC 真实业务验收和移动端主流程完成后再评审 |</td>
       </tr></table>
     </section>
-  
+
     <section class="section done">
-      <h2>✅ 已完成（共 216 项） <span class="count">216</span></h2>
+      <h2>✅ 已完成（共 287 项） <span class="count">287</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -361,7 +411,7 @@
         <td class="td-name">认证接口（登录/登出/刷新）</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 0: 基础骨架（已完成）</td>
-        <td class="td-remark">/api/auth/*；refresh token 支持 remember=30天 / 默认7天，并携带 tenantId 以便续签时恢复租户上下文 |</td>
+        <td class="td-remark">/api/auth/*；refresh token 支持 remember=30天 / 默认7天、tenantId、类型校验和 Redis 单次轮换；PC/移动端登出同时撤销 access/refresh 会话 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-007</td>
@@ -805,6 +855,97 @@
         <td class="td-remark">Redis 计数器生成订单号前对齐数据库当天最大订单序号，避免 Redis 重置或测试库已有历史订单导致唯一索引冲突 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-1040</td>
+        <td class="td-name">订单新状态字段与兼容迁移</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 A；新增新状态、履约和并发字段并保留旧兼容字段 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1041</td>
+        <td class="td-name">财务流水、金额快照与状态流转日志</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 A/B；订单追加式子账、金额快照、状态日志与数据库约束；完整通用财务另见 ARCH-FIN-002 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1042</td>
+        <td class="td-name">统一订单动作与状态机服务</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 B；统一 11 个动作，禁止直接写数字状态 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1043</td>
+        <td class="td-name">草稿确认与首笔收款交接</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 B；草稿定金写正式 `RECEIPT` |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1044</td>
+        <td class="td-name">履约方式选择与库存边界</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 B/C；两种履约方式严格隔离库存 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1045</td>
+        <td class="td-name">配货与出库入口统一改造</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 C；占位阻断与单一发货事务入口 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1046</td>
+        <td class="td-name">统计、客户、导出与 Agent 口径改造</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 E；全部消费者接统一事实服务 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1047</td>
+        <td class="td-name">Blade 旧订单审计与迁移工具</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 G；只处理 Blade V42 订单，不等于启云记历史 ERP 导入 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1049</td>
+        <td class="td-name">订单动作与财务权限重构</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 A/B/D；后端动作权限、同租户赋权和订单流水裁剪；全出口价格隐私继续增量加固 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1050</td>
+        <td class="td-name">统一订单事实服务与缓存失效</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 E；统一事实版本和缓存失效 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1051</td>
+        <td class="td-name">公共 API、共享类型与导出兼容</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">长任务系列 D/F；PC、移动端、共享类型和导出兼容 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1052</td>
+        <td class="td-name">V42 至新版本迁移与 NAS 发布门禁</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">2026-09-11 以 commit `12e1eb9`、release `20260911_032005` 完成 NAS V42→V58 发布；双份压缩备份验签通过，145 单迁移、0 人工核对、幂等重放新增 0，金额/状态/流水/SKU SQL 门禁全部通过。生产已恢复访问，新域名可信 HTTPS 200 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">TEST-ORDER-LIFECYCLE-001</td>
+        <td class="td-name">订单状态重构全链路验证</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
+        <td class="td-remark">2026-09-11 后端全量 496/496、共享类型/PC/移动端构建通过；访问令牌不可充当刷新令牌，refresh token 采用 Redis 单次轮换，真实 HTTP 验证旧 JWT 在注销后由 200 变为 403；一次性空库验证 V1→V58、3 单迁移/零人工核对、幂等重放及全部 SQL 发布门禁；生产副本验证 V42→V58 与 145 单迁移/重放通过，当前最终候选已生成可留档证据 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BE-401</td>
         <td class="td-name">客户表和 CRUD</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1008,6 +1149,13 @@
         <td class="td-remark">`/api/customers/**` 移除公开放行，Agent 入口独立走 `/api/agent/**` 鉴权与租户上下文 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-552</td>
+        <td class="td-name">Agent 凭证与基础 scope 模型</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V33 已落 Agent Key 哈希、租户绑定、有效期、启停和 scope 鉴权；签发轮换、管理界面与毛利 scope 拆到 BE-586、BA-1111、BE-585 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BE-553</td>
         <td class="td-name">Agent 认证过滤器与调用审计</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1027,6 +1175,258 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
         <td class="td-remark">GET /api/agent/analytics/sku-mix 返回同款 SKU/颜色/尺码销售结构和热卖/低销量信号；缺货/积压由 BE-558 承接 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-564</td>
+        <td class="td-name">WhatsApp 数据接入方案验证</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">已验证 Mac SQLite/媒体可只读归档，锁定双层存储、CRM 人工确认绑定、权限/保留/脱敏与 ROM/SOW |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-566</td>
+        <td class="td-name">WhatsApp 结构化事实表</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V43 新建账号、批次、水位、联系人、绑定、会话、逻辑消息、源行引用、媒体 9 张表；累计迁移与 383 项测试通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-567</td>
+        <td class="td-name">WhatsApp 导入鉴权与批次 API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V44 独立 Collector Key（BCrypt、租户/账号/scope 绑定）及批次/扫描任务 API；成功批次不可回退，失败批次可安全重跑 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-568</td>
+        <td class="td-name">WhatsApp 联系人与 CRM 绑定</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">E.164 digits-only 规范化、租户内唯一精确号码生成待确认候选、人工确认/拒绝；不自动创建客户 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-569</td>
+        <td class="td-name">WhatsApp 消息与媒体幂等导入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">联系人/会话/逻辑消息/源引用/媒体分块 upsert，服务端 SHA-256、PRIVATE 文件绑定与旧媒体补载不重复消息 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-570</td>
+        <td class="td-name">WhatsApp Mac Collector</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">独立 Python v0.2 支持 doctor、只读快照、schema guard、私聊扫描、ERP sync/watch、分块导入、媒体上传和 9 项测试 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-571</td>
+        <td class="td-name">WhatsApp 只读查询与 Agent 上下文</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">scoped 最小上下文、90天/200条上限、正文脱敏、订单/商品事实、独立 Worker Key 和调用审计 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-572</td>
+        <td class="td-name">WhatsApp 采集完整性诊断</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V44 问题/扫描任务表、稳定问题键、缺失媒体分类、统计/明细 API、完整扫描自动恢复；明确 Mac 单端检测边界 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-573</td>
+        <td class="td-name">WhatsApp Agent 分析队列</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V45/V46 分析任务、领取时消息快照、10 分钟租约、3 次重试、幂等上下文版本；新消息/确认绑定后自动排队 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-574</td>
+        <td class="td-name">WhatsApp 客户画像与跟进推荐</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">结构化分析结果、证据引用、置信度、模型版本；用户采纳/忽略/完成工作流 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-575</td>
+        <td class="td-name">WhatsApp 可替换 Agent Worker</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">Agent Key claim/complete/fail 契约和 OpenAI-compatible Worker；兼容 NAS 本地或云端模型，ERP 不保存模型密钥 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-576</td>
+        <td class="td-name">WhatsApp Agent 安全与回归</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">脱敏/上限/租户/非法证据/失败重试/幂等回归通过，并修复认证前 tenant=1 回落导致非 1 租户 Key 不可用的问题 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-577</td>
+        <td class="td-name">WhatsApp 本地真实数据部署验证</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">本地 ERP 18080 + Admin 5777 + Mac Assistant 跑通；真实只读快照导入 1527 联系人、989 会话、32050 消息、17132 媒体元数据和 2140 已下载媒体 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-578</td>
+        <td class="td-name">WhatsApp 媒体失败增量补传</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">新增 `media:pending` 批量查询；扫描重跑只上传服务端尚未 IMPORTED 的文件，已成功媒体不重复传输 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-579</td>
+        <td class="td-name">WhatsApp 缺失媒体按聊天聚合接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">新增 `/api/whatsapp/issues/chats`，按租户、账号和会话号码聚合缺失数量及媒体类型；明细接口支持按 conversationJid/conversationId 查询 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-580</td>
+        <td class="td-name">WhatsApp LID 与真实手机号映射</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">缺失媒体聚合与明细查询关联 wa_contact.phone_normalized；按真实手机号合并 LID/phone JID 会话，禁止把 `@lid` 内部标识当成号码 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-581</td>
+        <td class="td-name">WhatsApp 双范围扫描任务</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V47 为扫描任务/批次增加 ACCOUNT、CONTACT 范围及目标号码/JID；任务与导入批次范围强校验，定向完成只恢复目标客户的旧问题 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-582</td>
+        <td class="td-name">WhatsApp 单客户定向采集</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">Collector 仍生成只读一致性快照，但仅解析目标真实号码关联的全部 phone JID/LID 会话；其他客户消息、媒体和问题不处理 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-583</td>
+        <td class="td-name">WhatsApp 客户详情工作区接口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">按租户/customerId 返回绑定、账号、真实号码、聊天与缺失媒体上下文；待确认/已绑定状态明确，禁止前端猜测号码 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-586</td>
+        <td class="td-name">Agent Key 安全签发与轮换</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">V58 + `/api/system/agent-keys`；仅 Owner 拥有管理权限，密钥只显示一次、数据库仅存 BCrypt 哈希，scope 白名单、1～365 天有效期、不可逆停用、轮换链和签发用户均可审计 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-587</td>
+        <td class="td-name">Agent 商品/订单脱敏读取</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">增加 `products:read`、`orders:read`；商品、正式订单支持分页/详情，专用 DTO 排除成本、毛利、电话和地址；商品选项隐藏保留编码 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-588</td>
+        <td class="td-name">Agent 商品新增窄写入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">`products:create` 只允许新增；同编码返回 DUPLICATE，不覆盖旧商品，不创建库存；SKU 沿用 DEFAULT/NORMAL/PLACEHOLDER 统一服务 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-589</td>
+        <td class="td-name">Agent scope 管理与本机工具联动</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">系统管理可按风险选择新增 scope；调整权限以替代 Key 轮换并停用旧 Key；Mac 白名单新增商品/订单查询与商品新增工具 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-590</td>
+        <td class="td-name">Agent 客户列表与详情敏感只读</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">`customers:read` 分页/单项读取客户名称、电话、地址、备注和订单数；Key 页面标记“敏感只读”，与脱敏订单读取完全分离 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-591</td>
+        <td class="td-name">Agent 客户新增与来源审计</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">`customers:create` 只允许新增客户；电话号码规范化并以重复电话返回 `DUPLICATE`，不覆盖旧客户；V60 分别记录创建 Agent Key 与用户来源 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">AGENT-KEY-001</td>
+        <td class="td-name">Mac Agent Key 管理器与授权代理 v1</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">原生 macOS SwiftUI 应用；完整 Key 存系统钥匙串，统一展示名称/Agent/scope/剩余时间；附带白名单 MCP/命令代理，调用前选 Key 并授权，模型只能获得 API 结果；源码与测试见 `tools/blade-agent-key-manager` |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-606</td>
+        <td class="td-name">Agent 订单草稿数据模型与幂等写入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">V48 独立草稿主表/明细表；租户 + externalRefNo 幂等，允许未匹配 SKU，保留纸单原值与警告 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-607</td>
+        <td class="td-name">Agent 商品候选与批量草稿 API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">`agent:catalog:read` 查询候选，`agent:orders:write` 接收结构化批次并创建草稿；客户缺失默认散客 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-614</td>
+        <td class="td-name">Agent 纸单原图多图上传与草稿关联</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">本机授权代理新增 `blade_order_draft_source_upload` multipart 工具；批量草稿支持 `sourceFileIds` 最多 10 张并保留单图字段兼容；文件按租户校验并绑定，确认后全部继承到正式订单；随 release `20260912_220631` 上线 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-615</td>
+        <td class="td-name">快速录单半成品暂存并续填</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">快速录单当前内容保存为 MANUAL 草稿且不跳页；重复点击更新同一草稿，草稿中心可续填完整字段并确认生成正式订单。V59 加法迁移保留 Agent 草稿兼容；后端 502/502、PC 构建及草稿关键路径 Playwright 3/3 通过，待生产发布 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-608</td>
+        <td class="td-name">草稿确认转正式订单</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-609</td>
+        <td class="td-name">SPU 纸单占位 SKU 与分析隔离</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">V49/V50/V56 增加并校正 NORMAL/DEFAULT/PLACEHOLDER；任何显式规格商品（含单一具体 SKU）自动维护占位 SKU，Agent 按规格信息选择候选；Agent/PC 分析计入款号总量并把未指定规格与覆盖率单列 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-610</td>
+        <td class="td-name">占位数量拆分到真实 SKU</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">长任务系列 C；原子拆分并保持数量、金额和来源追溯守恒 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-611</td>
+        <td class="td-name">占位 SKU 履约保护</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">长任务系列 C；未拆分占位 SKU 阻断配货、出库和库存调整 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-612</td>
+        <td class="td-name">占位拆分审计与分析回算</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">长任务系列 C/E；拆分审计并防止占位与真实规格重复统计 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-613</td>
+        <td class="td-name">历史无规格 SKU 兼容与语义化显示</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">`NA-NA` 作为无规格实际 SKU、`UNSPEC-UNSPEC` 作为整款占位；历史 DEFAULT 保留引用并与当前规格排名隔离，库存履约前可拆分 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-901</td>
@@ -1330,6 +1730,34 @@
         <td class="td-remark">筛选区新增“确认筛选”按钮；关键字回车提交；日期范围参数前后端对齐；订单列表与导出复用同一筛选条件 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BA-1120</td>
+        <td class="td-name">订单新状态与履约方式展示</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">长任务系列 D；新字符串枚举展示并保留兼容读取 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1121</td>
+        <td class="td-name">财务流水与结清交互</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">长任务系列 D；展示订单金额、现金、核销、尾款和逐笔流水 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1122</td>
+        <td class="td-name">履约方式选择与快速录单联动</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">长任务系列 D；选择关联库存或仅记录，不直接提交状态数字 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1123</td>
+        <td class="td-name">配货动作与占位 SKU 保护</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
+        <td class="td-remark">长任务系列 C/D；按 allowedActions 展示配货并引导占位拆分 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BA-301</td>
         <td class="td-name">库存列表页</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1433,6 +1861,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
         <td class="td-remark">商品/颜色/尺码/分类删除前提示引用风险和建议禁用；删除失败时弹窗展示后端引用保护消息 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-411</td>
+        <td class="td-name">商品弹窗快速新增颜色/尺码</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 4: 商品管理</td>
+        <td class="td-remark">颜色尺码 Tab 内使用轻量新增面板创建主档；成功后刷新列表、自动选中并实时更新 SKU 预览；已有项直接选中 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-501</td>
@@ -1566,6 +2001,27 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
         <td class="td-remark">修改密码、个人信息；头部下拉菜单新增个人中心入口 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-803</td>
+        <td class="td-name">快速录单草稿工作台</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">`/orders/drafts` 已改为快速录单式编辑：左侧录单、右侧粘性原图持续并排，支持多图翻页/缩略图/点击放大/隐藏；中屏不使用抽屉，编辑时原图不关闭，商品表格在自身区域横向滚动；2026-09-12 随 release `20260912_220631` 上线 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-804</td>
+        <td class="td-name">草稿工作台占位 SKU 标识</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">商品选择器优先显示占位 SKU，并明确标记“整款（未指定颜色/尺码）”，避免与真实颜色尺码混淆 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-805</td>
+        <td class="td-name">占位 SKU 拆分界面</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">长任务系列 C/D；按真实颜色/尺码拆分并显示守恒校验和历史 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-901</td>
@@ -1736,6 +2192,83 @@
         <td class="td-remark">全屏 viewer 外层只负责裁剪，slide 内部负责图片边距；避免 iPad 竖屏下相邻图片从左右 padding 区域露出；新增 Playwright 回归验证 active slide 两侧 slide 均在视口外 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BA-1101</td>
+        <td class="td-name">WhatsApp 缺失媒体工作台</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">按客户/聊天、媒体类型和状态查看问题；支持打开 WhatsApp、触发扫描任务、轮询结果及人工确认 CRM 绑定 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1102</td>
+        <td class="td-name">WhatsApp 客户洞察与跟进工作台</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">展示客户摘要、偏好、意向、风险、建议时间和证据；支持采纳/忽略/完成，不自动发消息 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1103</td>
+        <td class="td-name">WhatsApp 只读聊天归档浏览</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">ERP 提供按真实号码聚合的客户聊天列表和 WhatsApp 风格只读时间线；支持文字、图片、视频、音频、贴纸、文档预览，未归档媒体明确显示缺失原因，不提供发送能力 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1104</td>
+        <td class="td-name">WhatsApp 菜单权限缓存刷新</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">PC 管理端每次页面会话自动刷新一次服务端权限，避免已登录浏览器因 localStorage 旧权限看不到“WhatsApp归档” |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1105</td>
+        <td class="td-name">WhatsApp 缺失媒体客户聚合与详情</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">缺失媒体首页同一聊天号码只显示一行及图片/视频/音频计数；点击详情抽屉查看该客户全部缺失明细、打开聊天并重新扫描 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1106</td>
+        <td class="td-name">WhatsApp 真实号码展示与安全打开聊天</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">页面优先显示联系人真实号码并用其生成 WhatsApp 链接；仅有 LID 且无号码映射时禁用入口，避免打开错误用户 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1107</td>
+        <td class="td-name">WhatsApp 全盘/客户双扫描入口</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">顶部保留“扫描整个账号”；缺失媒体客户详情新增“仅扫描此客户”，任务状态明确展示扫描范围和目标号码 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1108</td>
+        <td class="td-name">WhatsApp CRM 国际号码绑定修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">匹配时组合 CRM `country_code` 与本地号码；打开 WhatsApp 归档自动重算唯一精确候选，支持 ERP 客户晚于 WhatsApp 联系人创建的场景 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1109</td>
+        <td class="td-name">WhatsApp 绑定结果与聊天连续加载</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">展示待确认/已绑定客户及绑定用途；聊天默认定位最新消息，向上滚动无跳动加载更早记录 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1110</td>
+        <td class="td-name">客户详情 WhatsApp 工作台</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 12: WhatsApp 采集完整性工作台（P2）</td>
+        <td class="td-remark">客户详情新增 WhatsApp Tab，显示绑定/同步/缺失媒体状态，直接查看完整只读聊天、打开 WhatsApp 和仅扫描此客户 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-1111</td>
+        <td class="td-name">Agent Key 管理页面</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 13: Agent 凭证管理（P2）</td>
+        <td class="td-remark">系统管理新增 Owner 专属 Agent Key 页签；支持创建、查看前缀/scope/有效期/最近使用、不可逆停用和轮换；完整密钥只显示一次，并可按可配置 `BLADE_AGENT_API_BASE_URL` 复制 Mac 环境配置 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">FE-001</td>
         <td class="td-name">Vue3 PWA 项目初始化</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1790,6 +2323,20 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">移动端 › Phase 2: 订单系统</td>
         <td class="td-remark">骨架已搭建，含SKU选择/仓库选择 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-110</td>
+        <td class="td-name">移动端订单新状态模型</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
+        <td class="td-remark">长任务系列 F；替换旧四状态模型并使用共享字符串枚举 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-111</td>
+        <td class="td-name">移动端订单动作权限</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">移动端 › Phase 2: 订单系统</td>
+        <td class="td-remark">长任务系列 F；按后端 allowedActions 展示和拒绝动作 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">FE-201</td>

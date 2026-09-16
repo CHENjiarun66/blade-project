@@ -5,6 +5,7 @@ packages/*/node_modules/
 # Build outputs
 dist/
 */dist/
+**/.build/
 
 # IDE
 .idea/
@@ -75,5 +76,6 @@ stitch/
 .claude/
 AGENTS.md
 
-# Production secrets and private keys
-deploy/nas/nginx/ssl/*.key
+# Production TLS material must live on NAS, never in Git or image build context
+deploy/nas/nginx/ssl/
+deploy/nas/secrets/

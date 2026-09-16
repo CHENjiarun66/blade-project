@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -257,6 +258,17 @@ class ProductControllerTest {
 
         Long productId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("data").asLong();
 
+        // 即使当前只有一个具体颜色/尺码组合，只要属于显式规格商品，
+        // 也必须同时提供一个“整款录入”占位 SKU。
+        mockMvc.perform(get("/api/products/" + productId)
+                .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.skus.length()").value(2))
+                .andExpect(jsonPath("$.data.skus[?(@.skuType == 'NORMAL')]").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.skus[?(@.skuType == 'PLACEHOLDER')]").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.skus[?(@.placeholder == true)]").value(hasSize(1)));
+
         String updateJson = String.format("""
             {
                 "id": %d,
@@ -277,7 +289,9 @@ class ProductControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.colors.length()").value(3))
-                .andExpect(jsonPath("$.data.skus.length()").value(3));
+                .andExpect(jsonPath("$.data.skus.length()").value(4))
+                .andExpect(jsonPath("$.data.skus[?(@.skuType == 'PLACEHOLDER')]").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.skus[?(@.placeholder == true)]").value(hasSize(1)));
     }
 
     @Test

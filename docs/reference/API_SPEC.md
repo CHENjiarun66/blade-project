@@ -1039,6 +1039,48 @@ X-Agent-Key: {agent_key}
 | WhatsApp 消息接入接口 | 暂缓 | 需先验证接入方式、客户映射、权限和消息保留策略 |
 | 订单异常/利润解释/经营记忆接口 | 后续路线 | 依赖事件日志、毛利权限和人工确认规则 |
 
+### Agent Key 管理（Owner JWT）
+
+| Method | Path | 鉴权 | 说明 |
+|--------|------|------|------|
+| GET | `/api/system/agent-keys` | JWT / `agent-key:manage` | 查询当前租户 Key；只返回前缀和生命周期信息，不返回哈希或完整密钥 |
+| GET | `/api/system/agent-keys/scopes` | JWT / `agent-key:manage` | 返回当前允许签发的 scope 白名单 |
+| POST | `/api/system/agent-keys` | JWT / `agent-key:manage` | 签发 Key；完整明文仅在本次响应返回一次 |
+| POST | `/api/system/agent-keys/{id}/rotate` | JWT / `agent-key:manage` | 原子签发替代 Key 并立即停用旧 Key |
+| POST | `/api/system/agent-keys/{id}/disable` | JWT / `agent-key:manage` | 不可逆停用 Key；需要恢复接入时签发新 Key |
+
+V58 默认仅向 `ROLE_OWNER` 授予 `agent-key:manage`。接口不接受 `tenantId`，目标租户由登录用户上下文确定；可签发 scope 受服务端白名单限制。数据库仅保存 BCrypt 哈希、前缀、签发用户、有效期、停用时间和轮换来源。
+
+Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通过 [本机 Agent Key 管理器与授权代理](../16-AGENT_LOCAL_KEY_MANAGER.md) 保存到 macOS 钥匙串，并让 Agent 使用白名单 MCP 工具；纸单批量字段和操作顺序见 [Agent 订单草稿操作手册](../17-AGENT_ORDER_DRAFT_RUNBOOK.md)。
+
+### Agent 纸单订单草稿
+
+| Method | Path | 鉴权 / scope | 说明 |
+|--------|------|--------------|------|
+| GET | `/api/agent/catalog/skus?keyword=...&limit=...` | `X-Agent-Key` / `agent:catalog:read` | 返回 SKU 候选与系统参考价，不返回成本价 |
+| POST | `/api/agent/order-drafts/source-files` | `X-Agent-Key` / `agent:orders:write` | 可选凭证兼容；原图不是创建草稿的前置条件 |
+| POST | `/api/agent/order-drafts/batch` | `X-Agent-Key` / `agent:orders:write` | 批量创建草稿；按租户 + externalRefNo 幂等，每单返回 CREATED、CREATED_WITH_WARNINGS、DUPLICATE 或 ERROR |
+| GET | `/api/agent/products?current=1&size=20&keyword=...` | `X-Agent-Key` / `agent:products:read` | 分页读取商品、颜色尺码及 SKU；最大 100 条，不返回成本价 |
+| GET | `/api/agent/products/{id}` | `X-Agent-Key` / `agent:products:read` | 读取单个脱敏商品详情 |
+| GET | `/api/agent/products/options` | `X-Agent-Key` / `agent:products:read` | 返回可用于新增商品的分类、颜色、尺码；不返回保留编码 |
+| POST | `/api/agent/products` | `X-Agent-Key` / `agent:products:create` | 新增商品；颜色尺码使用已有编码，同款号返回 DUPLICATE，不更新商品或库存 |
+| GET | `/api/agent/orders?current=1&size=20&startDate=...&endDate=...` | `X-Agent-Key` / `agent:orders:read` | 分页读取正式订单；不返回客户电话/地址、成本和毛利 |
+| GET | `/api/agent/orders/{id}` | `X-Agent-Key` / `agent:orders:read` | 读取正式订单与商品明细；不返回高敏字段 |
+| GET | `/api/agent/customers?current=1&size=20&keyword=...` | `X-Agent-Key` / `agent:customers:read` | 分页读取客户名称、电话、地址、备注和订单数；最大 100 条，属于敏感只读 |
+| GET | `/api/agent/customers/{id}` | `X-Agent-Key` / `agent:customers:read` | 读取单个客户详情；包含客户敏感资料 |
+| POST | `/api/agent/customers` | `X-Agent-Key` / `agent:customers:create` | 只新增客户；重复电话返回 DUPLICATE，不覆盖已有资料；无 `customers:read` 时不回显旧客户 ID/名称 |
+| GET | `/api/order-drafts` | JWT / `btn:order:view` | 草稿分页列表 |
+| GET | `/api/order-drafts/{id}` | JWT / `btn:order:view` | 草稿详情、纸单原值、警告和明细 |
+| POST | `/api/order-drafts` | JWT / `btn:order:create` | 将快速录单当前内容创建为手工草稿；允许保留未匹配、未完成明细 |
+| PUT | `/api/order-drafts/{id}` | JWT / `btn:order:create` | 保存人工修改，未匹配 SKU 可继续保留 |
+| POST | `/api/order-drafts/{id}/confirm` | JWT / `btn:order:create` | 人工确认并幂等创建正式订单 |
+
+约束：`salePrice`、`quantity`、`paperAmount`、`paperTotalAmount` 和 `deposit` 来自纸单识别或人工修正；`systemReferencePrice` 仅用于对照，不能覆盖纸单售价。客户无法匹配时使用“散客”。没有 `sourceFileId` 不产生缺图警告。草稿确认前不进入正式订单、库存、财务和经营统计。
+
+V59 起草稿响应增加 `entrySource`：`AGENT` 保持上述纸单语义，`MANUAL` 表示快速录单手工暂存。手工草稿可额外保存 `sourceShop`、`orderType`、`customerCountryCode`、`customerAddress`、`paidAmount`、`freightAmount`、`freightCost`、`needDelivery`、`deliveryAddress` 和明细 `costPrice`。手工草稿确认时订单应收按商品明细加客户运费计算，`paperTotalAmount` 不覆盖正式订单金额；Agent 草稿仍按纸单总额优先。
+
+SKU 候选补充规则：候选返回 `skuType` 和 `placeholder`。只按款号查询任何显式规格商品时，`PLACEHOLDER` 以 `matchScore=1.00` 优先返回，即使当前只有一个具体 `NORMAL` SKU；请求包含 `colorName` 或 `sizeCode` 时不返回占位 SKU。只有纯无规格 `DEFAULT` 商品按款号直接返回实际 SKU。英文 SKU 编码是接口稳定标识，前端应将 `DEFAULT/NA-NA` 显示为“无规格商品（实际 SKU）”，将 `PLACEHOLDER/UNSPEC-UNSPEC` 显示为“整款录入（颜色/尺码未指定）”。`GET /api/agent/analytics/sku-mix` 的款号总量包含占位销量，真实 `skus/colors/sizes` 排名排除占位量，并通过 `unspecified`、`historicalNoVariant`、`variantCoverageRate`、`variantDataQuality` 分别描述当前整款录入量、商品升级规格前的历史无规格量及规格覆盖质量。
+
 ---
 
 ## 六、商品接口

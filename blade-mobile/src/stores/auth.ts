@@ -21,7 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logoutAction() {
     try {
-      await logout()
+      await logout(localStorage.getItem('refresh_token'))
     } finally {
       token.value = null
       userInfo.value = null
@@ -38,6 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
     const result = await refreshToken(refresh_token)
     token.value = result.token
     localStorage.setItem('token', result.token)
+    localStorage.setItem('refresh_token', result.refreshToken)
     return result
   }
 

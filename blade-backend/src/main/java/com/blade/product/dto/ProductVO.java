@@ -147,6 +147,8 @@ public class ProductVO {
     public static class SkuVO {
         private Long id;
         private String skuCode;
+        private String skuType;
+        private boolean placeholder;
         private Long colorId;
         private String colorName;
         private Long sizeId;
@@ -160,6 +162,10 @@ public class ProductVO {
         public void setId(Long id) { this.id = id; }
         public String getSkuCode() { return skuCode; }
         public void setSkuCode(String skuCode) { this.skuCode = skuCode; }
+        public String getSkuType() { return skuType; }
+        public void setSkuType(String skuType) { this.skuType = skuType; }
+        public boolean isPlaceholder() { return placeholder; }
+        public void setPlaceholder(boolean placeholder) { this.placeholder = placeholder; }
         public Long getColorId() { return colorId; }
         public void setColorId(Long colorId) { this.colorId = colorId; }
         public String getColorName() { return colorName; }

@@ -3,6 +3,8 @@ import client from './client'
 export interface OrderItemVO {
   id: number
   skuId: number
+  skuType?: string
+  variantUnresolved?: boolean
   warehouseId?: number
   warehouseName?: string
   skuCode: string
@@ -68,6 +70,40 @@ export interface OrderVO {
   deliverTime: string
   completeTime: string
   items?: OrderItemVO[]
+  // ==== 新订单生命周期与财务事实（兼容期与旧字段并存） ====
+  fulfillmentStatus?:
+    | 'CONFIRMED'
+    | 'WAITING_ALLOCATION'
+    | 'ALLOCATING'
+    | 'READY_TO_SHIP'
+    | 'SHIPPED'
+    | 'COMPLETED'
+    | 'CANCELLED'
+  collectionStatus?: 'UNPAID' | 'PARTIAL' | 'SETTLED'
+  fulfillmentMode?: 'UNDECIDED' | 'STOCK_LINKED' | 'RECORD_ONLY'
+  settledAt?: string
+  settlementMethod?: 'FULL_RECEIPT' | 'WRITE_OFF' | 'MIGRATION_CONFIRMED'
+  grossReceivedAmount?: number
+  cashRefundAmount?: number
+  salesReturnAmount?: number
+  netReceivedAmount?: number
+  /** 历史未迁移行：展示值来自旧字段回退，禁止参与动作与统计 */
+  legacyUnmigrated?: boolean
+  allowedActions?: string[]
+  financialRecords?: OrderFinancialRecordVO[]
+}
+
+export interface OrderFinancialRecordVO {
+  id: number
+  orderId: number
+  recordType: 'RECEIPT' | 'WRITE_OFF' | 'REFUND' | 'REVERSAL' | 'MIGRATION_OPENING'
+  amount: number
+  paymentMethod?: string
+  occurredAt: string
+  operatorName?: string
+  reason?: string
+  source: string
+  reversedRecordId?: number
 }
 
 export interface OrderPageDTO {
@@ -117,7 +153,7 @@ export interface OrderCreateDTO {
   customerName: string
   customerPhone?: string
   customerAddress?: string
-  paymentStatus: number
+  paymentStatus?: number
   depositAmount?: number
   paidAmount?: number
   freightAmount?: number
@@ -192,6 +228,45 @@ export function addPayment(orderId: number, data: AddPaymentDTO) {
   return client.post(`/orders/${orderId}/add-payment`, data) as any
 }
 
+// 最终确认收款：finalReceivedAmount 是订单累计实收，不是本次增收金额
+export interface ConfirmSettlementDTO {
+  finalReceivedAmount: number
+  writeOffReason?: string
+  idempotencyKey?: string
+}
+export function confirmSettlement(orderId: number, data: ConfirmSettlementDTO) {
+  return client.post(`/orders/${orderId}/confirm-settlement`, data) as any
+}
+
+// ==== 新动作接口（系列 D） ====
+
+// 现金退款（与销售退货无关）
+export function refundPayment(orderId: number, data: { amount: number; reason: string; idempotencyKey?: string }) {
+  return client.post(`/orders/${orderId}/refund`, data) as any
+}
+
+// 冲销财务流水（只追加 REVERSAL）
+export function reverseFinancialRecord(
+  orderId: number,
+  data: { recordId: number; reason: string; idempotencyKey?: string }
+) {
+  return client.post(`/orders/${orderId}/reverse-record`, data) as any
+}
+
+// 选择履约方式（已结清后）
+export function chooseFulfillmentMode(orderId: number, mode: 'STOCK_LINKED' | 'RECORD_ONLY') {
+  return client.post(`/orders/${orderId}/fulfillment-mode`, { mode }) as any
+}
+
+// 占位明细拆分到真实 SKU
+export function splitPlaceholderItem(
+  orderId: number,
+  itemId: number,
+  data: { targets: { skuId: number; quantity: number }[]; reason?: string }
+) {
+  return client.post(`/orders/${orderId}/items/${itemId}/split`, data) as any
+}
+
 // ============ 出库单相关 ============
 
 export interface OrderDeliveryItemDTO {
@@ -254,7 +329,7 @@ export function confirmDelivery(deliveryId: number) {
 
 // 配货计划项请求DTO
 export interface DeliveryPlanItemDTO {
-  orderItemId?: number
+  orderItemId: number
   skuId: number
   warehouseId?: number
   plannedQty?: number

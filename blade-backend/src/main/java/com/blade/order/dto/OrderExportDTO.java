@@ -39,6 +39,34 @@ public class OrderExportDTO {
     @ColumnWidth(12)
     private String paymentStatusName;
 
+    @ExcelProperty("履约状态")
+    @ColumnWidth(12)
+    private String fulfillmentStatusName;
+
+    @ExcelProperty("收款状态")
+    @ColumnWidth(12)
+    private String collectionStatusName;
+
+    @ExcelProperty("履约方式")
+    @ColumnWidth(12)
+    private String fulfillmentModeName;
+
+    @ExcelProperty("累计实收")
+    @ColumnWidth(12)
+    private BigDecimal grossReceivedAmount;
+
+    @ExcelProperty("现金退款")
+    @ColumnWidth(12)
+    private BigDecimal cashRefundAmount;
+
+    @ExcelProperty("净实收")
+    @ColumnWidth(12)
+    private BigDecimal netReceivedAmount;
+
+    @ExcelProperty("结清方式")
+    @ColumnWidth(12)
+    private String settlementMethodName;
+
     @ExcelProperty("客户名称")
     @ColumnWidth(20)
     private String customerName;

@@ -10,6 +10,10 @@ import java.time.LocalDate;
 @Schema(description = "订单分页查询DTO")
 public class OrderPageDTO {
 
+    /** 新模型筛选（兼容期与数字 status 并存） */
+    private String fulfillmentStatus;
+    private String collectionStatus;
+
     @Min(value = 1, message = "页码最小为1")
     @Schema(description = "页码")
     private Long current = 1L;
@@ -55,6 +59,10 @@ public class OrderPageDTO {
     public void setCustomerName(String customerName) { this.customerName = customerName; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+    public String getFulfillmentStatus() { return fulfillmentStatus; }
+    public void setFulfillmentStatus(String fulfillmentStatus) { this.fulfillmentStatus = fulfillmentStatus; }
+    public String getCollectionStatus() { return collectionStatus; }
+    public void setCollectionStatus(String collectionStatus) { this.collectionStatus = collectionStatus; }
     public Integer getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(Integer paymentStatus) { this.paymentStatus = paymentStatus; }
     public String getOrderType() { return orderType; }

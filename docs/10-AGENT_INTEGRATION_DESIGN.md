@@ -1,7 +1,7 @@
 # Agent 对接设计
 
 > 本文档定义 BladeProject 对接外部 AI Agent 的需求边界、接口分层、安全约束和实施顺序。
-> 当前决策：第一期先做只读 Agent Gateway，让 Agent 基于系统订单、客户、商品和库存数据做款式趋势判断、客户跟进提醒和周期经营分析，不直接访问数据库，不直接执行订单写操作。
+> 当前决策：Agent Gateway 默认只读；只批准两个受 scope 约束的窄范围写入：创建可人工复核的订单草稿，以及新增不覆盖既有数据、不产生库存事实的商品。Agent 不允许直接确认正式订单、修改/删除商品、调整库存或确认收款。
 
 ---
 
@@ -47,10 +47,16 @@ MySQL + Redis + File Storage
 | Agent 独立鉴权、租户绑定、权限范围 | 第一期开 |
 | Agent API 调用审计与限流基础 | 第一期设计并落地最小版本 |
 | 定时提醒结果输出 | 第一期开，先输出待跟进列表和报告数据，提醒渠道后续选型 |
-| WhatsApp 数据接入 | 第二阶段设计，先锁定数据边界和客户映射要求 |
+| WhatsApp 数据接入 | 本地归档、客户绑定、完整性诊断和混合 Agent 人工跟进链路已完成；自动发送继续禁止 |
 | `/agent/query` 后端自然语言问答 | 暂缓，先由外部 Agent 选择结构化工具 |
 | `/agent/action` 泛化写操作 | 暂缓，避免 Agent 直接触发高风险业务写入 |
-| 创建/编辑订单、库存调整、收款确认 | 第一阶段禁止 |
+| 创建订单草稿 | 已开放窄范围能力；`agent:orders:write`，只写草稿，不产生库存/财务影响 |
+| 读取商品主档 | `agent:products:read`；分页返回商品、颜色尺码和 SKU，不返回成本价 |
+| 读取正式订单 | `agent:orders:read`；分页返回销售、收款、状态与商品明细，不返回电话、地址、成本和毛利 |
+| 读取客户资料 | `agent:customers:read`；分页返回客户名称、电话、地址和备注，属于敏感只读 |
+| 新增商品 | `agent:products:create`；同编码返回 `DUPLICATE`，不覆盖旧商品，不写库存 |
+| 新增客户 | `agent:customers:create`；重复电话返回 `DUPLICATE`，不覆盖旧客户 |
+| 确认正式订单、库存调整、收款确认 | Agent 阶段禁止，必须由 JWT 登录用户人工执行 |
 | 增量变更订阅 `/agent/changes` | 待统一业务事件日志后再做 |
 
 ### 1.3 能力地图
@@ -144,6 +150,53 @@ Agent API 面向外部 Agent 的工作流，第一期路径统一放在 `/api/ag
 | `/api/agent/reports/periodic` | GET | 月度、季度、年度经营分析数据包 |
 
 Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴露实体内部字段和数据库实现细节。
+
+### 3.4 纸单订单草稿 API
+
+本机识别 Agent 使用绑定租户的 Agent Key 调用 NAS 生产环境：
+
+- API 入口由 Agent 运行环境的 `BLADE_AGENT_API_BASE_URL` 配置，不写死在客户端代码中。
+- 当前外网生产入口为 `https://www.chenjianas.asia:33294`，接口实际地址由该入口拼接 `/api/agent/...`。
+- 地址只解决 Mac 到 NAS 的网络可达性；租户和权限仍由 `X-Agent-Key` 绑定，不允许请求参数自行指定租户。
+- 纸单图片识别与 Excel 整理由本机 Agent 完成。存在纸单图片时，标准流程同时上传原图，BladeProject 接收结构化数据并以 `sourceFileIds` 关联最多 10 张原图；纯 Excel 或原图缺失仍可降级创建草稿，但必须保留缺图 warning。
+
+| 接口 | scope | 用途 |
+|------|-------|------|
+| `GET /api/agent/catalog/skus` | `agent:catalog:read` | 按款号、SKU、名称、颜色查询候选；系统售价仅作参考 |
+| `POST /api/agent/order-drafts/source-files` | `agent:orders:write` | 上传一张纸单原图，返回 fileId；JPG/PNG/WEBP，单图受文件服务大小限制 |
+| `POST /api/agent/order-drafts/batch` | `agent:orders:write` | 批量创建草稿；每单用 `sourceFileIds` 关联原图，每单隔离结果，按 externalRefNo 幂等 |
+| `GET /api/agent/products`、`GET /api/agent/products/{id}` | `agent:products:read` | 分页/单项读取脱敏商品主档；每页最多 100 条 |
+| `GET /api/agent/products/options` | `agent:products:read` | 返回新增商品可引用的分类、颜色和尺码；隐藏系统保留编码 |
+| `GET /api/agent/orders`、`GET /api/agent/orders/{id}` | `agent:orders:read` | 分页/单项读取脱敏正式订单；草稿不在本接口内 |
+| `GET /api/agent/customers`、`GET /api/agent/customers/{id}` | `agent:customers:read` | 分页/单项读取客户名称、电话、地址、备注和订单数 |
+| `POST /api/agent/products` | `agent:products:create` | 只新增商品；颜色尺码按已有编码解析，重复款号不修改，库存为零事实 |
+| `POST /api/agent/customers` | `agent:customers:create` | 只新增客户；重复电话不覆盖，并记录实际 Agent Key 来源 |
+
+本机 Key 管理器对应工具为 `blade_order_draft_source_upload`。它只接收本机图片绝对路径，执行时沿用 `agent:orders:write` 的选 Key 与授权流程；Agent 无法读取 Key 原文。上传成功后再调用 `blade_order_drafts_create`，不得把本机路径或图片二进制直接塞入批量 JSON。
+
+管理端使用 JWT 调用 `/api/order-drafts` 读取、编辑和确认。确认动作不属于 Agent API；只有用户确认后才调用既有订单领域服务创建正式订单。快速录单也可通过 JWT `POST /api/order-drafts` 保存为 `MANUAL` 草稿；这与 Agent Key 批量导入的 `AGENT` 草稿共用草稿中心，但金额语义分开：手工草稿按明细和运费计算，Agent 草稿继续以纸单金额为准。
+
+Mac 普通用户接入增加“本机 Key 管理器 + 授权代理”层：完整 Key 由用户粘贴到原生桌面应用并存入 macOS 钥匙串；DeepSeek、ZCode、Codex 等 Agent 通过受白名单约束的本机 MCP/调用工具发请求。工具在调用前显示 Agent、接口、scope 和候选 Key，由用户选择并授权，再由本机进程注入 Header。模型不得读取或持有 Key 原文。详细契约见 [16-AGENT_LOCAL_KEY_MANAGER.md](./16-AGENT_LOCAL_KEY_MANAGER.md)。
+
+本机代理不是新的业务网关：它只负责本机凭证保管、用户授权和网络转发，租户隔离、scope、过期/停用判断及调用审计仍由 NAS 上的 Agent Gateway 执行。纯网页 Agent 无本机工具能力时不得直接使用生产 Key。
+
+Key 权限调整采用“重新签发并停用旧 Key”，不在已经流出的旧 Key 上静默扩权。新增 scope 不会自动进入历史 Key；Owner 必须在系统管理中明确勾选，保存一次性新 Key并更新本机 Key 管理器。查询接口只允许分页，不提供无上限全量下载；Agent 需要完整数据时按 `current/size` 逐页读取。
+
+客户资料是独立高敏边界：`orders:read` 仍不返回客户电话和地址；只有 Owner 明确授予 `customers:read` 后才能读取客户电话、地址与备注。`customers:create` 不隐含读取权限，也不允许客户更新、删除、合并或标签调整。
+
+数据优先级固定为：纸单数量、纸单销售价、纸单金额和总额优先；商品主档只负责识别 SKU 与提供参考价。未匹配 SKU、金额不一致和字段歧义以警告形式保留，不阻止草稿落库。
+
+#### SPU 款号与 SKU 颗粒度处理
+
+- `product_sku.sku_type` 使用 `NORMAL`、`DEFAULT`、`PLACEHOLDER`。
+- 只要商品存在显式颜色/尺码并产生至少一个启用的 `NORMAL` SKU，就自动维护一个 `PLACEHOLDER`；即使只有一个具体组合也不例外。接口继续返回英文技术编码，管理页面显示“整款录入（颜色/尺码未指定）”；纯无规格商品使用正常可售的 `DEFAULT`，页面显示“无规格商品（实际 SKU）”。
+- 只提供款号且没有颜色尺码时，候选接口优先返回 `PLACEHOLDER`，`matchReasons` 包含 `spu_placeholder`。
+- 提供任一颜色或尺码条件时，候选接口排除 `PLACEHOLDER` 并匹配具体 `NORMAL` SKU；只有纯无规格 `DEFAULT` 商品才按款号直接返回实际 SKU，原因可包含 `single_saleable_sku`。
+- 候选返回 `skuType` 与 `placeholder`，系统参考价仍不能覆盖纸单销售价。
+- 占位 SKU 不进入对外商品目录和库存可用性判断。经营分析将其计入款号总销量/销售额，但从真实颜色尺码排名中移出，单列 `unspecified` 并返回 `variantCoverageRate` 和 `variantDataQuality`。
+- 占位数量进入正式订单后，配货和出库前必须转移到真实 SKU。转移需保证数量与销售额守恒，保留来源明细和操作审计，并避免分析重复计数。
+- 商品从无规格升级为有规格时，Agent 不应迁移或重写既有订单中的 `DEFAULT/NA-NA`。历史明细保留原 SKU ID，并通过 `historicalNoVariant` 与当前真实规格排名隔离；库存关联订单可使用同一拆分接口转到真实 SKU。
+- 转移服务、管理端拆分界面、历史 `DEFAULT` 兼容与履约保护已实现，对应 BE-610～BE-613、BA-805。
 
 ---
 
@@ -332,13 +385,15 @@ Agent 不复用前端登录态。建议新增 Agent 凭证模型：
 
 WhatsApp 信息不是订单真相来源，而是客户沟通上下文来源。接入后 Agent 可以把“客户最近沟通内容”和“系统里的订单、拿货周期、偏好、欠款/发货状态”合并分析，提升跟进建议质量。
 
-### 6.2 需要先验证的边界
+### 6.2 已锁定的本地归档 v1 边界（2026-08-24）
 
-1. 选择合规且可持续的 WhatsApp 接入方式，再锁定技术方案。
-2. 明确导入的是消息原文、结构化摘要，还是两者都保留。
-3. 通过电话号码、客户确认绑定或人工映射把聊天对象关联到 `crm_customer`。
-4. 对聊天内容设置访问权限、保留期限、脱敏和审计规则。
-5. 第一阶段不让 Agent 代表用户自动发送 WhatsApp 消息。
+1. 当前 WhatsApp Business Mac App 作为只读源，原号码不变；后续 Business Platform 是可替换数据源，不是 v1 前置条件。
+2. 原始 SQLite 快照与媒体保存在 Git 外的加密本地目录；Blade 只保存结构化事实和受控媒体资产。
+3. v1 导入 1:1 联系人、会话、文本和已下载媒体，排除群聊、状态、频道、广播、通话和发送能力。
+4. 通过规范化号码生成 CRM 唯一精确匹配候选，由人工确认；不自动创建或覆盖 `crm_customer`。
+5. Collector 使用独立写入凭证；Agent 不读原始快照或数据库，只通过租户/scoped Gateway 读取必要事实。
+6. 第一阶段不让 Agent 代表用户自动发送 WhatsApp 消息，不自动修改人工标签或执行营销。
+7. 详细字段、幂等算法、安全边界和 SOW 见 [WhatsApp Mac 本地归档 ROM/SOW](./superpowers/plans/2026-08-24-whatsapp-local-archive-rom-sow.md)。
 
 ### 6.3 第二阶段能力草案
 
@@ -350,6 +405,16 @@ WhatsApp 信息不是订单真相来源，而是客户沟通上下文来源。�
 | 问价未成交 | 识别有咨询或报价但暂未下单的客户和款式 |
 | 沟通热度对比 | 识别聊天热度高但下单转化低的款式或反馈主题 |
 | 周期复盘 | 把客户反馈主题纳入月报、季报、年报建议 |
+
+### 6.4 已锁定的混合分析链路（2026-08-24）
+
+1. Mac Collector 只执行确定性解析、去重、哈希、媒体检查和上传，不在终端运行模型。
+2. Blade/NAS 在确认客户绑定后，把新增消息与订单/商品事实组成版本化分析任务。
+3. Agent Worker 只能通过 `agent:whatsapp:analyze` scope 领取任务；上下文默认 90 天、最多 200 条，并用稳定客户别名替代姓名/电话。
+4. 正文在出 Gateway 前移除电话号码、邮箱和 URL；默认不返回地址、媒体、客户备注、付款敏感信息和全量历史。
+5. Worker 可以部署在 NAS 并连接本地模型，也可以连接云端模型；ERP 不保存第三方模型 API Key。
+6. 输出必须引用当前任务内的消息 ID；服务端拒绝跨任务、跨客户或跨租户证据。
+7. 推荐只进入 ERP 待处理队列，由用户采纳、忽略或标记完成；不自动发送 WhatsApp。
 
 ---
 
@@ -391,10 +456,11 @@ WhatsApp 信息不是订单真相来源，而是客户沟通上下文来源。�
 | 阶段 | 内容 | 说明 |
 |------|------|------|
 | Phase A | 需求与安全边界锁定 | PRD、任务、鉴权策略、客户接口认证边界 |
-| Phase B | Agent 只读鉴权 | Agent Key、租户绑定、scope、调用审计、限流基础 |
+| Phase B | Agent 独立鉴权 | Agent Key、租户绑定、scope、调用审计已完成；V58 补齐 Owner 签发、轮换、停用和一次性密钥交付，限流仍在生产入口验收 |
 | Phase C | Agent Gateway v1 | 款式趋势、客户跟进、客户风险、颜色尺码结构、库存建议事实、周期报告数据包、统一搜索 |
 | Phase D | 验证接入 | 用 Hermes 或等价 Agent 在真实接口上验证工具调用和返回稳定性 |
-| Phase E | WhatsApp 数据接入设计 | 接入方式验证、客户映射、权限和消息摘要边界 |
+| Phase E | WhatsApp 本地归档 v1 | Mac 只读快照、结构化事实、CRM 绑定、导入权限和完整性工作台已完成 |
+| Phase E2 | 纸单草稿生产闭环 | 占位拆分与履约保护、真实批次验收、NAS V48-V50 发布和 30 单联调 |
 | Phase F | 事件与动作扩展 | 统一业务事件日志、变化订阅、窄范围授权写动作 |
 
 ### 8.1 后续能力路线
@@ -403,7 +469,7 @@ WhatsApp 信息不是订单真相来源，而是客户沟通上下文来源。�
 |------|----------|----------|
 | Phase G | 订单运营异常、退款异常、尾款拖延 | 订单事件和支付口径收敛 |
 | Phase H | 利润解释、客户利润贡献、高销售低毛利预警 | 毛利与成本权限稳定 |
-| Phase I | WhatsApp 反馈分析、问价未成交、聊天热度对比 | WhatsApp 接入验证完成 |
+| Phase I | WhatsApp 客户摘要、偏好、意向、风险与跟进建议 | V45 队列、scoped 脱敏上下文、可替换 Worker、证据校验和 ERP 人工工作流已完成；自动营销仍禁止 |
 | Phase J | 经营记忆、决策结果回看 | 统一事件日志和人工确认规则 |
 
 ---
@@ -428,6 +494,6 @@ WhatsApp 信息不是订单真相来源，而是客户沟通上下文来源。�
 
 - 第一版不要求后端理解自然语言问题。
 - 第一版不要求 Agent 创建或编辑订单。
-- 第一版不要求 WhatsApp 已接入。
+- Agent Gateway 第一版不要求 WhatsApp 分析接口完成；WhatsApp 本地归档由独立 BE-566～BE-571 分阶段验收。
 - 第一版不要求消息推送、微信提醒或长轮询事件流。
 - 第一版不要求新增 Agent 管理前端页面；可先由后端管理流程生成测试凭证。

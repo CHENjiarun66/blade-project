@@ -27,6 +27,9 @@ public class Customer {
     @TableField("create_by")
     private Long createBy;
 
+    @TableField("created_by_agent_key_id")
+    private Long createdByAgentKeyId;
+
     private Integer deleted;
 
     @TableField(fill = FieldFill.INSERT)
@@ -51,6 +54,8 @@ public class Customer {
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public Long getCreateBy() { return createBy; }
     public void setCreateBy(Long createBy) { this.createBy = createBy; }
+    public Long getCreatedByAgentKeyId() { return createdByAgentKeyId; }
+    public void setCreatedByAgentKeyId(Long createdByAgentKeyId) { this.createdByAgentKeyId = createdByAgentKeyId; }
     public Integer getDeleted() { return deleted; }
     public void setDeleted(Integer deleted) { this.deleted = deleted; }
     public LocalDateTime getCreateTime() { return createTime; }

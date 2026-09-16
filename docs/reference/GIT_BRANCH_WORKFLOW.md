@@ -197,7 +197,31 @@ feature/file-center-v1.2
 feature/customer-follow-v1.3
 ```
 
-### 4.3 当前快照分支处理建议
+### 4.3 跨模块大重构与多 Agent 并行
+
+跨越数据库、后端、多个前端和统计消费者的大重构，不应让多个 Agent 在同一工作目录和同一分支同时写文件。推荐建立一个重构集成分支，再为工作包创建独立 worktree/子分支：
+
+```text
+master 或已确认的功能基线
+  ↓
+codex/<refactor-name>            重构集成分支
+  ├── codex/<refactor>-schema    Agent A 独立 worktree
+  ├── codex/<refactor>-core      Agent B 独立 worktree
+  └── codex/<refactor>-clients   Agent C 独立 worktree
+```
+
+规则：
+
+- 集成分支只接收经过审查和测试的工作包，不直接作为 NAS 部署源。
+- 每个 Agent 使用独立 worktree、分支和任务 ID；禁止并发共享未提交工作区。
+- 数据库 migration 版本由一个负责人统一分配，禁止抢号和修改已执行 migration。
+- 前置契约未稳定时，不允许消费者 Agent 自行复制临时枚举或金额公式。
+- 合并到集成分支后执行跨模块回归，再创建 `release/*`；只有 release 验收并合入 `master` 后才发布 NAS。
+- 如果当前 Agent 环境要求使用 `codex/` 前缀，按该前缀创建；其他开发工具可继续使用项目约定的 `feature/*`，但职责和发布门禁不变。
+
+当前订单重构的具体工作包见 [订单生命周期、财务与统计大重构 ROM/SOW](../superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。
+
+### 4.4 当前快照分支处理建议
 
 当前分支：
 
@@ -435,5 +459,5 @@ snapshot/before-nas-deploy-20260611
 
 - 本文档变更必须同步记录到 [../05-CHANGELOG.md](../05-CHANGELOG.md)。
 - 如果 NAS 部署分支策略变化，必须同步更新 [../13-NAS_PRODUCTION_OPS.md](../13-NAS_PRODUCTION_OPS.md)。
-- 如果 Agent 开发规范变化，必须同步更新根目录 [../../AGENTS.md](../../AGENTS.md)。
+- 如果 Agent 开发规范变化，必须同步更新 [AGENT_COLLABORATION.md](./AGENT_COLLABORATION.md) 和文档中心入口。
 - 如果文档入口变化，必须同步更新 [../01-README.md](../01-README.md) 和 [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md)。

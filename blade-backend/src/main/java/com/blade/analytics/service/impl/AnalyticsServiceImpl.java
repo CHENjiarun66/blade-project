@@ -9,6 +9,10 @@ import com.blade.analytics.enums.AnalyticsDimension;
 import com.blade.analytics.enums.AnalyticsSortBy;
 import com.blade.analytics.service.AnalyticsService;
 import com.blade.common.tenant.TenantContext;
+import com.blade.order.service.OrderFactsService;
+import com.blade.product.entity.ProductSku;
+import com.blade.product.mapper.ProductSkuMapper;
+import com.blade.product.service.ProductSkuSemantics;
 import com.blade.dashboard.dto.DashboardQueryDTO;
 import com.blade.dashboard.enums.PeriodType;
 import com.blade.order.entity.Order;
@@ -44,10 +48,15 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
+    private final OrderFactsService orderFactsService;
+    private final ProductSkuMapper productSkuMapper;
 
-    public AnalyticsServiceImpl(OrderMapper orderMapper, OrderItemMapper orderItemMapper) {
+    public AnalyticsServiceImpl(OrderMapper orderMapper, OrderItemMapper orderItemMapper,
+                                OrderFactsService orderFactsService, ProductSkuMapper productSkuMapper) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
+        this.orderFactsService = orderFactsService;
+        this.productSkuMapper = productSkuMapper;
     }
 
     @Override
@@ -129,7 +138,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         boolean profitVisible = hasProfitPermission();
         List<Order> orders = selectPaidOrdersInCurrentPeriod(query);
         List<OrderItem> items = selectItems(orders);
-        return rankItems(items, dimension, sortBy, limit, profitVisible);
+        List<OrderItem> rankingItems = dimension == AnalyticsDimension.PRODUCT
+                ? items
+                : partitionVariantItems(items).specified();
+        return rankItems(rankingItems, dimension, sortBy, limit, profitVisible);
     }
 
     @Override
@@ -139,14 +151,78 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<OrderItem> items = selectItems(orders).stream()
                 .filter(item -> Objects.equals(safeText(item.getProductName(), "未知商品"), productName))
                 .collect(Collectors.toList());
+        VariantPartition partition = partitionVariantItems(items);
+        List<OrderItem> unspecifiedItems = partition.unspecified();
+        List<OrderItem> historicalNoVariantItems = partition.historicalNoVariant();
+        List<OrderItem> specifiedItems = partition.specified();
+        long totalQuantity = sumQuantity(items);
+        long specifiedQuantity = sumQuantity(specifiedItems);
+        BigDecimal coverage = totalQuantity > 0
+                ? BigDecimal.valueOf(specifiedQuantity)
+                        .divide(BigDecimal.valueOf(totalQuantity), 4, RoundingMode.HALF_UP)
+                : BigDecimal.ONE;
 
         AnalyticsProductDetailDTO dto = new AnalyticsProductDetailDTO();
         dto.setProductName(productName);
-        dto.setSkus(rankItems(items, AnalyticsDimension.SKU, AnalyticsSortBy.SALES, 50, profitVisible));
-        dto.setColors(rankItems(items, AnalyticsDimension.COLOR, AnalyticsSortBy.SALES, 50, profitVisible));
-        dto.setSizes(rankItems(items, AnalyticsDimension.SIZE, AnalyticsSortBy.SALES, 50, profitVisible));
+        dto.setSkus(rankItems(specifiedItems, AnalyticsDimension.SKU, AnalyticsSortBy.SALES, 50, profitVisible));
+        dto.setColors(rankItems(specifiedItems, AnalyticsDimension.COLOR, AnalyticsSortBy.SALES, 50, profitVisible));
+        dto.setSizes(rankItems(specifiedItems, AnalyticsDimension.SIZE, AnalyticsSortBy.SALES, 50, profitVisible));
+        List<AnalyticsRankingDTO> unspecified = rankItems(
+                unspecifiedItems, AnalyticsDimension.SKU, AnalyticsSortBy.SALES, 1, profitVisible);
+        dto.setUnspecified(unspecified.isEmpty() ? null : unspecified.get(0));
+        List<AnalyticsRankingDTO> historicalNoVariant = rankItems(
+                historicalNoVariantItems, AnalyticsDimension.SKU, AnalyticsSortBy.SALES, 1, profitVisible);
+        dto.setHistoricalNoVariant(historicalNoVariant.isEmpty() ? null : historicalNoVariant.get(0));
+        dto.setTotalSalesQuantity(totalQuantity);
+        dto.setSpecifiedSalesQuantity(specifiedQuantity);
+        dto.setVariantCoverageRate(coverage);
+        dto.setVariantDataQuality(coverage.compareTo(new BigDecimal("0.80")) >= 0
+                ? "HIGH"
+                : coverage.compareTo(new BigDecimal("0.50")) >= 0 ? "MEDIUM" : "LOW");
         dto.setProfitVisible(profitVisible);
         return dto;
+    }
+
+    private boolean isPlaceholderItem(OrderItem item) {
+        if (item.getSkuCode() == null) {
+            return false;
+        }
+        String normalized = item.getSkuCode().toUpperCase(java.util.Locale.ROOT);
+        return normalized.endsWith("-UNSPEC-UNSPEC")
+                || normalized.endsWith("-UNSPECIFIED-UNSPEC");
+    }
+
+    private VariantPartition partitionVariantItems(List<OrderItem> items) {
+        if (items == null || items.isEmpty()) {
+            return new VariantPartition(List.of(), List.of(), List.of());
+        }
+        List<Long> skuIds = items.stream().map(OrderItem::getSkuId).filter(Objects::nonNull).distinct().toList();
+        List<ProductSku> referencedSkus = skuIds.isEmpty() ? List.of() : productSkuMapper.selectBatchIds(skuIds);
+        Map<Long, ProductSku> skuMap = referencedSkus.stream()
+                .collect(Collectors.toMap(ProductSku::getId, sku -> sku));
+        Set<Long> variantProductIds = ProductSkuSemantics.findProductsWithActiveVariants(productSkuMapper, referencedSkus);
+
+        List<OrderItem> specified = new ArrayList<>();
+        List<OrderItem> unspecified = new ArrayList<>();
+        List<OrderItem> historicalNoVariant = new ArrayList<>();
+        for (OrderItem item : items) {
+            if (isPlaceholderItem(item)) {
+                unspecified.add(item);
+                continue;
+            }
+            ProductSku sku = item.getSkuId() == null ? null : skuMap.get(item.getSkuId());
+            if (ProductSkuSemantics.isDefault(sku)
+                    && ProductSkuSemantics.requiresVariantResolution(sku, variantProductIds)) {
+                historicalNoVariant.add(item);
+            } else {
+                specified.add(item);
+            }
+        }
+        return new VariantPartition(specified, unspecified, historicalNoVariant);
+    }
+
+    private record VariantPartition(List<OrderItem> specified, List<OrderItem> unspecified,
+                                    List<OrderItem> historicalNoVariant) {
     }
 
     private List<AnalyticsRankingDTO> rankItems(List<OrderItem> items,
@@ -236,14 +312,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     private List<Order> selectPaidOrdersInPeriod(Long tenantId, LocalDate startDate, LocalDate endDate) {
-        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Order::getTenantId, tenantId);
-        wrapper.eq(Order::getDeleted, 0);
-        wrapper.apply("COALESCE(order_date, DATE(create_time)) BETWEEN {0} AND {1}", startDate, endDate);
-        wrapper.and(w -> w.gt(Order::getPaidAmount, BigDecimal.ZERO)
-                .or()
-                .in(Order::getPaymentStatus, PAID_PAYMENT_STATUSES));
-        return orderMapper.selectList(wrapper);
+        // 系列 E：统一走版本化订单事实服务，不再复制已收款口径
+        return orderFactsService.paidBusinessOrdersByOrderDate(tenantId, startDate, endDate);
     }
 
     private List<OrderItem> selectItems(List<Order> orders) {
@@ -299,28 +369,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     private BigDecimal sumNetSales(List<Order> orders) {
         return orders.stream()
-                .map(this::netSalesAmount)
+                .map(orderFactsService::netSalesAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private BigDecimal netSalesAmount(Order order) {
-        BigDecimal netAmount = safeAmount(order.getTotalAmount())
-                .subtract(safeAmount(order.getRefundAmount()))
-                .subtract(safeAmount(order.getWriteOffAmount()));
-        return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
     }
 
     private BigDecimal sumNetGrossProfit(List<Order> orders) {
         return orders.stream()
-                .map(this::netGrossProfitAmount)
+                .map(orderFactsService::netGrossProfitAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private BigDecimal netGrossProfitAmount(Order order) {
-        BigDecimal netAmount = safeAmount(order.getGrossProfit())
-                .subtract(safeAmount(order.getRefundAmount()))
-                .subtract(safeAmount(order.getWriteOffAmount()));
-        return netAmount.compareTo(BigDecimal.ZERO) > 0 ? netAmount : BigDecimal.ZERO;
     }
 
     private long sumQuantity(List<OrderItem> items) {
