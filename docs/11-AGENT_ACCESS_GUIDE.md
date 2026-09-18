@@ -147,7 +147,7 @@ Agent API 复用 BladeProject 统一响应结构：
 
 外部 Agent 不应根据失败结果绕开 Gateway 去访问 CRUD API、数据库、Redis 或文件存储。
 
-本机授权弹窗显示“没有未过期且包含某权限的 Key”时，说明 MCP 已启动，但当前工具所需 scope 与已保存 Key 不匹配。纸单录入 Key 通常只有 `catalog:read`、`orders:write` 和按需的 `analytics:read`，应使用 `blade_catalog_search` 验证连接；`blade_products_list` 需要另行授权 `products:read`。
+本机提示“本机权限记录未同步”时，说明 MCP 已启动，但 Key Manager 的本地 scope 尚未与服务器一致；在 Key 详情页点击“同步服务器权限”后重试。同步使用 `GET /api/agent/capabilities`，只返回当前 Key 自身的公开前缀、真实 scope 和到期时间，不要求 Owner JWT。若调用业务接口后服务器实际返回 403，才表示服务器记录的 Key 确实缺少该 scope。纸单录入 Key 通常只有 `catalog:read`、`orders:write` 和按需的 `analytics:read`，应使用 `blade_catalog_search` 验证连接；`blade_products_list` 需要另行授权 `products:read`。
 
 ### 3.4 商品与订单数据工具
 

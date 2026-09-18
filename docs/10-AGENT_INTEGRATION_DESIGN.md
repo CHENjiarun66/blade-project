@@ -163,6 +163,7 @@ Agent Gateway 的返回必须结构稳定、字段少而明确，不向外部暴
 
 | 接口 | scope | 用途 |
 |------|-------|------|
+| `GET /api/agent/capabilities` | 有效 Agent Key，无额外业务 scope | 返回当前 Key 的公开前缀、真实 scope 和到期时间，供本机 Key Manager 自动同步 |
 | `GET /api/agent/catalog/skus` | `agent:catalog:read` | 按款号、SKU、名称、颜色查询候选；系统售价仅作参考 |
 | `POST /api/agent/order-drafts/source-files` | `agent:orders:write` | 上传一张纸单原图，返回 fileId；JPG/PNG/WEBP，单图受文件服务大小限制 |
 | `POST /api/agent/order-drafts/batch` | `agent:orders:write` | 批量创建草稿；每单用 `sourceFileIds` 关联原图，每单隔离结果，按 externalRefNo 幂等 |

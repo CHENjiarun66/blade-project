@@ -41,8 +41,12 @@ struct ContentView: View {
             if let key = model.selectedKey {
                 KeyDetailView(key: key, helperPath: model.helperPath) {
                     model.copyConnectionGuide(agentName: key.agentName)
+                } syncAction: {
+                    Task { await model.syncCapabilities(for: key) }
                 } deleteAction: {
                     pendingDelete = key
+                } isSyncing: {
+                    model.isSyncing(key)
                 }
             } else {
                 EmptyStateView {
@@ -72,6 +76,17 @@ struct ContentView: View {
             Button("知道了") { model.errorMessage = nil }
         } message: {
             Text(model.errorMessage ?? "未知错误")
+        }
+        .alert(
+            "同步完成",
+            isPresented: Binding(
+                get: { model.noticeMessage != nil },
+                set: { if !$0 { model.noticeMessage = nil } }
+            )
+        ) {
+            Button("知道了") { model.noticeMessage = nil }
+        } message: {
+            Text(model.noticeMessage ?? "")
         }
         .confirmationDialog(
             "从本机删除 \(pendingDelete?.name ?? "")？",
@@ -152,7 +167,9 @@ private struct KeyDetailView: View {
     let key: StoredAgentKey
     let helperPath: String?
     let copyGuideAction: () -> Void
+    let syncAction: () -> Void
     let deleteAction: () -> Void
+    let isSyncing: () -> Bool
     @State private var didCopy = false
 
     var body: some View {
@@ -187,6 +204,10 @@ private struct KeyDetailView: View {
                         DetailLine(label: "剩余时间", value: remainingText)
                         Divider()
                         DetailLine(label: "录入时间", value: key.createdAt.formatted(date: .long, time: .shortened))
+                        if let lastSyncedAt = key.lastSyncedAt {
+                            Divider()
+                            DetailLine(label: "权限同步", value: lastSyncedAt.formatted(date: .long, time: .shortened))
+                        }
                     }
                     .padding(4)
                 } label: {
@@ -207,6 +228,22 @@ private struct KeyDetailView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                        }
+                        Divider()
+                        HStack {
+                            Text("权限与有效期以服务器记录为准。调整或轮换 Key 后请重新同步。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button(action: syncAction) {
+                                if isSyncing() {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Label("同步服务器权限", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                            }
+                            .disabled(isSyncing())
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -326,8 +363,6 @@ private struct AddKeyView: View {
     @State private var agentName = ""
     @State private var rawKey = ""
     @State private var baseURL = "https://www.chenjianas.asia:33294"
-    @State private var expiresAt = Calendar.current.date(byAdding: .day, value: 90, to: Date()) ?? Date()
-    @State private var scopes: Set<AgentScope> = [.catalogRead, .ordersWrite]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -361,28 +396,14 @@ private struct AddKeyView: View {
                     }
                     TextField("API 地址", text: $baseURL)
                         .font(.system(.body, design: .monospaced))
-                    DatePicker("有效期至", selection: $expiresAt, in: Date()..., displayedComponents: [.date, .hourAndMinute])
-                    Text("有效期由你根据系统签发日期填写，用于本机提醒；服务器仍以系统记录为准。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
-                Section("权限范围") {
-                    ForEach(AgentScope.allCases) { scope in
-                        Toggle(isOn: Binding(
-                            get: { scopes.contains(scope) },
-                            set: { enabled in
-                                if enabled { scopes.insert(scope) } else { scopes.remove(scope) }
-                            }
-                        )) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(scope.displayName)
-                                Text(scope.detail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
+                Section("服务器验证") {
+                    Label("保存前会使用这把 Key 查询服务器，并自动填充真实权限和到期时间。无需再次手动选择权限。", systemImage: "checkmark.shield")
+                        .foregroundStyle(.secondary)
+                    Text("验证请求只访问 /api/agent/capabilities，不读取业务数据；完整 Key 仍只保存到 macOS 钥匙串。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
@@ -394,26 +415,31 @@ private struct AddKeyView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("保存到钥匙串") {
-                    let input = KeyInput(
-                        name: name,
-                        agentName: agentName,
-                        rawKey: rawKey,
-                        baseURL: baseURL,
-                        expiresAt: expiresAt,
-                        scopes: scopes
-                    )
-                    if model.add(input) { dismiss() }
+                Button {
+                    let input = KeyInput(name: name, agentName: agentName, rawKey: rawKey, baseURL: baseURL)
+                    Task {
+                        if await model.add(input) { dismiss() }
+                    }
+                } label: {
+                    if model.isAddingKey {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text("正在验证…")
+                        }
+                    } else {
+                        Text("验证并保存到钥匙串")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                           agentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                           rawKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                          scopes.isEmpty)
+                          baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                          model.isAddingKey)
             }
             .padding(20)
         }
-        .frame(width: 640, height: 690)
+        .frame(width: 640, height: 560)
     }
 }

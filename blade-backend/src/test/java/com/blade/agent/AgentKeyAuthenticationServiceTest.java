@@ -29,13 +29,17 @@ class AgentKeyAuthenticationServiceTest {
 
     @Test
     void authenticate_setsTenantAndAuthoritiesForActiveScopedKey() {
+        AgentKey key = activeKey();
         AgentKeyAuthenticationService service = new AgentKeyAuthenticationService(
-                fakeMapper(activeKey()), passwordEncoder);
+                fakeMapper(key), passwordEncoder);
 
         AgentPrincipal principal = service.authenticate("agent_demo.top-secret");
 
         assertEquals(7L, TenantContext.getTenantId());
         assertEquals("agent_demo", principal.getName());
+        assertEquals("趋势分析 Agent", principal.getDisplayName());
+        assertEquals(key.getExpiresTime(), principal.getExpiresTime());
+        assertEquals(java.util.List.of("analytics:read", "customers:read"), principal.getScopes());
         assertTrue(principal.getAuthorities().stream()
                 .anyMatch(authority -> authority.getAuthority().equals("agent:analytics:read")));
     }

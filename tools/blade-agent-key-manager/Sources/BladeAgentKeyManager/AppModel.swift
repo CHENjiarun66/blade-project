@@ -9,7 +9,10 @@ final class AppModel: ObservableObject {
     @Published var selectedID: StoredAgentKey.ID?
     @Published var isShowingAddSheet = false
     @Published var errorMessage: String?
+    @Published var noticeMessage: String?
     @Published private(set) var helperPath: String?
+    @Published private(set) var isAddingKey = false
+    @Published private(set) var syncingKeyIDs: Set<StoredAgentKey.ID> = []
 
     private let metadataStore: AgentKeyMetadataStoring
     private let secretStore: AgentKeySecretStoring
@@ -40,33 +43,77 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult
-    func add(_ input: KeyInput) -> Bool {
+    func add(_ input: KeyInput) async -> Bool {
+        isAddingKey = true
+        defer { isAddingKey = false }
         do {
             let validated = try KeyInputValidator.validate(input)
-            guard !keys.contains(where: { $0.keyPrefix == validated.metadata.keyPrefix }) else {
+            guard !keys.contains(where: { $0.keyPrefix == validated.keyPrefix }) else {
                 throw AppModelError.duplicatePrefix
             }
+            let client = try AgentAPIClient(baseURL: validated.baseURL)
+            let capabilities = try await client.fetchCapabilities(rawKey: validated.rawKey)
+            try validate(capabilities, expectedPrefix: validated.keyPrefix)
+            let metadata = StoredAgentKey(
+                name: validated.name,
+                agentName: validated.agentName,
+                keyPrefix: validated.keyPrefix,
+                baseURL: validated.baseURL,
+                expiresAt: capabilities.expiresAt,
+                scopes: capabilities.scopes,
+                lastSyncedAt: Date()
+            )
 
             try secretStore.save(
                 validated.rawKey,
-                for: validated.metadata.id,
-                label: "Blade Agent Key — \(validated.metadata.name)"
+                for: metadata.id,
+                label: "Blade Agent Key — \(metadata.name)"
             )
             do {
-                try metadataStore.save([validated.metadata] + keys)
+                try metadataStore.save([metadata] + keys)
             } catch {
-                try? secretStore.delete(for: validated.metadata.id)
+                try? secretStore.delete(for: metadata.id)
                 throw error
             }
 
             clearClipboardIfItContains(validated.rawKey)
             reload()
-            selectedID = validated.metadata.id
+            selectedID = metadata.id
             return true
         } catch {
             errorMessage = error.localizedDescription
             return false
         }
+    }
+
+    func syncCapabilities(for key: StoredAgentKey) async {
+        guard !syncingKeyIDs.contains(key.id) else { return }
+        syncingKeyIDs.insert(key.id)
+        defer { syncingKeyIDs.remove(key.id) }
+        do {
+            let rawKey = try secretStore.read(
+                for: key.id,
+                operationPrompt: "同步 \(key.name) 的服务器权限"
+            )
+            let client = try AgentAPIClient(baseURL: key.baseURL)
+            let capabilities = try await client.fetchCapabilities(rawKey: rawKey)
+            try validate(capabilities, expectedPrefix: key.keyPrefix)
+
+            var updated = key
+            updated.scopes = capabilities.scopes
+            updated.expiresAt = capabilities.expiresAt
+            updated.lastSyncedAt = Date()
+            try metadataStore.save(keys.map { $0.id == updated.id ? updated : $0 })
+            reload()
+            selectedID = updated.id
+            noticeMessage = "已从服务器同步 \(updated.scopes.count) 项权限和最新有效期"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func isSyncing(_ key: StoredAgentKey) -> Bool {
+        syncingKeyIDs.contains(key.id)
     }
 
     func delete(_ key: StoredAgentKey) {
@@ -107,6 +154,15 @@ final class AppModel: ObservableObject {
         pasteboard.clearContents()
     }
 
+    private func validate(_ capabilities: AgentKeyCapabilities, expectedPrefix: String) throws {
+        guard capabilities.keyPrefix == expectedPrefix else {
+            throw AppModelError.prefixMismatch
+        }
+        guard capabilities.expiresAt > capabilities.serverTime else {
+            throw AppModelError.serverReportsExpiredKey
+        }
+    }
+
     private func installBundledHelper() {
         let fileManager = FileManager.default
         let source = Bundle.main.bundleURL
@@ -145,8 +201,17 @@ final class AppModel: ObservableObject {
 
 private enum AppModelError: LocalizedError {
     case duplicatePrefix
+    case prefixMismatch
+    case serverReportsExpiredKey
 
     var errorDescription: String? {
-        "这把 Key 已经保存过；如需更换，请先在系统中轮换，再录入新 Key"
+        switch self {
+        case .duplicatePrefix:
+            return "这把 Key 已经保存过；请选择它并使用“同步服务器权限”"
+        case .prefixMismatch:
+            return "服务器返回的 Key 前缀与当前 Key 不一致，已停止保存"
+        case .serverReportsExpiredKey:
+            return "服务器返回的 Key 已经过期，无法保存或同步"
+        }
     }
 }

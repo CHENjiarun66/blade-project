@@ -3,22 +3,19 @@ import XCTest
 
 final class BladeAgentKeyKitTests: XCTestCase {
     func testValidInputNormalizesMetadataWithoutKeepingRawKey() throws {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
         let input = KeyInput(
             name: "  生产纸单  ",
             agentName: " DeepSeek ",
             rawKey: " agk_example.very-secret-value ",
-            baseURL: "https://www.chenjianas.asia:33294/",
-            expiresAt: now.addingTimeInterval(86_400),
-            scopes: [.catalogRead, .ordersWrite]
+            baseURL: "https://www.chenjianas.asia:33294/"
         )
 
-        let result = try KeyInputValidator.validate(input, now: now)
+        let result = try KeyInputValidator.validate(input)
 
-        XCTAssertEqual(result.metadata.name, "生产纸单")
-        XCTAssertEqual(result.metadata.agentName, "DeepSeek")
-        XCTAssertEqual(result.metadata.keyPrefix, "agk_example")
-        XCTAssertEqual(result.metadata.baseURL, "https://www.chenjianas.asia:33294")
+        XCTAssertEqual(result.name, "生产纸单")
+        XCTAssertEqual(result.agentName, "DeepSeek")
+        XCTAssertEqual(result.keyPrefix, "agk_example")
+        XCTAssertEqual(result.baseURL, "https://www.chenjianas.asia:33294")
         XCTAssertEqual(result.rawKey, "agk_example.very-secret-value")
     }
 
@@ -47,6 +44,7 @@ final class BladeAgentKeyKitTests: XCTestCase {
             baseURL: "https://example.com",
             expiresAt: Date(timeIntervalSince1970: 1_900_000_000),
             scopes: [.analyticsRead],
+            lastSyncedAt: Date(timeIntervalSince1970: 1_850_000_000),
             createdAt: Date(timeIntervalSince1970: 1_800_000_000)
         )
 
@@ -61,6 +59,77 @@ final class BladeAgentKeyKitTests: XCTestCase {
         let directoryMode = try FileManager.default.attributesOfItem(atPath: directory.path)[.posixPermissions] as? NSNumber
         XCTAssertEqual(fileMode?.intValue, 0o600)
         XCTAssertEqual(directoryMode?.intValue, 0o700)
+    }
+
+    func testMetadataWithoutLastSyncedAtRemainsReadableAfterUpgrade() throws {
+        let data = Data(#"""
+        [{
+          "id": "00000000-0000-0000-0000-000000000001",
+          "name": "旧版 Key",
+          "agentName": "DeepSeek",
+          "keyPrefix": "agk_legacy",
+          "baseURL": "https://example.com",
+          "expiresAt": "2030-03-17T17:46:40Z",
+          "scopes": ["catalog:read"],
+          "createdAt": "2027-01-15T08:00:00Z"
+        }]
+        """#.utf8)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let file = directory.appendingPathComponent("keys.json")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try data.write(to: file)
+
+        let loaded = try KeyMetadataStore(fileURL: file).load()
+
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].keyPrefix, "agk_legacy")
+        XCTAssertNil(loaded[0].lastSyncedAt)
+    }
+
+    func testCapabilitiesResponseDecodesServerScopesAndDates() throws {
+        let data = Data(#"""
+        {
+          "code": 200,
+          "message": "success",
+          "data": {
+            "keyPrefix": "agk_example",
+            "name": "DeepSeek 生产",
+            "scopes": ["catalog:read", "products:read", "orders:write"],
+            "expiresAt": "2026-12-17T10:14:16Z",
+            "serverTime": "2026-09-18T10:14:16.123Z"
+          }
+        }
+        """#.utf8)
+
+        let result = try AgentAPIClient.decodeCapabilities(data)
+
+        XCTAssertEqual(result.keyPrefix, "agk_example")
+        XCTAssertEqual(result.name, "DeepSeek 生产")
+        XCTAssertEqual(result.scopes, [.catalogRead, .productsRead, .ordersWrite])
+        XCTAssertGreaterThan(result.expiresAt, result.serverTime)
+    }
+
+    func testCapabilitiesResponseRejectsUnknownServerScope() {
+        let data = Data(#"""
+        {
+          "code": 200,
+          "data": {
+            "keyPrefix": "agk_example",
+            "name": "future",
+            "scopes": ["future:read"],
+            "expiresAt": "2026-12-17T10:14:16Z",
+            "serverTime": "2026-09-18T10:14:16Z"
+          }
+        }
+        """#.utf8)
+
+        XCTAssertThrowsError(try AgentAPIClient.decodeCapabilities(data)) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                AgentAPIClientError.unsupportedServerScopes(["future:read"]).localizedDescription
+            )
+        }
     }
 
     func testRequestPolicyMapsOnlyAllowlistedEndpoints() throws {

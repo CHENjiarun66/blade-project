@@ -38,7 +38,7 @@ Agent 不能自行签发或读取 Key。用户按以下步骤准备凭证：
 3. 只勾选任务需要的 scope
 4. 设置有效期并保存一次性显示的完整 Key
 5. 双击桌面的 `Blade Agent Key Manager.app`
-6. 录入 Key、Agent 名称、到期日期和生产入口
+6. 录入 Key、Agent 名称和生产入口，点击“验证并保存”；scope 与到期日期由服务器自动同步
 7. 确认 API 地址是 `https://www.chenjianas.asia:33294`，不能包含 `/api`
 
 每个 Agent、环境和用途使用独立 Key。例如“ZCode 生产商品查询”和“订单识别 Agent 生产草稿录入”应使用两把 Key。
@@ -163,10 +163,11 @@ Key 只授予完成当前任务需要的 scope：
 | 现象 | 原因 | 处理 |
 |------|------|------|
 | Agent 看不到 `blade_*` 工具 | MCP 配置未加载或路径错误 | 使用绝对路径并重启 Agent |
-| 弹窗没有可选 Key | Key 已过期或缺少当前工具要求的 scope | 在 Key Manager 检查到期日和 scope；也可改用当前 Key 已授权的只读工具 |
+| 提示“本机权限记录未同步” | Key Manager 的本地 scope 仍是旧记录，请求尚未发送到服务器 | 在 Key Manager 选择对应 Key，点击“同步服务器权限”后重试 |
+| 提示“没有可用的 Agent Key” | 本机没有未过期 Key | 录入新 Key 或由 Owner 轮换后重新录入 |
 | 用户拒绝，命令退出码为 77 | 本次授权未通过 | 停止调用并等待用户重新授权 |
 | HTTP 401，命令退出码为 78 | Key 原文无效、已过期或已停用 | 让 Owner 轮换 Key并更新 Key Manager |
-| HTTP 403 | 当前 Key 缺少接口所需 scope | 停止重试，让 Owner 按最小权限重新签发 |
+| 提示“服务器拒绝权限”或 HTTP 403 | 请求已到服务器，但服务器记录的 Key 缺少接口所需 scope | 停止重试，让 Owner 按最小权限重新签发，并把新 Key 录入 Key Manager |
 | HTTP 400 | 请求字段、分页或日期格式错误 | 按接口文档修正参数后重试 |
 | 返回 HTML 或 `needsLogin` | 调用了网页/JWT 路径，而不是 Agent Gateway | 改用 `blade_*` 工具或 `/api/agent/...` |
 | TLS 或连接失败 | 地址、DNS、端口或证书异常 | 核对生产入口，不得关闭证书校验 |

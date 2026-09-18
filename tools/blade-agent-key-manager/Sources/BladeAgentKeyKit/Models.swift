@@ -68,6 +68,7 @@ public struct StoredAgentKey: Codable, Identifiable, Hashable, Sendable {
     public var baseURL: String
     public var expiresAt: Date
     public var scopes: Set<AgentScope>
+    public var lastSyncedAt: Date?
     public let createdAt: Date
 
     public init(
@@ -78,6 +79,7 @@ public struct StoredAgentKey: Codable, Identifiable, Hashable, Sendable {
         baseURL: String,
         expiresAt: Date,
         scopes: Set<AgentScope>,
+        lastSyncedAt: Date? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -87,6 +89,7 @@ public struct StoredAgentKey: Codable, Identifiable, Hashable, Sendable {
         self.baseURL = baseURL
         self.expiresAt = expiresAt
         self.scopes = scopes
+        self.lastSyncedAt = lastSyncedAt
         self.createdAt = createdAt
     }
 
@@ -113,28 +116,25 @@ public struct KeyInput: Sendable {
     public var agentName: String
     public var rawKey: String
     public var baseURL: String
-    public var expiresAt: Date
-    public var scopes: Set<AgentScope>
 
     public init(
         name: String,
         agentName: String,
         rawKey: String,
-        baseURL: String,
-        expiresAt: Date,
-        scopes: Set<AgentScope>
+        baseURL: String
     ) {
         self.name = name
         self.agentName = agentName
         self.rawKey = rawKey
         self.baseURL = baseURL
-        self.expiresAt = expiresAt
-        self.scopes = scopes
     }
 }
 
 public struct ValidatedKeyInput: Sendable {
-    public let metadata: StoredAgentKey
+    public let name: String
+    public let agentName: String
+    public let keyPrefix: String
+    public let baseURL: String
     public let rawKey: String
 }
 
@@ -144,8 +144,6 @@ public enum KeyValidationError: LocalizedError, Equatable {
     case invalidKey
     case invalidBaseURL
     case insecureRemoteURL
-    case invalidExpiry
-    case missingScopes
 
     public var errorDescription: String? {
         switch self {
@@ -159,16 +157,12 @@ public enum KeyValidationError: LocalizedError, Equatable {
             return "API 地址只能包含协议、域名和端口，不能包含 /api 或其他路径"
         case .insecureRemoteURL:
             return "远程生产地址必须使用 HTTPS；HTTP 只允许 localhost"
-        case .invalidExpiry:
-            return "有效期必须晚于当前时间"
-        case .missingScopes:
-            return "请至少选择一个权限范围"
         }
     }
 }
 
 public enum KeyInputValidator {
-    public static func validate(_ input: KeyInput, now: Date = Date()) throws -> ValidatedKeyInput {
+    public static func validate(_ input: KeyInput) throws -> ValidatedKeyInput {
         let name = input.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { throw KeyValidationError.missingName }
 
@@ -185,18 +179,12 @@ public enum KeyInputValidator {
         }
 
         let baseURL = try normalizedBaseURL(input.baseURL)
-        guard input.expiresAt > now else { throw KeyValidationError.invalidExpiry }
-        guard !input.scopes.isEmpty else { throw KeyValidationError.missingScopes }
 
         return ValidatedKeyInput(
-            metadata: StoredAgentKey(
-                name: name,
-                agentName: agentName,
-                keyPrefix: String(pieces[0]),
-                baseURL: baseURL,
-                expiresAt: input.expiresAt,
-                scopes: input.scopes
-            ),
+            name: name,
+            agentName: agentName,
+            keyPrefix: String(pieces[0]),
+            baseURL: baseURL,
             rawKey: rawKey
         )
     }

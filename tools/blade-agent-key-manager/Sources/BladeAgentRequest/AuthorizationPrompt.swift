@@ -13,10 +13,7 @@ enum AuthorizationPrompt {
         preferredKey: String?
     ) -> AuthorizationDecision? {
         guard !candidates.isEmpty else {
-            showInformation(
-                title: "没有可用的 Agent Key",
-                message: "没有未过期且包含“\(request.requiredScope.displayName)”权限的 Key。请先打开 Blade Agent Key Manager 录入。"
-            )
+            showNoEligibleKey(for: request, storedKeys: [])
             return nil
         }
 
@@ -57,6 +54,24 @@ enum AuthorizationPrompt {
 
     static func showInformation(title: String, message: String) {
         _ = runAppleScript(informationScript, arguments: [title, message])
+    }
+
+    static func showNoEligibleKey(
+        for request: ValidatedAgentRequest,
+        storedKeys: [StoredAgentKey]
+    ) {
+        let activeKeys = storedKeys.filter { !$0.isExpired() }
+        if activeKeys.isEmpty {
+            showInformation(
+                title: "没有可用的 Agent Key",
+                message: "本机没有未过期的 Agent Key。请打开 Blade Agent Key Manager 录入或更新 Key。"
+            )
+        } else {
+            showInformation(
+                title: "本机权限记录未同步",
+                message: "本机保存的 Key 都没有登记“\(request.requiredScope.displayName)”权限。这不代表服务器一定没有授权。\n\n请打开 Blade Agent Key Manager，选择对应 Key，点击“同步服务器权限”后重试。"
+            )
+        }
     }
 
     private static func runAppleScript(_ source: String, arguments: [String]) -> String? {

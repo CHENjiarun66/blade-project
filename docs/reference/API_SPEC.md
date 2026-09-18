@@ -1068,6 +1068,7 @@ Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通�
 
 | Method | Path | 鉴权 / scope | 说明 |
 |--------|------|--------------|------|
+| GET | `/api/agent/capabilities` | 有效 `X-Agent-Key`，无需额外业务 scope | 返回当前 Key 的公开前缀、名称、真实 scope、到期时间和服务器时间；不返回租户 ID、Key ID、哈希或密钥原文 |
 | GET | `/api/agent/catalog/skus?keyword=...&limit=...` | `X-Agent-Key` / `agent:catalog:read` | 返回 SKU 候选与系统参考价，不返回成本价 |
 | POST | `/api/agent/order-drafts/source-files` | `X-Agent-Key` / `agent:orders:write` | 上传纸单原图并返回 `fileId`；原图不是纯 Excel 草稿的前置条件 |
 | POST | `/api/agent/order-drafts/batch` | `X-Agent-Key` / `agent:orders:write` | 批量创建草稿；按租户 + externalRefNo 幂等，每单返回 CREATED、CREATED_WITH_WARNINGS、DUPLICATE 或 ERROR |

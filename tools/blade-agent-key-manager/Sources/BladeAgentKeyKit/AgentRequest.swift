@@ -158,6 +158,21 @@ public struct AgentAPIResponse: Sendable {
         self.statusCode = statusCode
         self.data = data
     }
+
+    public var serverMessage: String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return object["message"] as? String
+    }
+}
+
+public struct AgentKeyCapabilities: Equatable, Sendable {
+    public let keyPrefix: String
+    public let name: String
+    public let scopes: Set<AgentScope>
+    public let expiresAt: Date
+    public let serverTime: Date
 }
 
 public enum AgentAPIClientError: LocalizedError {
@@ -166,6 +181,10 @@ public enum AgentAPIClientError: LocalizedError {
     case invalidResponse
     case unsafeRedirect
     case unreadableUploadFile
+    case invalidAgentKey
+    case capabilitiesRejected(statusCode: Int, message: String)
+    case invalidCapabilitiesResponse
+    case unsupportedServerScopes([String])
 
     public var errorDescription: String? {
         switch self {
@@ -179,6 +198,14 @@ public enum AgentAPIClientError: LocalizedError {
             return "服务器尝试把请求重定向到其他主机，已阻止 Key 外泄"
         case .unreadableUploadFile:
             return "无法读取要上传的纸单原图"
+        case .invalidAgentKey:
+            return "服务器拒绝了这把 Agent Key；请确认 Key 未停用、未过期且复制完整"
+        case .capabilitiesRejected(let statusCode, let message):
+            return "同步服务器权限失败（HTTP \(statusCode)）：\(message)"
+        case .invalidCapabilitiesResponse:
+            return "服务器返回的 Agent Key 权限信息无法识别"
+        case .unsupportedServerScopes(let scopes):
+            return "服务器包含当前 Key Manager 不认识的权限：\(scopes.joined(separator: "、"))。请先更新 Key Manager"
         }
     }
 }
@@ -235,6 +262,79 @@ public final class AgentAPIClient: NSObject, URLSessionTaskDelegate, @unchecked 
             throw AgentAPIClientError.invalidResponse
         }
         return AgentAPIResponse(statusCode: http.statusCode, data: data)
+    }
+
+    public func fetchCapabilities(rawKey: String) async throws -> AgentKeyCapabilities {
+        guard let base = expectedOrigin.url,
+              let url = URL(string: "/api/agent/capabilities", relativeTo: base)?.absoluteURL else {
+            throw AgentAPIClientError.invalidRequestURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(rawKey, forHTTPHeaderField: "X-Agent-Key")
+        request.setValue("BladeAgentKeyManager/1.0", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AgentAPIClientError.invalidResponse
+        }
+        if http.statusCode == 401 {
+            throw AgentAPIClientError.invalidAgentKey
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let message = AgentAPIResponse(statusCode: http.statusCode, data: data).serverMessage ?? "服务器拒绝请求"
+            throw AgentAPIClientError.capabilitiesRejected(statusCode: http.statusCode, message: message)
+        }
+        return try Self.decodeCapabilities(data)
+    }
+
+    public static func decodeCapabilities(_ data: Data) throws -> AgentKeyCapabilities {
+        struct Envelope: Decodable {
+            struct Payload: Decodable {
+                let keyPrefix: String
+                let name: String
+                let scopes: [String]
+                let expiresAt: Date
+                let serverTime: Date
+            }
+            let code: Int
+            let message: String?
+            let data: Payload?
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let standard = ISO8601DateFormatter()
+            standard.formatOptions = [.withInternetDateTime]
+            guard let date = fractional.date(from: value) ?? standard.date(from: value) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO-8601 date")
+            }
+            return date
+        }
+
+        guard let envelope = try? decoder.decode(Envelope.self, from: data),
+              envelope.code == 200,
+              let payload = envelope.data,
+              !payload.keyPrefix.isEmpty,
+              !payload.scopes.isEmpty else {
+            throw AgentAPIClientError.invalidCapabilitiesResponse
+        }
+        let unknown = payload.scopes.filter { AgentScope(rawValue: $0) == nil }
+        guard unknown.isEmpty else {
+            throw AgentAPIClientError.unsupportedServerScopes(unknown)
+        }
+        return AgentKeyCapabilities(
+            keyPrefix: payload.keyPrefix,
+            name: payload.name,
+            scopes: Set(payload.scopes.compactMap(AgentScope.init(rawValue:))),
+            expiresAt: payload.expiresAt,
+            serverTime: payload.serverTime
+        )
     }
 
     private func multipartBody(data: Data, filename: String, contentType: String, boundary: String) -> Data {

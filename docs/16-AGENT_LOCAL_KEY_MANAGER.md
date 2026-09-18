@@ -17,7 +17,7 @@ BladeProject 系统管理签发 Key
               v
 Blade Agent Key Manager.app
   ├─ 完整 Key → macOS 钥匙串
-  └─ 名称/Agent/前缀/地址/scope/到期日 → 本机元数据
+  └─ 名称/Agent/前缀/地址 + 服务器同步的 scope/到期日 → 本机元数据
               |
               | Agent 通过本机 MCP/调用工具请求
               v
@@ -45,8 +45,8 @@ BladeProject /api/agent/*
 
 1. 双击桌面的 `Blade Agent Key Manager.app`。
 2. 点击“录入 Key”。
-3. 填写 Key 名称、使用 Agent、API 地址和到期日期，选择实际 scope。
-4. 点击“从剪贴板粘贴”，再点击“保存到钥匙串”。
+3. 填写 Key 名称、使用 Agent 和 API 地址，再点击“从剪贴板粘贴”。
+4. 点击“验证并保存到钥匙串”。应用调用 `GET /api/agent/capabilities` 校验 Key，并自动填充服务器真实 scope 和到期时间，不再要求手工重复选择。
 5. 保存成功后，如果剪贴板仍是刚录入的完整 Key，应用会清空剪贴板。
 
 完整 Key 只进入 macOS 钥匙串。普通元数据文件不包含完整 Key，位置为：
@@ -57,7 +57,7 @@ BladeProject /api/agent/*
 
 列表展示 Key 名称、公开前缀、预定使用它的 Agent、API 环境地址、scope、到期日期、剩余天数和到期状态。
 
-本机到期日是提醒信息，服务器上的 `expires_time/status` 仍是最终鉴权真相。录入时应与系统签发结果保持一致。v1 不使用 Owner JWT 自动同步服务器状态。
+服务器上的 `expires_time/status/scopes` 是最终鉴权真相。Key Manager 不使用 Owner JWT，也不解析 Key 内容；它只用钥匙串中的 Key 调用当前 Key 自身的能力查询接口。已有 Key 可在详情页点击“同步服务器权限”，仅更新本机非敏感元数据，不显示或移动 Key 原文。
 
 ### 2.3 轮换、停用和删除
 
@@ -65,6 +65,7 @@ BladeProject /api/agent/*
 - “删除本机 Key”只删除本机钥匙串和元数据，不会停用服务器 Key。
 - 要彻底撤销访问，必须回到 BladeProject“系统管理 → Agent Key”停用该 Key。
 - Key 到期或收到 401 时，Agent 不得自动改用账号密码、JWT 或另一把 Key，应停止并提示用户轮换。
+- 本机提示“本机权限记录未同步”时，先在详情页同步；若请求已经到达服务器并返回 403，则由 Owner 检查服务器实际授权。两类错误不能混为“没有可用 Key”。
 
 ## 三、其他 Agent 如何使用
 
@@ -156,7 +157,7 @@ blade-agent-request --agent <Agent名称> --method POST --path </api/agent/order
 8. 元数据目录/文件权限固定为 `700/600`，且代理每次发请求前重新校验保存的 API 地址，不能只依赖录入时校验。
 9. 商品、订单、客户查询只能分页；商品新增只接受既有字典编码，客户新增遇到重复电话不得覆盖。本机白名单不存在商品/客户修改删除、库存、收款或正式订单动作。
 
-当前已知边界：`--agent` 是本机配置声明，v1 尚未对调用进程做代码签名或配对证明。因此只应给用户主动安装并信任的本机 Agent 授权。进程身份签名、持久授权中心和服务器状态同步属于后续增强，不影响当前“Key 不交给模型”的主要安全目标。
+当前已知边界：`--agent` 是本机配置声明，尚未对调用进程做代码签名或配对证明。因此只应给用户主动安装并信任的本机 Agent 授权。进程身份签名和持久授权中心属于后续增强；Key scope 与有效期现已通过 `/api/agent/capabilities` 和手动同步按钮保持一致。
 
 ## 五、Agent 必读指令
 

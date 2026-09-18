@@ -178,6 +178,27 @@ class AgentDataAccessIntegrationTest {
     }
 
     @Test
+    void capabilitiesReturnsServerScopesWithoutRequiringAnExtraBusinessScope() throws Exception {
+        mockMvc.perform(get("/api/agent/capabilities").header("X-Agent-Key", readOnlyRawKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.keyPrefix").exists())
+                .andExpect(jsonPath("$.data.name").value("Agent data integration test"))
+                .andExpect(jsonPath("$.data.scopes.length()").value(1))
+                .andExpect(jsonPath("$.data.scopes[0]").value("products:read"))
+                .andExpect(jsonPath("$.data.expiresAt").exists())
+                .andExpect(jsonPath("$.data.serverTime").exists())
+                .andExpect(jsonPath("$..tenantId").doesNotExist())
+                .andExpect(jsonPath("$..keyId").doesNotExist());
+    }
+
+    @Test
+    void capabilitiesRejectsRequestsWithoutAnAgentKey() throws Exception {
+        mockMvc.perform(get("/api/agent/capabilities"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
     void createIsAdditiveAndDuplicateRetryDoesNotOverwrite() throws Exception {
         String code = "AGENT-CREATE-" + System.nanoTime();
         String body = "{\"productCode\":\"" + code + "\",\"name\":\"Agent create\",\"wholesalePrice\":33.5}";
