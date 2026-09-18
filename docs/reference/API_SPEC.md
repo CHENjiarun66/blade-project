@@ -10,17 +10,28 @@
 
 ### 1.1 基础 URL
 
+```text
+本机开发：http://localhost:8080
+外网生产：https://www.chenjianas.asia:33294
 ```
-开发环境：http://localhost:8080
-```
+
+基础 URL 只包含协议、主机和端口，不包含 `/api`。生产环境必须校验 TLS 证书。
 
 ### 1.2 认证方式
 
-所有接口（除登录相关）需要在请求头中携带 Token：
+后台页面和移动端接口使用 JSON Web Token（JWT）：
 
 ```
 Authorization: Bearer {jwt_token}
 ```
+
+`/api/agent/**` 不使用 JWT、用户名或密码。Agent Gateway 使用绑定租户和 scope 的独立凭证：
+
+```http
+X-Agent-Key: your_agent_key_here
+```
+
+普通本机 Agent 不应读取 Key 原文，应通过 `blade-agent-request` MCP 工具由 macOS 钥匙串注入。完整接入步骤见 [让外部 Agent 连接 BladeProject](../19-AGENT_CONNECTION_PLAYBOOK.md)。
 
 ### 1.3 统一响应格式
 
@@ -971,7 +982,7 @@ GET /api/analytics/product-detail?periodType=WEEK&productName=624-1%23
 
 ## Agent 对接接口
 
-> 接入方使用说明见 [11-AGENT_ACCESS_GUIDE.md](../11-AGENT_ACCESS_GUIDE.md)，需求边界见 [10-AGENT_INTEGRATION_DESIGN.md](../10-AGENT_INTEGRATION_DESIGN.md)。
+> 首次连接见 [19-AGENT_CONNECTION_PLAYBOOK.md](../19-AGENT_CONNECTION_PLAYBOOK.md)，字段参考见 [11-AGENT_ACCESS_GUIDE.md](../11-AGENT_ACCESS_GUIDE.md)，需求边界见 [10-AGENT_INTEGRATION_DESIGN.md](../10-AGENT_INTEGRATION_DESIGN.md)。
 
 ### 认证约束
 
@@ -1058,7 +1069,7 @@ Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通�
 | Method | Path | 鉴权 / scope | 说明 |
 |--------|------|--------------|------|
 | GET | `/api/agent/catalog/skus?keyword=...&limit=...` | `X-Agent-Key` / `agent:catalog:read` | 返回 SKU 候选与系统参考价，不返回成本价 |
-| POST | `/api/agent/order-drafts/source-files` | `X-Agent-Key` / `agent:orders:write` | 可选凭证兼容；原图不是创建草稿的前置条件 |
+| POST | `/api/agent/order-drafts/source-files` | `X-Agent-Key` / `agent:orders:write` | 上传纸单原图并返回 `fileId`；原图不是纯 Excel 草稿的前置条件 |
 | POST | `/api/agent/order-drafts/batch` | `X-Agent-Key` / `agent:orders:write` | 批量创建草稿；按租户 + externalRefNo 幂等，每单返回 CREATED、CREATED_WITH_WARNINGS、DUPLICATE 或 ERROR |
 | GET | `/api/agent/products?current=1&size=20&keyword=...` | `X-Agent-Key` / `agent:products:read` | 分页读取商品、颜色尺码及 SKU；最大 100 条，不返回成本价 |
 | GET | `/api/agent/products/{id}` | `X-Agent-Key` / `agent:products:read` | 读取单个脱敏商品详情 |

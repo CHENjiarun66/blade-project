@@ -2,12 +2,13 @@
 
 > 本文档面向接入 BladeProject 的外部 Agent、Agent 工具开发者和自动化任务。
 > 本文档只描述可执行的接入约定。需求边界和后续路线见 [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md)。
+> 第一次配置 Codex、ZCode、DeepSeek 或其他本机 Agent 时，先完整阅读 [19-AGENT_CONNECTION_PLAYBOOK.md](./19-AGENT_CONNECTION_PLAYBOOK.md)。
 
 ---
 
 ## 一、当前接入状态
 
-截至 2026-09-13，BladeProject 已落地 Agent Gateway 鉴权、商品/订单读取、客户敏感资料读取、商品/客户新增、订单草稿窄写入、纸单原图关联和 Owner 凭证管理：
+截至 2026-09-18，BladeProject 生产环境已在 release `20260916_104900`、Flyway V60 落地 Agent Gateway 鉴权、商品/订单读取、客户敏感资料读取、商品/客户新增、订单草稿窄写入、纸单原图关联和 Owner 凭证管理：
 
 | 能力 | 状态 | 接口 |
 |------|------|------|
@@ -28,7 +29,7 @@
 | 客户跟进、客户风险、周期报告、搜索 | 规划中 | 不可按已上线接口调用 |
 | WhatsApp 分析 Worker | 已实现的专用通道 | `claim/complete/fail`；普通商品/订单 Agent 不应默认勾选 |
 
-外部 Agent 当前只能把已实现接口当成稳定调用入口。规划中的接口可用于工具设计预留，但不能假定已经可访问。
+外部 Agent 当前只能把已实现接口当成稳定调用入口。规划中的接口可用于工具设计预留，但不能假定已经可访问。生产入口是 `https://www.chenjianas.asia:33294`，当前 Mac 已安装本机授权程序 `/Users/chenjiarun/Library/Application Support/Blade Agent Key Manager/bin/blade-agent-request`。
 
 系统管理页面按 Key 勾选 scope。调整既有 Key 权限会签发替代 Key 并立即停用旧 Key；新增权限不会自动授予历史 Key。页面中显示的是不带技术前缀的 scope（例如 `products:read`），Controller 校验的完整 authority 为 `agent:products:read`。
 
@@ -76,7 +77,7 @@ X-Agent-Key: {agent_key}
 
 ```bash
 BLADE_AGENT_API_BASE_URL=https://www.chenjianas.asia:33294
-BLADE_AGENT_KEY=prefix.secret
+BLADE_AGENT_KEY=your_agent_key_here
 ```
 
 约定：

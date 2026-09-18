@@ -2,6 +2,8 @@
 
 BladeProject 的本机 macOS Agent Key 管理与授权工具。
 
+第一次为 Codex、ZCode、DeepSeek 或其他 Agent 配置连接时，先阅读 [让外部 Agent 连接 BladeProject](../../docs/19-AGENT_CONNECTION_PLAYBOOK.md)。本文只说明本机工具的构建和运行方式。
+
 ## 能力
 
 - 通过桌面应用录入完整 Agent Key，不要求用户操作终端。
@@ -42,6 +44,14 @@ dist/Blade Agent Key Manager.app
 ```text
 blade-agent-request --mcp --agent DeepSeek
 ```
+
+当前这台 Mac 的已安装绝对路径是：
+
+```text
+/Users/chenjiarun/Library/Application Support/Blade Agent Key Manager/bin/blade-agent-request
+```
+
+MCP 客户端的 `command` 应填写绝对路径，`args` 固定声明当前 Agent 名称。配置中不要保存 Agent Key、账号密码或 JWT。
 
 MCP 暴露以下受控工具：
 

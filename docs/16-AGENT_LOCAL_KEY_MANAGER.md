@@ -2,6 +2,7 @@
 
 > 本文档定义 Mac 上 Agent Key 的录入、保存、到期提醒、选择与授权方式。
 > API 鉴权和接口定义见 [11-AGENT_ACCESS_GUIDE.md](./11-AGENT_ACCESS_GUIDE.md)；纸单草稿字段与执行步骤见 [17-AGENT_ORDER_DRAFT_RUNBOOK.md](./17-AGENT_ORDER_DRAFT_RUNBOOK.md)。
+> 第一次让其他 Agent 连接系统时，先按 [19-AGENT_CONNECTION_PLAYBOOK.md](./19-AGENT_CONNECTION_PLAYBOOK.md) 完成 MCP 配置和只读验收。
 
 ---
 
@@ -73,24 +74,30 @@ BladeProject /api/agent/*
 ~/Library/Application Support/Blade Agent Key Manager/bin/blade-agent-request
 ```
 
+当前这台 Mac 已验证的绝对路径是：
+
+```text
+/Users/chenjiarun/Library/Application Support/Blade Agent Key Manager/bin/blade-agent-request
+```
+
 在应用详情页点击“复制 Agent 接入说明”，即可得到当前 Mac 的完整工具路径和 MCP 启动参数；复制内容不含 Key。
 
 ### 3.1 MCP 模式（推荐）
 
-支持本机 stdio MCP 的 Agent 使用如下逻辑配置：
+支持本机 stdio MCP 的 Agent 使用如下配置。MCP 客户端不会统一展开 `~`，因此 `command` 必须使用绝对路径：
 
 ```json
 {
   "mcpServers": {
     "blade-project": {
-      "command": "/Users/当前用户名/Library/Application Support/Blade Agent Key Manager/bin/blade-agent-request",
-      "args": ["--mcp", "--agent", "DeepSeek"]
+      "command": "/Users/chenjiarun/Library/Application Support/Blade Agent Key Manager/bin/blade-agent-request",
+      "args": ["--mcp", "--agent", "ZCode"]
     }
   }
 }
 ```
 
-`--agent` 应固定写在本机 Agent 配置中，例如 `DeepSeek`、`ZCode` 或 `Codex`，不能让模型在每次调用时随意改名。MCP 暴露：
+`--agent` 应固定写在本机 Agent 配置中，例如 `DeepSeek`、`ZCode` 或 `Codex`，不能让模型在每次调用时随意改名。修改配置后必须重启 Agent。MCP 暴露：
 
 | 工具 | scope | 用途 |
 |------|-------|------|
@@ -157,8 +164,8 @@ blade-agent-request --agent <Agent名称> --method POST --path </api/agent/order
 
 ```text
 开始前完整阅读：
-1. docs/11-AGENT_ACCESS_GUIDE.md
-2. docs/16-AGENT_LOCAL_KEY_MANAGER.md
+1. docs/19-AGENT_CONNECTION_PLAYBOOK.md
+2. docs/11-AGENT_ACCESS_GUIDE.md（需要查接口参数时）
 3. docs/17-AGENT_ORDER_DRAFT_RUNBOOK.md（涉及纸单/Excel/订单草稿时）
 
 不得索要、读取、输出或保存 Agent Key 原文；不得使用用户 JWT、账号密码、数据库或通用 CRUD API 替代 Agent Gateway。只通过 Blade Agent 本机 MCP/调用工具执行。纸单数量、销售价、金额和总额优先；商品主档价格仅作参考。只创建草稿，不确认订单、不收款、不改库存。
@@ -187,5 +194,5 @@ swift test
 4. scope 不足或过期 Key 不出现在选择列表；
 5. 用户拒绝后不发出 API 请求；
 6. Agent 只能得到 API 响应，不能得到 Key；
-7. MCP 初始化、工具列表和五个工具契约可被客户端识别；
+7. MCP 初始化、工具列表和 14 个工具契约可被客户端识别；
 8. 非白名单路径、远程 HTTP 和跨主机重定向被拒绝。

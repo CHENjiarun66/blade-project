@@ -2,6 +2,7 @@
 
 > 本文档定义 BladeProject 对接外部 AI Agent 的需求边界、接口分层、安全约束和实施顺序。
 > 当前决策：Agent Gateway 默认只读；只批准两个受 scope 约束的窄范围写入：创建可人工复核的订单草稿，以及新增不覆盖既有数据、不产生库存事实的商品。Agent 不允许直接确认正式订单、修改/删除商品、调整库存或确认收款。
+> 需要实际配置其他 Agent 时，使用 [19-AGENT_CONNECTION_PLAYBOOK.md](./19-AGENT_CONNECTION_PLAYBOOK.md)；本文不作为安装或连接步骤使用。
 
 ---
 

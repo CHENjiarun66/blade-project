@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/13 10:15:32　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/18 17:44:05　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,10 +73,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">182 完成 · 0 进行中 · 17 待办 · 0 部分 · 6 暂缓</span>
+          <span class="card-nums">186 完成 · 0 进行中 · 22 待办 · 0 部分 · 6 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:91%"></div></div>
-        <div class="bar-label">91% 完成（活跃 199 项，暂缓 6 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:89%"></div></div>
+        <div class="bar-label">89% 完成（活跃 208 项，暂缓 6 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -102,7 +102,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">26</span></h2>
+      <h2>🟡 还没做 <span class="count">31</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -208,6 +208,41 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
         <td class="td-remark">备份生产库后部署 V43-V47 和前后端；配置 Collector/Worker Key，验证增量同步、客户绑定、媒体预览、定向扫描和回滚 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-621</td>
+        <td class="td-name">未出库履约回退与计划版本化</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">实现待配货→已确认、配货中→待配货、待发货→配货中、仅记录已完成→已确认；取消配货停止物理删除计划和调整日志 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-622</td>
+        <td class="td-name">订单回退申请与审批底座</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">新增回退申请/审批日志、影响预览、R1/R2、申请人审批人分离、版本失效和幂等执行 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-623</td>
+        <td class="td-name">出库冲销与库存反向流水</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">已发货不得裸改状态；逐仓库/SKU 生成引用原出库的反向库存事实，并与退货、盘点和库存期间联动 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">FE-620</td>
+        <td class="td-name">订单回退按钮、影响预览与审批中心</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">按后端 allowedActions 展示明确逆向动作；R0 二次确认，R1/R2 提交审批；PC 先行，移动端首版只读 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">TEST-ORDER-ROLLBACK-001</td>
+        <td class="td-name">订单回退、审批与冲销门禁</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">覆盖状态矩阵、跨级拒绝、权限/数据范围、职责分离、审批失效、并发幂等、财务/库存守恒及生产副本预演 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">TEST-PHASE2-001</td>
@@ -369,7 +404,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 287 项） <span class="count">287</span></h2>
+      <h2>✅ 已完成（共 291 项） <span class="count">291</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1321,35 +1356,35 @@
         <td class="td-name">Agent 商品/订单脱敏读取</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">增加 `products:read`、`orders:read`；商品、正式订单支持分页/详情，专用 DTO 排除成本、毛利、电话和地址；商品选项隐藏保留编码 |</td>
+        <td class="td-remark">增加 `products:read`、`orders:read`；商品、正式订单支持分页/详情，专用 DTO 排除成本、毛利、电话和地址；随 release `20260916_104900` 上线 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-588</td>
         <td class="td-name">Agent 商品新增窄写入</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">`products:create` 只允许新增；同编码返回 DUPLICATE，不覆盖旧商品，不创建库存；SKU 沿用 DEFAULT/NORMAL/PLACEHOLDER 统一服务 |</td>
+        <td class="td-remark">`products:create` 只允许新增；同编码返回 DUPLICATE，不覆盖旧商品，不创建库存；随 release `20260916_104900` 上线 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-589</td>
         <td class="td-name">Agent scope 管理与本机工具联动</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">系统管理可按风险选择新增 scope；调整权限以替代 Key 轮换并停用旧 Key；Mac 白名单新增商品/订单查询与商品新增工具 |</td>
+        <td class="td-remark">系统管理可按风险选择新增 scope；调整权限轮换 Key并停用旧 Key；本机 MCP 白名单已同步并上线 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-590</td>
         <td class="td-name">Agent 客户列表与详情敏感只读</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">`customers:read` 分页/单项读取客户名称、电话、地址、备注和订单数；Key 页面标记“敏感只读”，与脱敏订单读取完全分离 |</td>
+        <td class="td-remark">`customers:read` 分页/单项读取客户名称、电话、地址、备注和订单数；随 release `20260916_104900` 上线 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-591</td>
         <td class="td-name">Agent 客户新增与来源审计</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">`customers:create` 只允许新增客户；电话号码规范化并以重复电话返回 `DUPLICATE`，不覆盖旧客户；V60 分别记录创建 Agent Key 与用户来源 |</td>
+        <td class="td-remark">`customers:create` 只允许新增客户；重复电话返回 `DUPLICATE`；V60 记录 Agent Key 来源并已上线 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">AGENT-KEY-001</td>
@@ -1384,7 +1419,7 @@
         <td class="td-name">快速录单半成品暂存并续填</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">快速录单当前内容保存为 MANUAL 草稿且不跳页；重复点击更新同一草稿，草稿中心可续填完整字段并确认生成正式订单。V59 加法迁移保留 Agent 草稿兼容；后端 502/502、PC 构建及草稿关键路径 Playwright 3/3 通过，待生产发布 |</td>
+        <td class="td-remark">快速录单当前内容保存为 MANUAL 草稿且不跳页；重复点击更新同一草稿，草稿中心可续填并确认；V59 随 release `20260916_104900` 上线 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-608</td>
@@ -1392,6 +1427,34 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-616</td>
+        <td class="td-name">草稿订单分页列表与批次工作台</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">列表只展示 EDITING 草稿并支持分页筛选；详情按批次切换子单；随 release `20260916_104900` 上线 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-617</td>
+        <td class="td-name">录单批次/单号拆分与 SKU 首屏显示修正</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">批次与单号独立必填；修复占位 SKU 乱码和详情首次加载标签；随 release `20260916_104900` 上线 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-618</td>
+        <td class="td-name">订单详情加收金额一位小数与整元步进</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">加收金额默认 `0.0`、整元步进并显示一位小数；随 release `20260916_104900` 上线 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">FE-619</td>
+        <td class="td-name">占位 SKU 配货弹窗语义与前置阻断</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">占位行显示中文语义，未拆分时前后端共同阻止配货；随 release `20260916_104900` 上线 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-609</td>

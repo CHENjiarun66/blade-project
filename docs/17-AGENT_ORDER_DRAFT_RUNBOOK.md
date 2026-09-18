@@ -2,6 +2,7 @@
 
 > 本文档供执行纸单识别、Excel 整理和批量草稿录入的外部 Agent 阅读。
 > 鉴权方式见 [11-AGENT_ACCESS_GUIDE.md](./11-AGENT_ACCESS_GUIDE.md)，本机 Key 选择与授权见 [16-AGENT_LOCAL_KEY_MANAGER.md](./16-AGENT_LOCAL_KEY_MANAGER.md)。
+> Agent 尚未连接系统时，先按 [19-AGENT_CONNECTION_PLAYBOOK.md](./19-AGENT_CONNECTION_PLAYBOOK.md) 完成 MCP 配置和只读验收，再执行本手册。
 
 ---
 
