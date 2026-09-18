@@ -83,13 +83,23 @@ Agent 不能自行签发或读取 Key。用户按以下步骤准备凭证：
 
 ## 五、完成第一次连接验证
 
-第一次验证只执行只读请求。不要用新增商品、客户或订单草稿作为连通性测试。
+第一次验证只执行当前 Key 已授权的只读请求。不要用新增商品、客户或订单草稿作为连通性测试。
 
-1. 调用 `blade_products_list`，传入 `current=1`、`size=1`
+1. 根据当前 Key 的 scope 选择下表中的只读工具
 2. 在 Mac 弹窗中确认 Agent 名称、接口和 scope
 3. 选择这次任务对应的 Key
 4. 点击 **允许一次** 或 **允许 1 小时**
 5. 检查返回体的 HTTP 状态和业务 `code`
+
+| 当前 Key 的只读 scope | 第一次验证工具 | 最小参数 |
+|------------------------|----------------|----------|
+| `catalog:read` | `blade_catalog_search` | `limit=1` |
+| `products:read` | `blade_products_list` | `current=1`、`size=1` |
+| `orders:read` | `blade_orders_list` | `current=1`、`size=1` |
+| `customers:read` | `blade_customers_list` | `current=1`、`size=1` |
+| `analytics:read` | `blade_style_trends` | `periodType=MONTH`、`limit=1` |
+
+纸单录入 Key 通常只有 `catalog:read`、`orders:write`，因此第一次验证应调用 `blade_catalog_search`。如果调用 `blade_products_list`，本机代理会要求额外的 `products:read`，这不是网络故障。
 
 成功响应使用统一结构：
 
@@ -107,7 +117,7 @@ Agent 不能自行签发或读取 Key。用户按以下步骤准备凭证：
 "/Users/chenjiarun/Library/Application Support/Blade Agent Key Manager/bin/blade-agent-request" \
   --agent ZCode \
   --method GET \
-  --path "/api/agent/products?current=1&size=1"
+  --path "/api/agent/catalog/skus?limit=1"
 ```
 
 授权 1 小时只在当前 MCP 进程中有效。一次性命令每次都会创建新进程，因此每次请求都需要授权。
@@ -153,7 +163,7 @@ Key 只授予完成当前任务需要的 scope：
 | 现象 | 原因 | 处理 |
 |------|------|------|
 | Agent 看不到 `blade_*` 工具 | MCP 配置未加载或路径错误 | 使用绝对路径并重启 Agent |
-| 弹窗没有可选 Key | Key 已过期、Agent 名称不匹配或缺少 scope | 在 Key Manager 检查 Agent、到期日和 scope |
+| 弹窗没有可选 Key | Key 已过期或缺少当前工具要求的 scope | 在 Key Manager 检查到期日和 scope；也可改用当前 Key 已授权的只读工具 |
 | 用户拒绝，命令退出码为 77 | 本次授权未通过 | 停止调用并等待用户重新授权 |
 | HTTP 401，命令退出码为 78 | Key 原文无效、已过期或已停用 | 让 Owner 轮换 Key并更新 Key Manager |
 | HTTP 403 | 当前 Key 缺少接口所需 scope | 停止重试，让 Owner 按最小权限重新签发 |
@@ -172,7 +182,7 @@ Key 只授予完成当前任务需要的 scope：
 开始前完整阅读 docs/19-AGENT_CONNECTION_PLAYBOOK.md。
 只通过 blade-project MCP 中的 blade_* 工具连接 BladeProject。
 不得索要、读取、输出或保存 Agent Key、账号密码或 JWT。
-第一次调用使用只读工具 blade_products_list，current=1、size=1。
+第一次调用必须选择当前 Key 已授权的只读工具。纸单录入 Key 使用 blade_catalog_search，limit=1；拥有 products:read 时才使用 blade_products_list。
 写操作前先向我说明将调用的工具、所需 scope、数据范围和幂等策略，得到确认后再执行。
 不得调用商品/客户修改删除、正式订单确认、收付款、库存、回退、审批或数据库接口。
 涉及纸单、Excel 或订单草稿时，再完整阅读 docs/17-AGENT_ORDER_DRAFT_RUNBOOK.md。

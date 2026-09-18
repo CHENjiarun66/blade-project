@@ -14,6 +14,7 @@
 - `11-AGENT_ACCESS_GUIDE.md`、`16-AGENT_LOCAL_KEY_MANAGER.md`、`17-AGENT_ORDER_DRAFT_RUNBOOK.md` 和 API 总规范统一指向新手册；明确普通 Agent 不读取 Key，生产调用由 macOS 钥匙串和用户授权注入。
 - 修正 API 总规范中“所有接口使用 JWT”的旧表述：后台与移动端使用 JWT，`/api/agent/**` 独立使用 `X-Agent-Key`。纸单原图上传同样要求 `agent:orders:write`。
 - 同步 2026-09-16 release `20260916_104900`、commit `fff329b1447164f9c79927c734153d4cf7be13a9` 和 Flyway V60 生产事实，清除 Agent 商品/订单/客户能力及草稿工作台仍“待发布”的过期状态。
+- 修正首次连通性验证：根据 Key 已有只读 scope 选择工具。纸单录入 Key 使用 `blade_catalog_search`，不再固定要求额外的 `products:read`。
 
 ## 2026-09-16 变更记录
 
