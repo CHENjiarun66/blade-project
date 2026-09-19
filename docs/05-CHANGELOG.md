@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-09-20 变更记录
+
+### [生产增量发布完成] - Agent 商品统一成本与草稿成本独立授权
+
+- 以 commit `ac76b4d677c15dd43dfbf765a0fb879b7b62e2c7`、release `20260920_004327` 发布后端与 Web：新增 `products:cost:write`、`orders:cost:write` 两项敏感写入 scope；前者允许 Agent 在新增商品时提交一次商品级统一成本，并自动应用到该商品全部 DEFAULT、NORMAL、PLACEHOLDER SKU，后者独立控制草稿明细成本和运费成本。
+- `products:create`、`orders:write` 不再隐含成本写入能力；未获独立成本 scope 时提交成本字段返回 HTTP 403。重复商品继续返回 `DUPLICATE`，不覆盖或泄露旧商品成本；商品和订单读取接口仍不返回成本。
+- 系统 Agent Key 权限页、macOS Key Manager、MCP 工具说明和接入文档已同步新 scope。旧 Key 不会自动扩权；需要成本写入时必须在系统中重新签发并停用旧 Key，再把新 Key 录入 Key Manager。
+- 发布前后端全量 `526/526`、Key Manager `13/13` 和 PC 生产构建通过。使用当前生产备份在隔离库完成 V60→V60 预演：145 张订单、43 张草稿、金额/流水/状态/占位 SKU 门禁全部通过，迁移与幂等重放新增 0、人工核对 0。
+- 发布备份位于 NAS `/volume2/blade/db-backups/nas_blade_project_prod_20260920_004327` 与 Mac `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260920_004327`，两端 SHA-256 校验通过。只替换 `blade-backend`、`blade-web`，未重启或覆盖 MySQL、Redis、uploads 和 `.env.prod`。
+- 发布后 Flyway 保持 V60，145 张订单、43 张草稿、190 个商品、712 个 SKU 保留；四个容器均 Up，局域网与外网 HTTPS 入口均返回 200，无 Key 的 capabilities 请求按设计返回 401。
+
 ## 2026-09-19 变更记录
 
 ### [生产增量发布完成] - Agent Key 服务器权限同步上线

@@ -351,7 +351,8 @@
 | BE-589 | Agent scope 管理与本机工具联动 | ✅ 完成并发布（2026-09-16） | 系统管理可按风险选择新增 scope；调整权限轮换 Key并停用旧 Key；本机 MCP 白名单已同步并上线 |
 | BE-590 | Agent 客户列表与详情敏感只读 | ✅ 完成并发布（2026-09-16） | `customers:read` 分页/单项读取客户名称、电话、地址、备注和订单数；随 release `20260916_104900` 上线 |
 | BE-591 | Agent 客户新增与来源审计 | ✅ 完成并发布（2026-09-16） | `customers:create` 只允许新增客户；重复电话返回 `DUPLICATE`；V60 记录 Agent Key 来源并已上线 |
-| AGENT-KEY-001 | Mac Agent Key 管理器与授权代理 | ✅ 完成并已发布 | 原生 macOS SwiftUI 应用；完整 Key 存系统钥匙串，附带白名单 MCP/命令代理。`/api/agent/capabilities` 与新版 Key Manager 已于 release `20260919_103607` 上线；现有生产 Key 已同步 8 项真实 scope，商品/订单/客户只读接口生产验收通过；源码与测试见 `tools/blade-agent-key-manager` |
+| BE-592 | Agent 商品/草稿成本独立授权 | ✅ 完成并发布（2026-09-20） | 新增 `products:cost:write`、`orders:cost:write`；商品成本当前为商品级统一值并应用到全部 SKU，草稿成本与普通草稿写入分离；随 release `20260920_004327` 上线 |
+| AGENT-KEY-001 | Mac Agent Key 管理器与授权代理 | ✅ 完成并已发布 | 原生 macOS SwiftUI 应用；完整 Key 存系统钥匙串，附带白名单 MCP/命令代理。`/api/agent/capabilities`、服务器权限同步和成本独立 scope 已分别随 release `20260919_103607`、`20260920_004327` 上线；源码与测试见 `tools/blade-agent-key-manager` |
 | AGENT-KEY-002 | 本机 Agent 强身份与服务器状态同步 | ⏳ TODO | 对调用进程做签名/配对证明；可选使用 Owner 授权同步服务器 Key 状态和到期日，禁止在本机保存 Owner 密码或长期 JWT |
 | TEST-WA-NAS-001 | WhatsApp Mac → NAS 生产联调 | ⏳ TODO | 备份生产库后部署 V43-V47 和前后端；配置 Collector/Worker Key，验证增量同步、客户绑定、媒体预览、定向扫描和回滚 |
 
