@@ -138,6 +138,15 @@ public class FileServiceImpl implements FileService {
         entity.setAccessUrl(accessUrl);
         fileStorageMapper.updateById(entity);
 
+        // The file center treats file_business_bind as the canonical source of
+        // binding state.  When an existing business object is supplied (for
+        // example, adding an image from the order edit page), create that
+        // canonical binding immediately instead of relying on a later order
+        // save to repair the legacy file_storage.business_* fields.
+        if (businessId != null) {
+            bindFiles(businessType, businessId, List.of(entity.getId()));
+        }
+
         FileUploadVO vo = new FileUploadVO();
         vo.setId(entity.getId());
         vo.setOriginalName(entity.getOriginalName());
@@ -322,6 +331,11 @@ public class FileServiceImpl implements FileService {
     @Override
     public void bindFilesFromJson(String businessType, Long businessId, String imagesJson) {
         bindFiles(businessType, businessId, parseFileIds(imagesJson));
+    }
+
+    @Override
+    public void syncFilesFromJson(String businessType, Long businessId, String imagesJson) {
+        syncFiles(businessType, businessId, parseFileIds(imagesJson));
     }
 
     @Override
@@ -539,7 +553,14 @@ public class FileServiceImpl implements FileService {
         wrapper.eq(FileBusinessBind::getTenantId, tenantId);
         wrapper.eq(FileBusinessBind::getDeleted, 0);
         if (businessType != null && !businessType.isBlank()) {
-            wrapper.eq(FileBusinessBind::getBusinessType, businessType);
+            // "Order images" in the file center is a business category, not
+            // only a formal-order lifecycle state.  Draft source photos are
+            // therefore included together with confirmed-order attachments.
+            if ("order".equals(businessType)) {
+                wrapper.in(FileBusinessBind::getBusinessType, List.of("order", "order_draft"));
+            } else {
+                wrapper.eq(FileBusinessBind::getBusinessType, businessType);
+            }
         }
         return fileBusinessBindMapper.selectList(wrapper).stream()
                 .map(FileBusinessBind::getFileId)

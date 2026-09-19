@@ -544,7 +544,7 @@ public class OrderServiceImpl implements OrderService {
             if (rows == 0) {
                 throw BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
             }
-            fileService.bindFilesFromJson("order", order.getId(), order.getImages());
+            fileService.syncFilesFromJson("order", order.getId(), order.getImages());
             return;
         }
         boolean hasFinancialChange = amountChanged(order.getFreightAmount(), dto.getFreightAmount())
@@ -588,7 +588,7 @@ public class OrderServiceImpl implements OrderService {
         if (rows == 0) {
             throw BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
         }
-        fileService.bindFilesFromJson("order", order.getId(), order.getImages());
+        fileService.syncFilesFromJson("order", order.getId(), order.getImages());
     }
 
     @Override

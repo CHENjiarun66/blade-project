@@ -237,7 +237,7 @@ file_folder (
 | 未绑定文件 | 无有效业务绑定的文件 |
 | 商品素材 | 商品主图和图集 |
 | SKU 图片 | 绑定到 SKU 的图片 |
-| 订单图片 | 订单相关图片 |
+| 订单图片 | 正式订单图片与草稿原始单据图片（统一业务入口） |
 | 入库凭证 | 入库日志图片 |
 | OCR 原图 | 后续 OCR 单据图片 |
 | 视频 | `file_type=VIDEO` |
@@ -270,6 +270,7 @@ file_business_bind (
 | product | 商品 |
 | sku | SKU |
 | order | 订单 |
+| order_draft | 订单草稿原始单据 |
 | inventory_log | 入库日志 |
 | ocr_document | OCR 单据 |
 
@@ -289,6 +290,14 @@ file_business_bind (
 1. `product.image_url` 继续保存商品主图 fileId，兼容现有页面。
 2. 同时写入 `file_business_bind`：`business_type=product`、`bind_role=main`、`is_primary=1`。
 3. 新商品图集、SKU 图集不新增业务字段，统一走绑定表。
+
+订单图片绑定规则：
+
+1. `file_business_bind` 是文件中心判断“订单图片/未绑定”的唯一权威关系；`file_storage.business_type/business_id` 只保留为兼容字段。
+2. 正式订单使用 `business_type=order`；草稿原始单据使用 `business_type=order_draft`。文件中心的“订单图片”是聚合入口，查询时同时包含两类绑定。
+3. 对已有订单或草稿上传图片时，上传成功即写入绑定表，不能等待后续保存动作补绑；先上传、后创建业务对象的场景，在创建成功获得业务 ID 后统一绑定。
+4. 修改正式订单图片时，以 `sale_order.images` 中的 fileId 集合作为当前完整集合：新增项建立绑定，移除项只解除绑定，不删除文件。
+5. V61 负责补齐历史正式订单 JSON、旧上传兼容字段和草稿 `source_file_id` 对应的绑定；迁移只新增缺失关系，不修改生产文件和订单内容。
 
 ### 4.4 新增操作与清理日志
 
@@ -635,6 +644,7 @@ NOT EXISTS (
 2. 改造绑定服务，现有 `business_type/business_id` 作为兼容主归属。
 3. 支持商品主图、商品图集、SKU 图片绑定。
 4. 支持订单图片和入库凭证追加绑定。
+5. 已统一订单上传、编辑与文件中心的绑定语义，并通过 V61 修复历史订单图片误入“未绑定”的数据。
 
 ### Phase C：治理与清理
 
@@ -700,7 +710,7 @@ NOT EXISTS (
 |------|------|
 | 09 文件存储 | 上传和存储底座，继续保留 |
 | 商品模块 | 继续保留 `product.image_url`，新增图集和 SKU 绑定关系 |
-| 订单模块 | 订单图片继续保存 fileId JSON，文件中心可查看和追加 |
+| 订单模块 | 正式订单图片继续保存 fileId JSON；草稿保留原始单据 fileId；两者均写入绑定表并在文件中心“订单图片”统一查看 |
 | 库存模块 | 入库凭证继续保存 fileId JSON，文件中心可查看和追加 |
 | OCR | 后续 OCR 原图进入文件中心 |
 | 客户展示页 | 只读消费商品/SKU 图片和库存聚合 |

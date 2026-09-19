@@ -34,6 +34,14 @@ public interface FileService {
     void bindFilesFromJson(String businessType, Long businessId, String imagesJson);
 
     /**
+     * 将业务对象 JSON 字段中的文件 ID 作为完整集合进行同步。
+     * 默认实现保留旧服务桩兼容性，正式实现会同时解除已移除的绑定。
+     */
+    default void syncFilesFromJson(String businessType, Long businessId, String imagesJson) {
+        bindFilesFromJson(businessType, businessId, imagesJson);
+    }
+
+    /**
      * 按绑定顺序返回当前租户下某个业务对象的有效文件。
      * 兼容仍只写 file_storage.business_* 的历史数据。
      */
