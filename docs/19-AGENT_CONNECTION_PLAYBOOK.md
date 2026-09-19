@@ -68,14 +68,14 @@ Agent 不能自行签发或读取 Key。用户按以下步骤准备凭证：
 | `blade_products_list` | `products:read` | 分页查询商品主档 |
 | `blade_product_get` | `products:read` | 查询商品与 SKU 详情 |
 | `blade_product_options` | `products:read` | 查询新增商品可用选项 |
-| `blade_product_create` | `products:create` | 新增商品 |
+| `blade_product_create` | `products:create`；填写成本另需 `products:cost:write` | 新增商品；统一商品成本应用到全部 SKU |
 | `blade_orders_list` | `orders:read` | 分页查询正式订单 |
 | `blade_order_get` | `orders:read` | 查询正式订单详情 |
 | `blade_customers_list` | `customers:read` | 分页查询客户敏感资料 |
 | `blade_customer_get` | `customers:read` | 查询客户详情 |
 | `blade_customer_create` | `customers:create` | 新增客户 |
 | `blade_order_draft_source_upload` | `orders:write` | 上传纸单原图 |
-| `blade_order_drafts_create` | `orders:write` | 批量创建订单草稿 |
+| `blade_order_drafts_create` | `orders:write`；填写成本另需 `orders:cost:write` | 批量创建订单草稿 |
 | `blade_style_trends` | `analytics:read` | 查询款式趋势事实 |
 | `blade_sku_mix` | `analytics:read` | 查询颜色尺码结构事实 |
 
@@ -128,10 +128,10 @@ Key 只授予完成当前任务需要的 scope：
 
 | 任务 | 建议 scope |
 |------|------------|
-| 纸单款号匹配并创建草稿 | `catalog:read`、`orders:write` |
+| 纸单款号匹配并创建草稿 | `catalog:read`、`orders:write`；来源数据确需写入成本时增加 `orders:cost:write` |
 | 商品和正式订单分析 | `products:read`、`orders:read` |
 | 款式趋势和规格结构分析 | `analytics:read` |
-| 新增商品 | `products:read`、`products:create` |
+| 新增商品 | `products:read`、`products:create`；需要填写统一商品成本时增加 `products:cost:write` |
 | 查询客户 | `customers:read` |
 | 新增客户 | `customers:create`，按需再加 `customers:read` |
 | WhatsApp 专用 Worker | `whatsapp:analyze`，不得与普通业务 Key 共用 |
@@ -143,8 +143,10 @@ Key 只授予完成当前任务需要的 scope：
 当前 Agent Gateway 只开放两类窄写入：新增主数据和创建待人工确认的订单草稿。
 
 - `products:create` 只能新增商品，同款号返回 `DUPLICATE`，不修改旧商品，不写库存
+- `products:cost:write` 必须配合 `products:create` 使用，只允许在创建时写入统一商品成本；该成本自动应用到全部生成 SKU
 - `customers:create` 只能新增客户，重复电话返回 `DUPLICATE`，不覆盖旧资料
 - `orders:write` 只能上传纸单原图和创建草稿，不确认正式订单
+- `orders:cost:write` 必须配合 `orders:write` 使用，只允许写入草稿的商品成本快照和运费成本
 - Agent 不能修改或删除商品、客户
 - Agent 不能收款、退款、短款核销、配货、出库或调整库存
 - Agent 不能执行订单回退、审批或冲销

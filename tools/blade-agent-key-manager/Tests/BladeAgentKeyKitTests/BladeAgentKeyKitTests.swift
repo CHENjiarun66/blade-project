@@ -95,7 +95,7 @@ final class BladeAgentKeyKitTests: XCTestCase {
           "data": {
             "keyPrefix": "agk_example",
             "name": "DeepSeek 生产",
-            "scopes": ["catalog:read", "products:read", "orders:write"],
+            "scopes": ["catalog:read", "products:read", "orders:write", "products:cost:write"],
             "expiresAt": "2026-12-17T10:14:16Z",
             "serverTime": "2026-09-18T10:14:16.123Z"
           }
@@ -106,7 +106,7 @@ final class BladeAgentKeyKitTests: XCTestCase {
 
         XCTAssertEqual(result.keyPrefix, "agk_example")
         XCTAssertEqual(result.name, "DeepSeek 生产")
-        XCTAssertEqual(result.scopes, [.catalogRead, .productsRead, .ordersWrite])
+        XCTAssertEqual(result.scopes, [.catalogRead, .productsRead, .ordersWrite, .productsCostWrite])
         XCTAssertGreaterThan(result.expiresAt, result.serverTime)
     }
 
@@ -157,6 +157,23 @@ final class BladeAgentKeyKitTests: XCTestCase {
             agentName: "Codex", method: "POST", path: "/api/agent/products", body: Data("{}".utf8)
         ))
         XCTAssertEqual(productCreate.requiredScope, .productsCreate)
+        XCTAssertEqual(productCreate.requiredScopes, [.productsCreate])
+
+        let productCreateWithCost = try AgentRequestPolicy.validate(AgentAPIRequest(
+            agentName: "Codex",
+            method: "POST",
+            path: "/api/agent/products",
+            body: Data(#"{"productCode":"7000#","costPrice":18.5}"#.utf8)
+        ))
+        XCTAssertEqual(productCreateWithCost.requiredScopes, [.productsCreate, .productsCostWrite])
+
+        let draftsWithCost = try AgentRequestPolicy.validate(AgentAPIRequest(
+            agentName: "Codex",
+            method: "POST",
+            path: "/api/agent/order-drafts/batch",
+            body: Data(#"{"orders":[{"freightCost":2,"items":[{"costPrice":8}]}]}"#.utf8)
+        ))
+        XCTAssertEqual(draftsWithCost.requiredScopes, [.ordersWrite, .ordersCostWrite])
 
         let orders = try AgentRequestPolicy.validate(AgentAPIRequest(
             agentName: "Codex", method: "GET", path: "/api/agent/orders?current=1&size=100"
@@ -262,6 +279,36 @@ final class BladeAgentKeyKitTests: XCTestCase {
         XCTAssertEqual(
             AgentRequestPolicy.eligibleKeys(for: request, in: [eligible, expired, wrongScope], now: now),
             [eligible]
+        )
+    }
+
+    func testCostWritingRequiresBaseAndSensitiveScopesOnTheSameKey() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let request = try AgentRequestPolicy.validate(AgentAPIRequest(
+            agentName: "DeepSeek",
+            method: "POST",
+            path: "/api/agent/products",
+            body: Data(#"{"productCode":"7000#","costPrice":18.5}"#.utf8)
+        ))
+        let createOnly = StoredAgentKey(
+            name: "create only", agentName: "DeepSeek", keyPrefix: "agk_create",
+            baseURL: "https://example.com", expiresAt: now.addingTimeInterval(3600),
+            scopes: [.productsCreate]
+        )
+        let costOnly = StoredAgentKey(
+            name: "cost only", agentName: "DeepSeek", keyPrefix: "agk_cost",
+            baseURL: "https://example.com", expiresAt: now.addingTimeInterval(3600),
+            scopes: [.productsCostWrite]
+        )
+        let both = StoredAgentKey(
+            name: "both", agentName: "DeepSeek", keyPrefix: "agk_both",
+            baseURL: "https://example.com", expiresAt: now.addingTimeInterval(3600),
+            scopes: [.productsCreate, .productsCostWrite]
+        )
+
+        XCTAssertEqual(
+            AgentRequestPolicy.eligibleKeys(for: request, in: [createOnly, costOnly, both], now: now),
+            [both]
         )
     }
 

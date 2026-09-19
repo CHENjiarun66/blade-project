@@ -26,7 +26,8 @@ class AgentDataAccessContractTest {
         assertEquals("hasAuthority('agent:products:read')",
                 annotation(AgentProductController.class, "list", com.blade.product.dto.ProductPageDTO.class).value());
         assertEquals("hasAuthority('agent:products:create')",
-                annotation(AgentProductController.class, "create", AgentProductDTO.CreateRequest.class).value());
+                annotation(AgentProductController.class, "create",
+                        AgentProductDTO.CreateRequest.class, AgentPrincipal.class).value());
         assertEquals("hasAuthority('agent:orders:read')",
                 annotation(AgentOrderQueryController.class, "list", com.blade.order.dto.OrderPageDTO.class).value());
         assertEquals("hasAuthority('agent:customers:read')",
@@ -45,6 +46,8 @@ class AgentDataAccessContractTest {
 
         assertFalse(productFields.contains("costPrice"));
         assertFalse(productSkuFields.contains("costPrice"));
+        assertTrue(componentNames(AgentProductDTO.CreateRequest.class).contains("costPrice"));
+        assertTrue(componentNames(AgentProductDTO.CreateResult.class).contains("appliedCostPrice"));
         assertFalse(orderFields.contains("customerPhone"));
         assertFalse(orderFields.contains("customerAddress"));
         assertFalse(orderFields.contains("remark"));

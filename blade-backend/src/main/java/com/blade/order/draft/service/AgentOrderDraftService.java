@@ -4,6 +4,7 @@ import com.blade.agent.auth.AgentPrincipal;
 import com.blade.order.draft.dto.OrderDraftDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.ArrayList;
 
@@ -14,6 +15,12 @@ public class AgentOrderDraftService {
 
     public OrderDraftDTO.BatchResponse createBatch(OrderDraftDTO.BatchRequest request,
                                                    AgentPrincipal principal) {
+        boolean writesCost = request.getOrders().stream().anyMatch(order ->
+                order.getFreightCost() != null || (order.getItems() != null && order.getItems().stream()
+                        .anyMatch(item -> item.getCostPrice() != null)));
+        if (writesCost && !principal.getScopes().contains("orders:cost:write")) {
+            throw new AccessDeniedException("缺少 orders:cost:write");
+        }
         var results = new ArrayList<OrderDraftDTO.BatchResult>();
         for (OrderDraftDTO.SaveRequest order : request.getOrders()) {
             try {

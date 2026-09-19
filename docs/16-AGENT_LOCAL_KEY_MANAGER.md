@@ -38,7 +38,7 @@ BladeProject /api/agent/*
 
 1. 登录 BladeProject，进入“系统管理 → Agent Key”。
 2. 每个 Agent 单独签发一把 Key，不共用。名称建议写成“Agent + 环境 + 用途”，例如“DeepSeek 生产纸单录入”。
-3. 纸单录入只选 `catalog:read`、`orders:write`；经营分析另签 `analytics:read`、`products:read`、`orders:read`；只有确实需要建商品或客户的 Agent 才增加 `products:create`、`customers:create`。`customers:read` 会暴露电话、地址和备注，应单独签发并标记用途，不要为了方便把所有 scope 放在一把 Key 上。
+3. 纸单录入只选 `catalog:read`、`orders:write`；只有确实需要从来源数据写入成本时才追加 `orders:cost:write`。经营分析另签 `analytics:read`、`products:read`、`orders:read`；只有确实需要建商品或客户的 Agent 才增加 `products:create`、`customers:create`，需要给新商品填写统一成本时再追加 `products:cost:write`。成本写入和 `customers:read` 都属于敏感能力，应单独标记用途，不要为了方便把所有 scope 放在一把 Key 上。
 4. 选择有效天数并创建。完整 Key 只显示一次，立即复制。
 
 ### 2.2 Mac 端录入
@@ -106,14 +106,14 @@ BladeProject /api/agent/*
 | `blade_products_list` | `products:read` | 分页查询脱敏商品主档 |
 | `blade_product_get` | `products:read` | 查询单个商品和 SKU |
 | `blade_product_options` | `products:read` | 查询新增商品可用分类/颜色/尺码 |
-| `blade_product_create` | `products:create` | 新增商品，不覆盖旧商品或库存 |
+| `blade_product_create` | `products:create`；填写成本时另需 `products:cost:write` | 新增商品，不覆盖旧商品或库存；商品成本统一应用到全部 SKU |
 | `blade_orders_list` | `orders:read` | 分页查询脱敏正式订单 |
 | `blade_order_get` | `orders:read` | 查询单个订单和商品明细 |
 | `blade_customers_list` | `customers:read` | 分页查询客户敏感资料 |
 | `blade_customer_get` | `customers:read` | 查询单个客户敏感资料 |
 | `blade_customer_create` | `customers:create` | 新增客户，重复电话不覆盖 |
 | `blade_order_draft_source_upload` | `orders:write` | 上传 JPG/PNG/WEBP 纸单原图并返回 fileId |
-| `blade_order_drafts_create` | `orders:write` | 批量创建订单草稿 |
+| `blade_order_drafts_create` | `orders:write`；填写商品/运费成本时另需 `orders:cost:write` | 批量创建订单草稿 |
 | `blade_style_trends` | `analytics:read` | 查询款式趋势 |
 | `blade_sku_mix` | `analytics:read` | 查询颜色尺码结构 |
 

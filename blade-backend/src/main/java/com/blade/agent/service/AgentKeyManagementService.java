@@ -33,6 +33,8 @@ public class AgentKeyManagementService {
             "customers:read",
             "orders:write",
             "products:create",
+            "products:cost:write",
+            "orders:cost:write",
             "customers:create",
             "analytics:read",
             "whatsapp:analyze"
@@ -81,7 +83,8 @@ public class AgentKeyManagementService {
 
     public List<String> allowedScopes() {
         return List.of("catalog:read", "products:read", "orders:read", "customers:read", "analytics:read",
-                "orders:write", "products:create", "customers:create", "whatsapp:analyze");
+                "orders:write", "products:create", "products:cost:write", "orders:cost:write",
+                "customers:create", "whatsapp:analyze");
     }
 
     private List<String> requestedRotationScopes(AgentKey previous, AgentKeyManagementDTO.RotateRequest request) {
@@ -138,7 +141,15 @@ public class AgentKeyManagementService {
             }
             normalized.add(scope);
         }
+        requireScopeDependency(normalized, "products:cost:write", "products:create");
+        requireScopeDependency(normalized, "orders:cost:write", "orders:write");
         return List.copyOf(normalized);
+    }
+
+    private void requireScopeDependency(Set<String> scopes, String sensitiveScope, String baseScope) {
+        if (scopes.contains(sensitiveScope) && !scopes.contains(baseScope)) {
+            throw BusinessException.of(400, sensitiveScope + " 必须与 " + baseScope + " 一起授权");
+        }
     }
 
     private AgentKey requiredKey(Long id) {

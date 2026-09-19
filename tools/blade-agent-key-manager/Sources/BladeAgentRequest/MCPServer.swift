@@ -235,7 +235,7 @@ final class MCPServer {
             ],
             [
                 "name": "blade_product_create",
-                "description": "新增一个商品并按已有颜色、尺码编码生成 SKU。相同商品编码只返回 DUPLICATE，不会覆盖；不写入库存，也不允许修改或删除。",
+                "description": "新增一个商品并按已有颜色、尺码编码生成 SKU。costPrice 是商品统一成本，会应用到全部生成 SKU，且需要额外 products:cost:write 权限。相同商品编码只返回 DUPLICATE，不会覆盖；不写入库存，也不允许修改或删除。",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -302,7 +302,7 @@ final class MCPServer {
             ],
             [
                 "name": "blade_order_drafts_create",
-                "description": "批量创建待人工复核的订单草稿。先上传原图，再把返回的 fileId 写入各订单 sourceFileIds。只能创建草稿，不能确认正式订单、收款或变更库存。externalRefNo 必须稳定并用于幂等。",
+                "description": "批量创建待人工复核的订单草稿。先上传原图，再把返回的 fileId 写入各订单 sourceFileIds。填写明细 costPrice 或 freightCost 时需要额外 orders:cost:write 权限。只能创建草稿，不能确认正式订单、收款或变更库存。externalRefNo 必须稳定并用于幂等。",
                 "inputSchema": [
                     "type": "object",
                     "properties": [

@@ -31,7 +31,7 @@ enum AuthorizationPrompt {
             "\(index + 1). \(singleLine(key.name)) · \(singleLine(key.agentName)) · 剩余 \(max(0, key.remainingDays())) 天"
         }
         let title = "\(request.agentName) 请求使用 BladeProject"
-        let prompt = "接口：\(request.method) \(request.path)\n需要权限：\(request.requiredScope.displayName)\n\n请选择 Key。这里显示的 Agent 名称来自本机工具配置，只授权你主动启动并信任的 Agent。"
+        let prompt = "接口：\(request.method) \(request.path)\n需要权限：\(request.requiredScopeSummary)\n\n请选择 Key。这里显示的 Agent 名称来自本机工具配置，只授权你主动启动并信任的 Agent。"
         guard let output = runAppleScript(
             authorizationScript,
             arguments: [title, prompt] + labels
@@ -69,7 +69,7 @@ enum AuthorizationPrompt {
         } else {
             showInformation(
                 title: "本机权限记录未同步",
-                message: "本机保存的 Key 都没有登记“\(request.requiredScope.displayName)”权限。这不代表服务器一定没有授权。\n\n请打开 Blade Agent Key Manager，选择对应 Key，点击“同步服务器权限”后重试。"
+                message: "本机保存的 Key 都没有完整登记“\(request.requiredScopeSummary)”权限。这不代表服务器一定没有授权。\n\n请打开 Blade Agent Key Manager，选择对应 Key，点击“同步服务器权限”后重试。"
             )
         }
     }

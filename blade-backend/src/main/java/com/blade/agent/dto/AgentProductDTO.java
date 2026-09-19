@@ -63,6 +63,7 @@ public final class AgentProductDTO {
             @NotBlank(message = "商品名称不能为空") @Size(max = 100, message = "商品名称最多100位") String name,
             Long categoryId,
             @Size(max = 10, message = "单位最多10位") String unit,
+            @DecimalMin(value = "0.00", message = "成本价不能小于0") BigDecimal costPrice,
             @DecimalMin(value = "0.00", message = "批发价不能小于0") BigDecimal wholesalePrice,
             @DecimalMin(value = "0.00", message = "重量不能小于0") BigDecimal weight,
             @Size(max = 1000, message = "描述最多1000位") String description,
@@ -75,6 +76,7 @@ public final class AgentProductDTO {
             Long productId,
             String productCode,
             String result,
-            int skuCount) {
+            int skuCount,
+            BigDecimal appliedCostPrice) {
     }
 }

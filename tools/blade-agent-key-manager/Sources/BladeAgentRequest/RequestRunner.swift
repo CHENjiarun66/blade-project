@@ -29,7 +29,7 @@ final class RequestRunner {
         }
 
         let selectedKey: StoredAgentKey
-        let grantKey = sessionGrantKey(agentName: request.agentName, scope: request.requiredScope)
+        let grantKey = sessionGrantKey(agentName: request.agentName, scopes: request.requiredScopes)
         if let grant = sessionGrants[grantKey],
            grant.expiresAt > Date(),
            let grantedKey = candidates.first(where: { $0.id == grant.keyID }) {
@@ -61,7 +61,7 @@ final class RequestRunner {
         if response.statusCode == 403 {
             AuthorizationPrompt.showInformation(
                 title: "服务器拒绝权限",
-                message: "本机已选择“\(selectedKey.name)”，但服务器拒绝了“\(request.requiredScope.displayName)”权限。\n\n\(response.serverMessage ?? "请在生产环境检查该 Key 的真实权限，然后回到 Key Manager 同步服务器权限。")"
+                message: "本机已选择“\(selectedKey.name)”，但服务器拒绝了“\(request.requiredScopeSummary)”中的一项或多项权限。\n\n\(response.serverMessage ?? "请在生产环境检查该 Key 的真实权限，然后回到 Key Manager 同步服务器权限。")"
             )
         } else if response.statusCode == 401 {
             AuthorizationPrompt.showInformation(
@@ -72,7 +72,8 @@ final class RequestRunner {
         return response
     }
 
-    private func sessionGrantKey(agentName: String, scope: AgentScope) -> String {
-        "\(agentName.lowercased())|\(scope.rawValue)"
+    private func sessionGrantKey(agentName: String, scopes: Set<AgentScope>) -> String {
+        let scopeKey = scopes.map(\.rawValue).sorted().joined(separator: ",")
+        return "\(agentName.lowercased())|\(scopeKey)"
     }
 }

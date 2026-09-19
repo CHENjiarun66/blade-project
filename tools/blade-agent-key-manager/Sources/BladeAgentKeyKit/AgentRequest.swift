@@ -21,8 +21,13 @@ public struct ValidatedAgentRequest: Sendable {
     public let method: String
     public let path: String
     public let requiredScope: AgentScope
+    public let requiredScopes: Set<AgentScope>
     public let body: Data?
     public let fileURL: URL?
+
+    public var requiredScopeSummary: String {
+        requiredScopes.sorted { $0.rawValue < $1.rawValue }.map(\.displayName).joined(separator: "、")
+    }
 }
 
 public enum AgentRequestPolicyError: LocalizedError, Equatable {
@@ -109,6 +114,14 @@ public enum AgentRequestPolicy {
             throw AgentRequestPolicyError.unsupportedEndpoint
         }
 
+        var requiredScopes: Set<AgentScope> = [requiredScope]
+        if method == "POST", pathOnly == "/api/agent/products", containsProductCost(request.body) {
+            requiredScopes.insert(.productsCostWrite)
+        }
+        if method == "POST", pathOnly == "/api/agent/order-drafts/batch", containsOrderDraftCost(request.body) {
+            requiredScopes.insert(.ordersCostWrite)
+        }
+
         if pathOnly == "/api/agent/order-drafts/source-files" {
             guard request.body == nil,
                   let fileURL = request.fileURL,
@@ -130,6 +143,7 @@ public enum AgentRequestPolicy {
             method: method,
             path: path,
             requiredScope: requiredScope,
+            requiredScopes: requiredScopes,
             body: request.body,
             fileURL: request.fileURL
         )
@@ -141,12 +155,33 @@ public enum AgentRequestPolicy {
         return !suffix.isEmpty && suffix.allSatisfy(\.isNumber)
     }
 
+    private static func containsProductCost(_ body: Data?) -> Bool {
+        guard let body,
+              let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let value = object["costPrice"] else { return false }
+        return !(value is NSNull)
+    }
+
+    private static func containsOrderDraftCost(_ body: Data?) -> Bool {
+        guard let body,
+              let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let orders = object["orders"] as? [[String: Any]] else { return false }
+        return orders.contains { order in
+            if let value = order["freightCost"], !(value is NSNull) { return true }
+            guard let items = order["items"] as? [[String: Any]] else { return false }
+            return items.contains { item in
+                guard let value = item["costPrice"] else { return false }
+                return !(value is NSNull)
+            }
+        }
+    }
+
     public static func eligibleKeys(
         for request: ValidatedAgentRequest,
         in keys: [StoredAgentKey],
         now: Date = Date()
     ) -> [StoredAgentKey] {
-        keys.filter { !$0.isExpired(now: now) && $0.scopes.contains(request.requiredScope) }
+        keys.filter { !$0.isExpired(now: now) && request.requiredScopes.isSubset(of: $0.scopes) }
     }
 }
 

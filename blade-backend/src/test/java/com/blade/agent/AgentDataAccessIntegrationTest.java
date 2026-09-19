@@ -13,7 +13,9 @@ import com.blade.customer.mapper.CustomerPhoneMapper;
 import com.blade.order.entity.Order;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.product.entity.Product;
+import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.ProductMapper;
+import com.blade.product.mapper.ProductSkuMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +48,7 @@ class AgentDataAccessIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private AgentKeyMapper keyMapper;
     @Autowired private ProductMapper productMapper;
+    @Autowired private ProductSkuMapper productSkuMapper;
     @Autowired private OrderMapper orderMapper;
     @Autowired private CustomerMapper customerMapper;
     @Autowired private CustomerPhoneMapper customerPhoneMapper;
@@ -56,6 +59,7 @@ class AgentDataAccessIntegrationTest {
     private String readOnlyRawKey;
     private String customerReadOnlyRawKey;
     private String customerCreateOnlyRawKey;
+    private String productCreateOnlyRawKey;
     private Long fullAccessKeyId;
     private String seededProductCode;
     private String seededOrderNo;
@@ -69,12 +73,13 @@ class AgentDataAccessIntegrationTest {
         String suffix = String.valueOf(System.nanoTime());
         String fullAccessPrefix = "agk_data_" + suffix;
         rawKey = issueKey(fullAccessPrefix,
-                "products:read,orders:read,products:create,customers:read,customers:create");
+                "products:read,orders:read,products:create,products:cost:write,customers:read,customers:create");
         fullAccessKeyId = keyMapper.selectOne(Wrappers.<AgentKey>lambdaQuery()
                 .eq(AgentKey::getKeyPrefix, fullAccessPrefix)).getId();
         readOnlyRawKey = issueKey("agk_read_" + suffix, "products:read");
         customerReadOnlyRawKey = issueKey("agk_customer_read_" + suffix, "customers:read");
         customerCreateOnlyRawKey = issueKey("agk_customer_create_" + suffix, "customers:create");
+        productCreateOnlyRawKey = issueKey("agk_product_create_" + suffix, "products:create");
 
         seededProductCode = "AGENT-READ-" + suffix;
         Product product = new Product();
@@ -212,6 +217,35 @@ class AgentDataAccessIntegrationTest {
                         .content("{\"productCode\":\"" + code + "\",\"name\":\"must not overwrite\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.result").value("DUPLICATE"));
+    }
+
+    @Test
+    void productCostWriteRequiresIndependentScopeAndAppliesToGeneratedSkus() throws Exception {
+        String deniedCode = "COST-D-" + String.valueOf(System.nanoTime()).substring(5);
+        mockMvc.perform(post("/api/agent/products").header("X-Agent-Key", productCreateOnlyRawKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productCode\":\"" + deniedCode
+                                + "\",\"name\":\"cost denied\",\"costPrice\":18.5}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        String createdCode = "COST-" + String.valueOf(System.nanoTime()).substring(5);
+        mockMvc.perform(post("/api/agent/products").header("X-Agent-Key", rawKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productCode\":\"" + createdCode
+                                + "\",\"name\":\"uniform cost\",\"costPrice\":18.5}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("CREATED"))
+                .andExpect(jsonPath("$.data.appliedCostPrice").value(18.5));
+
+        Product created = productMapper.selectOne(Wrappers.<Product>lambdaQuery()
+                .eq(Product::getProductCode, createdCode));
+        assertEquals(0, new BigDecimal("18.50").compareTo(created.getCostPrice()));
+        var skus = productSkuMapper.selectList(Wrappers.<ProductSku>lambdaQuery()
+                .eq(ProductSku::getProductId, created.getId()));
+        org.junit.jupiter.api.Assertions.assertFalse(skus.isEmpty());
+        org.junit.jupiter.api.Assertions.assertTrue(skus.stream()
+                .allMatch(sku -> new BigDecimal("18.50").compareTo(sku.getCostPrice()) == 0));
     }
 
     @Test

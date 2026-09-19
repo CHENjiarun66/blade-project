@@ -47,7 +47,7 @@ class AgentProductServiceTest {
     }
 
     @Test
-    void createResolvesExistingAttributeCodesAndNeverSetsCostOrInventory() {
+    void createResolvesExistingAttributeCodesAndSetsUniformProductCost() {
         when(productMapper.selectOne(any())).thenReturn(null);
         ProductVO.ColorVO black = new ProductVO.ColorVO();
         black.setId(11L);
@@ -66,20 +66,27 @@ class AgentProductServiceTest {
         created.setSkus(List.of(new ProductVO.SkuVO(), new ProductVO.SkuVO()));
         when(productService.getById(31L)).thenReturn(created);
 
-        AgentProductDTO.CreateResult result = service.create(request(" 7001# ", List.of("black"), List.of("m")));
+        AgentProductDTO.CreateResult result = service.create(request(
+                " 7001# ", new BigDecimal("8.50"), List.of("black"), List.of("m")));
 
         ArgumentCaptor<ProductCreateDTO> captor = ArgumentCaptor.forClass(ProductCreateDTO.class);
         verify(productService).create(captor.capture());
         ProductCreateDTO saved = captor.getValue();
         assertEquals(List.of(11L), saved.getColorIds());
         assertEquals(List.of(21L), saved.getSizeIds());
-        assertEquals(null, saved.getCostPrice());
+        assertEquals(new BigDecimal("8.50"), saved.getCostPrice());
         assertEquals("CREATED", result.result());
         assertEquals(2, result.skuCount());
+        assertEquals(new BigDecimal("8.50"), result.appliedCostPrice());
     }
 
     private AgentProductDTO.CreateRequest request(String code, List<String> colors, List<String> sizes) {
+        return request(code, null, colors, sizes);
+    }
+
+    private AgentProductDTO.CreateRequest request(String code, BigDecimal costPrice,
+                                                  List<String> colors, List<String> sizes) {
         return new AgentProductDTO.CreateRequest(code, "测试商品", null, "件",
-                new BigDecimal("12.00"), null, null, null, colors, sizes);
+                costPrice, new BigDecimal("12.00"), null, null, null, colors, sizes);
     }
 }

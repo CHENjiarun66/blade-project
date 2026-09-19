@@ -90,9 +90,23 @@ class AgentKeyManagementServiceTest {
     }
 
     @Test
+    void createRejectsCostScopesWithoutTheirBaseWriteScope() {
+        assertThrows(BusinessException.class, () -> service.create(
+                new AgentKeyManagementDTO.CreateRequest(
+                        "商品成本越权", List.of("products:cost:write"), 90)));
+        assertThrows(BusinessException.class, () -> service.create(
+                new AgentKeyManagementDTO.CreateRequest(
+                        "草稿成本越权", List.of("orders:cost:write"), 90)));
+
+        verify(keyMapper, never()).insert(any(AgentKey.class));
+    }
+
+    @Test
     void customerScopesAreAvailableForExplicitOwnerSelection() {
         assertTrue(service.allowedScopes().contains("customers:read"));
         assertTrue(service.allowedScopes().contains("customers:create"));
+        assertTrue(service.allowedScopes().contains("products:cost:write"));
+        assertTrue(service.allowedScopes().contains("orders:cost:write"));
     }
 
     @Test

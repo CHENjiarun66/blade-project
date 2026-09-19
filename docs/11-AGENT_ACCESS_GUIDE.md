@@ -8,7 +8,7 @@
 
 ## 一、当前接入状态
 
-截至 2026-09-18，BladeProject 生产环境已在 release `20260916_104900`、Flyway V60 落地 Agent Gateway 鉴权、商品/订单读取、客户敏感资料读取、商品/客户新增、订单草稿窄写入、纸单原图关联和 Owner 凭证管理：
+截至 2026-09-19，BladeProject 已完成 Agent Gateway 鉴权、商品/订单读取、客户敏感资料读取、商品/客户新增、订单草稿窄写入、成本独立授权、纸单原图关联和 Owner 凭证管理；具体生产发布版本以发布记录为准：
 
 | 能力 | 状态 | 接口 |
 |------|------|------|
@@ -23,7 +23,7 @@
 | 颜色尺码结构事实包 | 已实现 | `GET /api/agent/analytics/sku-mix` |
 | 商品主档查询 | 已实现 | `GET /api/agent/products`、`/{id}`、`/options`；每页最多 100 条，不含成本价 |
 | 正式订单查询 | 已实现 | `GET /api/agent/orders`、`/{id}`；不含电话、地址、成本和毛利 |
-| 新增商品 | 已实现 | `POST /api/agent/products`；同编码不覆盖，不产生库存，不支持修改/删除 |
+| 新增商品 | 已实现 | `POST /api/agent/products`；同编码不覆盖，不产生库存，不支持修改/删除；填写统一成本需独立成本写入 scope |
 | 客户列表与详情 | 已实现 | `GET /api/agent/customers`、`/{id}`；包含电话、地址、备注，需独立敏感只读 scope |
 | 新增客户 | 已实现 | `POST /api/agent/customers`；重复电话不覆盖，不支持修改/删除 |
 | 客户跟进、客户风险、周期报告、搜索 | 规划中 | 不可按已上线接口调用 |
@@ -158,7 +158,7 @@ Agent API 复用 BladeProject 统一响应结构：
 | `blade_product_options` | `agent:products:read` | `GET /api/agent/products/options` | 可用分类、颜色、尺码 |
 | `blade_orders_list` | `agent:orders:read` | `GET /api/agent/orders` | 分页读取正式订单；草稿不在其中 |
 | `blade_order_get` | `agent:orders:read` | `GET /api/agent/orders/{id}` | 订单商品明细，不含隐私/成本/毛利 |
-| `blade_product_create` | `agent:products:create` | `POST /api/agent/products` | 新增商品；重复款号返回 `DUPLICATE` |
+| `blade_product_create` | `agent:products:create`；传 `costPrice` 时另需 `agent:products:cost:write` | `POST /api/agent/products` | 新增商品；重复款号返回 `DUPLICATE` |
 | `blade_customers_list` | `agent:customers:read` | `GET /api/agent/customers` | 分页读取客户名称、电话、地址和备注 |
 | `blade_customer_get` | `agent:customers:read` | `GET /api/agent/customers/{id}` | 读取单个客户敏感资料 |
 | `blade_customer_create` | `agent:customers:create` | `POST /api/agent/customers` | 新增客户；重复电话返回 `DUPLICATE` |
@@ -173,13 +173,16 @@ Agent API 复用 BladeProject 统一响应结构：
   "name": "7000#",
   "categoryId": 12,
   "unit": "件",
+  "costPrice": 28.00,
   "wholesalePrice": 45.00,
   "colorCodes": ["BLACK", "WHITE"],
   "sizeCodes": ["S", "M"]
 }
 ```
 
-允许字段还包括 `weight`、`description`、`remark`。接口不接收供应商、成本价、库存数量、商品状态、SKU 编码或保留颜色尺码；创建结果为 `CREATED` 或 `DUPLICATE`。需要新建颜色/尺码时，仍由用户在系统中确认后新增，避免 Agent 生成大量重复字典值。
+允许字段还包括 `weight`、`description`、`remark`。`costPrice` 是商品级统一成本，只有 Key 同时拥有 `products:create` 和 `products:cost:write` 才能提交；创建时会应用到该商品生成的全部 DEFAULT、NORMAL 和 PLACEHOLDER SKU。未授权却提交成本时返回 403，不会静默丢弃。创建成功响应中的 `appliedCostPrice` 用于确认实际写入值；`DUPLICATE` 不覆盖也不泄露旧商品成本。接口不接收供应商、库存数量、商品状态、SKU 编码或保留颜色尺码；创建结果为 `CREATED` 或 `DUPLICATE`。需要新建颜色/尺码时，仍由用户在系统中确认后新增，避免 Agent 生成大量重复字典值。
+
+成本读取与成本写入分离：`products:read` 仍不返回商品或 SKU 成本。当前没有逐 SKU 成本输入结构，同一商品不同颜色尺码统一使用商品成本。
 
 客户读取与订单读取必须分开授权。`orders:read` 不包含电话和地址；`customers:read` 明确允许读取客户名称、电话、地址和备注，属于敏感只读权限。需要全量客户时按 `current`、`size` 分页读取，单页最多 100 条。
 

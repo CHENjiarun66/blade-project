@@ -65,8 +65,8 @@
           <el-input v-model="createForm.name" maxlength="100" show-word-limit placeholder="例如：Mac 纸单录入 Agent" />
         </el-form-item>
         <el-form-item label="权限范围" prop="scopes">
-          <el-checkbox-group v-model="createForm.scopes" class="flex w-full flex-col gap-2">
-            <el-checkbox v-for="scope in availableScopes" :key="scope" :value="scope" border class="!ml-0 !h-auto !w-full !px-3 !py-2">
+          <el-checkbox-group v-model="createForm.scopes" class="flex w-full flex-col gap-2" @change="normalizeScopeDependencies(createForm.scopes)">
+            <el-checkbox v-for="scope in availableScopes" :key="scope" :value="scope" :disabled="scopeDisabled(scope, createForm.scopes)" border class="!ml-0 !h-auto !w-full !px-3 !py-2">
               <span class="font-medium text-slate-700">{{ scopeLabel(scope) }}</span>
               <el-tag class="ml-2" size="small" :type="scopeTagType(scope)">{{ scopeRiskLabel(scope) }}</el-tag>
               <span class="ml-2 text-xs text-slate-500">{{ scopeDescription(scope) }}</span>
@@ -90,8 +90,8 @@
       </el-alert>
       <el-form ref="rotateFormRef" class="mt-4" :model="rotateForm" :rules="rotateRules" label-position="top">
         <el-form-item label="权限范围" prop="scopes">
-          <el-checkbox-group v-model="rotateForm.scopes" class="flex w-full flex-col gap-2">
-            <el-checkbox v-for="scope in availableScopes" :key="scope" :value="scope" border class="!ml-0 !h-auto !w-full !px-3 !py-2">
+          <el-checkbox-group v-model="rotateForm.scopes" class="flex w-full flex-col gap-2" @change="normalizeScopeDependencies(rotateForm.scopes)">
+            <el-checkbox v-for="scope in availableScopes" :key="scope" :value="scope" :disabled="scopeDisabled(scope, rotateForm.scopes)" border class="!ml-0 !h-auto !w-full !px-3 !py-2">
               <span class="font-medium text-slate-700">{{ scopeLabel(scope) }}</span>
               <el-tag class="ml-2" size="small" :type="scopeTagType(scope)">{{ scopeRiskLabel(scope) }}</el-tag>
               <span class="ml-2 text-xs text-slate-500">{{ scopeDescription(scope) }}</span>
@@ -311,6 +311,8 @@ function scopeLabel(scope: string) {
     'customers:read': '读取客户资料',
     'orders:write': '创建订单草稿',
     'products:create': '新增商品',
+    'products:cost:write': '写入商品成本',
+    'orders:cost:write': '写入草稿成本',
     'customers:create': '新增客户',
     'analytics:read': '读取经营分析',
     'whatsapp:analyze': 'WhatsApp 分析任务',
@@ -325,6 +327,8 @@ function scopeDescription(scope: string) {
     'customers:read': '读取客户名称、电话、地址和备注；属于敏感资料',
     'orders:write': '仅生成待人工确认的草稿',
     'products:create': '只新增商品，不修改同编码商品，也不写库存',
+    'products:cost:write': '配合新增商品权限，统一成本自动应用到全部 SKU',
+    'orders:cost:write': '配合草稿权限，允许写入商品成本快照和运费成本',
     'customers:create': '只新增客户；重复电话不覆盖，不允许修改或删除',
     'analytics:read': '读取已授权的聚合数据',
     'whatsapp:analyze': '领取并回传分析结果',
@@ -333,15 +337,33 @@ function scopeDescription(scope: string) {
 
 function scopeRiskLabel(scope: string) {
   if (scope === 'customers:read') return '敏感只读'
+  if (scope === 'products:cost:write' || scope === 'orders:cost:write') return '敏感写入'
   if (scope === 'products:create' || scope === 'customers:create' || scope === 'orders:write' || scope === 'whatsapp:analyze') return '写入'
   return '只读'
 }
 
 function scopeTagType(scope: string): 'success' | 'warning' | 'danger' | 'info' {
-  if (scope === 'customers:read') return 'danger'
+  if (scope === 'customers:read' || scope === 'products:cost:write' || scope === 'orders:cost:write') return 'danger'
   if (scope === 'products:create' || scope === 'customers:create' || scope === 'orders:write' || scope === 'whatsapp:analyze') return 'warning'
   if (scope === 'products:read' || scope === 'orders:read' || scope === 'analytics:read') return 'success'
   return 'info'
+}
+
+function scopeDisabled(scope: string, selected: string[]) {
+  if (scope === 'products:cost:write') return !selected.includes('products:create')
+  if (scope === 'orders:cost:write') return !selected.includes('orders:write')
+  return false
+}
+
+function normalizeScopeDependencies(selected: string[]) {
+  if (!selected.includes('products:create')) {
+    const index = selected.indexOf('products:cost:write')
+    if (index >= 0) selected.splice(index, 1)
+  }
+  if (!selected.includes('orders:write')) {
+    const index = selected.indexOf('orders:cost:write')
+    if (index >= 0) selected.splice(index, 1)
+  }
 }
 
 function statusText(row: AgentKeyView) {

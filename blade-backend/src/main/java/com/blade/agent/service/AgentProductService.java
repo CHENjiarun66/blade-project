@@ -73,7 +73,7 @@ public class AgentProductService {
         if (existing != null) {
             ProductVO existingView = productService.getById(existing.getId());
             return new AgentProductDTO.CreateResult(existing.getId(), existing.getProductCode(),
-                    "DUPLICATE", skuCount(existingView));
+                    "DUPLICATE", skuCount(existingView), null);
         }
 
         ProductCreateDTO dto = new ProductCreateDTO();
@@ -81,6 +81,7 @@ public class AgentProductService {
         dto.setName(request.name().trim());
         dto.setCategoryId(resolveCategoryId(request.categoryId()));
         dto.setUnit(request.unit() == null || request.unit().isBlank() ? "件" : request.unit().trim());
+        dto.setCostPrice(request.costPrice());
         dto.setWholesalePrice(request.wholesalePrice());
         dto.setWeight(request.weight());
         dto.setDescription(trimToNull(request.description()));
@@ -91,7 +92,7 @@ public class AgentProductService {
 
         Long id = productService.create(dto);
         ProductVO created = productService.getById(id);
-        return new AgentProductDTO.CreateResult(id, productCode, "CREATED", skuCount(created));
+        return new AgentProductDTO.CreateResult(id, productCode, "CREATED", skuCount(created), request.costPrice());
     }
 
     private List<Long> resolveColorIds(List<String> requestedCodes) {

@@ -7,6 +7,8 @@ public enum AgentScope: String, Codable, CaseIterable, Identifiable, Sendable {
     case customersRead = "customers:read"
     case ordersWrite = "orders:write"
     case productsCreate = "products:create"
+    case productsCostWrite = "products:cost:write"
+    case ordersCostWrite = "orders:cost:write"
     case customersCreate = "customers:create"
     case analyticsRead = "analytics:read"
     case whatsappAnalyze = "whatsapp:analyze"
@@ -27,6 +29,10 @@ public enum AgentScope: String, Codable, CaseIterable, Identifiable, Sendable {
             return "创建订单草稿"
         case .productsCreate:
             return "新增商品"
+        case .productsCostWrite:
+            return "写入商品成本"
+        case .ordersCostWrite:
+            return "写入草稿成本"
         case .customersCreate:
             return "新增客户"
         case .analyticsRead:
@@ -50,6 +56,10 @@ public enum AgentScope: String, Codable, CaseIterable, Identifiable, Sendable {
             return "只允许创建待人工确认的订单草稿"
         case .productsCreate:
             return "只新增商品，不修改同编码商品或库存"
+        case .productsCostWrite:
+            return "配合新增商品权限，写入统一商品成本并应用到全部 SKU"
+        case .ordersCostWrite:
+            return "配合创建草稿权限，写入商品成本快照和运费成本"
         case .customersCreate:
             return "只新增客户，重复电话不覆盖，不允许修改或删除"
         case .analyticsRead:

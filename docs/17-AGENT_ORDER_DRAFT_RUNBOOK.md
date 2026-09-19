@@ -14,6 +14,7 @@
 4. 未匹配、歧义和金额不一致必须保留原值并写入 warning，不能猜测后静默提交为已匹配。
 5. 一张纸单对应一个稳定 `externalRefNo`。重试必须复用同一个值，不能通过改编号制造重复草稿。
 6. 纸单图片存在时，必须先通过本机授权工具逐张上传，并把返回的 `fileId` 按页序写入该草稿的 `sourceFileIds`。纯 Excel 来源或原图确实缺失时仍允许创建草稿，但必须写入 `SOURCE_IMAGE_MISSING` warning，不能用备注中的文件名冒充已上传原图。
+7. 默认不提交 `costPrice` 和 `freightCost`，由系统在人工确认正式订单时按商品/SKU 主档成本取值。只有来源数据确有明确成本、且 Key 同时拥有 `orders:cost:write` 时才能写入；不得把销售价、纸单金额或猜测值当作成本。
 
 ## 二、执行顺序
 
@@ -119,6 +120,8 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
 | `paperTotalAmount` | 纸单总额；与行合计不一致时仍保留纸单值并 warning |
 | `quantity` | 来自纸单解析；不得使用系统数据推算 |
 | `salePrice` | 来自纸单售卖单价；不得使用 `systemReferencePrice` 覆盖 |
+| `costPrice` | 可选敏感字段；默认省略并由系统取主档成本。提交时需 `orders:cost:write`，不得根据售价推算 |
+| `freightCost` | 可选敏感字段；默认省略。提交时需 `orders:cost:write`，与客户运费收入 `freightAmount` 分开 |
 | `paperAmount` | 纸单行金额；与数量×单价不一致时保留并 warning |
 | `productId/skuId` | 只有匹配可靠时填写 |
 | `matchStatus` | 使用 `MATCHED`、`AMBIGUOUS` 或 `UNMATCHED` |
