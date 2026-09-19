@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-09-19 变更记录
+
+### [生产增量发布完成] - Agent Key 服务器权限同步上线
+
+- 以 commit `510de24f7558fc9bede7e2907333f34ed43fa012`、release `20260919_103607` 后端-only发布 `GET /api/agent/capabilities`；生产 Flyway 保持 V60，未执行数据库迁移，未替换 Web，未重启或覆盖 MySQL、Redis、uploads 和 `.env.prod`。
+- 发布前在 NAS `/volume2/blade/db-backups/nas_blade_project_prod_20260919_103607` 与 Mac `/private/tmp/blade-production-backups/nas_blade_project_prod_20260919_103607` 创建全库/schema/Flyway 历史备份，两端 SHA-256 校验通过；旧后端保留为 `blade-backend:pre-20260919_103607`。
+- 发布前后保持 Flyway V60、3 把 Agent Key、145 张正式订单和 187 个商品不变；新后端启动确认 schema 无需迁移，外网主页返回 200，无 Key 的能力查询按设计返回 401。
+- 桌面 `Blade Agent Key Manager.app` 已替换为新版，旧应用和元数据备份于 `~/Library/Application Support/Blade Agent Key Manager/backups/20260919_104100/`；本机 helper 与应用内 helper 哈希一致。
+- 使用现有生产 Key 完成真实权限同步，服务器返回 8 项 scope 和有效期；商品、订单、客户三个只读 Agent 接口均返回 HTTP/API 200，本机元数据已写入同步时间。完整 Key 未输出到日志或普通文件。
+
 ## 2026-09-18 变更记录
 
 ### [Agent Key 权限同步] - 服务器能力自检与本机自动同步
