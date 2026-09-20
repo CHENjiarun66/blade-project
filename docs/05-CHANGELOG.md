@@ -17,7 +17,8 @@
 - 验证命令与结果（实际执行）：
   - `cd blade-backend && mvn test -Dtest='OutletAccessControlSchemaTest,OutletEntityMappingTest'` → 11/11 通过；
   - `mvn test -Dtest='OutletFlywayMigrationTest'` → 空库 Flyway V1→V63 连续迁移成功（65 个迁移文件，pending=0，临时库自动删除）；
-  - `mvn test -Dtest='OrderV51SchemaTest,OrderDraftV48SchemaTest,OrderDraftV59SchemaTest,OrderCompatAdapterTest,OrderActionStateMachineTest,OrderFactConsistencyTest,FileAssetSchemaTest'` → 51/51 通过。
+  - `mvn test -Dtest='OrderV51SchemaTest,OrderDraftV48SchemaTest,OrderDraftV59SchemaTest,OrderCompatAdapterTest,OrderActionStateMachineTest,OrderFactConsistencyTest,FileAssetSchemaTest'` → 51/51 通过；
+  - `mvn test` → 全量后端 544/544 通过（含本 Series A 新增 12 项）。
 
 ### [架构设计] - 档口主数据、用户多档口与数据权限边界
 

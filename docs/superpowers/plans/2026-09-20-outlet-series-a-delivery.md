@@ -88,9 +88,12 @@ mvn test -Dtest='OutletFlywayMigrationTest'
 
 mvn test -Dtest='OrderV51SchemaTest,OrderDraftV48SchemaTest,OrderDraftV59SchemaTest,OrderCompatAdapterTest,OrderActionStateMachineTest,OrderFactConsistencyTest,FileAssetSchemaTest'
 # → Tests run: 51, Failures: 0, Errors: 0, Skipped: 0（相关后端回归）
+
+mvn test
+# → 全量后端测试 Tests run: 544, Failures: 0, Errors: 0, Skipped: 0（含本 Series A 新增 12 项）
 ```
 
-新增测试 12 项 + 相关回归 51 项全部通过。`OutletFlywayMigrationTest` 在本地 MySQL 8.3 上创建一次性空库执行 V1→V63，验证后删除；未触碰 `blade_project`/`blade_project_prod` 等既有库（回归测试按既有约定连接 `blade_project`，属正常测试行为）。
+新增测试 12 项 + 相关回归 51 项 + 全量后端 544/544 全部通过。`OutletFlywayMigrationTest` 在本地 MySQL 8.3 上创建一次性空库执行 V1→V63，验证后删除；未触碰 `blade_project_prod`（生产副本）等库（回归/全量测试按既有约定连接本地 `blade_project` 开发库，属正常测试行为，非生产/NAS）。
 
 ---
 
