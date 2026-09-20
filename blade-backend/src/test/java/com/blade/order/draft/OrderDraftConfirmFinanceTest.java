@@ -256,6 +256,44 @@ class OrderDraftConfirmFinanceTest {
     }
 
     @Test
+    void confirmDraft_withoutSourceShop_doesNotCopyBatchIntoSourceShop() {
+        bindContext();
+        try {
+            Long draftId = seedDraft("SOURCE-SHOP-EMPTY", BigDecimal.ZERO, new BigDecimal("100.00"));
+
+            OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();
+            request.setAcknowledgeWarnings(true);
+            Order order = orderMapper.selectById(draftService.confirm(draftId, request).getOrderId());
+
+            assertEquals("TEST_SOURCE-SHOP-EMPTY", order.getSourceDocNo());
+            assertNull(order.getSourceShop(), "来源档口为空时不能用单据批次兜底");
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void confirmDraft_withSourceShop_preservesExplicitSourceShop() {
+        bindContext();
+        try {
+            Long draftId = seedDraft("SOURCE-SHOP-EXPLICIT", BigDecimal.ZERO, new BigDecimal("100.00"));
+            OrderDraft draft = draftMapper.selectById(draftId);
+            draft.setSourceShop("御龙");
+            draftMapper.updateById(draft);
+
+            OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();
+            request.setAcknowledgeWarnings(true);
+            Order order = orderMapper.selectById(draftService.confirm(draftId, request).getOrderId());
+
+            assertEquals("御龙", order.getSourceShop());
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
     void confirmDraft_carriesAllBoundPaperImagesIntoFormalOrder() throws Exception {
         bindContext();
         try {

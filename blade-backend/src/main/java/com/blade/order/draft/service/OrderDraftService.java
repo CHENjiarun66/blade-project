@@ -206,7 +206,7 @@ public class OrderDraftService {
         dto.setCustomerPhone(draft.getCustomerPhone());
         dto.setOrderDate(draft.getOrderDate());
         dto.setSourceDocNo(formalSourceDocNo(draft));
-        dto.setSourceShop(draft.getSourceShop() == null ? draft.getSourceBatchNo() : draft.getSourceShop());
+        dto.setSourceShop(draft.getSourceShop());
         dto.setOrderType(draft.getOrderType() == null ? "PREORDER" : draft.getOrderType());
         dto.setPaymentStatus(0);
         dto.setPaidAmount(BigDecimal.ZERO);
