@@ -58,6 +58,15 @@ class OrderJwtAccessIntegrationTest {
         Long ownOrder = seedOrder("JWT-A-" + suffix, userAId);
         Long otherOrder = seedOrder("JWT-B-" + suffix, userBId);
 
+        // Series C：销售按绑定档口 + SELF 判定。为两单指定同一档口并绑定销售A，
+        // 使差异只来自人员维度（SELF）。
+        jdbc.update("INSERT INTO sales_outlet(tenant_id,outlet_code,outlet_name,outlet_type,status,deleted,sort,is_tenant_default)"
+                + " VALUES(1,?,?,'STORE',1,0,0,0)", "JWT" + suffix, "JWT测试档口");
+        Long outletId = jdbc.queryForObject("SELECT id FROM sales_outlet WHERE outlet_code=?", Long.class, "JWT" + suffix);
+        jdbc.update("INSERT INTO sys_user_outlet(tenant_id,user_id,outlet_id,is_default,status,deleted) VALUES(1,?,?,1,1,0)",
+                userAId, outletId);
+        jdbc.update("UPDATE sale_order SET source_outlet_id=? WHERE id IN (?,?)", outletId, ownOrder, otherOrder);
+
         String token = login(userA);
 
         mockMvc.perform(get("/api/orders/{id}", ownOrder)

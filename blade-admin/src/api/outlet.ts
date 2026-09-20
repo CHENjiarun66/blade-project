@@ -26,6 +26,14 @@ export interface OutletOptionVO {
   status: number
 }
 
+export interface OutletOptionsVO {
+  scopeType: 'ALL' | 'ASSIGNED' | 'NONE'
+  peopleScope: 'ALL_USERS' | 'SELF'
+  locked: boolean
+  defaultOutletId?: number | null
+  items: OutletOptionVO[]
+}
+
 export interface OutletPageDTO {
   current: number
   size: number
@@ -70,7 +78,7 @@ export function getOutletPage(params: OutletPageDTO) {
 }
 
 export function getOutletOptions() {
-  return client.get<OutletOptionVO[]>('/outlets/options')
+  return client.get<OutletOptionsVO>('/outlets/options')
 }
 
 export function getOutletById(id: number) {

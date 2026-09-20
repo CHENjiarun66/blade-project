@@ -41,7 +41,7 @@ class OrderDraftWithoutSourceImageTest {
         ProductSkuMapper skuMapper = mock(ProductSkuMapper.class);
         FileService fileService = mock(FileService.class);
         OrderDraftWriter writer = new OrderDraftWriter(
-                draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper());
+                draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper(), com.blade.outlet.OutletTestScopes.allScopedPolicy());
 
         doAnswer(invocation -> {
             OrderDraft draft = invocation.getArgument(0);
@@ -83,7 +83,7 @@ class OrderDraftWithoutSourceImageTest {
         ProductSkuMapper skuMapper = mock(ProductSkuMapper.class);
         FileService fileService = mock(FileService.class);
         OrderDraftWriter writer = new OrderDraftWriter(
-                draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper());
+                draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper(), com.blade.outlet.OutletTestScopes.allScopedPolicy());
 
         doAnswer(invocation -> {
             OrderDraft draft = invocation.getArgument(0);

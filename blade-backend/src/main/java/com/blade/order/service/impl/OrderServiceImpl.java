@@ -131,11 +131,8 @@ public class OrderServiceImpl implements OrderService {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getTenantId, TenantContext.getTenantId());
         wrapper.eq(Order::getDeleted, 0);
-        // 数据范围：无 viewAll 的用户只能看到本人开单
-        if (!accessPolicy.hasViewAllScope()) {
-            Long currentUserId = accessPolicy.currentUserId();
-            wrapper.eq(Order::getSalesmanId, currentUserId != null ? currentUserId : -1L);
-        }
+        // 数据范围：档口维度 × 人员维度（在分页前应用 SQL 谓词）
+        accessPolicy.applyReadPredicate(wrapper);
         applyOrderPageFilters(wrapper, dto);
 
         wrapper.orderByDesc(Order::getCreateTime);

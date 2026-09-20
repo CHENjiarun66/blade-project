@@ -2,7 +2,7 @@ package com.blade.outlet.service;
 
 import com.blade.common.result.PageResult;
 import com.blade.outlet.dto.OutletCreateDTO;
-import com.blade.outlet.dto.OutletOptionVO;
+import com.blade.outlet.dto.OutletOptionsVO;
 import com.blade.outlet.dto.OutletPageDTO;
 import com.blade.outlet.dto.OutletUpdateDTO;
 import com.blade.outlet.dto.OutletVO;
@@ -21,5 +21,5 @@ public interface OutletService {
 
     void updateStatus(Long id, Integer status);
 
-    List<OutletOptionVO> options();
+    OutletOptionsVO options();
 }

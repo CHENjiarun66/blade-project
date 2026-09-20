@@ -76,7 +76,6 @@ class OrderServiceImplSoftCouplingTest {
     void setUp() {
         TenantContext.setTenantId(1L);
         lenient().when(accessPolicy.canAccess(any(Order.class))).thenReturn(true);
-        lenient().when(accessPolicy.hasViewAllScope()).thenReturn(true);
         // Stub security context so getCurrentUserId() returns 1L without tripping NPE
         SecurityContext securityContext = mock(SecurityContext.class);
         authentication = mock(Authentication.class);

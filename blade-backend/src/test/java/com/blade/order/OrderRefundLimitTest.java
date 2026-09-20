@@ -97,7 +97,7 @@ class OrderRefundLimitTest {
                 inventoryService, mock(com.blade.order.service.OrderPlaceholderSplitService.class),
                 mock(com.blade.customer.service.CustomerStatsCacheService.class),
                 new com.blade.order.service.OrderAccessPolicy(
-                        mock(com.blade.system.user.mapper.UserMapper.class)));
+                        mock(com.blade.system.user.mapper.UserMapper.class), com.blade.outlet.OutletTestScopes.allScopedPolicy()));
     }
 
     @AfterEach

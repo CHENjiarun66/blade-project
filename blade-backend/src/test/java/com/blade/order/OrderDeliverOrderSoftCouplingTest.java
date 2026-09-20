@@ -114,7 +114,7 @@ class OrderDeliverOrderSoftCouplingTest {
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
                 inventoryService, placeholderSplitService, customerStatsCacheService,
-                new com.blade.order.service.OrderAccessPolicy(mock(com.blade.system.user.mapper.UserMapper.class)));
+                new com.blade.order.service.OrderAccessPolicy(mock(com.blade.system.user.mapper.UserMapper.class), com.blade.outlet.OutletTestScopes.allScopedPolicy()));
         deliveryService = new OrderDeliveryServiceImpl(deliveryMapper, deliveryItemMapper,
                 orderMapper, mock(com.blade.order.mapper.OrderItemMapper.class),
                 mock(WarehouseMapper.class), mock(com.blade.product.mapper.ProductSkuMapper.class),

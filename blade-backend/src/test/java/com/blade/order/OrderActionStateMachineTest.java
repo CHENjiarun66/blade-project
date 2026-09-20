@@ -113,7 +113,7 @@ class OrderActionStateMachineTest {
         actionService = new OrderActionService(orderMapper, financialRecordMapper, transitionLogMapper,
                 deliveryPlanMapper, adjustmentLogMapper, snapshotService, new OrderCompatAdapter(),
                 inventoryService, placeholderSplitService, customerStatsCacheService,
-                new com.blade.order.service.OrderAccessPolicy(mock(com.blade.system.user.mapper.UserMapper.class)));
+                new com.blade.order.service.OrderAccessPolicy(mock(com.blade.system.user.mapper.UserMapper.class), com.blade.outlet.OutletTestScopes.allScopedPolicy()));
     }
 
     @AfterEach

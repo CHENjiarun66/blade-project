@@ -49,6 +49,7 @@ public class OrderDraft {
     private String status;
     private Long confirmedOrderId;
     private Long createdByAgentKeyId;
+    private Long createdByUserId;
     private Long confirmedBy;
     private LocalDateTime confirmedTime;
     private Integer warningAcknowledged;

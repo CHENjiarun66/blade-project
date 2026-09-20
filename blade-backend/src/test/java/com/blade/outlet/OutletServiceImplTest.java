@@ -5,11 +5,12 @@ import com.blade.common.tenant.TenantContext;
 import com.blade.order.draft.mapper.OrderDraftMapper;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.outlet.dto.OutletCreateDTO;
-import com.blade.outlet.dto.OutletOptionVO;
 import com.blade.outlet.dto.OutletUpdateDTO;
+import com.blade.outlet.dto.OutletOptionsVO;
 import com.blade.outlet.entity.SalesOutlet;
 import com.blade.outlet.mapper.SalesOutletMapper;
 import com.blade.outlet.mapper.SysUserOutletMapper;
+import com.blade.outlet.policy.OutletAccessPolicy;
 import com.blade.outlet.service.OutletService;
 import com.blade.outlet.service.impl.OutletServiceImpl;
 import com.blade.system.user.entity.User;
@@ -25,6 +26,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,8 +42,9 @@ class OutletServiceImplTest {
     private final OrderMapper orderMapper = mock(OrderMapper.class);
     private final OrderDraftMapper orderDraftMapper = mock(OrderDraftMapper.class);
     private final UserMapper userMapper = mock(UserMapper.class);
+    private final OutletAccessPolicy outletAccessPolicy = mock(OutletAccessPolicy.class);
     private final OutletService service = new OutletServiceImpl(
-            outletMapper, sysUserOutletMapper, orderMapper, orderDraftMapper, userMapper);
+            outletMapper, sysUserOutletMapper, orderMapper, orderDraftMapper, userMapper, outletAccessPolicy);
 
     @BeforeEach
     void setUp() {
@@ -161,31 +164,13 @@ class OutletServiceImplTest {
     }
 
     @Test
-    void optionsReturnsAllEnabledWhenAllAuthorityPresent() {
-        authAs("data:outlet:all");
-        SalesOutlet a = outlet(1L, "A"); a.setOutletName("甲");
-        SalesOutlet b = outlet(2L, "B"); b.setOutletName("乙");
-        when(outletMapper.selectList(any())).thenReturn(List.of(a, b));
+    void optionsDelegatesToAccessPolicy() {
+        // 选项裁剪由 OutletAccessPolicy 统一负责
+        OutletOptionsVO vo = new OutletOptionsVO("ASSIGNED", "SELF", true, 1L, List.of());
+        when(outletAccessPolicy.listAvailableOptions()).thenReturn(vo);
 
-        List<OutletOptionVO> options = service.options();
-
-        assertEquals(2, options.size());
-        verify(sysUserOutletMapper, never()).selectOutletIdsByUserId(any());
-    }
-
-    @Test
-    void optionsReturnsOnlyBoundOutletsAndEmptyWhenNoBinding() {
-        authAs("menu:outlet");
-        SalesOutlet a = outlet(1L, "A"); a.setOutletName("甲");
-        when(sysUserOutletMapper.selectOutletIdsByUserId(23L)).thenReturn(List.of(1L));
-        when(outletMapper.selectList(any())).thenReturn(List.of(a));
-
-        List<OutletOptionVO> options = service.options();
-        assertEquals(1, options.size());
-        assertEquals("A", options.get(0).getOutletCode());
-
-        when(sysUserOutletMapper.selectOutletIdsByUserId(23L)).thenReturn(List.of());
-        assertTrue(service.options().isEmpty());
+        assertSame(vo, service.options());
+        verify(outletAccessPolicy).listAvailableOptions();
     }
 
     @Test

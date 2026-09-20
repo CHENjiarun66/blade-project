@@ -11,12 +11,13 @@ import com.blade.order.draft.mapper.OrderDraftMapper;
 import com.blade.order.entity.Order;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.outlet.dto.OutletCreateDTO;
-import com.blade.outlet.dto.OutletOptionVO;
+import com.blade.outlet.dto.OutletOptionsVO;
 import com.blade.outlet.dto.OutletPageDTO;
 import com.blade.outlet.dto.OutletUpdateDTO;
 import com.blade.outlet.dto.OutletVO;
 import com.blade.outlet.entity.SalesOutlet;
 import com.blade.outlet.entity.SysUserOutlet;
+import com.blade.outlet.policy.OutletAccessPolicy;
 import com.blade.outlet.mapper.SalesOutletMapper;
 import com.blade.outlet.mapper.SysUserOutletMapper;
 import com.blade.outlet.service.OutletService;
@@ -37,17 +38,20 @@ public class OutletServiceImpl implements OutletService {
     private final OrderMapper orderMapper;
     private final OrderDraftMapper orderDraftMapper;
     private final UserMapper userMapper;
+    private final OutletAccessPolicy outletAccessPolicy;
 
     public OutletServiceImpl(SalesOutletMapper outletMapper,
                              SysUserOutletMapper sysUserOutletMapper,
                              OrderMapper orderMapper,
                              OrderDraftMapper orderDraftMapper,
-                             UserMapper userMapper) {
+                             UserMapper userMapper,
+                             OutletAccessPolicy outletAccessPolicy) {
         this.outletMapper = outletMapper;
         this.sysUserOutletMapper = sysUserOutletMapper;
         this.orderMapper = orderMapper;
         this.orderDraftMapper = orderDraftMapper;
         this.userMapper = userMapper;
+        this.outletAccessPolicy = outletAccessPolicy;
     }
 
     @Override
@@ -144,26 +148,8 @@ public class OutletServiceImpl implements OutletService {
     }
 
     @Override
-    public List<OutletOptionVO> options() {
-        List<SalesOutlet> outlets;
-        if (hasAuthority("data:outlet:all")) {
-            outlets = outletMapper.selectList(new LambdaQueryWrapper<SalesOutlet>()
-                    .eq(SalesOutlet::getStatus, 1)
-                    .orderByAsc(SalesOutlet::getSort).orderByAsc(SalesOutlet::getId));
-        } else {
-            Long userId = currentUserId();
-            List<Long> outletIds = sysUserOutletMapper.selectOutletIdsByUserId(userId);
-            if (outletIds == null || outletIds.isEmpty()) {
-                return List.of();
-            }
-            outlets = outletMapper.selectList(new LambdaQueryWrapper<SalesOutlet>()
-                    .in(SalesOutlet::getId, outletIds)
-                    .eq(SalesOutlet::getStatus, 1)
-                    .orderByAsc(SalesOutlet::getSort).orderByAsc(SalesOutlet::getId));
-        }
-        return outlets.stream()
-                .map(o -> new OutletOptionVO(o.getId(), o.getOutletCode(), o.getOutletName(), o.getStatus()))
-                .toList();
+    public OutletOptionsVO options() {
+        return outletAccessPolicy.listAvailableOptions();
     }
 
     private void applyFields(SalesOutlet outlet, String code, String name, String type,
@@ -248,15 +234,6 @@ public class OutletServiceImpl implements OutletService {
             throw BusinessException.of(401, "缺少租户上下文");
         }
         return tenantId;
-    }
-
-    private boolean hasAuthority(String authority) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return false;
-        }
-        return auth.getAuthorities().stream()
-                .anyMatch(a -> authority.equals(a.getAuthority()));
     }
 
     private Long currentUserId() {

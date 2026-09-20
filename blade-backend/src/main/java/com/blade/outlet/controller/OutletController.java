@@ -3,7 +3,7 @@ package com.blade.outlet.controller;
 import com.blade.common.result.PageResult;
 import com.blade.common.result.R;
 import com.blade.outlet.dto.OutletCreateDTO;
-import com.blade.outlet.dto.OutletOptionVO;
+import com.blade.outlet.dto.OutletOptionsVO;
 import com.blade.outlet.dto.OutletPageDTO;
 import com.blade.outlet.dto.OutletUpdateDTO;
 import com.blade.outlet.dto.OutletVO;
@@ -44,7 +44,7 @@ public class OutletController {
 
     @GetMapping("/options")
     @Operation(summary = "档口选项（仅当前调用者可用且启用）")
-    public R<List<OutletOptionVO>> options() {
+    public R<OutletOptionsVO> options() {
         return R.ok(outletService.options());
     }
 

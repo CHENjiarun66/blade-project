@@ -170,7 +170,7 @@ class OrderAccessControlTest {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 1L); // 他人开单
         stubOrder(order);
-        OrderAccessPolicy policy = new OrderAccessPolicy(userMapper);
+        OrderAccessPolicy policy = new OrderAccessPolicy(userMapper, com.blade.outlet.OutletTestScopes.assignedSelfPolicy(2L));
         actionService = buildService(policy);
 
         AddPaymentDTO dto = new AddPaymentDTO();
@@ -189,7 +189,7 @@ class OrderAccessControlTest {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 1L); // salesmanId=1，SALES 用户 id=2
         stubOrder(order);
-        actionService = buildService(new OrderAccessPolicy(userMapper));
+        actionService = buildService(new OrderAccessPolicy(userMapper, com.blade.outlet.OutletTestScopes.assignedSelfPolicy(2L)));
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
                 actionService.recordPayment(1L, new BigDecimal("10.00"), null, null, "PC"));
@@ -202,7 +202,7 @@ class OrderAccessControlTest {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 2L); // salesmanId=2，SALES 用户 id=2
         stubOrder(order);
-        actionService = buildService(new OrderAccessPolicy(userMapper));
+        actionService = buildService(new OrderAccessPolicy(userMapper, com.blade.outlet.OutletTestScopes.assignedSelfPolicy(2L)));
 
         assertDoesNotThrow(() ->
                 actionService.recordPayment(1L, new BigDecimal("10.00"), null, null, "PC"));
@@ -217,19 +217,19 @@ class OrderAccessControlTest {
         when(userMapper.selectOne(any())).thenReturn(domainUser);
         Order order = migratedOrder(1L, 2L);
         stubOrder(order);
-        actionService = buildService(new OrderAccessPolicy(userMapper));
+        actionService = buildService(new OrderAccessPolicy(userMapper, com.blade.outlet.OutletTestScopes.assignedSelfPolicy(2L)));
 
         assertDoesNotThrow(() ->
                 actionService.recordPayment(1L, new BigDecimal("10.00"), null, null, "PC"));
     }
 
     @Test
-    void adminWithViewAll_canAccessAnyOrder() {
+    void adminWithAllOutletScope_canAccessAnyOrder() {
         // ADMIN（viewAll）可访问任何订单
         loginAsAdmin(1L);
-        Order order = migratedOrder(1L, 99L); // 他人开单，但 admin 有 viewAll
+        Order order = migratedOrder(1L, 99L); // 他人开单，但 admin 有 data:outlet:all
         stubOrder(order);
-        actionService = buildService(new OrderAccessPolicy(userMapper));
+        actionService = buildService(new OrderAccessPolicy(userMapper, com.blade.outlet.OutletTestScopes.allScopedPolicy()));
 
         assertDoesNotThrow(() ->
                 actionService.recordPayment(1L, new BigDecimal("10.00"), null, null, "PC"));
@@ -240,7 +240,7 @@ class OrderAccessControlTest {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 2L); // 本人订单
         stubOrder(order);
-        actionService = buildService(new OrderAccessPolicy(userMapper));
+        actionService = buildService(new OrderAccessPolicy(userMapper, com.blade.outlet.OutletTestScopes.assignedSelfPolicy(2L)));
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
                 actionService.refundPayment(1L, new BigDecimal("10.00"), "退款", null, "PC"));
@@ -251,7 +251,7 @@ class OrderAccessControlTest {
     void allowedActions_emptyForNonOwner() {
         loginAsSales(2L);
         Order order = migratedOrder(1L, 1L); // 他人订单
-        actionService = buildService(new OrderAccessPolicy(userMapper));
+        actionService = buildService(new OrderAccessPolicy(userMapper, com.blade.outlet.OutletTestScopes.assignedSelfPolicy(2L)));
 
         List<String> actions = actionService.computeAllowedActions(order);
         assertTrue(actions.isEmpty(), "非本人订单不得有 allowedActions");

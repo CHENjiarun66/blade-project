@@ -101,7 +101,10 @@ class OrderFinancialConcurrencyTest {
                         new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:reverse"),
                         new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:deliver"),
                         new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:cancel"),
-                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:view")));
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:view"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("data:outlet:all"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("data:order:peopleAll"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("data:outlet:unassigned")));
         SecurityContextHolder.setContext(
                 new org.springframework.security.core.context.SecurityContextImpl(authentication));
     }

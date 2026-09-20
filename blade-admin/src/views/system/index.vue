@@ -626,7 +626,8 @@ async function toggleUserStatus(row: UserVO) {
 async function loadOutletOptions() {
   try {
     const res = await getOutletOptions()
-    outletOptions.value = res.data || []
+    // 结构化契约：可用档口在 items，不再依赖裸数组
+    outletOptions.value = res.data?.items ?? []
   } catch {
     outletOptions.value = []
   }

@@ -56,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class OrderDraftConfirmFinanceTest {
 
     @Autowired private OrderDraftMapper draftMapper;
+    @Autowired private com.blade.outlet.mapper.SalesOutletMapper salesOutletMapper;
     @Autowired private OrderDraftItemMapper draftItemMapper;
     @Autowired private OrderDraftService draftService;
     @Autowired private OrderMapper orderMapper;
@@ -73,7 +74,10 @@ class OrderDraftConfirmFinanceTest {
         principal.setId(1L);
         principal.setUsername("admin");
         SecurityContextHolder.setContext(new SecurityContextImpl(
-                new TestingAuthenticationToken(principal, null, java.util.List.of())));
+                new TestingAuthenticationToken(principal, null, java.util.List.of(
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("data:outlet:all"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("data:order:peopleAll"),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority("data:outlet:unassigned")))));
     }
 
     private Long seedSku() {
@@ -103,9 +107,29 @@ class OrderDraftConfirmFinanceTest {
         return sku.getId();
     }
 
+    private Long seededOutletId;
+
+    private Long seedOutlet() {
+        if (seededOutletId != null) return seededOutletId;
+        com.blade.outlet.entity.SalesOutlet outlet = new com.blade.outlet.entity.SalesOutlet();
+        outlet.setTenantId(1L);
+        outlet.setOutletCode("IT-OUT-" + UUID.randomUUID().toString().substring(0, 6));
+        outlet.setOutletName("集成测试档口");
+        outlet.setOutletType("STORE");
+        outlet.setStatus(1);
+        outlet.setIsTenantDefault(1);
+        outlet.setSort(0);
+        outlet.setDeleted(0);
+        salesOutletMapper.insert(outlet);
+        seededOutletId = outlet.getId();
+        return seededOutletId;
+    }
+
     private Long seedDraft(String ref, BigDecimal deposit, BigDecimal paperTotal) {
         OrderDraft draft = new OrderDraft();
         draft.setTenantId(1L);
+        draft.setSourceOutletId(seedOutlet());
+        draft.setCreatedByUserId(1L);
         draft.setExternalRefNo(ref + System.currentTimeMillis());
         draft.setSourceBatchNo("TEST");
         draft.setSourceOrderNo(ref);
@@ -447,6 +471,10 @@ class OrderDraftConfirmFinanceTest {
             request.setNote("手工暂存备注");
             request.setItems(List.of(item));
             Long draftId = draftService.create(request).getDraftId();
+            // Series D 才接入档口选择器；本用例模拟已归档档口后再确认
+            OrderDraft manualDraft = draftMapper.selectById(draftId);
+            manualDraft.setSourceOutletId(seedOutlet());
+            draftMapper.updateById(manualDraft);
 
             OrderDraftDTO.ConfirmRequest confirm = new OrderDraftDTO.ConfirmRequest();
             confirm.setAcknowledgeWarnings(true);

@@ -63,6 +63,8 @@ class AgentDataAccessIntegrationTest {
     private Long fullAccessKeyId;
     private String seededProductCode;
     private String seededOrderNo;
+    private Long seededOutletId;
+    @Autowired private com.blade.outlet.mapper.SalesOutletMapper salesOutletMapper;
     private Long seededCustomerId;
     private String seededCustomerName;
     private String seededCustomerPhone;
@@ -95,6 +97,7 @@ class AgentDataAccessIntegrationTest {
         seededOrderNo = "AOR" + suffix;
         Order order = new Order();
         order.setOrderNo(seededOrderNo);
+        order.setSourceOutletId(seedAgentOutlet());
         order.setOrderDate(LocalDate.now());
         order.setCustomerName("Agent customer");
         order.setCustomerPhone("13800000000");
@@ -152,10 +155,27 @@ class AgentDataAccessIntegrationTest {
         key.setKeyPrefix(prefix);
         key.setKeyHash(passwordEncoder.encode(secret));
         key.setScopes(scopes);
+        // Series C：给测试 Key 全部档口范围，使订单读取按档口维度放行
+        key.setOutletScopeType("ALL");
         key.setStatus(AgentKey.STATUS_ACTIVE);
         key.setExpiresTime(LocalDateTime.now().plusDays(1));
         keyMapper.insert(key);
         return prefix + "." + secret;
+    }
+
+    private Long seedAgentOutlet() {
+        if (seededOutletId != null) return seededOutletId;
+        com.blade.outlet.entity.SalesOutlet outlet = new com.blade.outlet.entity.SalesOutlet();
+        outlet.setTenantId(1L);
+        outlet.setOutletCode("AG-OUT-" + Long.toString(System.nanoTime()).substring(10));
+        outlet.setOutletName("Agent 测试档口");
+        outlet.setOutletType("STORE");
+        outlet.setStatus(1);
+        outlet.setSort(0);
+        outlet.setDeleted(0);
+        salesOutletMapper.insert(outlet);
+        seededOutletId = outlet.getId();
+        return seededOutletId;
     }
 
     @AfterEach

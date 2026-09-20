@@ -16,6 +16,8 @@ import com.blade.order.entity.Order;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.order.service.OrderFinanceSnapshotService;
 import com.blade.order.service.OrderService;
+import com.blade.outlet.policy.OutletAccessPolicy;
+import com.blade.outlet.policy.OutletAccessScope;
 import com.blade.system.user.entity.User;
 import com.blade.system.user.mapper.UserMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -51,6 +53,7 @@ public class OrderDraftService {
     private final UserMapper userMapper;
     private final FileService fileService;
     private final ObjectMapper objectMapper;
+    private final OutletAccessPolicy outletAccessPolicy;
 
     public PageResult<OrderDraftDTO.Summary> page(int current,
                                                   int size,
@@ -83,6 +86,8 @@ public class OrderDraftService {
             query.exists("SELECT 1 FROM order_draft_item odi "
                     + "WHERE odi.draft_id = order_draft.id AND odi.deleted = 0 AND odi.sku_id IS NULL");
         }
+        // 档口 × 人员维度在分页前应用
+        outletAccessPolicy.applyDraftReadScope(query);
         Page<OrderDraft> result = draftMapper.selectPage(page, query);
         List<OrderDraftDTO.Summary> records = result.getRecords().stream()
                 .map(this::toSummary)
@@ -91,9 +96,11 @@ public class OrderDraftService {
     }
 
     public List<OrderDraftDTO.BatchSummary> batches() {
-        List<OrderDraft> drafts = draftMapper.selectList(new LambdaQueryWrapper<OrderDraft>()
+        LambdaQueryWrapper<OrderDraft> batchQuery = new LambdaQueryWrapper<OrderDraft>()
                 .eq(OrderDraft::getStatus, "EDITING")
-                .orderByDesc(OrderDraft::getUpdateTime));
+                .orderByDesc(OrderDraft::getUpdateTime);
+        outletAccessPolicy.applyDraftReadScope(batchQuery);
+        List<OrderDraft> drafts = draftMapper.selectList(batchQuery);
         Map<String, OrderDraftDTO.BatchSummary> grouped = new LinkedHashMap<>();
         for (OrderDraft draft : drafts) {
             String key = draft.getSourceBatchNo() == null || draft.getSourceBatchNo().isBlank()
@@ -119,11 +126,12 @@ public class OrderDraftService {
     public OrderDraftDTO.View get(Long id) {
         OrderDraft draft = draftMapper.selectById(id);
         if (draft == null) throw BusinessException.of(404, "草稿不存在");
+        outletAccessPolicy.requireDraftAccess(draft);
         return toView(draft, items(id));
     }
 
     public OrderDraftDTO.BatchResult create(OrderDraftDTO.SaveRequest request) {
-        return writer.create(request, null);
+        return writer.create(request, null, currentUserId());
     }
 
     public void update(Long id, OrderDraftDTO.SaveRequest request) {
@@ -135,6 +143,12 @@ public class OrderDraftService {
                                                  OrderDraftDTO.ConfirmRequest request) {
         OrderDraft draft = draftMapper.selectForUpdate(id);
         if (draft == null) throw BusinessException.of(404, "草稿不存在");
+        // selectForUpdate 之后复核范围，避免 TOCTOU
+        outletAccessPolicy.requireDraftAccess(draft);
+        if (draft.getSourceOutletId() == null) {
+            // 待归档草稿不得确认出新的空档口正式订单
+            throw BusinessException.of(400, "请先归档档口后再确认正式订单");
+        }
         if ("CONFIRMED".equals(draft.getStatus())) {
             return confirmedResponse(draft, true);
         }

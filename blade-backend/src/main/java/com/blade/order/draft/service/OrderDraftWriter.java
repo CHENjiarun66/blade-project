@@ -10,6 +10,7 @@ import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.draft.entity.OrderDraftItem;
 import com.blade.order.draft.mapper.OrderDraftItemMapper;
 import com.blade.order.draft.mapper.OrderDraftMapper;
+import com.blade.outlet.policy.OutletAccessPolicy;
 import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.ProductSkuMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -34,16 +35,23 @@ public class OrderDraftWriter {
     private final ProductSkuMapper skuMapper;
     private final FileService fileService;
     private final ObjectMapper objectMapper;
+    private final OutletAccessPolicy outletAccessPolicy;
 
     @Transactional
     public OrderDraftDTO.BatchResult create(OrderDraftDTO.SaveRequest request, Long agentKeyId) {
+        return create(request, agentKeyId, null);
+    }
+
+    @Transactional
+    public OrderDraftDTO.BatchResult create(OrderDraftDTO.SaveRequest request, Long agentKeyId,
+                                            Long createdByUserId) {
         OrderDraft existing = findByExternalRef(request.getExternalRefNo());
         if (existing != null) {
             return duplicate(request.getExternalRefNo(), existing.getId());
         }
         Long tenantId = requiredTenantId();
         Set<String> warnings = collectWarnings(request);
-        OrderDraft draft = toDraft(request, tenantId, agentKeyId, warnings);
+        OrderDraft draft = toDraft(request, tenantId, agentKeyId, createdByUserId, warnings);
         try {
             draftMapper.insert(draft);
         } catch (DuplicateKeyException ex) {
@@ -67,6 +75,8 @@ public class OrderDraftWriter {
     public void update(Long id, OrderDraftDTO.SaveRequest request) {
         OrderDraft draft = draftMapper.selectForUpdate(id);
         if (draft == null) throw BusinessException.of(404, "草稿不存在");
+        // selectForUpdate 之后复核范围，避免 TOCTOU
+        outletAccessPolicy.requireDraftAccess(draft);
         if (!"EDITING".equals(draft.getStatus())) throw BusinessException.of(400, "只有编辑中的草稿可以修改");
         if (!draft.getExternalRefNo().equals(request.getExternalRefNo())) {
             throw BusinessException.of(400, "externalRefNo创建后不能修改");
@@ -88,6 +98,7 @@ public class OrderDraftWriter {
     private OrderDraft toDraft(OrderDraftDTO.SaveRequest request,
                                Long tenantId,
                                Long agentKeyId,
+                               Long createdByUserId,
                                Set<String> warnings) {
         OrderDraft draft = new OrderDraft();
         draft.setTenantId(tenantId);
@@ -95,6 +106,10 @@ public class OrderDraftWriter {
         draft.setEntrySource(agentKeyId == null ? "MANUAL" : "AGENT");
         draft.setStatus("EDITING");
         draft.setCreatedByAgentKeyId(agentKeyId);
+        if (agentKeyId == null) {
+            // 手工草稿记录当前用户；Agent 草稿保留 key id，不回填历史
+            draft.setCreatedByUserId(createdByUserId);
+        }
         draft.setWarningAcknowledged(0);
         applyHeader(draft, request, warnings);
         return draft;
