@@ -92,6 +92,11 @@ mvn test
 - 档口引用计数为逐档口 `selectCount`（档口数量小可接受）。
 - 未提供物理删除 API（设计即禁物理删除，用禁用代替）。
 
+## 4.1 安全与兼容说明
+
+- **用户仅 status 更新不删绑定**：`UserServiceImpl.update` 只在 `dto.getOutletIds() != null` 时替换档口绑定；仅改 `status`（含停用）不携带 `outletIds` 时不触碰 `sys_user_outlet`。**Series B2 前端「禁用用户」操作不要提交 `outletIds`**，避免触发 `deleteByUserId` 清空绑定。
+- **`GET /api/outlets/options` 安全边界**：该端点不写 `@PreAuthorize`，依赖全局 SecurityConfig 的 authenticated 规则（未登录由全局拦截）与 `OutletServiceImpl.options()` 的服务端裁剪：`data:outlet:all` → 本租户全部启用档口；否则仅 `sys_user_outlet` 有效绑定；无绑定返回空，绝不回落全量。裁剪逻辑由 `OutletServiceImplTest.optionsReturnsAllEnabledWhenAllAuthorityPresent` / `optionsReturnsOnlyBoundOutletsAndEmptyWhenNoBinding` 覆盖。
+
 ## 5. 建议 Codex 进入 Series B2/C 前重点审核
 
 1. V64 赋权语义是否与「实际角色」（当前仅 OWNER/ADMIN/FINANCE/SALES/WAREHOUSE 五种 role_code）一致。
