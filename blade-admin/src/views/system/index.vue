@@ -431,10 +431,13 @@ const defaultOutletCandidates = computed(() =>
   outletOptions.value.filter(o => userForm.outletIds.includes(o.id)),
 )
 
-// 销售员（真实 roleCode=ROLE_SALES）无档口时前端阻止保存；后端仍是最终门禁
+// 销售员（真实 roleCode=ROLE_SALES）且所选角色都不授予 data:outlet:all 且无档口时，
+// 前端阻止保存；grantsOutletAll 来自后端服务端派生，后端仍是最终门禁。
 const requiresSalesOutlet = computed(() => {
   const selected = allRoles.value.filter(r => userForm.roleIds.includes(r.id))
-  return selected.some(r => r.roleCode === 'ROLE_SALES') && userForm.outletIds.length === 0
+  const hasSales = selected.some(r => r.roleCode === 'ROLE_SALES')
+  const grantsOutletAll = selected.some(r => r.grantsOutletAll === true)
+  return hasSales && !grantsOutletAll && userForm.outletIds.length === 0
 })
 
 // 移除档口时清掉非法默认

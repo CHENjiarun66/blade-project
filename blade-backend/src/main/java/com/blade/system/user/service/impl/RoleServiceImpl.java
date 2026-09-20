@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
+import com.blade.system.permission.mapper.RolePermissionMapper;
 import com.blade.system.permission.service.PermissionService;
 import com.blade.system.user.dto.RoleCreateDTO;
 import com.blade.system.user.dto.RoleUpdateDTO;
@@ -19,7 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,11 +31,14 @@ public class RoleServiceImpl implements RoleService {
 
     private final RoleMapper roleMapper;
     private final PermissionService permissionService;
+    private final RolePermissionMapper rolePermissionMapper;
 
     @Autowired
-    public RoleServiceImpl(RoleMapper roleMapper, PermissionService permissionService) {
+    public RoleServiceImpl(RoleMapper roleMapper, PermissionService permissionService,
+                           RolePermissionMapper rolePermissionMapper) {
         this.roleMapper = roleMapper;
         this.permissionService = permissionService;
+        this.rolePermissionMapper = rolePermissionMapper;
     }
 
     @Override
@@ -158,7 +165,19 @@ public class RoleServiceImpl implements RoleService {
                .eq(Role::getStatus, 1)
                .orderByDesc(Role::getId);
         List<Role> roles = roleMapper.selectList(wrapper);
-        return roles.stream().map(this::convertToVO).collect(Collectors.toList());
+
+        // 单次查询计算哪些角色授予 data:outlet:all（角色集合已按租户过滤，避免跨租户/N+1）
+        List<Long> roleIds = roles.stream().map(Role::getId).collect(Collectors.toList());
+        Set<Long> outletAllRoleIds = roleIds.isEmpty()
+                ? Collections.emptySet()
+                : new HashSet<>(rolePermissionMapper
+                        .selectRoleIdsByPermissionCodeAndRoleIds("data:outlet:all", roleIds));
+
+        return roles.stream().map(role -> {
+            RoleVO vo = convertToVO(role);
+            vo.setGrantsOutletAll(outletAllRoleIds.contains(role.getId()));
+            return vo;
+        }).collect(Collectors.toList());
     }
 
     @Override

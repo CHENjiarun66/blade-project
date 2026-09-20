@@ -1,22 +1,28 @@
 <template>
   <div class="page-container">
     <el-card>
-      <div class="flex flex-wrap items-center gap-3 mb-4">
+      <div class="outlet-toolbar flex flex-wrap items-center gap-3 mb-4">
         <el-input
           v-model="keyword"
           placeholder="搜索档口编码/名称"
           clearable
-          class="w-64"
+          style="width: 16rem; flex: 0 0 auto"
           @clear="reload"
           @keyup.enter="reload"
         >
           <template #prefix><span class="material-symbols-outlined text-gray-400">search</span></template>
         </el-input>
-        <el-select v-model="statusFilter" placeholder="状态" clearable class="w-32" @change="reload">
+        <el-select
+          v-model="statusFilter"
+          placeholder="状态"
+          clearable
+          style="width: 8rem; flex: 0 0 auto"
+          @change="reload"
+        >
           <el-option label="启用" :value="1" />
           <el-option label="禁用" :value="0" />
         </el-select>
-        <el-button type="primary" class="touch-btn" :loading="loading" @click="loadOutlets">
+        <el-button type="primary" class="touch-btn" :loading="loading" @click="reload">
           <span class="material-symbols-outlined text-sm mr-1">search</span>搜索
         </el-button>
         <el-button v-if="can('btn:outlet:create')" type="success" class="touch-btn" @click="openDialog('create')">

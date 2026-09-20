@@ -1,6 +1,8 @@
 package com.blade.outlet;
 
 import com.blade.common.tenant.TenantContext;
+import com.blade.system.user.dto.RoleVO;
+import com.blade.system.user.service.RoleService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +10,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,6 +24,9 @@ class OutletPermissionMigrationIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private RoleService roleService;
 
     @AfterEach
     void clearTenant() {
@@ -63,6 +71,16 @@ class OutletPermissionMigrationIntegrationTest {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM sys_permission WHERE code = 'btn:order:viewAll'", Integer.class);
         assertEquals(1, count, "btn:order:viewAll 不得删除");
+    }
+
+    @Test
+    void roleListExposesOutletAllContract() {
+        Map<String, Boolean> flags = roleService.getAll().stream()
+                .collect(Collectors.toMap(RoleVO::getRoleCode, RoleVO::getGrantsOutletAll, (a, b) -> a));
+        assertEquals(Boolean.TRUE, flags.get("ROLE_OWNER"), "OWNER 应授予 data:outlet:all");
+        assertEquals(Boolean.TRUE, flags.get("ROLE_ADMIN"), "ADMIN 应授予 data:outlet:all");
+        assertEquals(Boolean.TRUE, flags.get("ROLE_FINANCE"), "FINANCE 应授予 data:outlet:all");
+        assertEquals(Boolean.FALSE, flags.get("ROLE_SALES"), "SALES 不应授予 data:outlet:all");
     }
 
     @Test

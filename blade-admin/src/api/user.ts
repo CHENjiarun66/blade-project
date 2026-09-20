@@ -21,6 +21,8 @@ export interface RoleSimple {
   id: number
   roleName: string
   roleCode: string
+  /** 服务端派生：该角色是否授予 data:outlet:all（用于判断销售员可无绑定） */
+  grantsOutletAll?: boolean
 }
 
 export interface UserPageDTO {

@@ -17,6 +17,9 @@ public class RoleVO {
     /** 关联的权限ID列表 */
     private List<Long> permissionIds;
 
+    /** 该角色是否授予 data:outlet:all（服务端按角色权限计算，供前端判断可无绑定） */
+    private Boolean grantsOutletAll;
+
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -32,4 +35,6 @@ public class RoleVO {
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public List<Long> getPermissionIds() { return permissionIds; }
     public void setPermissionIds(List<Long> permissionIds) { this.permissionIds = permissionIds; }
+    public Boolean getGrantsOutletAll() { return grantsOutletAll; }
+    public void setGrantsOutletAll(Boolean grantsOutletAll) { this.grantsOutletAll = grantsOutletAll; }
 }
