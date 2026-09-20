@@ -23,6 +23,7 @@ public class OrderDraft {
     private String sourceBatchNo;
     private String sourceOrderNo;
     private String sourceShop;
+    private Long sourceOutletId;
     private String orderType;
     private Long sourceFileId;
     private String rawCustomerName;

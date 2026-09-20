@@ -24,6 +24,10 @@ public class Order {
     @TableField("source_shop")
     private String sourceShop;
 
+    // 档口主数据 ID（V63 起，权限与统计依据）；历史订单未回填前保持可空
+    @TableField("source_outlet_id")
+    private Long sourceOutletId;
+
     @TableField("order_type")
     private String orderType;
 
@@ -236,6 +240,8 @@ public class Order {
     public void setSourceDocNo(String sourceDocNo) { this.sourceDocNo = sourceDocNo; }
     public String getSourceShop() { return sourceShop; }
     public void setSourceShop(String sourceShop) { this.sourceShop = sourceShop; }
+    public Long getSourceOutletId() { return sourceOutletId; }
+    public void setSourceOutletId(Long sourceOutletId) { this.sourceOutletId = sourceOutletId; }
     public String getOrderType() { return orderType; }
     public void setOrderType(String orderType) { this.orderType = orderType; }
     public Long getCustomerId() { return customerId; }
