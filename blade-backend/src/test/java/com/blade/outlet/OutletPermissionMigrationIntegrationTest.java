@@ -74,6 +74,25 @@ class OutletPermissionMigrationIntegrationTest {
     }
 
     @Test
+    void unassignedPermissionExistsOnlyForOwnerAdmin() {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM sys_permission WHERE code = 'data:outlet:unassigned'", Integer.class);
+        assertEquals(1, count, "data:outlet:unassigned 必须全局唯一");
+        assertTrue(hasRolePermission("ROLE_OWNER", "data:outlet:unassigned"), "OWNER 应有 unassigned");
+        assertTrue(hasRolePermission("ROLE_ADMIN", "data:outlet:unassigned"), "ADMIN 应有 unassigned");
+        assertEquals(0, countRolePermission("ROLE_FINANCE", "data:outlet:unassigned"), "FINANCE 不应有 unassigned");
+        assertEquals(0, countRolePermission("ROLE_SALES", "data:outlet:unassigned"), "SALES 不应有 unassigned");
+    }
+
+    @Test
+    void orderDraftHasCreatorColumn() {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'order_draft' AND column_name = 'created_by_user_id'",
+                Integer.class);
+        assertEquals(1, count, "order_draft.created_by_user_id 应存在");
+    }
+
+    @Test
     void roleListExposesOutletAllContract() {
         Map<String, Boolean> flags = roleService.getAll().stream()
                 .collect(Collectors.toMap(RoleVO::getRoleCode, RoleVO::getGrantsOutletAll, (a, b) -> a));

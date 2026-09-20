@@ -61,7 +61,7 @@ class OutletAccessPolicyTest {
         user.setUsername("u");
         user.setTenantId(7L);
         when(userMapper.selectByUsername("u")).thenReturn(user);
-        when(salesOutletMapper.selectList(isNull())).thenReturn(List.of(outlet(1L, 1), outlet(2L, 1), outlet(3L, 0)));
+        when(salesOutletMapper.selectList(any())).thenReturn(List.of(outlet(1L, 1), outlet(2L, 1), outlet(3L, 0)));
         when(salesOutletMapper.selectOne(any())).thenReturn(null);
     }
 
@@ -172,6 +172,7 @@ class OutletAccessPolicyTest {
         key.setId(5L);
         key.setTenantId(7L);
         key.setOutletScopeType(OutletAccessScope.ALL);
+        key.setStatus(AgentKey.STATUS_ACTIVE);
         when(agentKeyMapper.selectById(5L)).thenReturn(key);
 
         OutletAccessScope scope = policy.resolveCurrentScope();
@@ -187,6 +188,7 @@ class OutletAccessPolicyTest {
         key.setId(5L);
         key.setTenantId(7L);
         key.setOutletScopeType(OutletAccessScope.ASSIGNED);
+        key.setStatus(AgentKey.STATUS_ACTIVE);
         when(agentKeyMapper.selectById(5L)).thenReturn(key);
         when(agentKeyOutletMapper.selectOutletIdsByKeyId(5L)).thenReturn(List.of(1L, 3L));
         when(agentKeyOutletMapper.selectDefaultOutletIdByKeyId(5L)).thenReturn(1L);
@@ -207,6 +209,7 @@ class OutletAccessPolicyTest {
         key.setId(5L);
         key.setTenantId(7L);
         key.setOutletScopeType(OutletAccessScope.NONE);
+        key.setStatus(AgentKey.STATUS_ACTIVE);
         when(agentKeyMapper.selectById(5L)).thenReturn(key);
 
         OutletAccessScope scope = policy.resolveCurrentScope();

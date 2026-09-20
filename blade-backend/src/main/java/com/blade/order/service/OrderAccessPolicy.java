@@ -39,21 +39,17 @@ public class OrderAccessPolicy {
     }
 
     private void applyScopePredicate(LambdaQueryWrapper<Order> wrapper, OutletAccessScope scope) {
-        if (scope.isNone()) {
-            wrapper.apply("1 = 0");
-            return;
+        // 档口维度：与详情/动作完全一致的过滤形态
+        switch (scope.outletFilter()) {
+            case NO_FILTER -> { }
+            case NOT_NULL -> wrapper.isNotNull(Order::getSourceOutletId);
+            case IN -> wrapper.in(Order::getSourceOutletId, scope.readableOutletIds());
+            case IN_OR_NULL -> wrapper.and(w -> w.in(Order::getSourceOutletId, scope.readableOutletIds())
+                    .or().isNull(Order::getSourceOutletId));
+            case ONLY_NULL -> wrapper.isNull(Order::getSourceOutletId);
+            case DENY -> wrapper.apply("1 = 0");
         }
-        if (scope.isAssigned()) {
-            if (scope.readableOutletIds().isEmpty()) {
-                wrapper.apply("1 = 0");
-                return;
-            }
-            wrapper.in(Order::getSourceOutletId, scope.readableOutletIds());
-        }
-        // ALL 省略 IN，但仍受人员维度与待归档约束
-        if (!scope.unassignedAllowed()) {
-            wrapper.isNotNull(Order::getSourceOutletId);
-        }
+        // 人员维度独立叠加
         if (!scope.isPeopleAll()) {
             Long actorId = scope.actorId();
             wrapper.eq(Order::getSalesmanId, actorId != null ? actorId : -1L);
@@ -67,9 +63,9 @@ public class OrderAccessPolicy {
         }
         OutletAccessScope scope = outletAccessPolicy.resolveCurrentScope();
 
-        if (order.getTenantId() != null && scope.tenantId() != null
-                && !order.getTenantId().equals(scope.tenantId())
-                && !Long.valueOf(0L).equals(scope.tenantId())) {
+        // 严格租户隔离：实体或范围租户为空/不相等一律 fail closed（不存在仍 404）
+        if (order.getTenantId() == null || scope.tenantId() == null
+                || !order.getTenantId().equals(scope.tenantId())) {
             throw BusinessException.of(403, "无权访问该订单");
         }
 

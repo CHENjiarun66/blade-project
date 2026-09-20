@@ -6,13 +6,12 @@ import com.blade.agent.entity.AgentKey;
 import com.blade.agent.mapper.AgentKeyMapper;
 import com.blade.common.exception.BusinessException;
 import com.blade.common.tenant.TenantContext;
+import com.blade.order.draft.entity.OrderDraft;
 import com.blade.outlet.dto.OutletOptionVO;
 import com.blade.outlet.dto.OutletOptionsVO;
-import com.blade.outlet.entity.AgentKeyOutlet;
 import com.blade.outlet.entity.SalesOutlet;
 import com.blade.outlet.mapper.AgentKeyOutletMapper;
 import com.blade.outlet.mapper.SalesOutletMapper;
-import com.blade.order.draft.entity.OrderDraft;
 import com.blade.outlet.mapper.SysUserOutletMapper;
 import com.blade.system.user.entity.User;
 import com.blade.system.user.mapper.UserMapper;
@@ -21,7 +20,9 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -59,7 +60,8 @@ public class OutletAccessPolicy {
     public OutletAccessScope resolveCurrentScope() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
-            return emptyScope(TenantContext.getTenantId(), OutletAccessScope.ActorType.USER, null);
+            return emptyScope(TenantContext.getTenantId(), OutletAccessScope.ActorType.USER,
+                    null, false, false);
         }
         if (auth.getPrincipal() instanceof AgentPrincipal agent) {
             return resolveAgentScope(agent);
@@ -128,26 +130,30 @@ public class OutletAccessPolicy {
         User user = currentUser(auth);
         Long userId = user != null ? user.getId() : null;
 
-        List<SalesOutlet> allOutlets = salesOutletMapper.selectList(null);
+        List<SalesOutlet> allOutlets = loadTenantOutlets(tenantId);
+        List<Long> allIds = allOutlets.stream().map(SalesOutlet::getId).toList();
         List<Long> enabledIds = allOutlets.stream()
                 .filter(o -> Integer.valueOf(1).equals(o.getStatus()))
                 .map(SalesOutlet::getId)
                 .toList();
 
         if (allAuthority) {
-            List<Long> allIds = allOutlets.stream().map(SalesOutlet::getId).toList();
-            Long def = resolveDefault(enabledIds, tenantDefaultId(enabledIds), null);
+            Long personalDefault = userId == null ? null
+                    : sysUserOutletMapper.selectDefaultOutletIdByUserId(userId);
+            Long def = resolveDefault(enabledIds, tenantDefaultId(enabledIds), personalDefault);
             return new OutletAccessScope(tenantId, OutletAccessScope.ActorType.USER, userId,
                     OutletAccessScope.ALL, peopleAll, unassigned, allIds, enabledIds, def);
         }
 
         if (userId == null) {
-            return emptyScope(tenantId, OutletAccessScope.ActorType.USER, null);
+            return emptyScope(tenantId, OutletAccessScope.ActorType.USER, null, peopleAll, unassigned);
         }
         List<Long> boundIds = sysUserOutletMapper.selectOutletIdsByUserId(userId);
-        List<Long> readable = boundIds == null ? List.of() : boundIds;
+        // 绑定必须与本租户真实未删档口取交集，剔除伪造/跨租户/已删除 ID
+        List<Long> readable = boundIds == null ? List.of()
+                : boundIds.stream().filter(allIds::contains).distinct().toList();
         if (readable.isEmpty()) {
-            return emptyScope(tenantId, OutletAccessScope.ActorType.USER, userId);
+            return emptyScope(tenantId, OutletAccessScope.ActorType.USER, userId, peopleAll, unassigned);
         }
         List<Long> usable = readable.stream().filter(enabledIds::contains).toList();
         Long personalDefault = sysUserOutletMapper.selectDefaultOutletIdByUserId(userId);
@@ -159,30 +165,44 @@ public class OutletAccessPolicy {
     // ==================== Agent ====================
 
     private OutletAccessScope resolveAgentScope(AgentPrincipal agent) {
-        Long tenantId = agent.getTenantId() != null ? agent.getTenantId() : TenantContext.getTenantId();
+        Long principalTenant = agent.getTenantId();
+        Long contextTenant = TenantContext.getTenantId();
         AgentKey key = agentKeyMapper.selectById(agent.getKeyId());
-        String scopeType = key != null && key.getOutletScopeType() != null
+        boolean invalid = principalTenant == null || contextTenant == null
+                || key == null || key.getTenantId() == null
+                || !Integer.valueOf(AgentKey.STATUS_ACTIVE).equals(key.getStatus())
+                || (key.getExpiresTime() != null && key.getExpiresTime().isBefore(LocalDateTime.now()))
+                || !principalTenant.equals(contextTenant)
+                || !principalTenant.equals(key.getTenantId());
+        if (invalid) {
+            // 不存在/停用/过期/租户不一致：fail-closed，不得产生可访问范围
+            return emptyScope(contextTenant, OutletAccessScope.ActorType.AGENT, agent.getKeyId(), true, false);
+        }
+        Long tenantId = principalTenant;
+        String scopeType = key.getOutletScopeType() != null
                 ? key.getOutletScopeType() : OutletAccessScope.NONE;
 
-        List<SalesOutlet> allOutlets = salesOutletMapper.selectList(null);
+        List<SalesOutlet> allOutlets = loadTenantOutlets(tenantId);
+        List<Long> allIds = allOutlets.stream().map(SalesOutlet::getId).toList();
         List<Long> enabledIds = allOutlets.stream()
                 .filter(o -> Integer.valueOf(1).equals(o.getStatus()))
                 .map(SalesOutlet::getId)
                 .toList();
 
         if (OutletAccessScope.ALL.equals(scopeType)) {
-            List<Long> allIds = allOutlets.stream().map(SalesOutlet::getId).toList();
-            Long def = resolveDefault(enabledIds, tenantDefaultId(enabledIds), null);
+            Long keyDefault = agentKeyOutletMapper.selectDefaultOutletIdByKeyId(agent.getKeyId());
+            Long def = resolveDefault(enabledIds, tenantDefaultId(enabledIds), keyDefault);
             return new OutletAccessScope(tenantId, OutletAccessScope.ActorType.AGENT, agent.getKeyId(),
                     OutletAccessScope.ALL, true, false, allIds, enabledIds, def);
         }
         if (!OutletAccessScope.ASSIGNED.equals(scopeType)) {
-            return emptyScope(tenantId, OutletAccessScope.ActorType.AGENT, agent.getKeyId());
+            return emptyScope(tenantId, OutletAccessScope.ActorType.AGENT, agent.getKeyId(), true, false);
         }
         List<Long> boundIds = agentKeyOutletMapper.selectOutletIdsByKeyId(agent.getKeyId());
-        List<Long> readable = boundIds == null ? List.of() : boundIds;
+        List<Long> readable = boundIds == null ? List.of()
+                : boundIds.stream().filter(allIds::contains).distinct().toList();
         if (readable.isEmpty()) {
-            return emptyScope(tenantId, OutletAccessScope.ActorType.AGENT, agent.getKeyId());
+            return emptyScope(tenantId, OutletAccessScope.ActorType.AGENT, agent.getKeyId(), true, false);
         }
         List<Long> usable = readable.stream().filter(enabledIds::contains).toList();
         Long keyDefault = agentKeyOutletMapper.selectDefaultOutletIdByKeyId(agent.getKeyId());
@@ -196,23 +216,22 @@ public class OutletAccessPolicy {
     /** 草稿读取 SQL 谓词：档口维度 + 人员维度（手工草稿按 created_by_user_id）。 */
     public void applyDraftReadScope(LambdaQueryWrapper<OrderDraft> query) {
         OutletAccessScope scope = resolveCurrentScope();
-        if (scope.isNone()) {
-            query.apply("1 = 0");
-            return;
-        }
-        if (scope.isAssigned()) {
-            if (scope.readableOutletIds().isEmpty()) {
-                query.apply("1 = 0");
-                return;
-            }
-            query.in(OrderDraft::getSourceOutletId, scope.readableOutletIds());
-        }
-        if (!scope.unassignedAllowed()) {
-            query.isNotNull(OrderDraft::getSourceOutletId);
-        }
+        applyDraftOutletFilter(query, scope);
         if (!scope.isPeopleAll()) {
             Long actorId = scope.actorId();
             query.eq(OrderDraft::getCreatedByUserId, actorId != null ? actorId : -1L);
+        }
+    }
+
+    private void applyDraftOutletFilter(LambdaQueryWrapper<OrderDraft> query, OutletAccessScope scope) {
+        switch (scope.outletFilter()) {
+            case NO_FILTER -> { }
+            case NOT_NULL -> query.isNotNull(OrderDraft::getSourceOutletId);
+            case IN -> query.in(OrderDraft::getSourceOutletId, scope.readableOutletIds());
+            case IN_OR_NULL -> query.and(w -> w.in(OrderDraft::getSourceOutletId, scope.readableOutletIds())
+                    .or().isNull(OrderDraft::getSourceOutletId));
+            case ONLY_NULL -> query.isNull(OrderDraft::getSourceOutletId);
+            case DENY -> query.apply("1 = 0");
         }
     }
 
@@ -230,9 +249,9 @@ public class OutletAccessPolicy {
             throw BusinessException.of(404, "草稿不存在");
         }
         OutletAccessScope scope = resolveCurrentScope();
-        if (draft.getTenantId() != null && scope.tenantId() != null
-                && !draft.getTenantId().equals(scope.tenantId())
-                && !Long.valueOf(0L).equals(scope.tenantId())) {
+        // 严格租户隔离：实体或范围租户为空/不相等一律 fail closed
+        if (draft.getTenantId() == null || scope.tenantId() == null
+                || !draft.getTenantId().equals(scope.tenantId())) {
             throw BusinessException.of(403, "无权访问该草稿");
         }
         if (draft.getSourceOutletId() == null) {
@@ -253,10 +272,20 @@ public class OutletAccessPolicy {
 
     // ==================== 辅助 ====================
 
+    private List<SalesOutlet> loadTenantOutlets(Long tenantId) {
+        if (tenantId == null) {
+            return List.of();
+        }
+        // 显式租户 + 未删除，即使租户拦截器存在也写清条件
+        return salesOutletMapper.selectList(new LambdaQueryWrapper<SalesOutlet>()
+                .eq(SalesOutlet::getTenantId, tenantId)
+                .eq(SalesOutlet::getDeleted, 0));
+    }
 
-    private OutletAccessScope emptyScope(Long tenantId, OutletAccessScope.ActorType type, Long actorId) {
+    private OutletAccessScope emptyScope(Long tenantId, OutletAccessScope.ActorType type, Long actorId,
+                                         boolean peopleAll, boolean unassigned) {
         return new OutletAccessScope(tenantId, type, actorId,
-                OutletAccessScope.NONE, false, false, List.of(), List.of(), null);
+                OutletAccessScope.NONE, peopleAll, unassigned, List.of(), List.of(), null);
     }
 
     private Long tenantDefaultId(List<Long> usable) {

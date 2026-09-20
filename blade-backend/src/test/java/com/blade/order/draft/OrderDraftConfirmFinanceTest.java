@@ -290,7 +290,9 @@ class OrderDraftConfirmFinanceTest {
             Order order = orderMapper.selectById(draftService.confirm(draftId, request).getOrderId());
 
             assertEquals("TEST_SOURCE-SHOP-EMPTY", order.getSourceDocNo());
-            assertNull(order.getSourceShop(), "来源档口为空时不能用单据批次兜底");
+            // Series C：有档口主数据时由服务端生成名称快照，绝不用单据批次兜底
+            assertNotEquals("TEST", order.getSourceShop(), "不得用单据批次兜底");
+            assertEquals("集成测试档口", order.getSourceShop());
         } finally {
             TenantContext.clear();
             SecurityContextHolder.clearContext();
@@ -310,7 +312,48 @@ class OrderDraftConfirmFinanceTest {
             request.setAcknowledgeWarnings(true);
             Order order = orderMapper.selectById(draftService.confirm(draftId, request).getOrderId());
 
-            assertEquals("御龙", order.getSourceShop());
+            // 客户端文本不作为权威，服务端以档口主数据名称生成快照
+            assertEquals("集成测试档口", order.getSourceShop());
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void confirmDraft_propagatesOutletIdAndMasterNameSnapshot() {
+        bindContext();
+        try {
+            Long draftId = seedDraft("OUTLET-PROP", BigDecimal.ZERO, new BigDecimal("100.00"));
+            OrderDraft draft = draftMapper.selectById(draftId);
+            Long outletId = draft.getSourceOutletId();
+            OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();
+            request.setAcknowledgeWarnings(true);
+            Order order = orderMapper.selectById(draftService.confirm(draftId, request).getOrderId());
+            assertEquals(outletId, order.getSourceOutletId(), "正式订单必须继承草稿档口ID");
+            assertEquals("集成测试档口", order.getSourceShop(), "名称快照来自档口主数据");
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void confirmDraft_disabledOutletIsRejected() {
+        bindContext();
+        try {
+            Long draftId = seedDraft("OUTLET-DISABLED", BigDecimal.ZERO, new BigDecimal("100.00"));
+            OrderDraft draft = draftMapper.selectById(draftId);
+            com.blade.outlet.entity.SalesOutlet outlet = salesOutletMapper.selectById(draft.getSourceOutletId());
+            outlet.setStatus(0);
+            salesOutletMapper.updateById(outlet);
+
+            OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();
+            request.setAcknowledgeWarnings(true);
+            com.blade.common.exception.BusinessException ex = assertThrows(
+                    com.blade.common.exception.BusinessException.class,
+                    () -> draftService.confirm(draftId, request));
+            assertEquals(403, ex.getCode(), "禁用档口历史可读但不可确认");
         } finally {
             TenantContext.clear();
             SecurityContextHolder.clearContext();
@@ -483,7 +526,8 @@ class OrderDraftConfirmFinanceTest {
 
             assertEquals("SPOT", order.getOrderType());
             assertEquals("41_手工单-完整", order.getSourceDocNo());
-            assertEquals("御龙", order.getSourceShop());
+            // 手工草稿归档档口后，来源档口快照来自主数据
+            assertEquals("集成测试档口", order.getSourceShop());
             assertEquals("客户地址", order.getCustomerAddress());
             assertEquals("送货地址", order.getDeliveryAddress());
             assertEquals(1, order.getNeedDelivery());

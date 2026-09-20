@@ -81,6 +81,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderCompatAdapter compatAdapter;
     private final CustomerStatsCacheService customerStatsCacheService;
     private final OrderAccessPolicy accessPolicy;
+    private final com.blade.outlet.mapper.SalesOutletMapper salesOutletMapper;
+    private final com.blade.outlet.policy.OutletAccessPolicy outletAccessPolicy;
 
     private static final String ORDER_TYPE_SPOT = "SPOT";
     private static final String ORDER_TYPE_PREORDER = "PREORDER";
@@ -105,7 +107,9 @@ public class OrderServiceImpl implements OrderService {
                             OrderFinanceSnapshotService snapshotService,
                             OrderCompatAdapter compatAdapter,
                             CustomerStatsCacheService customerStatsCacheService,
-                            OrderAccessPolicy accessPolicy) {
+                            OrderAccessPolicy accessPolicy,
+                            com.blade.outlet.mapper.SalesOutletMapper salesOutletMapper,
+                            com.blade.outlet.policy.OutletAccessPolicy outletAccessPolicy) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.deliveryPlanMapper = deliveryPlanMapper;
@@ -123,6 +127,8 @@ public class OrderServiceImpl implements OrderService {
         this.compatAdapter = compatAdapter;
         this.customerStatsCacheService = customerStatsCacheService;
         this.accessPolicy = accessPolicy;
+        this.salesOutletMapper = salesOutletMapper;
+        this.outletAccessPolicy = outletAccessPolicy;
     }
 
     @Override
@@ -300,7 +306,19 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderNo(generateOrderNo());
         order.setOrderDate(dto.getOrderDate() != null ? dto.getOrderDate() : LocalDate.now());
         order.setSourceDocNo(dto.getSourceDocNo());
-        order.setSourceShop(dto.getSourceShop());
+        // 档口：由服务端按主数据校验并生成名称快照，禁止信任客户端自由文本
+        if (dto.getSourceOutletId() != null) {
+            outletAccessPolicy.requireUseOutlet(dto.getSourceOutletId());
+            com.blade.outlet.entity.SalesOutlet outletMaster = salesOutletMapper.selectById(dto.getSourceOutletId());
+            if (outletMaster == null || !Integer.valueOf(1).equals(outletMaster.getStatus())) {
+                throw BusinessException.of(400, "档口不存在或未启用");
+            }
+            order.setSourceOutletId(outletMaster.getId());
+            order.setSourceShop(outletMaster.getOutletName());
+        } else {
+            // Series D 前遗留/内部调用允许为空；确认链路已阻断空档口草稿
+            order.setSourceShop(dto.getSourceShop());
+        }
         order.setOrderType(normalizeOrderType(dto.getOrderType()));
         order.setCustomerId(dto.getCustomerId());
         order.setCustomerName(dto.getCustomerName());

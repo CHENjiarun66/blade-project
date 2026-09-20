@@ -143,15 +143,18 @@ public class OrderDraftService {
                                                  OrderDraftDTO.ConfirmRequest request) {
         OrderDraft draft = draftMapper.selectForUpdate(id);
         if (draft == null) throw BusinessException.of(404, "草稿不存在");
-        // selectForUpdate 之后复核范围，避免 TOCTOU
+        // selectForUpdate 之后复核范围，避免 TOCTOU（先租户/读取权限）
         outletAccessPolicy.requireDraftAccess(draft);
+        // 已确认幂等返回优先于“需可用档口”的新写校验
+        if ("CONFIRMED".equals(draft.getStatus())) {
+            return confirmedResponse(draft, true);
+        }
         if (draft.getSourceOutletId() == null) {
             // 待归档草稿不得确认出新的空档口正式订单
             throw BusinessException.of(400, "请先归档档口后再确认正式订单");
         }
-        if ("CONFIRMED".equals(draft.getStatus())) {
-            return confirmedResponse(draft, true);
-        }
+        // 禁用/无权档口历史可读，但不可确认新写
+        outletAccessPolicy.requireUseOutlet(draft.getSourceOutletId());
         if (!"EDITING".equals(draft.getStatus())) {
             throw BusinessException.of(400, "当前草稿状态不能确认");
         }
@@ -220,6 +223,7 @@ public class OrderDraftService {
         dto.setCustomerPhone(draft.getCustomerPhone());
         dto.setOrderDate(draft.getOrderDate());
         dto.setSourceDocNo(formalSourceDocNo(draft));
+        dto.setSourceOutletId(draft.getSourceOutletId());
         dto.setSourceShop(draft.getSourceShop());
         dto.setOrderType(draft.getOrderType() == null ? "PREORDER" : draft.getOrderType());
         dto.setPaymentStatus(0);

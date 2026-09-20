@@ -47,7 +47,7 @@ public class OrderDraftWriter {
                                             Long createdByUserId) {
         OrderDraft existing = findByExternalRef(request.getExternalRefNo());
         if (existing != null) {
-            return duplicate(request.getExternalRefNo(), existing.getId());
+            return resolveDuplicate(existing, request.getExternalRefNo(), agentKeyId, createdByUserId);
         }
         Long tenantId = requiredTenantId();
         Set<String> warnings = collectWarnings(request);
@@ -55,8 +55,11 @@ public class OrderDraftWriter {
         try {
             draftMapper.insert(draft);
         } catch (DuplicateKeyException ex) {
-            OrderDraft duplicate = findByExternalRef(request.getExternalRefNo());
-            return duplicate(request.getExternalRefNo(), duplicate == null ? null : duplicate.getId());
+            OrderDraft concurrent = findByExternalRef(request.getExternalRefNo());
+            if (concurrent == null) {
+                throw BusinessException.of(409, "单据编号冲突");
+            }
+            return resolveDuplicate(concurrent, request.getExternalRefNo(), agentKeyId, createdByUserId);
         }
         insertItems(draft.getId(), tenantId, request.getItems(), warnings);
         bindSourceFiles(draft.getId(), request);
@@ -268,6 +271,26 @@ public class OrderDraftWriter {
         return draftMapper.selectOne(new LambdaQueryWrapper<OrderDraft>()
                 .eq(OrderDraft::getExternalRefNo, externalRefNo.trim())
                 .last("LIMIT 1"));
+    }
+
+    /**
+     * externalRefNo 重复：仅同一创建主体可幂等返回；不同主体 409 且不暴露已有 ID/状态/内容。
+     * manual(null creator) 不得被其他主体认领。
+     */
+    private OrderDraftDTO.BatchResult resolveDuplicate(OrderDraft existing, String externalRefNo,
+                                                       Long agentKeyId, Long createdByUserId) {
+        boolean sameActor;
+        if (agentKeyId != null) {
+            sameActor = agentKeyId.equals(existing.getCreatedByAgentKeyId());
+        } else {
+            sameActor = createdByUserId != null && createdByUserId.equals(existing.getCreatedByUserId());
+        }
+        if (!sameActor) {
+            throw BusinessException.of(409, "单据编号冲突");
+        }
+        // 同主体仍需满足当前档口/人员读取策略
+        outletAccessPolicy.requireDraftAccess(existing);
+        return duplicate(externalRefNo, existing.getId());
     }
 
     private OrderDraftDTO.BatchResult duplicate(String externalRefNo, Long draftId) {
