@@ -8,6 +8,14 @@
 
 ## 2026-09-21 变更记录
 
+### [功能开发] - 档口 Series B2 前端（BA-OUTLET-001/002）
+
+- 新增 `blade-admin/src/api/outlet.ts` typed API 与 `/outlets` 档口管理页：搜索/状态筛选/分页、编码/名称/类型/默认/状态/绑定用户/订单/草稿列、新建编辑、设默认、启停二次确认（含引用数）；菜单受 `menu:outlet`、按钮受 `btn:outlet:*` 控制。
+- 用户管理表单接入可访问档口多选 + 默认档口（候选仅已选）+ 只读权限摘要（后端 `outletScope/peopleScope`）；销售员无档口前端阻止；仅状态启停不提交档口字段。
+- 路由/侧栏新增档口管理入口；图标用 `material-symbols-outlined`，关键按钮 44px，沿用现有 Blade 主题。
+- 影响范围：仅前端 BA-OUTLET-001/002，未进入 Series C 数据过滤，未部署、未触碰 NAS/生产。
+- 验证：`cd blade-admin && npm run build` 通过；`npx playwright test e2e-outlet.spec.ts` → 2 passed（本地后端+前端，截图见 `blade-admin/test-screenshots/`）。
+
 ### [整改] - 档口 Series B1 经 Codex 终审后的缺口补齐
 
 - 二维权限解耦：`outletScope`/`peopleScope` 改用 `PermissionMapper.selectCodesByRoleIds` 分别判断 `data:outlet:all`/`data:order:peopleAll`，不再按角色硬编码同推两维；「可无绑定」依据 `data:outlet:all` 权限而非角色。

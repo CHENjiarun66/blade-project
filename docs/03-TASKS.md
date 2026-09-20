@@ -32,7 +32,7 @@
 | PC 管理端页面开发 | ✅ 完成 | 订单/库存/商品/客户管理页面 |
 | 看板系统开发 | ⏳ 部分完成 | 仪表盘、趋势、库存周转和数据分析已完成；仪表盘数据权限待补 |
 | 外部 Agent 对接 | ⏳ 进行中 | 款式趋势、颜色尺码结构、纸单草稿和 WhatsApp 本地归档已完成；经营类只读接口、生产联调和限流仍待完成 |
-| 档口主数据与数据权限 | ⏳ 进行中 | Series A 数据模型（V63）与 Series B1 后端（档口 CRUD/用户绑定/权限迁移 V64）完成；PC 页面、统一访问策略与生产回填待 Series B2-G |
+| 档口主数据与数据权限 | ⏳ 进行中 | Series A 数据模型（V63）、B1 后端（V64）与 B2 前端（档口管理页/用户档口授权）完成；统一访问策略、订单/草稿/统计出口与生产回填待 Series C-G |
 
 ### 近期主线与状态口径（2026-08-29）
 
@@ -97,10 +97,14 @@
 | BE-OUTLET-001 | 档口主数据服务/API | ✅ 完成 | `/api/outlets` CRUD/启停/options/引用统计/默认唯一；租户隔离、跨租户 404 |
 | BE-OUTLET-002 | 用户多档口绑定 | ✅ 完成 | 用户 DTO/VO 增 `outletIds/defaultOutletId/outletScope/peopleScope`；同事务校验保存；旧客户端不清空 |
 | BE-OUTLET-003 | 权限与迁移 | ✅ 完成 | V64 新增 menu/btn/data/agent 权限码并赋权 OWNER/ADMIN/FINANCE；兼容 `btn:order:viewAll` |
-| BA-OUTLET-001 | 档口管理页面 | ⏳ TODO | 前端页面，Series B2 实现 |
-| BA-OUTLET-002 | 用户管理档口授权 | ⏳ TODO | 前端表单，Series B2 实现 |
+| BA-OUTLET-001 | 档口管理页面 | ✅ 完成（DeepSeek，2026-09-21） | `/outlets` 列表/搜索/状态筛选/新建编辑/设默认/启停二次确认（引用提示）；按钮按 `btn:outlet:*` 显隐 |
+| BA-OUTLET-002 | 用户管理档口授权 | ✅ 完成（DeepSeek，2026-09-21） | 用户表单可访问档口多选 + 默认档口 + 权限摘要；销售员空档口阻止；仅状态切换不提交档口 |
 
-未做任务（保持 TODO）：Series B2 前端、Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口。
+未做任务（保持 TODO）：Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口。
+
+### 档口权限 Series B2 前端（2026-09-21，DeepSeek）
+
+> 仅实现 BA-OUTLET-001/002 前端，不进入 Series C 订单过滤。交付报告见 [2026-09-21-outlet-series-b2-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b2-delivery.md)。
 
 ---
 
@@ -593,8 +597,8 @@
 | BE-OUTLET-008 | 看板与分析范围接入 | ⏳ TODO | 汇总、趋势、排行和客户贡献先裁剪档口/人员范围再聚合；缓存键包含范围摘要 |
 | BE-OUTLET-009 | 导出与文件权限接入 | ⏳ TODO | 订单导出、订单/草稿图片绑定与预览同列表/详情范围一致 |
 | BE-OUTLET-010 | Agent Key 档口范围 | ⏳ TODO | Key 签发/轮换、capabilities、档口查询和草稿/订单写入校验；越权档口返回 403 |
-| BA-OUTLET-001 | 档口管理页面 | ⏳ TODO | 列表、搜索、新建/编辑、启停、默认档口和历史引用提示 |
-| BA-OUTLET-002 | 用户管理档口授权 | ⏳ TODO | 可访问档口多选、默认档口、权限摘要和销售员必选校验 |
+| BA-OUTLET-001 | 档口管理页面 | ✅ 完成（DeepSeek，2026-09-21） | 列表、搜索、新建/编辑、启停、默认档口和历史引用提示 |
+| BA-OUTLET-002 | 用户管理档口授权 | ✅ 完成（DeepSeek，2026-09-21） | 可访问档口多选、默认档口、权限摘要和销售员必选校验 |
 | BA-OUTLET-003 | 订单与草稿档口选择器 | ⏳ TODO | 单档口锁定、多档口只显示授权集合、Owner 显示全部启用档口 |
 | BA-OUTLET-004 | 订单/草稿档口筛选 | ⏳ TODO | 列表按档口筛选，Owner 可处理“待归档档口”历史数据 |
 | BA-OUTLET-005 | 统计档口筛选与对比 | ⏳ TODO | “全部档口”仅汇总当前授权集合；Owner 支持单/多档口对比 |

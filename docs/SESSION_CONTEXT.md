@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-09-21 档口 Series B2 前端完成
+
+- BA-OUTLET-001 档口管理页（`/outlets`：列表/搜索/状态筛选/分页/新建编辑/设默认/启停二次确认）与 BA-OUTLET-002 用户档口授权（多选+默认+权限摘要、销售员空档口阻止、状态切换不提交档口字段）已完成。
+- 交付报告见 [2026-09-21-outlet-series-b2-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b2-delivery.md)；前端 `npm run build` 通过，Playwright `e2e-outlet.spec.ts` 2 passed。
+- 未做（保持 TODO）：Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口。
+
 ## 2026-09-21 档口 Series B1 后端完成
 
 - 档口主数据服务/API（`/api/outlets` CRUD/启停/options/引用统计/默认唯一）、用户多档口绑定（`outletIds/defaultOutletId` + `outletScope/peopleScope` 摘要）、V64 权限迁移（menu/btn/data/agent 权限码 + 角色赋权 + `btn:order:viewAll` 兼容）已完成。
