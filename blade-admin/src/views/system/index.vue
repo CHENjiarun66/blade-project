@@ -44,14 +44,29 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="档口" min-width="150">
+          <template #default="{ row }">
+            <el-tag size="small" :type="outletScopeTagType(row.outletScope)">
+              {{ outletScopeText(row.outletScope) }}
+            </el-tag>
+            <span class="text-xs text-gray-400 ml-1">
+              {{ row.peopleScope === 'ALL_USERS' ? '全部人员' : '仅本人' }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column label="创建时间" width="180">
           <template #default="{ row }">
             <span class="text-sm text-gray-500">{{ formatDate(row.createTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openUserDialog('edit', row)">编辑</el-button>
+            <el-button
+              link :type="row.status === 1 ? 'danger' : 'success'" size="small"
+              :loading="userStatusLoadingId === row.id"
+              @click="toggleUserStatus(row)"
+            >{{ row.status === 1 ? '禁用' : '启用' }}</el-button>
             <el-button link type="warning" size="small" @click="openResetPwdDialog(row)">重置密码</el-button>
             <el-button link type="danger" size="small" @click="handleDeleteUser(row)">删除</el-button>
           </template>
@@ -183,9 +198,33 @@
         </el-form-item>
         <el-form-item label="角色" prop="roleIds">
           <el-select v-model="userForm.roleIds" multiple placeholder="请选择角色" class="w-full">
-            <el-option v-for="role in allRoles" :key="role.id" :label="role.roleName" :value="role.id" />
+            <el-option v-for="role in allRoles" :key="role.id" :label="`${role.roleName}（${role.roleCode}）`" :value="role.id" />
           </el-select>
         </el-form-item>
+        <el-form-item label="可访问档口" prop="outletIds">
+          <el-select v-model="userForm.outletIds" multiple filterable clearable placeholder="请选择可访问档口" class="w-full">
+            <el-option v-for="o in outletOptions" :key="o.id" :label="`${o.outletName}（${o.outletCode}）`" :value="o.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="默认档口" prop="defaultOutletId">
+          <el-select
+            v-model="userForm.defaultOutletId"
+            clearable
+            placeholder="从已选档口中选择"
+            class="w-full"
+            :disabled="userForm.outletIds.length === 0"
+          >
+            <el-option v-for="o in defaultOutletCandidates" :key="o.id" :label="`${o.outletName}（${o.outletCode}）`" :value="o.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="userDialogMode === 'edit'" label="权限摘要">
+          <span class="text-sm text-gray-600">
+            {{ outletScopeText(userForm.outletScope) }} · {{ userForm.peopleScope === 'ALL_USERS' ? '档口内全部人员' : '仅本人' }}
+          </span>
+        </el-form-item>
+        <div v-if="requiresSalesOutlet" class="text-xs text-red-500 mb-2" style="margin-left: 90px">
+          销售员至少绑定一个档口
+        </div>
         <el-form-item v-if="userDialogMode === 'edit'" label="状态" prop="status">
           <el-radio-group v-model="userForm.status">
             <el-radio :label="1">启用</el-radio>
@@ -195,7 +234,7 @@
       </el-form>
       <template #footer>
         <el-button @click="userDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitUserForm">确定</el-button>
+        <el-button type="primary" :loading="userSubmitting" @click="submitUserForm">确定</el-button>
       </template>
     </el-dialog>
 
@@ -341,9 +380,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick } from 'vue'
+import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { getUserPage, getAllRoles, createUser, updateUser, deleteUser, resetUserPassword, type UserVO } from '@/api/user'
+import { getUserPage, getAllRoles, createUser, updateUser, deleteUser, resetUserPassword, type UserVO, type RoleSimple } from '@/api/user'
+import { getOutletOptions, type OutletOptionVO } from '@/api/outlet'
 import { getRolePage, createRole, updateRole, deleteRole, getRolePermissions, type RoleVO } from '@/api/role'
 import { getPermissionTree, createPermission, updatePermission, deletePermission, assignRolePermissions, type PermissionVO } from '@/api/permission'
 import { formatDate } from '@/utils/format'
@@ -361,7 +401,10 @@ const userSearch = ref('')
 const userPage = ref(1)
 const userSize = ref(20)
 const userTotal = ref(0)
-const allRoles = ref<{ id: number; roleName: string }[]>([])
+const allRoles = ref<RoleSimple[]>([])
+const outletOptions = ref<OutletOptionVO[]>([])
+const userStatusLoadingId = ref<number | null>(null)
+const userSubmitting = ref(false)
 
 const userDialogVisible = ref(false)
 const userDialogMode = ref<'create' | 'edit'>('create')
@@ -375,12 +418,47 @@ const userForm = reactive({
   email: '',
   phone: '',
   roleIds: [] as number[],
+  outletIds: [] as number[],
+  defaultOutletId: undefined as number | undefined,
   status: 1,
+  // 只读权限摘要来自后端 UserVO，不在前端按角色名推导
+  outletScope: 'NONE' as 'ALL' | 'ASSIGNED' | 'NONE',
+  peopleScope: 'SELF' as 'ALL_USERS' | 'SELF',
 })
+
+// 默认档口候选只来自已选档口
+const defaultOutletCandidates = computed(() =>
+  outletOptions.value.filter(o => userForm.outletIds.includes(o.id)),
+)
+
+// 销售员（真实 roleCode=ROLE_SALES）无档口时前端阻止保存；后端仍是最终门禁
+const requiresSalesOutlet = computed(() => {
+  const selected = allRoles.value.filter(r => userForm.roleIds.includes(r.id))
+  return selected.some(r => r.roleCode === 'ROLE_SALES') && userForm.outletIds.length === 0
+})
+
+// 移除档口时清掉非法默认
+watch(() => userForm.outletIds, (ids) => {
+  if (userForm.defaultOutletId != null && !ids.includes(userForm.defaultOutletId)) {
+    userForm.defaultOutletId = undefined
+  }
+}, { deep: true })
 
 const userRules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+}
+
+function outletScopeText(scope?: string) {
+  if (scope === 'ALL') return '全部档口'
+  if (scope === 'ASSIGNED') return '指定档口'
+  return '无档口'
+}
+
+function outletScopeTagType(scope?: string) {
+  if (scope === 'ALL') return 'warning'
+  if (scope === 'ASSIGNED') return 'success'
+  return 'info'
 }
 
 // 重置密码相关
@@ -451,7 +529,11 @@ async function loadAllRoles() {
 function openUserDialog(mode: 'create' | 'edit', row?: UserVO) {
   userDialogMode.value = mode
   if (mode === 'create') {
-    Object.assign(userForm, { username: '', password: '', nickname: '', email: '', phone: '', roleIds: [], status: 1 })
+    Object.assign(userForm, {
+      id: undefined, username: '', password: '', nickname: '', email: '', phone: '',
+      roleIds: [], outletIds: [], defaultOutletId: undefined, status: 1,
+      outletScope: 'NONE', peopleScope: 'SELF',
+    })
   } else if (row) {
     Object.assign(userForm, {
       id: row.id,
@@ -460,7 +542,12 @@ function openUserDialog(mode: 'create' | 'edit', row?: UserVO) {
       email: row.email || '',
       phone: row.phone || '',
       roleIds: row.roles?.map(r => r.id) || [],
+      // 兼容旧用户：字段缺失时用空数组/null；切换角色时不清空已选档口
+      outletIds: row.outletIds ?? [],
+      defaultOutletId: row.defaultOutletId ?? undefined,
       status: row.status,
+      outletScope: row.outletScope ?? 'NONE',
+      peopleScope: row.peopleScope ?? 'SELF',
     })
   }
   userDialogVisible.value = true
@@ -470,6 +557,12 @@ async function submitUserForm() {
   if (!userFormRef.value) return
   await userFormRef.value.validate()
 
+  if (requiresSalesOutlet.value) {
+    ElMessage.error('销售员至少绑定一个档口')
+    return
+  }
+  if (userSubmitting.value) return
+  userSubmitting.value = true
   try {
     if (userDialogMode.value === 'create') {
       await createUser({
@@ -479,9 +572,12 @@ async function submitUserForm() {
         email: userForm.email,
         phone: userForm.phone,
         roleIds: userForm.roleIds,
+        outletIds: userForm.outletIds,
+        defaultOutletId: userForm.defaultOutletId,
       })
       ElMessage.success('创建成功')
     } else {
+      // 完整编辑表单：明确提交 outletIds/defaultOutletId
       await updateUser({
         id: userForm.id!,
         nickname: userForm.nickname,
@@ -489,6 +585,8 @@ async function submitUserForm() {
         phone: userForm.phone,
         status: userForm.status,
         roleIds: userForm.roleIds,
+        outletIds: userForm.outletIds,
+        defaultOutletId: userForm.defaultOutletId,
       })
       ElMessage.success('更新成功')
     }
@@ -497,6 +595,37 @@ async function submitUserForm() {
   } catch (e: any) {
     const msg = e?.message || e?.response?.data?.message || '操作失败'
     ElMessage.error(msg)
+  } finally {
+    userSubmitting.value = false
+  }
+}
+
+// 仅状态启停：不得提交 outletIds/defaultOutletId，避免重写绑定
+async function toggleUserStatus(row: UserVO) {
+  const disabling = row.status === 1
+  await ElMessageBox.confirm(
+    disabling ? `确定禁用用户「${row.username}」吗？` : `确定启用用户「${row.username}」吗？`,
+    '提示',
+    { type: 'warning' },
+  )
+  userStatusLoadingId.value = row.id
+  try {
+    await updateUser({ id: row.id, status: disabling ? 0 : 1 })
+    ElMessage.success(disabling ? '已禁用' : '已启用')
+    loadUsers()
+  } catch (e: any) {
+    ElMessage.error(e?.message || e?.response?.data?.message || '操作失败')
+  } finally {
+    userStatusLoadingId.value = null
+  }
+}
+
+async function loadOutletOptions() {
+  try {
+    const res = await getOutletOptions()
+    outletOptions.value = res.data || []
+  } catch {
+    outletOptions.value = []
   }
 }
 
@@ -811,6 +940,7 @@ function handleTabChange(tab: string) {
 onMounted(() => {
   loadUsers()
   loadAllRoles()
+  loadOutletOptions()
   // 预先加载权限树，避免打开分配权限对话框时卡顿
   loadPermissionTree()
 })

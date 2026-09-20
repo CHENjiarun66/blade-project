@@ -114,6 +114,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '客户详情', permission: 'menu:customer' },
       },
       {
+        path: 'outlets',
+        name: 'Outlets',
+        component: () => import('@/views/outlets/index.vue'),
+        meta: { title: '档口管理', permission: 'menu:outlet' },
+      },
+      {
         path: 'system',
         name: 'System',
         component: () => import('@/views/system/index.vue'),
@@ -253,6 +259,7 @@ function canAccessPath(path: string, permissions: string[]): boolean {
     '/clients': 'menu:customer',
     '/files': 'menu:file',
     '/whatsapp': 'menu:whatsapp',
+    '/outlets': 'menu:outlet',
     '/system': 'menu:system',
     '/catalog': 'data:catalog:view',
   }
@@ -276,11 +283,12 @@ function getFirstAccessiblePage(permissions: string[]): string {
     '/clients': 'menu:customer',
     '/files': 'menu:file',
     '/whatsapp': 'menu:whatsapp',
+    '/outlets': 'menu:outlet',
     '/system': 'menu:system',
     '/catalog': 'data:catalog:view',
   }
 
-  const priorityPages = ['/dashboard', '/analytics', '/orders', '/inventory', '/products', '/clients', '/whatsapp', '/files', '/system', '/catalog']
+  const priorityPages = ['/dashboard', '/analytics', '/orders', '/inventory', '/products', '/clients', '/outlets', '/whatsapp', '/files', '/system', '/catalog']
   for (const page of priorityPages) {
     const requiredPermission = pagePermissionMap[page]
     if (permissions.includes(requiredPermission)) {

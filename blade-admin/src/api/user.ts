@@ -9,11 +9,15 @@ export interface UserVO {
   avatar?: string
   status: number
   roles?: RoleSimple[]
+  outletIds?: number[]
+  defaultOutletId?: number
+  outletScope?: 'ALL' | 'ASSIGNED' | 'NONE'
+  peopleScope?: 'ALL_USERS' | 'SELF'
   createTime: string
   updateTime?: string
 }
 
-interface RoleSimple {
+export interface RoleSimple {
   id: number
   roleName: string
   roleCode: string
@@ -32,6 +36,8 @@ export interface UserCreateDTO {
   email?: string
   phone?: string
   roleIds?: number[]
+  outletIds?: number[]
+  defaultOutletId?: number
 }
 
 export interface UserUpdateDTO {
@@ -41,6 +47,8 @@ export interface UserUpdateDTO {
   phone?: string
   status?: number
   roleIds?: number[]
+  outletIds?: number[]
+  defaultOutletId?: number
 }
 
 export interface PageResult<T> {
