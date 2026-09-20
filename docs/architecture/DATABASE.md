@@ -823,3 +823,4 @@
 | V48 | Agent 订单草稿导入和原始单据关联 |
 | V61 | 从订单图片 JSON、旧上传字段和草稿来源文件补齐订单图片业务绑定 |
 | V63 | 档口主数据、用户/Agent Key 档口关联、订单档口变更审计，订单/草稿 `source_outlet_id` |
+| V64 | 档口权限编码（`menu:outlet`/`btn:outlet:*`/`data:outlet:all`/`data:order:peopleAll`/`agent:outlets:read`）与角色赋权，兼容 `btn:order:viewAll` |

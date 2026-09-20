@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 00:12:17　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 00:37:19　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -81,10 +81,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">89 完成 · 0 进行中 · 21 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">92 完成 · 0 进行中 · 18 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:81%"></div></div>
-        <div class="bar-label">81% 完成（活跃 110 项，暂缓 2 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:84%"></div></div>
+        <div class="bar-label">84% 完成（活跃 110 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -93,6 +93,14 @@
         </div>
         <div class="bar"><div class="bar-fill" style="width:64%"></div></div>
         <div class="bar-label">64% 完成（活跃 25 项，暂缓 2 项）</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">项目阶段</span>
+          <span class="card-nums">3 完成 · 0 进行中 · 2 待办 · 0 部分 · 0 暂缓</span>
+        </div>
+        <div class="bar"><div class="bar-fill" style="width:60%"></div></div>
+        <div class="bar-label">60% 完成（活跃 5 项，暂缓 0 项）</div>
       </div></div>
 
 
@@ -102,8 +110,22 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">52</span></h2>
+      <h2>🟡 还没做 <span class="count">51</span></h2>
       <table class="task-table">
+      <tr data-status="todo">
+        <td class="td-id">BA-OUTLET-001</td>
+        <td class="td-name">档口管理页面</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
+        <td class="td-remark">前端页面，Series B2 实现 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-OUTLET-002</td>
+        <td class="td-name">用户管理档口授权</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
+        <td class="td-remark">前端表单，Series B2 实现 |</td>
+      </tr>
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
         <td class="td-name">社交登录适配</td>
@@ -257,27 +279,6 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-001</td>
-        <td class="td-name">档口主数据服务与 API</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">CRUD、启停、默认档口、历史引用保护和 `/api/outlets/options` |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-002</td>
-        <td class="td-name">用户多档口绑定</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-003</td>
-        <td class="td-name">档口和人员范围权限</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BE-OUTLET-004</td>
@@ -551,8 +552,29 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 293 项） <span class="count">293</span></h2>
+      <h2>✅ 已完成（共 299 项） <span class="count">299</span></h2>
       <table class="task-table">
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-001</td>
+        <td class="td-name">档口主数据服务/API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
+        <td class="td-remark">`/api/outlets` CRUD/启停/options/引用统计/默认唯一；租户隔离、跨租户 404 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-002</td>
+        <td class="td-name">用户多档口绑定</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
+        <td class="td-remark">用户 DTO/VO 增 `outletIds/defaultOutletId/outletScope/peopleScope`；同事务校验保存；旧客户端不清空 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-003</td>
+        <td class="td-name">权限与迁移</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
+        <td class="td-remark">V64 新增 menu/btn/data/agent 权限码并赋权 OWNER/ADMIN/FINANCE；兼容 `btn:order:viewAll` |</td>
+      </tr>
       <tr data-status="done">
         <td class="td-id">BE-001</td>
         <td class="td-name">Spring Boot 3 项目初始化</td>
@@ -2225,6 +2247,27 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7: 权限系统（P1）</td>
         <td class="td-remark">修改密码、个人信息；头部下拉菜单新增个人中心入口 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-001</td>
+        <td class="td-name">档口主数据服务与 API</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">CRUD、启停、默认档口、引用统计和 `/api/outlets/options` |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-002</td>
+        <td class="td-name">用户多档口绑定</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-003</td>
+        <td class="td-name">档口和人员范围权限</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-803</td>

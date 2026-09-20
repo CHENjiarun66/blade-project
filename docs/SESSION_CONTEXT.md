@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-09-21 档口 Series B1 后端完成
+
+- 档口主数据服务/API（`/api/outlets` CRUD/启停/options/引用统计/默认唯一）、用户多档口绑定（`outletIds/defaultOutletId` + `outletScope/peopleScope` 摘要）、V64 权限迁移（menu/btn/data/agent 权限码 + 角色赋权 + `btn:order:viewAll` 兼容）已完成。
+- 仅后端，未做前端（BA-OUTLET-001/002 保持 TODO）；交付报告见 [2026-09-21-outlet-series-b1-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b1-delivery.md)；空库 Flyway V1→V64 通过，全量后端 570/570。
+- 未做（保持 TODO）：Series B2 前端、Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口。
+
 ## 2026-09-20 档口 Series A 数据模型完成（含 Codex 审核整改）
 
 - 档口权限改造 Series A（数据模型与兼容迁移）已完成并经 Codex 审核整改，交付报告见 [2026-09-20-outlet-series-a-delivery.md](./superpowers/plans/2026-09-20-outlet-series-a-delivery.md)。

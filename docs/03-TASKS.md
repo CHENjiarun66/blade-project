@@ -32,7 +32,7 @@
 | PC 管理端页面开发 | ✅ 完成 | 订单/库存/商品/客户管理页面 |
 | 看板系统开发 | ⏳ 部分完成 | 仪表盘、趋势、库存周转和数据分析已完成；仪表盘数据权限待补 |
 | 外部 Agent 对接 | ⏳ 进行中 | 款式趋势、颜色尺码结构、纸单草稿和 WhatsApp 本地归档已完成；经营类只读接口、生产联调和限流仍待完成 |
-| 档口主数据与数据权限 | ⏳ 进行中 | Series A 数据模型与兼容迁移完成（V63）；档口 CRUD、权限策略、前端与生产回填待 Series B-G |
+| 档口主数据与数据权限 | ⏳ 进行中 | Series A 数据模型（V63）与 Series B1 后端（档口 CRUD/用户绑定/权限迁移 V64）完成；PC 页面、统一访问策略与生产回填待 Series B2-G |
 
 ### 近期主线与状态口径（2026-08-29）
 
@@ -87,6 +87,20 @@
 | DATA-OUTLET-001 | 历史档口审计工具 | ✅ 完成 | `scripts/outlet-source-shop-audit.sql`：只读分布/空值/疑似批次/纯数字/冲突 + 可编辑名称映射 CTE（可自动映射/未映射），全程无写语句 |
 
 未做任务（保持 TODO）：Series B 档口 CRUD 与用户授权、Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口，均不在本轮范围。
+
+### 档口权限 Series B1 后端（2026-09-21，DeepSeek）
+
+> 本轮仅实现后端（档口主数据服务/API、用户多档口绑定、权限迁移），不做前端；BA-OUTLET-001/002 保持 TODO。交付报告见 [2026-09-21-outlet-series-b1-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b1-delivery.md)。
+
+| 任务 ID | 任务 | 状态 | 备注 |
+|---------|------|------|------|
+| BE-OUTLET-001 | 档口主数据服务/API | ✅ 完成 | `/api/outlets` CRUD/启停/options/引用统计/默认唯一；租户隔离、跨租户 404 |
+| BE-OUTLET-002 | 用户多档口绑定 | ✅ 完成 | 用户 DTO/VO 增 `outletIds/defaultOutletId/outletScope/peopleScope`；同事务校验保存；旧客户端不清空 |
+| BE-OUTLET-003 | 权限与迁移 | ✅ 完成 | V64 新增 menu/btn/data/agent 权限码并赋权 OWNER/ADMIN/FINANCE；兼容 `btn:order:viewAll` |
+| BA-OUTLET-001 | 档口管理页面 | ⏳ TODO | 前端页面，Series B2 实现 |
+| BA-OUTLET-002 | 用户管理档口授权 | ⏳ TODO | 前端表单，Series B2 实现 |
+
+未做任务（保持 TODO）：Series B2 前端、Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口。
 
 ---
 
@@ -569,9 +583,9 @@
 | DB-OUTLET-001 | 档口与用户关联表 | ✅ 完成（DeepSeek，2026-09-20） | 新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则 |
 | DB-OUTLET-002 | 订单与草稿档口 ID 及变更审计 | ✅ 完成（DeepSeek，2026-09-20） | 为 `sale_order/order_draft` 增加可空 `source_outlet_id`，新增 `order_outlet_change_log`；保留 `source_shop` 名称快照和兼容双读 |
 | DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成（DeepSeek，2026-09-20） | 新增 `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）；轮换同事务复制范围与绑定 |
-| BE-OUTLET-001 | 档口主数据服务与 API | ⏳ TODO | CRUD、启停、默认档口、历史引用保护和 `/api/outlets/options` |
-| BE-OUTLET-002 | 用户多档口绑定 | ⏳ TODO | 用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |
-| BE-OUTLET-003 | 档口和人员范围权限 | ⏳ TODO | 新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |
+| BE-OUTLET-001 | 档口主数据服务与 API | ✅ 完成（DeepSeek，2026-09-21） | CRUD、启停、默认档口、引用统计和 `/api/outlets/options` |
+| BE-OUTLET-002 | 用户多档口绑定 | ✅ 完成（DeepSeek，2026-09-21） | 用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |
+| BE-OUTLET-003 | 档口和人员范围权限 | ✅ 完成（DeepSeek，2026-09-21） | 新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |
 | BE-OUTLET-004 | 统一 `OutletAccessPolicy` | ⏳ TODO | 用户/Agent 范围解析、默认档口、选项裁剪和写入校验；无绑定明确拒绝 |
 | BE-OUTLET-005 | `OrderAccessPolicy` 二维范围重构 | ⏳ TODO | 订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围 |
 | BE-OUTLET-006 | 草稿档口权限接入 | ⏳ TODO | 草稿列表/详情/新建/编辑/删除/确认统一范围；转正式订单时二次校验 |

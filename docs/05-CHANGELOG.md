@@ -8,6 +8,17 @@
 
 ## 2026-09-21 变更记录
 
+### [功能开发] - 档口主数据与用户授权 Series B1 后端（V64）
+
+- 档口主数据服务/API：`GET/POST/PUT /api/outlets`、`GET /api/outlets/{id}`、`PATCH /api/outlets/{id}/status`、`GET /api/outlets/options`；分页/关键词/状态筛选、稳定编码、租户隔离、跨租户 404、默认档口唯一（服务层事务）、禁用默认档口清除默认标记、引用计数（绑定用户/订单/草稿，历史 NULL 不归入）。
+- 用户多档口绑定：`UserCreateDTO/UserUpdateDTO` 增 `outletIds/defaultOutletId`，`UserVO` 增 `outletIds/defaultOutletId/outletScope/peopleScope`；与角色同事务保存；销售员（`ROLE_SALES`）无 `data:outlet:all` 时至少一档口；OWNER/ADMIN/FINANCE 可不绑定；旧客户端未携带 `outletIds` 不清空既有绑定。
+- V64 权限迁移：`menu:outlet`、`btn:outlet:create/edit/disable`、`data:outlet:all`、`data:order:peopleAll`、`agent:outlets:read`；OWNER/ADMIN 全量、FINANCE 只读数据范围、SALES 无全档口；`btn:order:viewAll` 兼容映射到新数据范围（不删除旧权限）。
+- 影响范围：仅后端，未做前端（BA-OUTLET-001/002 保持 TODO）、未接订单/草稿/统计数据过滤、未部署、未触碰 NAS/生产、未回填数据。
+- 验证命令与结果（实际执行）：
+  - `mvn test -Dtest='OutletServiceImplTest,UserOutletBindingTest,OutletV64PermissionSchemaTest,OutletAccessControlSchemaTest,OutletEntityMappingTest,OutletAuditSqlReadOnlyTest,OutletFlywayMigrationTest'` → 31/31（含空库 Flyway V1→V64）；
+  - `mvn test -Dtest='OutletPermissionMigrationIntegrationTest'` → 5/5；
+  - `mvn test` → 全量后端 570/570 通过。
+
 ### [整改] - 档口 Series A 经 Codex 审核后的缺口补齐
 
 - `agent_key` 增加 `outlet_scope_type varchar(20) NOT NULL DEFAULT 'NONE'`（`ALL`/`ASSIGNED`/`NONE`），消除“无关联行到底是 ALL 还是 NONE”的歧义；`ALL` 不依赖关联行、新档口自动可见，`ASSIGNED` 必须至少一条有效关联，`NONE` 拒绝档口业务；历史 Key 迁移后默认 NONE，不静默扩权。`AgentKey` 实体新增 `outletScopeType`，契约测试覆盖默认 NONE。
