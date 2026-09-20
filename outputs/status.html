@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 01:09:13　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 01:37:07　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -81,10 +81,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">94 完成 · 0 进行中 · 16 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">97 完成 · 0 进行中 · 13 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:85%"></div></div>
-        <div class="bar-label">85% 完成（活跃 110 项，暂缓 2 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:88%"></div></div>
+        <div class="bar-label">88% 完成（活跃 110 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -97,10 +97,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">项目阶段</span>
-          <span class="card-nums">5 完成 · 0 进行中 · 0 待办 · 0 部分 · 0 暂缓</span>
+          <span class="card-nums">8 完成 · 0 进行中 · 0 待办 · 0 部分 · 0 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:100%"></div></div>
-        <div class="bar-label">100% 完成（活跃 5 项，暂缓 0 项）</div>
+        <div class="bar-label">100% 完成（活跃 8 项，暂缓 0 项）</div>
       </div></div>
 
 
@@ -110,7 +110,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">47</span></h2>
+      <h2>🟡 还没做 <span class="count">44</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -265,27 +265,6 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-004</td>
-        <td class="td-name">统一 `OutletAccessPolicy`</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">用户/Agent 范围解析、默认档口、选项裁剪和写入校验；无绑定明确拒绝 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-005</td>
-        <td class="td-name">`OrderAccessPolicy` 二维范围重构</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-006</td>
-        <td class="td-name">草稿档口权限接入</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">草稿列表/详情/新建/编辑/删除/确认统一范围；转正式订单时二次校验 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BE-OUTLET-007</td>
@@ -524,7 +503,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 303 项） <span class="count">303</span></h2>
+      <h2>✅ 已完成（共 309 项） <span class="count">309</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-001</td>
@@ -560,6 +539,27 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
         <td class="td-remark">用户表单可访问档口多选 + 默认档口 + 权限摘要；销售员空档口阻止；仅状态切换不提交档口 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-004</td>
+        <td class="td-name">统一 `OutletAccessPolicy`</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 档口权限 Series C 统一访问策略（2026-09-21，DeepSeek）</td>
+        <td class="td-remark">用户/Agent 范围快照、读写分离、默认优先级、结构化 options 契约 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-005</td>
+        <td class="td-name">`OrderAccessPolicy` 二维重构</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 档口权限 Series C 统一访问策略（2026-09-21，DeepSeek）</td>
+        <td class="td-remark">档口×人员 SQL 谓词、`btn:order:viewAll` 兼容不绕过、Agent scope |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-006</td>
+        <td class="td-name">草稿档口权限接入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 档口权限 Series C 统一访问策略（2026-09-21，DeepSeek）</td>
+        <td class="td-remark">page/batches/detail/update/confirm 统一范围；TOCTOU 复核；空档口确认阻断 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -2254,6 +2254,27 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
         <td class="td-remark">新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-004</td>
+        <td class="td-name">统一 `OutletAccessPolicy`</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">用户/Agent 范围解析、读写分离、默认档口、结构化 options 契约；无绑定明确拒绝 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-005</td>
+        <td class="td-name">`OrderAccessPolicy` 二维范围重构</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围；viewAll 不再独立绕过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-OUTLET-006</td>
+        <td class="td-name">草稿档口权限接入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">草稿列表/批次/详情/更新/确认统一范围；selectForUpdate 后复核；空档口确认阻断 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-OUTLET-001</td>

@@ -8,6 +8,15 @@
 
 ## 2026-09-21 变更记录
 
+### [功能开发] - 档口 Series C 统一后端数据访问策略（V65）
+
+- 新增统一 `OutletAccessPolicy` / `OutletAccessScope`：JWT 用户与 Agent 的档口范围（ALL/ASSIGNED/NONE）与人员范围（ALL_USERS/SELF）二维唯一事实；读写分离（禁用档口可读历史、不可用于写入）；默认档口优先级个人/Key → 租户 → 唯一可用；`GET /api/outlets/options` 改为结构化契约（scopeType/peopleScope/locked/defaultOutletId/items），前端已适配。
+- `OrderAccessPolicy` 二维重构：列表 SQL 先于分页应用档口×人员谓词，NONE 失败关闭；详情/动作/配货/发货/文件统一 `requireAccess`；`btn:order:viewAll` 仅兼容、不再独立绕过；Agent 订单读取按 Key 档口范围。
+- 草稿访问：page/batches/detail/update/confirm 统一范围，`selectForUpdate` 后复核防 TOCTOU；手工草稿记录 `created_by_user_id`；空档口草稿确认阻断（请先归档档口）。
+- V65：`data:outlet:unassigned`（仅 OWNER/ADMIN）、`order_draft.created_by_user_id`、档口/创建人索引。
+- 影响范围：仅后端策略与迁移；未进入 Series D UI/订单档口选择器，未部署、未触碰 NAS/生产。
+- 验证：全量后端 591/591；前端 `npm run build` 通过；Playwright `e2e-outlet.spec.ts` 3 passed。
+
 ### [整改] - 档口 Series B2 经 Codex 终审后的缺口补齐
 
 - 多角色校验：`GET /api/system/roles/all` 的 `RoleVO` 新增服务端派生 `grantsOutletAll`（`RolePermissionMapper` 单次查询、角色集合按租户过滤，避免跨租户/N+1）；前端 `requiresSalesOutlet` 改为「含 ROLE_SALES 且所选角色都未授予 data:outlet:all 且无档口」，与后端一致，自定义授权角色可行。

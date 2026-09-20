@@ -100,11 +100,21 @@
 | BA-OUTLET-001 | 档口管理页面 | ✅ 完成（DeepSeek，2026-09-21） | `/outlets` 列表/搜索/状态筛选/新建编辑/设默认/启停二次确认（引用提示）；按钮按 `btn:outlet:*` 显隐 |
 | BA-OUTLET-002 | 用户管理档口授权 | ✅ 完成（DeepSeek，2026-09-21） | 用户表单可访问档口多选 + 默认档口 + 权限摘要；销售员空档口阻止；仅状态切换不提交档口 |
 
-未做任务（保持 TODO）：Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口。
+未做任务（保持 TODO）：Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口。
 
 ### 档口权限 Series B2 前端（2026-09-21，DeepSeek）
 
-> 仅实现 BA-OUTLET-001/002 前端，不进入 Series C 订单过滤。交付报告见 [2026-09-21-outlet-series-b2-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b2-delivery.md)。
+> 仅实现 BA-OUTLET-001/002 前端。交付报告见 [2026-09-21-outlet-series-b2-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b2-delivery.md)。
+
+### 档口权限 Series C 统一访问策略（2026-09-21，DeepSeek）
+
+> 仅后端统一数据访问策略（BE-OUTLET-004/005/006）+ V65 迁移，不进入 Series D UI。交付报告见 [2026-09-21-outlet-series-c-delivery.md](./superpowers/plans/2026-09-21-outlet-series-c-delivery.md)。
+
+| 任务 ID | 任务 | 状态 | 备注 |
+|---------|------|------|------|
+| BE-OUTLET-004 | 统一 `OutletAccessPolicy` | ✅ 完成 | 用户/Agent 范围快照、读写分离、默认优先级、结构化 options 契约 |
+| BE-OUTLET-005 | `OrderAccessPolicy` 二维重构 | ✅ 完成 | 档口×人员 SQL 谓词、`btn:order:viewAll` 兼容不绕过、Agent scope |
+| BE-OUTLET-006 | 草稿档口权限接入 | ✅ 完成 | page/batches/detail/update/confirm 统一范围；TOCTOU 复核；空档口确认阻断 |
 
 ---
 
@@ -590,9 +600,9 @@
 | BE-OUTLET-001 | 档口主数据服务与 API | ✅ 完成（DeepSeek，2026-09-21） | CRUD、启停、默认档口、引用统计和 `/api/outlets/options` |
 | BE-OUTLET-002 | 用户多档口绑定 | ✅ 完成（DeepSeek，2026-09-21） | 用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |
 | BE-OUTLET-003 | 档口和人员范围权限 | ✅ 完成（DeepSeek，2026-09-21） | 新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |
-| BE-OUTLET-004 | 统一 `OutletAccessPolicy` | ⏳ TODO | 用户/Agent 范围解析、默认档口、选项裁剪和写入校验；无绑定明确拒绝 |
-| BE-OUTLET-005 | `OrderAccessPolicy` 二维范围重构 | ⏳ TODO | 订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围 |
-| BE-OUTLET-006 | 草稿档口权限接入 | ⏳ TODO | 草稿列表/详情/新建/编辑/删除/确认统一范围；转正式订单时二次校验 |
+| BE-OUTLET-004 | 统一 `OutletAccessPolicy` | ✅ 完成（DeepSeek，2026-09-21） | 用户/Agent 范围解析、读写分离、默认档口、结构化 options 契约；无绑定明确拒绝 |
+| BE-OUTLET-005 | `OrderAccessPolicy` 二维范围重构 | ✅ 完成（DeepSeek，2026-09-21） | 订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围；viewAll 不再独立绕过 |
+| BE-OUTLET-006 | 草稿档口权限接入 | ✅ 完成（DeepSeek，2026-09-21） | 草稿列表/批次/详情/更新/确认统一范围；selectForUpdate 后复核；空档口确认阻断 |
 | BE-OUTLET-007 | 订单/草稿 DTO 与名称快照 | ⏳ TODO | 接入 `sourceOutletId/code/name`；服务端从主数据生成 `source_shop`，禁止单据批次兜底 |
 | BE-OUTLET-008 | 看板与分析范围接入 | ⏳ TODO | 汇总、趋势、排行和客户贡献先裁剪档口/人员范围再聚合；缓存键包含范围摘要 |
 | BE-OUTLET-009 | 导出与文件权限接入 | ⏳ TODO | 订单导出、订单/草稿图片绑定与预览同列表/详情范围一致 |

@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-09-21 档口 Series C 统一访问策略完成
+
+- `OutletAccessPolicy`（用户/Agent 二维范围快照、读写分离、默认优先级、结构化 options）、`OrderAccessPolicy` 二维重构、草稿访问收口、V65 迁移（`data:outlet:unassigned` + `order_draft.created_by_user_id`）已完成。
+- 交付报告见 [2026-09-21-outlet-series-c-delivery.md](./superpowers/plans/2026-09-21-outlet-series-c-delivery.md)；全量后端 591/591 通过，前端构建与 e2e-outlet 通过。
+- 临时限制：Series D 前手工草稿仍为空档口（确认被阻断，待档口选择器）；Series E 统计/导出/文件/Agent 出口与缓存键仍待接入。
+
 ## 2026-09-21 档口 Series B2 前端完成
 
 - BA-OUTLET-001 档口管理页（`/outlets`：列表/搜索/状态筛选/分页/新建编辑/设默认/启停二次确认）与 BA-OUTLET-002 用户档口授权（多选+默认+权限摘要、销售员空档口阻止、状态切换不提交档口字段）已完成。
