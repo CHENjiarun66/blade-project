@@ -33,6 +33,10 @@
           查看正式订单
         </el-button>
         <template v-if="current?.status === 'EDITING'">
+          <el-button v-if="canDelete" type="danger" plain class="!rounded-xl !font-bold" :loading="deleting" @click="deleteCurrentDraft">
+            <span class="material-symbols-outlined mr-1 text-sm">delete</span>
+            删除草稿
+          </el-button>
           <el-button class="!rounded-xl !font-bold" :loading="saving" @click="saveDraft">
             <span class="material-symbols-outlined mr-1 text-sm">save</span>
             存为草稿
@@ -531,10 +535,12 @@ import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { filePreviewUrl, uploadFile } from '@/api/file'
 import { getCustomerPage, type CustomerVO } from '@/api/customer'
 import { getProductPage, type ProductVO } from '@/api/product'
+import { useAuthStore } from '@/stores/auth'
 import { hasFriendlySkuName, skuFriendlyName } from '@/utils/skuDisplay'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
 import {
   confirmOrderDraft,
+  deleteOrderDraft,
   getOrderDraft,
   getOrderDraftBatches,
   getOrderDraftPage,
@@ -563,6 +569,7 @@ interface SkuOption {
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
 const UNBATCHED = '__UNBATCHED__'
 const drafts = ref<OrderDraftSummary[]>([])
 const batches = ref<OrderDraftBatchSummary[]>([])
@@ -575,6 +582,7 @@ const listLoading = ref(false)
 const detailLoading = ref(false)
 const saving = ref(false)
 const confirming = ref(false)
+const deleting = ref(false)
 const imagePanelVisible = ref(true)
 const activePaperIndex = ref(0)
 const paperUploadInput = ref<HTMLInputElement | null>(null)
@@ -588,6 +596,7 @@ const orderTypeOptions = [
 ]
 
 const readonly = computed(() => current.value?.status !== 'EDITING')
+const canDelete = computed(() => authStore.permissions.includes('btn:order:delete'))
 const manualDraft = computed(() => current.value?.entrySource === 'MANUAL')
 const currentDraftIndex = computed(() => drafts.value.findIndex(draft => draft.id === selectedId.value))
 const unresolvedCount = computed(() => current.value?.items.filter(item => !item.skuId).length || 0)
@@ -1027,6 +1036,36 @@ async function saveDraft(showMessage = true) {
     if (showMessage) ElMessage.success('草稿已保存')
   } finally {
     saving.value = false
+  }
+}
+
+async function deleteCurrentDraft() {
+  if (!current.value || current.value.status !== 'EDITING') return
+  const draftId = current.value.id
+  const label = current.value.sourceOrderNo || current.value.externalRefNo
+  try {
+    await ElMessageBox.confirm(
+      `确定删除草稿“${label}”吗？草稿及商品明细将被逻辑删除；纸质单图片会保留在文件中心“未绑定”中。`,
+      '删除草稿',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+
+  deleting.value = true
+  try {
+    await deleteOrderDraft(draftId)
+    ElMessage.success('草稿已删除')
+    await router.push('/orders/drafts')
+  } catch (error: any) {
+    ElMessage.error(error.message || '删除草稿失败')
+  } finally {
+    deleting.value = false
   }
 }
 

@@ -1085,9 +1085,11 @@ Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通�
 | GET | `/api/order-drafts/{id}` | JWT / `btn:order:view` | 草稿详情、纸单原值、警告和明细 |
 | POST | `/api/order-drafts` | JWT / `btn:order:create` | 将快速录单当前内容创建为手工草稿；允许保留未匹配、未完成明细 |
 | PUT | `/api/order-drafts/{id}` | JWT / `btn:order:create` | 保存人工修改，未匹配 SKU 可继续保留 |
+| DELETE | `/api/order-drafts/{id}` | JWT / `btn:order:delete` | 逻辑删除一张 `EDITING` 草稿及其明细，解除原图绑定但不删除文件 |
+| POST | `/api/order-drafts/batch-delete` | JWT / `btn:order:delete` | 批量逻辑删除最多 100 张 `EDITING` 草稿；整批预校验、全成全败，请求体 `{ "draftIds": [1, 2] }` |
 | POST | `/api/order-drafts/{id}/confirm` | JWT / `btn:order:create` | 人工确认并幂等创建正式订单 |
 
-约束：`salePrice`、`quantity`、`paperAmount`、`paperTotalAmount` 和 `deposit` 来自纸单识别或人工修正；`systemReferencePrice` 仅用于对照，不能覆盖纸单售价。客户无法匹配时使用“散客”。没有 `sourceFileId` 不产生缺图警告。草稿确认前不进入正式订单、库存、财务和经营统计。
+约束：`salePrice`、`quantity`、`paperAmount`、`paperTotalAmount` 和 `deposit` 来自纸单识别或人工修正；`systemReferencePrice` 仅用于对照，不能覆盖纸单售价。客户无法匹配时使用“散客”。没有 `sourceFileId` 不产生缺图警告。草稿确认前不进入正式订单、库存、财务和经营统计。只有 `EDITING` 草稿允许删除；`CONFIRMED` 草稿与其正式订单关联必须保留审计和防重用途。
 
 V59 起草稿响应增加 `entrySource`：`AGENT` 保持上述纸单语义，`MANUAL` 表示快速录单手工暂存。手工草稿可额外保存 `sourceShop`、`orderType`、`customerCountryCode`、`customerAddress`、`paidAmount`、`freightAmount`、`freightCost`、`needDelivery`、`deliveryAddress` 和明细 `costPrice`。手工草稿确认时订单应收按商品明细加客户运费计算，`paperTotalAmount` 不覆盖正式订单金额；Agent 草稿仍按纸单总额优先。
 

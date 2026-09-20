@@ -131,6 +131,52 @@ public class OrderDraftService {
     }
 
     @Transactional
+    public void delete(Long id) {
+        deleteBatch(List.of(id));
+    }
+
+    /**
+     * 草稿删除采用逻辑删除，并保留原始单据文件本体。
+     * 批量操作先完成整批状态校验，再解除图片绑定和删除明细，避免出现部分成功。
+     */
+    @Transactional
+    public void deleteBatch(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw BusinessException.of(400, "请选择要删除的草稿");
+        }
+        List<Long> draftIds = ids.stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (draftIds.isEmpty()) {
+            throw BusinessException.of(400, "请选择要删除的草稿");
+        }
+        if (draftIds.size() > 100) {
+            throw BusinessException.of(400, "单次最多删除100张草稿");
+        }
+
+        List<OrderDraft> drafts = draftMapper.selectList(new LambdaQueryWrapper<OrderDraft>()
+                .in(OrderDraft::getId, draftIds));
+        if (drafts.size() != draftIds.size()) {
+            throw BusinessException.of(404, "部分草稿不存在或已经删除，请刷新列表后重试");
+        }
+        List<OrderDraft> nonEditing = drafts.stream()
+                .filter(draft -> !"EDITING".equals(draft.getStatus()))
+                .toList();
+        if (!nonEditing.isEmpty()) {
+            throw BusinessException.of(400, "仅可删除编辑中的草稿；已生成正式订单的草稿必须保留审计记录");
+        }
+
+        for (OrderDraft draft : drafts) {
+            fileService.syncFiles("order_draft", draft.getId(), List.of());
+        }
+        itemMapper.delete(new LambdaQueryWrapper<OrderDraftItem>()
+                .in(OrderDraftItem::getDraftId, draftIds));
+        draftMapper.delete(new LambdaQueryWrapper<OrderDraft>()
+                .in(OrderDraft::getId, draftIds));
+    }
+
+    @Transactional
     public OrderDraftDTO.ConfirmResponse confirm(Long id,
                                                  OrderDraftDTO.ConfirmRequest request) {
         OrderDraft draft = draftMapper.selectForUpdate(id);

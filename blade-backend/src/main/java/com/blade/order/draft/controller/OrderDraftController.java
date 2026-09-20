@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -74,6 +75,22 @@ public class OrderDraftController {
     public R<Void> update(@PathVariable Long id,
                           @RequestBody @Valid OrderDraftDTO.SaveRequest request) {
         service.update(id, request);
+        return R.ok();
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('btn:order:delete')")
+    @Operation(summary = "删除编辑中的订单草稿（逻辑删除）")
+    public R<Void> delete(@PathVariable Long id) {
+        service.delete(id);
+        return R.ok();
+    }
+
+    @PostMapping("/batch-delete")
+    @PreAuthorize("hasAuthority('btn:order:delete')")
+    @Operation(summary = "批量删除编辑中的订单草稿（逻辑删除）")
+    public R<Void> batchDelete(@RequestBody @Valid OrderDraftDTO.BatchDeleteRequest request) {
+        service.deleteBatch(request.getDraftIds());
         return R.ok();
     }
 

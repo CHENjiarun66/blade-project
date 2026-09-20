@@ -183,6 +183,14 @@ export function saveOrderDraft(id: number, data: DraftSaveRequest) {
   return client.put(`/order-drafts/${id}`, data) as Promise<{ code: number; data: void }>
 }
 
+export function deleteOrderDraft(id: number) {
+  return client.delete(`/order-drafts/${id}`) as Promise<{ code: number; data: void }>
+}
+
+export function batchDeleteOrderDrafts(draftIds: number[]) {
+  return client.post('/order-drafts/batch-delete', { draftIds }) as Promise<{ code: number; data: void }>
+}
+
 export function confirmOrderDraft(id: number, acknowledgeWarnings: boolean) {
   return client.post(`/order-drafts/${id}/confirm`, { acknowledgeWarnings }) as Promise<{
     code: number

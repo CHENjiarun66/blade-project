@@ -6,7 +6,9 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -180,6 +182,13 @@ public final class OrderDraftDTO {
         private String sourceBatchNo;
         private Integer draftCount;
         private LocalDateTime latestUpdateTime;
+    }
+
+    @Data
+    public static class BatchDeleteRequest {
+        @NotEmpty(message = "请选择要删除的草稿")
+        @Size(max = 100, message = "单次最多删除100张草稿")
+        private List<@NotNull(message = "草稿ID不能为空") @Positive(message = "草稿ID必须大于0") Long> draftIds;
     }
 
     @Data

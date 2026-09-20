@@ -6,7 +6,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('token', 'mock-access-token')
     localStorage.setItem('userInfo', JSON.stringify({ userId: '1', username: 'admin', realName: '管理员', roles: ['ROLE_ADMIN'] }))
-    localStorage.setItem('permissions', JSON.stringify(['menu:order']))
+    localStorage.setItem('permissions', JSON.stringify(['menu:order', 'btn:order:delete']))
   })
 
   await page.route('**/api/**', async (route) => {
@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
       return
     }
     if (url.pathname === '/api/auth/codes') {
-      await route.fulfill({ json: ['menu:order'] })
+      await route.fulfill({ json: ['menu:order', 'btn:order:delete'] })
       return
     }
     if (url.pathname === '/api/user/info') {
@@ -67,6 +67,14 @@ test.beforeEach(async ({ page }) => {
           warnings: [],
         }],
       }) })
+      return
+    }
+    if (url.pathname === '/api/order-drafts/1' && route.request().method() === 'DELETE') {
+      await route.fulfill({ json: ok(null) })
+      return
+    }
+    if (url.pathname === '/api/order-drafts/batch-delete' && route.request().method() === 'POST') {
+      await route.fulfill({ json: ok(null) })
       return
     }
     if (url.pathname === '/api/order-drafts') {
@@ -128,7 +136,7 @@ test('草稿列表支持分页展示、批次筛选并跳转到具体草稿', as
   await expect(page.getByText('1 行待匹配')).toBeVisible()
   await expect(page.getByText('共 27 张待处理草稿')).toBeVisible()
 
-  await page.getByRole('combobox').first().click()
+  await page.locator('.field-block').filter({ hasText: '单据批次' }).locator('.el-select').click()
   await page.getByRole('option', { name: '第 40 单（1）' }).click()
   await page.getByRole('button', { name: '查询' }).click()
   await expect(page.getByText('第四十单客户')).toBeVisible()
@@ -141,4 +149,26 @@ test('草稿列表支持分页展示、批次筛选并跳转到具体草稿', as
   await expect(page.locator('input[placeholder="如 41"]')).toHaveValue('40')
   await expect(page.locator('input[placeholder="如 0135"]')).toHaveValue('0004001')
   await expect(page.getByText('616-24# · 整款录入（颜色/尺码未指定）', { exact: true })).toBeVisible()
+})
+
+test('草稿列表支持单条删除和批量删除', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/orders/drafts')
+
+  const singleDelete = page.waitForRequest(request =>
+    request.method() === 'DELETE' && new URL(request.url()).pathname === '/api/order-drafts/1')
+  await page.getByRole('button', { name: '删除', exact: true }).click()
+  await page.getByRole('button', { name: '确认删除' }).click()
+  await singleDelete
+  await expect(page.getByText('草稿已删除')).toBeVisible()
+
+  await page.locator('.el-table__body-wrapper .el-checkbox').first().click()
+  await expect(page.getByText('已选择 1 张草稿')).toBeVisible()
+  const batchDelete = page.waitForRequest(request =>
+    request.method() === 'POST' && new URL(request.url()).pathname === '/api/order-drafts/batch-delete')
+  await page.getByRole('button', { name: '批量删除' }).click()
+  await page.getByRole('button', { name: '删除 1 张' }).click()
+  const request = await batchDelete
+  expect(request.postDataJSON()).toEqual({ draftIds: [1] })
+  await expect(page.getByText('已删除 1 张草稿')).toBeVisible()
 })

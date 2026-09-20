@@ -64,13 +64,28 @@
     </section>
 
     <section class="table-panel" aria-label="待处理草稿列表">
+      <div v-if="canDelete" class="table-toolbar">
+        <span v-if="selectedDrafts.length">已选择 {{ selectedDrafts.length }} 张草稿</span>
+        <span v-else>可勾选多张草稿进行批量删除</span>
+        <el-button
+          v-if="selectedDrafts.length"
+          type="danger"
+          plain
+          :loading="deleting"
+          @click="deleteSelectedDrafts"
+        >
+          批量删除
+        </el-button>
+      </div>
       <el-table
         v-loading="loading"
         :data="drafts"
         row-class-name="clickable-row"
         empty-text="暂无待处理草稿"
         @row-click="openDraft"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column v-if="canDelete" type="selection" width="52" align="center" />
         <el-table-column label="单据批次" width="120">
           <template #default="{ row }">
             <span class="batch-chip">{{ batchLabel(row.sourceBatchNo) }}</span>
@@ -119,9 +134,12 @@
         <el-table-column label="最后修改" width="140">
           <template #default="{ row }">{{ formatDateTime(row.updateTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right" align="center">
+        <el-table-column label="操作" :width="canDelete ? 176 : 100" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button type="primary" class="continue-button" @click.stop="openDraft(row)">继续编辑</el-button>
+            <div class="row-actions">
+              <el-button type="primary" class="continue-button" @click.stop="openDraft(row)">继续编辑</el-button>
+              <el-button v-if="canDelete" type="danger" text class="delete-button" @click.stop="deleteDraft(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -144,10 +162,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 import {
+  batchDeleteOrderDrafts,
+  deleteOrderDraft,
   getOrderDraftBatches,
   getOrderDraftPage,
   type OrderDraftBatchSummary,
@@ -157,6 +178,8 @@ import { filePreviewUrl } from '@/api/file'
 
 const UNBATCHED = '__UNBATCHED__'
 const router = useRouter()
+const authStore = useAuthStore()
+const canDelete = computed(() => authStore.permissions.includes('btn:order:delete'))
 const drafts = ref<OrderDraftSummary[]>([])
 const batches = ref<OrderDraftBatchSummary[]>([])
 const keyword = ref('')
@@ -168,6 +191,8 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const loading = ref(false)
+const deleting = ref(false)
+const selectedDrafts = ref<OrderDraftSummary[]>([])
 
 function batchKey(value?: string) {
   return value?.trim() || UNBATCHED
@@ -229,6 +254,66 @@ function handleSizeChange() {
 
 function openDraft(row: OrderDraftSummary) {
   router.push(`/orders/drafts/${row.id}`)
+}
+
+function handleSelectionChange(rows: OrderDraftSummary[]) {
+  selectedDrafts.value = rows
+}
+
+async function confirmDeletion(count: number, label?: string, batch = false) {
+  const target = !batch && count === 1 ? `草稿“${label || ''}”` : `选中的 ${count} 张草稿`
+  try {
+    await ElMessageBox.confirm(
+      `确定删除${target}吗？草稿及商品明细将移入逻辑删除状态；已上传的纸质单图片不会物理删除，会保留在文件中心“未绑定”中。`,
+      batch ? '批量删除草稿' : '删除草稿',
+      {
+        type: 'warning',
+        confirmButtonText: batch ? `删除 ${count} 张` : '确认删除',
+        cancelButtonText: '取消',
+      },
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function reloadAfterDelete(deletedCount: number) {
+  if (drafts.value.length <= deletedCount && currentPage.value > 1) {
+    currentPage.value -= 1
+  }
+  selectedDrafts.value = []
+  await Promise.all([loadBatches(), loadDrafts()])
+}
+
+async function deleteDraft(row: OrderDraftSummary) {
+  const label = row.sourceOrderNo || row.externalRefNo
+  if (!await confirmDeletion(1, label)) return
+  deleting.value = true
+  try {
+    await deleteOrderDraft(row.id)
+    await reloadAfterDelete(1)
+    ElMessage.success('草稿已删除')
+  } catch (error: any) {
+    ElMessage.error(error.message || '删除草稿失败')
+  } finally {
+    deleting.value = false
+  }
+}
+
+async function deleteSelectedDrafts() {
+  const selected = [...selectedDrafts.value]
+  if (!selected.length || !await confirmDeletion(selected.length, undefined, true)) return
+  deleting.value = true
+  try {
+    await batchDeleteOrderDrafts(selected.map(draft => draft.id))
+    await reloadAfterDelete(selected.length)
+    ElMessage.success(`已删除 ${selected.length} 张草稿`)
+  } catch (error: any) {
+    ElMessage.error(error.message || '批量删除草稿失败')
+  } finally {
+    deleting.value = false
+  }
 }
 
 function money(value?: number) {
@@ -330,6 +415,18 @@ onMounted(async () => {
 
 .table-panel :deep(.clickable-row:hover > td.el-table__cell) {
   background: #f8fbff;
+}
+
+.table-toolbar {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 9px 18px;
+  color: #64748b;
+  font-size: 13px;
 }
 
 .batch-chip {
@@ -434,6 +531,19 @@ onMounted(async () => {
   border: 0;
   border-radius: 8px;
   background: #408aee;
+  font-weight: 700;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.delete-button {
+  min-height: 40px;
+  margin-left: 0;
   font-weight: 700;
 }
 
