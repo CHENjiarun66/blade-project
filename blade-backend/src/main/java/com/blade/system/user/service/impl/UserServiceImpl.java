@@ -10,6 +10,7 @@ import com.blade.outlet.entity.SalesOutlet;
 import com.blade.outlet.entity.SysUserOutlet;
 import com.blade.outlet.mapper.SalesOutletMapper;
 import com.blade.outlet.mapper.SysUserOutletMapper;
+import com.blade.system.permission.mapper.PermissionMapper;
 import com.blade.system.user.dto.UserCreateDTO;
 import com.blade.system.user.dto.UserPageDTO;
 import com.blade.system.user.dto.UserUpdateDTO;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,23 +35,26 @@ import java.util.stream.Collectors;
 @Service
 public class UserServiceImpl implements UserService {
 
-    /** 拥有全部档口/全部人员数据范围的角色（V64 赋权 data:outlet:all + data:order:peopleAll）。 */
-    private static final Set<String> ALL_SCOPE_ROLE_CODES = Set.of("ROLE_OWNER", "ROLE_ADMIN", "ROLE_FINANCE");
     private static final String SALES_ROLE_CODE = "ROLE_SALES";
+    private static final String PERM_OUTLET_ALL = "data:outlet:all";
+    private static final String PERM_PEOPLE_ALL = "data:order:peopleAll";
 
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
     private final PasswordEncoder passwordEncoder;
     private final SysUserOutletMapper sysUserOutletMapper;
     private final SalesOutletMapper salesOutletMapper;
+    private final PermissionMapper permissionMapper;
 
     public UserServiceImpl(UserMapper userMapper, RoleMapper roleMapper, PasswordEncoder passwordEncoder,
-                           SysUserOutletMapper sysUserOutletMapper, SalesOutletMapper salesOutletMapper) {
+                           SysUserOutletMapper sysUserOutletMapper, SalesOutletMapper salesOutletMapper,
+                           PermissionMapper permissionMapper) {
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
         this.passwordEncoder = passwordEncoder;
         this.sysUserOutletMapper = sysUserOutletMapper;
         this.salesOutletMapper = salesOutletMapper;
+        this.permissionMapper = permissionMapper;
     }
 
     @Override
@@ -109,6 +114,9 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("用户名已存在");
         }
 
+        // 先解析并校验角色（跨租户/不存在/禁用一律拒绝），再写任何关系。
+        List<Role> roles = validateAndResolveRoles(dto.getRoleIds());
+
         User user = new User();
         user.setUsername(dto.getUsername());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
@@ -121,13 +129,8 @@ public class UserServiceImpl implements UserService {
 
         userMapper.insert(user);
 
-        List<Role> roles = Collections.emptyList();
-        if (dto.getRoleIds() != null && dto.getRoleIds().length > 0) {
-            Long tenantId = user.getTenantId();
-            for (Long roleId : dto.getRoleIds()) {
-                roleMapper.insertUserRole(user.getId(), roleId, tenantId);
-            }
-            roles = resolveRoles(dto.getRoleIds());
+        for (Role role : roles) {
+            roleMapper.insertUserRole(user.getId(), role.getId(), user.getTenantId());
         }
 
         validateAndSaveOutletBindings(roles, user.getId(), user.getTenantId(),
@@ -162,17 +165,19 @@ public class UserServiceImpl implements UserService {
 
         userMapper.updateById(user);
 
+        // 先解析并校验角色，再删除/重建关系。
+        List<Role> resolvedRoles = null;
         if (dto.getRoleIds() != null) {
+            resolvedRoles = validateAndResolveRoles(dto.getRoleIds());
             roleMapper.deleteUserRoles(dto.getId());
-            Long tenantId = user.getTenantId();
-            for (Long roleId : dto.getRoleIds()) {
-                roleMapper.insertUserRole(dto.getId(), roleId, tenantId);
+            for (Role role : resolvedRoles) {
+                roleMapper.insertUserRole(dto.getId(), role.getId(), user.getTenantId());
             }
         }
 
         if (dto.getOutletIds() != null) {
-            List<Role> roles = dto.getRoleIds() != null
-                    ? resolveRoles(dto.getRoleIds())
+            List<Role> roles = resolvedRoles != null
+                    ? resolvedRoles
                     : roleMapper.selectByUserId(dto.getId());
             validateAndSaveOutletBindings(roles, dto.getId(), user.getTenantId(),
                     dto.getOutletIds(), dto.getDefaultOutletId());
@@ -201,9 +206,45 @@ public class UserServiceImpl implements UserService {
         userMapper.updateById(user);
     }
 
+    // ==================== 角色解析与档口绑定 ====================
+
+    /**
+     * 规范化并校验 roleIds：去重、数量一致、角色启用且未删（同租户由租户拦截器保证）。
+     * 任一项失败抛 404/400，调用方不得写入任何角色/档口关系。
+     */
+    private List<Role> validateAndResolveRoles(Long[] roleIds) {
+        if (roleIds == null || roleIds.length == 0) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<Long> unique = new LinkedHashSet<>(Arrays.asList(roleIds));
+        List<Role> roles = roleMapper.selectBatchIds(new ArrayList<>(unique));
+        if (roles == null || roles.size() != unique.size()) {
+            throw BusinessException.of(404, "角色不存在或不属于当前租户");
+        }
+        for (Role role : roles) {
+            if (role.getId() == null || !Integer.valueOf(1).equals(role.getStatus())) {
+                throw BusinessException.of(400, "角色不可用");
+            }
+        }
+        return roles;
+    }
+
+    private Set<String> permissionCodesForRoles(List<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return Collections.emptySet();
+        }
+        List<Long> roleIds = roles.stream().map(Role::getId).filter(id -> id != null).toList();
+        if (roleIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        List<String> codes = permissionMapper.selectCodesByRoleIds(roleIds);
+        return codes == null ? Collections.emptySet() : Set.copyOf(codes);
+    }
+
     private void validateAndSaveOutletBindings(List<Role> roles, Long userId, Long tenantId,
                                                Long[] outletIds, Long defaultOutletId) {
-        boolean hasAll = roles.stream().anyMatch(r -> ALL_SCOPE_ROLE_CODES.contains(r.getRoleCode()));
+        Set<String> codes = permissionCodesForRoles(roles);
+        boolean hasOutletAll = codes.contains(PERM_OUTLET_ALL);
         boolean isSales = roles.stream().anyMatch(r -> SALES_ROLE_CODE.equals(r.getRoleCode()));
 
         if (defaultOutletId != null && !contains(outletIds, defaultOutletId)) {
@@ -212,7 +253,7 @@ public class UserServiceImpl implements UserService {
 
         boolean empty = outletIds == null || outletIds.length == 0;
         if (empty) {
-            if (isSales && !hasAll) {
+            if (isSales && !hasOutletAll) {
                 throw BusinessException.of(400, "销售员至少绑定一个档口");
             }
             sysUserOutletMapper.deleteByUserId(userId);
@@ -240,13 +281,6 @@ public class UserServiceImpl implements UserService {
             binding.setDeleted(0);
             sysUserOutletMapper.insert(binding);
         }
-    }
-
-    private List<Role> resolveRoles(Long[] roleIds) {
-        if (roleIds == null || roleIds.length == 0) {
-            return Collections.emptyList();
-        }
-        return roleMapper.selectBatchIds(Arrays.asList(roleIds));
     }
 
     private static boolean contains(Long[] arr, Long value) {
@@ -286,9 +320,11 @@ public class UserServiceImpl implements UserService {
         vo.setOutletIds(outletIds == null ? Collections.emptyList() : outletIds);
         vo.setDefaultOutletId(defaultOutletId);
 
-        boolean hasAll = roles != null && roles.stream().anyMatch(r -> ALL_SCOPE_ROLE_CODES.contains(r.getRoleCode()));
-        vo.setOutletScope(hasAll ? "ALL" : (vo.getOutletIds().isEmpty() ? "NONE" : "ASSIGNED"));
-        vo.setPeopleScope(hasAll ? "ALL_USERS" : "SELF");
+        // 二维权限独立计算：档口范围由 data:outlet:all，人员范围由 data:order:peopleAll。
+        Set<String> codes = permissionCodesForRoles(roles);
+        vo.setOutletScope(codes.contains(PERM_OUTLET_ALL)
+                ? "ALL" : (vo.getOutletIds().isEmpty() ? "NONE" : "ASSIGNED"));
+        vo.setPeopleScope(codes.contains(PERM_PEOPLE_ALL) ? "ALL_USERS" : "SELF");
 
         return vo;
     }

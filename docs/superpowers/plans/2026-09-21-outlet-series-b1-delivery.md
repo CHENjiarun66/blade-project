@@ -7,6 +7,18 @@
 
 ---
 
+## 0. Codex 终审整改记录（2026-09-21）
+
+Codex 终审 B1 暂不通过，本轮按反馈完成以下整改（独立提交，未 amend 前一版）：
+
+- **P0-1 二维权限解耦**：`UserServiceImpl` 不再用角色硬编码同时推导两维；改用 `PermissionMapper.selectCodesByRoleIds` 分别判断 `data:outlet:all`（档口范围）与 `data:order:peopleAll`（人员范围）。`outletScope`/`peopleScope` 独立计算；「可无绑定」依据 `data:outlet:all` 权限而非角色；销售员仍按 `ROLE_SALES` 判断。新增反例：仅 `data:order:peopleAll` → ASSIGNED+ALL_USERS；仅 `data:outlet:all` → ALL+SELF。
+- **P0-2 跨租户/无效角色拦截**：`create/update` 在任何 `delete/insert` 角色关系前，先 `validateAndResolveRoles`（去重、数量一致、角色启用未删；同租户由租户拦截器保证），失败抛 404/400 且不写角色/档口。新增跨租户、禁用角色、重复 roleId 归一化反例测试。
+- **P0-3 V64 兼容迁移修正**：三段赋权 `ON DUPLICATE KEY UPDATE` 改为恢复 `tenant_id = VALUES(tenant_id), deleted = 0`；`btn:order:viewAll` 兼容映射改为仅从有效关系/有效角色/有效权限、同租户迁移（`rp.deleted=0`、`r.deleted=0/status=1`、`old/p deleted=0/status=1`、`r.tenant_id=rp.tenant_id`），软删目标关系恢复；去掉 `INSERT IGNORE`。新增契约 + 集成测试：软删关系恢复、软删 viewAll 源不迁移、同租户。
+- **P1-1 outlet_code 不可变**：`update` 拒绝修改编码（相同值放行，不同 400）。
+- **P1-2 默认清理补全**：`makeExclusiveTenantDefault` 改为租户内批量 UPDATE（`clearOtherTenantDefaults`，拦截器约束），清除除 self 外全部默认；`isTenantDefault=null` 保留原值。新增异常多默认、null 保留测试。
+
+---
+
 ## 1. 交付内容
 
 ### BE-OUTLET-001 档口主数据服务/API
@@ -59,16 +71,16 @@
 ```bash
 cd blade-backend
 mvn test -Dtest='OutletServiceImplTest,UserOutletBindingTest,OutletV64PermissionSchemaTest,OutletAccessControlSchemaTest,OutletEntityMappingTest,OutletAuditSqlReadOnlyTest,OutletFlywayMigrationTest'
-# → 31/31（含空库 Flyway V1→V64，66 个迁移文件）
+# → 39/39（含空库 Flyway V1→V64，66 个迁移文件）
 
 mvn test -Dtest='OutletPermissionMigrationIntegrationTest'
-# → 5/5
+# → 8/8
 
 mvn test
-# → 全量后端 570/570，Failures 0, Errors 0, Skipped 0
+# → 全量后端 581/581，Failures 0, Errors 0, Skipped 0
 ```
 
-新增后端测试 20 项（OutletServiceImplTest 6、UserOutletBindingTest 6、OutletV64PermissionSchemaTest 3、OutletPermissionMigrationIntegrationTest 5）。覆盖：默认唯一、禁用清除默认、options（ALL/单/多/NONE、无绑定不回落）、跨租户 404、销售员至少一档口、OWNER 可不绑定、default∈ids、旧客户端不清空、V64 权限码唯一与角色赋权。
+新增后端测试 31 项（OutletServiceImplTest 8、UserOutletBindingTest 12、OutletV64PermissionSchemaTest 4、OutletPermissionMigrationIntegrationTest 8，另 Series A 已有 outlet 测试并入全量）。覆盖：默认唯一/异常多默认批量清理/禁用清除默认、options（ALL/单/多/NONE、无绑定不回落）、跨租户 404、销售员至少一档口、data:outlet:all 可无绑定、二维权限解耦反例、跨租户/禁用角色拦截、重复 roleId 归一化、outlet_code 不可变、default∈ids、旧客户端不清空、V64 权限码唯一与角色赋权、软删关系恢复、软删 viewAll 不迁移、同租户。
 
 ---
 
@@ -76,7 +88,7 @@ mvn test
 
 - 未做前端（BA-OUTLET-001/002 保持 TODO，Series B2）。
 - 未接订单/草稿/统计/导出/文件/Agent 数据过滤（Series C-E）；未写 `source_outlet_id`。
-- `peopleScope=ALL_USERS` 当前仅由 OWNER/ADMIN/FINANCE（持 `data:order:peopleAll`）推导；「档口负责人」角色不存在，未硬造语义。
+- `peopleScope`/`outletScope` 由实际权限码 `data:order:peopleAll`/`data:outlet:all` 独立推导；「档口负责人」角色当前不存在，但若日后拥有 `data:order:peopleAll` 权限即可自然得到 ALL_USERS。
 - 档口引用计数为逐档口 `selectCount`（档口数量小可接受）。
 - 未提供物理删除 API（设计即禁物理删除，用禁用代替）。
 

@@ -8,6 +8,14 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口 Series B1 经 Codex 终审后的缺口补齐
+
+- 二维权限解耦：`outletScope`/`peopleScope` 改用 `PermissionMapper.selectCodesByRoleIds` 分别判断 `data:outlet:all`/`data:order:peopleAll`，不再按角色硬编码同推两维；「可无绑定」依据 `data:outlet:all` 权限而非角色。
+- 跨租户/无效角色拦截：`create/update` 写角色关系前先 `validateAndResolveRoles`（去重、数量一致、启用未删；同租户由租户拦截器保证），失败不写角色/档口。
+- V64 修正：赋权 `ON DUPLICATE KEY UPDATE` 恢复 `tenant_id=VALUES(tenant_id), deleted=0`；`btn:order:viewAll` 兼容仅从有效关系/角色/权限、同租户迁移，软删目标恢复，去掉 `INSERT IGNORE`。
+- `outlet_code` 创建后不可修改；默认清理改为租户内批量 UPDATE；`isTenantDefault=null` 保留原值。
+- 验证：定向 39/39、权限集成 8/8、全量后端 581/581 通过。
+
 ### [功能开发] - 档口主数据与用户授权 Series B1 后端（V64）
 
 - 档口主数据服务/API：`GET/POST/PUT /api/outlets`、`GET /api/outlets/{id}`、`PATCH /api/outlets/{id}/status`、`GET /api/outlets/options`；分页/关键词/状态筛选、稳定编码、租户隔离、跨租户 404、默认档口唯一（服务层事务）、禁用默认档口清除默认标记、引用计数（绑定用户/订单/草稿，历史 NULL 不归入）。

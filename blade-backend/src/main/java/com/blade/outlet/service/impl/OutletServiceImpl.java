@@ -105,25 +105,25 @@ public class OutletServiceImpl implements OutletService {
     public void update(OutletUpdateDTO dto) {
         SalesOutlet outlet = requiredOutlet(dto.getId());
         String code = normalizeCode(dto.getOutletCode());
-        Long duplicate = outletMapper.selectCount(
-                new LambdaQueryWrapper<SalesOutlet>()
-                        .eq(SalesOutlet::getOutletCode, code)
-                        .ne(SalesOutlet::getId, outlet.getId()));
-        if (duplicate != null && duplicate > 0) {
-            throw BusinessException.of(400, "档口编码已存在");
+        if (!outlet.getOutletCode().equals(code)) {
+            throw BusinessException.of(400, "档口编码创建后不可修改");
         }
 
         applyFields(outlet, code, dto.getOutletName(), dto.getOutletType(), dto.getContactName(),
                 dto.getPhone(), dto.getAddress(), dto.getSort(), dto.getRemark());
-        Integer isDefault = dto.getIsTenantDefault() == null ? 0 : (dto.getIsTenantDefault() == 1 ? 1 : 0);
-        if (Integer.valueOf(1).equals(isDefault) && !Integer.valueOf(1).equals(outlet.getStatus())) {
-            throw BusinessException.of(400, "默认档口必须启用");
+
+        // isTenantDefault 为 null 时保留原值；显式设置才校验并更新。
+        if (dto.getIsTenantDefault() != null) {
+            int isDefault = dto.getIsTenantDefault() == 1 ? 1 : 0;
+            if (isDefault == 1 && !Integer.valueOf(1).equals(outlet.getStatus())) {
+                throw BusinessException.of(400, "默认档口必须启用");
+            }
+            outlet.setIsTenantDefault(isDefault);
         }
-        outlet.setIsTenantDefault(isDefault);
         outlet.setUpdateBy(currentUserIdOrNull());
         outletMapper.updateById(outlet);
 
-        if (Integer.valueOf(1).equals(isDefault)) {
+        if (Integer.valueOf(1).equals(outlet.getIsTenantDefault())) {
             makeExclusiveTenantDefault(outlet.getId());
         }
     }
@@ -178,15 +178,9 @@ public class OutletServiceImpl implements OutletService {
         outlet.setRemark(remark);
     }
 
+    /** 批量清除除 self 外的全部默认标记（租户由拦截器约束），处理异常多默认。 */
     private void makeExclusiveTenantDefault(Long selfId) {
-        SalesOutlet existing = outletMapper.selectOne(
-                new LambdaQueryWrapper<SalesOutlet>()
-                        .eq(SalesOutlet::getIsTenantDefault, 1)
-                        .ne(SalesOutlet::getId, selfId));
-        if (existing != null) {
-            existing.setIsTenantDefault(0);
-            outletMapper.updateById(existing);
-        }
+        outletMapper.clearOtherTenantDefaults(selfId);
     }
 
     private SalesOutlet requiredOutlet(Long id) {

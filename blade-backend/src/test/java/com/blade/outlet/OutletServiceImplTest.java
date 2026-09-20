@@ -6,6 +6,7 @@ import com.blade.order.draft.mapper.OrderDraftMapper;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.outlet.dto.OutletCreateDTO;
 import com.blade.outlet.dto.OutletOptionVO;
+import com.blade.outlet.dto.OutletUpdateDTO;
 import com.blade.outlet.entity.SalesOutlet;
 import com.blade.outlet.mapper.SalesOutletMapper;
 import com.blade.outlet.mapper.SysUserOutletMapper;
@@ -50,7 +51,6 @@ class OutletServiceImplTest {
         user.setUsername("owner");
         when(userMapper.selectByUsername("owner")).thenReturn(user);
         when(outletMapper.selectCount(any())).thenReturn(0L);
-        when(outletMapper.selectOne(any())).thenReturn(null);
         when(outletMapper.insert(any(SalesOutlet.class))).thenAnswer(inv -> {
             inv.getArgument(0, SalesOutlet.class).setId(101L);
             return 1;
@@ -70,6 +70,14 @@ class OutletServiceImplTest {
                 .map(SimpleGrantedAuthority::new).toList();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("owner", "n/a", list));
+    }
+
+    private SalesOutlet outlet(long id, String code) {
+        SalesOutlet o = new SalesOutlet();
+        o.setId(id);
+        o.setOutletCode(code);
+        o.setStatus(1);
+        return o;
     }
 
     @Test
@@ -92,13 +100,8 @@ class OutletServiceImplTest {
     }
 
     @Test
-    void settingTenantDefaultClearsExistingDefault() {
+    void settingTenantDefaultBatchClearsOtherDefaults() {
         authAs("btn:outlet:create");
-        SalesOutlet existingDefault = new SalesOutlet();
-        existingDefault.setId(5L);
-        existingDefault.setIsTenantDefault(1);
-        when(outletMapper.selectOne(any())).thenReturn(existingDefault);
-
         OutletCreateDTO dto = new OutletCreateDTO();
         dto.setOutletCode("NEW");
         dto.setOutletName("新档口");
@@ -106,17 +109,15 @@ class OutletServiceImplTest {
 
         service.create(dto);
 
-        verify(outletMapper).updateById(existingDefault);
-        assertEquals(0, existingDefault.getIsTenantDefault());
+        // 批量清除其它默认（不再 selectOne 单条）
+        verify(outletMapper).clearOtherTenantDefaults(101L);
     }
 
     @Test
     void disablingDefaultOutletClearsDefaultFlag() {
         authAs("btn:outlet:disable");
-        SalesOutlet outlet = new SalesOutlet();
-        outlet.setId(9L);
+        SalesOutlet outlet = outlet(9L, "YL");
         outlet.setIsTenantDefault(1);
-        outlet.setStatus(1);
         when(outletMapper.selectById(9L)).thenReturn(outlet);
 
         service.updateStatus(9L, 0);
@@ -127,12 +128,43 @@ class OutletServiceImplTest {
     }
 
     @Test
+    void updateRejectsChangingOutletCode() {
+        authAs("btn:outlet:edit");
+        when(outletMapper.selectById(9L)).thenReturn(outlet(9L, "YL"));
+
+        OutletUpdateDTO dto = new OutletUpdateDTO();
+        dto.setId(9L);
+        dto.setOutletCode("Y2");
+        dto.setOutletName("御龙");
+
+        assertThrows(BusinessException.class, () -> service.update(dto));
+        verify(outletMapper, never()).updateById(any(SalesOutlet.class));
+    }
+
+    @Test
+    void updateWithNullIsTenantDefaultPreservesExistingValue() {
+        authAs("btn:outlet:edit");
+        SalesOutlet outlet = outlet(9L, "YL");
+        outlet.setIsTenantDefault(1);
+        when(outletMapper.selectById(9L)).thenReturn(outlet);
+
+        OutletUpdateDTO dto = new OutletUpdateDTO();
+        dto.setId(9L);
+        dto.setOutletCode("YL");
+        dto.setOutletName("御龙");
+        dto.setIsTenantDefault(null);
+
+        service.update(dto);
+
+        assertEquals(1, outlet.getIsTenantDefault());
+        verify(outletMapper).updateById(outlet);
+    }
+
+    @Test
     void optionsReturnsAllEnabledWhenAllAuthorityPresent() {
         authAs("data:outlet:all");
-        SalesOutlet a = new SalesOutlet();
-        a.setId(1L); a.setOutletCode("A"); a.setOutletName("甲"); a.setStatus(1);
-        SalesOutlet b = new SalesOutlet();
-        b.setId(2L); b.setOutletCode("B"); b.setOutletName("乙"); b.setStatus(1);
+        SalesOutlet a = outlet(1L, "A"); a.setOutletName("甲");
+        SalesOutlet b = outlet(2L, "B"); b.setOutletName("乙");
         when(outletMapper.selectList(any())).thenReturn(List.of(a, b));
 
         List<OutletOptionVO> options = service.options();
@@ -144,8 +176,7 @@ class OutletServiceImplTest {
     @Test
     void optionsReturnsOnlyBoundOutletsAndEmptyWhenNoBinding() {
         authAs("menu:outlet");
-        SalesOutlet a = new SalesOutlet();
-        a.setId(1L); a.setOutletCode("A"); a.setOutletName("甲"); a.setStatus(1);
+        SalesOutlet a = outlet(1L, "A"); a.setOutletName("甲");
         when(sysUserOutletMapper.selectOutletIdsByUserId(23L)).thenReturn(List.of(1L));
         when(outletMapper.selectList(any())).thenReturn(List.of(a));
 

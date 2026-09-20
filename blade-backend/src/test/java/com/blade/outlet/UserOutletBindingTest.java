@@ -6,8 +6,10 @@ import com.blade.outlet.entity.SalesOutlet;
 import com.blade.outlet.entity.SysUserOutlet;
 import com.blade.outlet.mapper.SalesOutletMapper;
 import com.blade.outlet.mapper.SysUserOutletMapper;
+import com.blade.system.permission.mapper.PermissionMapper;
 import com.blade.system.user.dto.UserCreateDTO;
 import com.blade.system.user.dto.UserUpdateDTO;
+import com.blade.system.user.dto.UserVO;
 import com.blade.system.user.entity.Role;
 import com.blade.system.user.entity.User;
 import com.blade.system.user.mapper.RoleMapper;
@@ -40,8 +42,9 @@ class UserOutletBindingTest {
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SysUserOutletMapper sysUserOutletMapper = mock(SysUserOutletMapper.class);
     private final SalesOutletMapper salesOutletMapper = mock(SalesOutletMapper.class);
+    private final PermissionMapper permissionMapper = mock(PermissionMapper.class);
     private final UserService service = new UserServiceImpl(
-            userMapper, roleMapper, passwordEncoder, sysUserOutletMapper, salesOutletMapper);
+            userMapper, roleMapper, passwordEncoder, sysUserOutletMapper, salesOutletMapper, permissionMapper);
 
     @BeforeEach
     void setUp() {
@@ -57,6 +60,7 @@ class UserOutletBindingTest {
             u.setTenantId(7L);
             return u;
         });
+        when(permissionMapper.selectCodesByRoleIds(anyList())).thenReturn(List.of());
     }
 
     @AfterEach
@@ -66,8 +70,9 @@ class UserOutletBindingTest {
 
     private Role role(String code) {
         Role r = new Role();
-        r.setRoleCode(code);
         r.setId(1L);
+        r.setRoleCode(code);
+        r.setStatus(1);
         return r;
     }
 
@@ -82,15 +87,16 @@ class UserOutletBindingTest {
     }
 
     @Test
-    void salesUserRequiresAtLeastOneOutlet() {
+    void salesUserWithoutOutletAllPermissionRequiresAtLeastOneOutlet() {
         when(roleMapper.selectBatchIds(anyList())).thenReturn(List.of(role("ROLE_SALES")));
         assertThrows(BusinessException.class, () -> service.create(createDto(new Long[]{1L}, null, null)));
         verify(sysUserOutletMapper, never()).insert(any(SysUserOutlet.class));
     }
 
     @Test
-    void ownerWithoutBindingIsAllowed() {
-        when(roleMapper.selectBatchIds(anyList())).thenReturn(List.of(role("ROLE_OWNER")));
+    void roleWithOutletAllPermissionCanBeUnboundEvenWithoutBinding() {
+        when(roleMapper.selectBatchIds(anyList())).thenReturn(List.of(role("ROLE_SALES")));
+        when(permissionMapper.selectCodesByRoleIds(anyList())).thenReturn(List.of("data:outlet:all"));
         service.create(createDto(new Long[]{1L}, null, null));
         verify(sysUserOutletMapper, never()).insert(any(SysUserOutlet.class));
     }
@@ -113,6 +119,35 @@ class UserOutletBindingTest {
         when(salesOutletMapper.selectById(any())).thenReturn(null);
         assertThrows(BusinessException.class,
                 () -> service.create(createDto(new Long[]{1L}, new Long[]{12L}, 12L)));
+    }
+
+    @Test
+    void crossTenantRoleRejectedBeforeAnyRoleWrite() {
+        when(roleMapper.selectBatchIds(anyList())).thenReturn(List.of()); // 跨租户/不存在：查不到
+        assertThrows(BusinessException.class, () -> service.create(createDto(new Long[]{99L}, null, null)));
+        verify(roleMapper, never()).insertUserRole(any(), any(), any());
+        verify(roleMapper, never()).deleteUserRoles(any());
+        verify(sysUserOutletMapper, never()).insert(any(SysUserOutlet.class));
+    }
+
+    @Test
+    void disabledRoleRejected() {
+        Role disabled = role("ROLE_SALES");
+        disabled.setStatus(0);
+        when(roleMapper.selectBatchIds(anyList())).thenReturn(List.of(disabled));
+        assertThrows(BusinessException.class, () -> service.create(createDto(new Long[]{1L}, null, null)));
+        verify(roleMapper, never()).insertUserRole(any(), any(), any());
+    }
+
+    @Test
+    void duplicateRoleIdsAreNormalized() {
+        Role r = role("ROLE_OWNER");
+        r.setId(9L);
+        when(roleMapper.selectBatchIds(anyList())).thenReturn(List.of(r));
+        when(permissionMapper.selectCodesByRoleIds(anyList())).thenReturn(List.of("data:outlet:all"));
+        service.create(createDto(new Long[]{9L, 9L}, null, null));
+        // 只插入一次角色关系（去重）
+        verify(roleMapper, times(1)).insertUserRole(any(), any(), any());
     }
 
     @Test
@@ -153,5 +188,35 @@ class UserOutletBindingTest {
         assertEquals(0, saved.get(0).getIsDefault());
         assertEquals(12L, saved.get(1).getOutletId());
         assertEquals(1, saved.get(1).getIsDefault());
+    }
+
+    @Test
+    void onlyPeopleAllScopeYieldsAssignedAndAllUsers() {
+        Role r = role("ROLE_LEADER");
+        r.setId(5L);
+        when(roleMapper.selectByUserId(50L)).thenReturn(List.of(r));
+        when(permissionMapper.selectCodesByRoleIds(anyList())).thenReturn(List.of("data:order:peopleAll"));
+        when(sysUserOutletMapper.selectOutletIdsByUserId(50L)).thenReturn(List.of(11L));
+        when(sysUserOutletMapper.selectDefaultOutletIdByUserId(50L)).thenReturn(null);
+
+        UserVO vo = service.getById(50L);
+
+        assertEquals("ASSIGNED", vo.getOutletScope());
+        assertEquals("ALL_USERS", vo.getPeopleScope());
+    }
+
+    @Test
+    void onlyOutletAllScopeYieldsAllAndSelf() {
+        Role r = role("ROLE_X");
+        r.setId(6L);
+        when(roleMapper.selectByUserId(50L)).thenReturn(List.of(r));
+        when(permissionMapper.selectCodesByRoleIds(anyList())).thenReturn(List.of("data:outlet:all"));
+        when(sysUserOutletMapper.selectOutletIdsByUserId(50L)).thenReturn(List.of());
+        when(sysUserOutletMapper.selectDefaultOutletIdByUserId(50L)).thenReturn(null);
+
+        UserVO vo = service.getById(50L);
+
+        assertEquals("ALL", vo.getOutletScope());
+        assertEquals("SELF", vo.getPeopleScope());
     }
 }
