@@ -31,6 +31,18 @@ public class UserVO {
     @Schema(description = "角色列表")
     private List<RoleVO> roles;
 
+    @Schema(description = "可访问档口ID列表")
+    private List<Long> outletIds;
+
+    @Schema(description = "个人默认档口ID")
+    private Long defaultOutletId;
+
+    @Schema(description = "档口范围：ALL/ASSIGNED/NONE")
+    private String outletScope;
+
+    @Schema(description = "人员范围：ALL_USERS/SELF")
+    private String peopleScope;
+
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
 
@@ -53,6 +65,14 @@ public class UserVO {
     public void setStatus(Integer status) { this.status = status; }
     public List<RoleVO> getRoles() { return roles; }
     public void setRoles(List<RoleVO> roles) { this.roles = roles; }
+    public List<Long> getOutletIds() { return outletIds; }
+    public void setOutletIds(List<Long> outletIds) { this.outletIds = outletIds; }
+    public Long getDefaultOutletId() { return defaultOutletId; }
+    public void setDefaultOutletId(Long defaultOutletId) { this.defaultOutletId = defaultOutletId; }
+    public String getOutletScope() { return outletScope; }
+    public void setOutletScope(String outletScope) { this.outletScope = outletScope; }
+    public String getPeopleScope() { return peopleScope; }
+    public void setPeopleScope(String peopleScope) { this.peopleScope = peopleScope; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }

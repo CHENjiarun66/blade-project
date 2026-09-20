@@ -40,6 +40,12 @@ public class UserCreateDTO {
     @Schema(description = "角色ID列表")
     private Long[] roleIds;
 
+    @Schema(description = "可访问档口ID列表")
+    private Long[] outletIds;
+
+    @Schema(description = "个人默认档口ID（必须属于 outletIds）")
+    private Long defaultOutletId;
+
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
     public String getPassword() { return password; }
@@ -56,4 +62,8 @@ public class UserCreateDTO {
     public void setStatus(Integer status) { this.status = status; }
     public Long[] getRoleIds() { return roleIds; }
     public void setRoleIds(Long[] roleIds) { this.roleIds = roleIds; }
+    public Long[] getOutletIds() { return outletIds; }
+    public void setOutletIds(Long[] outletIds) { this.outletIds = outletIds; }
+    public Long getDefaultOutletId() { return defaultOutletId; }
+    public void setDefaultOutletId(Long defaultOutletId) { this.defaultOutletId = defaultOutletId; }
 }

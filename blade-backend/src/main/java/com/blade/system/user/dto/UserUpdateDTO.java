@@ -32,6 +32,12 @@ public class UserUpdateDTO {
     @Schema(description = "角色ID列表")
     private Long[] roleIds;
 
+    @Schema(description = "可访问档口ID列表（null 表示不修改；空数组表示清空）")
+    private Long[] outletIds;
+
+    @Schema(description = "个人默认档口ID（必须属于 outletIds）")
+    private Long defaultOutletId;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getNickname() { return nickname; }
@@ -46,4 +52,8 @@ public class UserUpdateDTO {
     public void setStatus(Integer status) { this.status = status; }
     public Long[] getRoleIds() { return roleIds; }
     public void setRoleIds(Long[] roleIds) { this.roleIds = roleIds; }
+    public Long[] getOutletIds() { return outletIds; }
+    public void setOutletIds(Long[] outletIds) { this.outletIds = outletIds; }
+    public Long getDefaultOutletId() { return defaultOutletId; }
+    public void setDefaultOutletId(Long defaultOutletId) { this.defaultOutletId = defaultOutletId; }
 }
