@@ -187,6 +187,16 @@ CREATE TABLE agent_key_outlet (
 
 Agent Key 的业务 scope 决定“能做什么”，档口关联决定“可以在哪些档口做”。两者缺一不可。
 
+`agent_key` 增加 `outlet_scope_type varchar(20) NOT NULL DEFAULT 'NONE'`，合法取值与语义：
+
+| 取值 | 语义 | 依赖关联行 |
+|---|---|---|
+| `ALL` | 可访问当前租户全部启用档口 | 否；不依赖 `agent_key_outlet` 行，新档口自动可见 |
+| `ASSIGNED` | 只可访问 `agent_key_outlet` 中绑定的启用档口 | 是；必须至少一条有效关联，新档口不自动扩权 |
+| `NONE` | 拒绝档口业务 | 否；默认值，历史 Key 迁移后不得静默获得全档口权限 |
+
+使用 `outlet_scope_type` 显式表达范围，禁止用 `outlet_id=0` 等哨兵值。Key 轮换时在同一事务内复制旧 Key 的 `outlet_scope_type` 与当前有效 `agent_key_outlet` 绑定（保留默认档口标记，不跨租户）；新建 Key 在管理 UI 接入前保持 `NONE`。
+
 ### 3.5 `order_outlet_change_log` 订单档口变更审计
 
 ```sql

@@ -87,6 +87,14 @@ class OutletAccessControlSchemaTest {
     }
 
     @Test
+    void agentKeyGainsOutletScopeTypeDefaultingToNone() throws Exception {
+        String sql = v63();
+        assertThat(sql)
+                .contains("ADD COLUMN `outlet_scope_type` varchar(20) NOT NULL DEFAULT 'NONE'")
+                .contains("ALL/ASSIGNED/NONE");
+    }
+
+    @Test
     void migrationIsAdditiveOnly() throws Exception {
         String sql = v63();
         assertThat(sql)

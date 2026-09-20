@@ -6,6 +6,8 @@ import com.blade.agent.entity.AgentKey;
 import com.blade.agent.mapper.AgentKeyMapper;
 import com.blade.common.exception.BusinessException;
 import com.blade.common.tenant.TenantContext;
+import com.blade.outlet.entity.AgentKeyOutlet;
+import com.blade.outlet.mapper.AgentKeyOutletMapper;
 import com.blade.system.user.entity.User;
 import com.blade.system.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class AgentKeyManagementService {
     );
 
     private final AgentKeyMapper keyMapper;
+    private final AgentKeyOutletMapper outletMapper;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -55,7 +58,8 @@ public class AgentKeyManagementService {
     }
 
     public AgentKeyManagementDTO.Credential create(AgentKeyManagementDTO.CreateRequest request) {
-        return issue(request.name(), request.scopes(), request.expiresInDays(), null);
+        // 新建 Key 在 Series B/E UI 接入前保持 NONE，不授予任何档口。
+        return issue(request.name(), request.scopes(), request.expiresInDays(), null, null);
     }
 
     @Transactional
@@ -65,7 +69,10 @@ public class AgentKeyManagementService {
             throw BusinessException.of(400, "已停用的Key不能轮换，请创建新Key");
         }
         AgentKeyManagementDTO.Credential credential = issue(
-                previous.getName(), requestedRotationScopes(previous, request), request.expiresInDays(), previous.getId());
+                previous.getName(), requestedRotationScopes(previous, request), request.expiresInDays(),
+                previous.getId(), previous.getOutletScopeType());
+        // 在同一事务内复制旧 Key 的档口范围与有效绑定到新 Key，保留默认档口标记。
+        copyOutletScopeAndBindings(previous, credential.id());
         disableEntity(previous);
         keyMapper.updateById(previous);
         return credential;
@@ -94,10 +101,43 @@ public class AgentKeyManagementService {
         return request.scopes();
     }
 
+    /**
+     * 复制旧 Key 的有效档口绑定到新 Key（与 rotate 同事务）。
+     * 保留每条绑定的默认档口标记；绑定与新旧 Key 均受租户拦截约束，不跨租户。
+     */
+    private void copyOutletScopeAndBindings(AgentKey previous, Long newKeyId) {
+        Long tenantId = requiredTenantId();
+        List<AgentKeyOutlet> bindings = outletMapper.selectList(
+                Wrappers.<AgentKeyOutlet>lambdaQuery()
+                        .eq(AgentKeyOutlet::getAgentKeyId, previous.getId())
+                        .eq(AgentKeyOutlet::getStatus, 1));
+        for (AgentKeyOutlet binding : bindings) {
+            AgentKeyOutlet copy = new AgentKeyOutlet();
+            copy.setTenantId(tenantId);
+            copy.setAgentKeyId(newKeyId);
+            copy.setOutletId(binding.getOutletId());
+            copy.setIsDefault(binding.getIsDefault());
+            copy.setStatus(1);
+            outletMapper.insert(copy);
+        }
+    }
+
+    private String normalizeOutletScope(String outletScopeType) {
+        if (outletScopeType == null || outletScopeType.isBlank()) {
+            return AgentKey.OUTLET_SCOPE_NONE;
+        }
+        String normalized = outletScopeType.trim().toUpperCase();
+        return switch (normalized) {
+            case AgentKey.OUTLET_SCOPE_ALL, AgentKey.OUTLET_SCOPE_ASSIGNED, AgentKey.OUTLET_SCOPE_NONE -> normalized;
+            default -> throw BusinessException.of(400, "不允许的档口范围类型: " + outletScopeType);
+        };
+    }
+
     private AgentKeyManagementDTO.Credential issue(String rawName,
                                                     List<String> requestedScopes,
                                                     Integer expiresInDays,
-                                                    Long rotatedFromKeyId) {
+                                                    Long rotatedFromKeyId,
+                                                    String outletScopeType) {
         String name = rawName == null ? null : rawName.trim();
         if (name == null || name.isEmpty()) {
             throw BusinessException.of(400, "Key名称不能为空");
@@ -118,6 +158,7 @@ public class AgentKeyManagementService {
         key.setKeyPrefix(prefix);
         key.setKeyHash(passwordEncoder.encode(secret));
         key.setScopes(String.join(",", scopes));
+        key.setOutletScopeType(normalizeOutletScope(outletScopeType));
         key.setStatus(AgentKey.STATUS_ACTIVE);
         key.setExpiresTime(expiresAt);
         key.setCreatedByUserId(currentUserId());

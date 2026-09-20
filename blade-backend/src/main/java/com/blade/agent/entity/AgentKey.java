@@ -14,6 +14,13 @@ public class AgentKey {
     public static final int STATUS_DISABLED = 0;
     public static final int STATUS_ACTIVE = 1;
 
+    /** 档口范围：可访问当前租户全部档口，不依赖 agent_key_outlet 关联行。 */
+    public static final String OUTLET_SCOPE_ALL = "ALL";
+    /** 档口范围：只可访问 agent_key_outlet 中绑定的档口；必须至少一条有效关联。 */
+    public static final String OUTLET_SCOPE_ASSIGNED = "ASSIGNED";
+    /** 档口范围：拒绝档口业务（默认，历史 Key 迁移后不得静默扩权）。 */
+    public static final String OUTLET_SCOPE_NONE = "NONE";
+
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
@@ -21,6 +28,7 @@ public class AgentKey {
     private String keyPrefix;
     private String keyHash;
     private String scopes;
+    private String outletScopeType;
     private Integer status;
     private LocalDateTime expiresTime;
     private LocalDateTime lastUsedTime;
@@ -47,6 +55,8 @@ public class AgentKey {
     public void setKeyHash(String keyHash) { this.keyHash = keyHash; }
     public String getScopes() { return scopes; }
     public void setScopes(String scopes) { this.scopes = scopes; }
+    public String getOutletScopeType() { return outletScopeType; }
+    public void setOutletScopeType(String outletScopeType) { this.outletScopeType = outletScopeType; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
     public LocalDateTime getExpiresTime() { return expiresTime; }

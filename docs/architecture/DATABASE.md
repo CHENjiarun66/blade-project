@@ -738,6 +738,8 @@
 
 **索引**：`uk_agent_key_outlet(tenant_id, agent_key_id, outlet_id)`, `idx_agent_key_outlet_key(tenant_id, agent_key_id, status)`
 
+**关联字段**：`agent_key.outlet_scope_type varchar(20) NOT NULL DEFAULT 'NONE'`（V63 新增，位于 `scopes` 之后）。合法取值 `ALL`（本租户全部启用档口，不依赖关联行，新档口自动可见）/ `ASSIGNED`（仅 `agent_key_outlet` 绑定的启用档口，必须至少一条有效关联）/ `NONE`（拒绝档口业务，默认值）。Key 轮换在同一事务内复制旧 Key 的 `outlet_scope_type` 与有效绑定；新建 Key 在管理 UI 接入前保持 `NONE`。
+
 ### 6.4 order_outlet_change_log 订单档口变更审计
 
 **来源迁移**：`V63__outlet_access_control.sql`
@@ -779,11 +781,18 @@
 
 ### 7.3 忽略租户的表
 
+实际生效的忽略表由 `com.blade.common.tenant.TenantLineHandler.IGNORE_TABLES` 决定（`application.yml` 中 `mybatis-plus.tenant-line.ignore-tables` 的 `sys_dict/sys_param/sys_log` 是历史残留配置，被显式构造的 `TenantLineHandler` 覆盖，不生效）：
+
 | 表名 | 说明 |
 |------|------|
-| `sys_dict` | 字典表，全局共享 |
-| `sys_param` | 参数配置表，全局共享 |
 | `sys_tenant` | 租户表本身 |
+| `sys_permission` | 权限定义全局共享（V54）；租户差异在角色及角色-权限关联 |
+| `product_color_rel` | 商品-颜色关联（无 `tenant_id`） |
+| `product_size_rel` | 商品-尺码关联（无 `tenant_id`） |
+| `sys_role_permission` | 角色-权限关联（无 `tenant_id`） |
+| `sys_user_role` | 用户-角色关联（无 `tenant_id`） |
+
+> 档口相关新表（`sales_outlet`、`sys_user_outlet`、`agent_key_outlet`、`order_outlet_change_log`）均不在忽略表，自动受租户过滤。
 
 ---
 

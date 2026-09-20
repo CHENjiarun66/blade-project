@@ -83,8 +83,8 @@
 |---------|------|------|------|
 | DB-OUTLET-001 | 档口与用户关联表 | ✅ 完成 | `sales_outlet`、`sys_user_outlet` 实体/Mapper/Flyway V63/租户与索引/契约测试 |
 | DB-OUTLET-002 | 订单与草稿档口 ID 及变更审计 | ✅ 完成 | `sale_order/order_draft.source_outlet_id` 可空加法迁移 + `order_outlet_change_log`，保留 `source_shop` 不改写历史 |
-| DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成 | `agent_key_outlet` 表/实体/Mapper；仅建模型，不改 Key 签发/轮换服务 |
-| DATA-OUTLET-001 | 历史档口审计工具 | ✅ 完成 | `scripts/outlet-source-shop-audit.sql`：只读分布/空值/疑似批次/纯数字/冲突候选，不含 UPDATE/DELETE |
+| DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成 | `agent_key_outlet` 表/实体/Mapper + `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE，默认 NONE）+ 轮换同事务复制范围与有效绑定 |
+| DATA-OUTLET-001 | 历史档口审计工具 | ✅ 完成 | `scripts/outlet-source-shop-audit.sql`：只读分布/空值/疑似批次/纯数字/冲突 + 可编辑名称映射 CTE（可自动映射/未映射），全程无写语句 |
 
 未做任务（保持 TODO）：Series B 档口 CRUD 与用户授权、Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口，均不在本轮范围。
 
@@ -566,9 +566,9 @@
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
 | ARCH-OUTLET-001 | 档口和数据范围契约冻结 | ✅ 完成（Codex，2026-09-20） | 锁定档口主数据、用户多档口、`ALL/ASSIGNED/NONE × ALL_USERS/SELF`、Agent Key 档口范围和生产迁移边界 |
-| DB-OUTLET-001 | 档口与用户关联表 | ⏳ TODO | 新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则 |
-| DB-OUTLET-002 | 订单与草稿档口 ID 及变更审计 | ⏳ TODO | 为 `sale_order/order_draft` 增加可空 `source_outlet_id`，新增 `order_outlet_change_log`；保留 `source_shop` 名称快照和兼容双读 |
-| DB-OUTLET-003 | Agent Key 档口关联 | ⏳ TODO | 新增 `agent_key_outlet`，定义 Key 轮换、默认档口和全部/指定档口范围 |
+| DB-OUTLET-001 | 档口与用户关联表 | ✅ 完成（DeepSeek，2026-09-20） | 新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则 |
+| DB-OUTLET-002 | 订单与草稿档口 ID 及变更审计 | ✅ 完成（DeepSeek，2026-09-20） | 为 `sale_order/order_draft` 增加可空 `source_outlet_id`，新增 `order_outlet_change_log`；保留 `source_shop` 名称快照和兼容双读 |
+| DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成（DeepSeek，2026-09-20） | 新增 `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）；轮换同事务复制范围与绑定 |
 | BE-OUTLET-001 | 档口主数据服务与 API | ⏳ TODO | CRUD、启停、默认档口、历史引用保护和 `/api/outlets/options` |
 | BE-OUTLET-002 | 用户多档口绑定 | ⏳ TODO | 用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |
 | BE-OUTLET-003 | 档口和人员范围权限 | ⏳ TODO | 新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |
@@ -585,7 +585,7 @@
 | BA-OUTLET-004 | 订单/草稿档口筛选 | ⏳ TODO | 列表按档口筛选，Owner 可处理“待归档档口”历史数据 |
 | BA-OUTLET-005 | 统计档口筛选与对比 | ⏳ TODO | “全部档口”仅汇总当前授权集合；Owner 支持单/多档口对比 |
 | BA-OUTLET-006 | Agent Key 档口配置 | ⏳ TODO | 全部/指定档口、默认档口和服务器 capability 同步展示 |
-| DATA-OUTLET-001 | 历史档口只读审计工具 | ⏳ TODO | 统计 `source_shop` 分布并输出自动映射、疑似批次、空值和冲突清单；不写生产 |
+| DATA-OUTLET-001 | 历史档口只读审计工具 | ✅ 完成（DeepSeek，2026-09-20） | 统计 `source_shop` 分布并输出自动映射、疑似批次、空值和冲突清单；含可编辑名称映射 CTE，全程只读不写生产 |
 | DATA-OUTLET-002 | 生产副本映射预演 | ⏳ TODO | 回填订单/草稿并对账数量、金额、状态、明细和文件绑定，脚本可重复执行 |
 | DATA-OUTLET-003 | 用户初始档口授权清单 | ⏳ TODO | Owner/财务/负责人/销售员的初始档口和人员范围需人工确认后迁移 |
 | TEST-OUTLET-001 | 后端越权矩阵 | ⏳ TODO | 单/多/全部/无档口、SELF/ALL_USERS、跨租户和禁用档口 |

@@ -102,3 +102,42 @@ WHERE d.deleted = 0
   AND d.confirmed_order_id IS NOT NULL
   AND TRIM(COALESCE(d.source_shop, '')) <> TRIM(COALESCE(o.source_shop, ''))
 ORDER BY o.id;
+
+-- ── D. 名称映射分类（发布人员维护映射，仅 SELECT，不建临时表）───────────────
+-- 用法：在下方 name_mapping CTE 内按「shop_name → mapped_outlet_name」添加已
+--       人工确认的历史 source_shop 名称映射。未列出的非空值归入“未映射”。
+--       严禁把纯数字/批次（如 "42"）写入映射；它们继续由 A3/A4/B3/B4 输出。
+-- 输出口径：可自动映射 / 未映射 / 疑似批次·纯数字；空值见 A1/B1，冲突见 C1。
+
+WITH name_mapping(shop_name, mapped_outlet_name) AS (
+  -- ============ 发布人员在此编辑映射（替换示例行）============
+  SELECT '御龙' AS shop_name, '御龙档口' AS mapped_outlet_name
+  UNION ALL SELECT '总店', '总店档口'
+  -- ============================================================
+),
+source_values AS (
+  SELECT 'sale_order' AS src, TRIM(source_shop) AS shop_value
+  FROM sale_order
+  WHERE deleted = 0 AND source_shop IS NOT NULL AND TRIM(source_shop) <> ''
+  UNION ALL
+  SELECT 'order_draft' AS src, TRIM(source_shop) AS shop_value
+  FROM order_draft
+  WHERE deleted = 0 AND source_shop IS NOT NULL AND TRIM(source_shop) <> ''
+),
+classified AS (
+  SELECT
+    sv.src,
+    sv.shop_value,
+    CASE
+      WHEN sv.shop_value REGEXP '^[0-9]+$' THEN '疑似批次/纯数字'
+      WHEN m.mapped_outlet_name IS NOT NULL THEN '可自动映射'
+      ELSE '未映射'
+    END AS classification,
+    m.mapped_outlet_name
+  FROM source_values sv
+  LEFT JOIN name_mapping m ON m.shop_name = sv.shop_value
+)
+SELECT classification, mapped_outlet_name, src, shop_value, COUNT(*) AS cnt
+FROM classified
+GROUP BY classification, mapped_outlet_name, src, shop_value
+ORDER BY classification, cnt DESC, src, shop_value;

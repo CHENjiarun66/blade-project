@@ -49,10 +49,10 @@
 | 任务 ID | 任务 | 状态 | 交付物 |
 |---|---|---|---|
 | ARCH-OUTLET-001 | 档口和数据范围契约冻结 | ✅ 完成 | 设计文档、角色矩阵、字段和发布边界 |
-| DB-OUTLET-001 | 档口与用户关联表 | ⏳ TODO | `sales_outlet`、`sys_user_outlet` 实体/Mapper/Flyway/索引/租户隔离测试 |
-| DB-OUTLET-002 | 订单与草稿档口 ID及变更审计 | ⏳ TODO | `sale_order.source_outlet_id`、`order_draft.source_outlet_id` 可空加法迁移、`order_outlet_change_log`，保留 `source_shop` |
-| DB-OUTLET-003 | Agent Key 档口关联 | ⏳ TODO | `agent_key_outlet`、默认档口约束和 Key 轮换复制规则 |
-| DATA-OUTLET-001 | 历史档口审计工具 | ⏳ TODO | 只读分布报告、可配置名称映射、疑似批次/空值/冲突清单，不直接改生产 |
+| DB-OUTLET-001 | 档口与用户关联表 | ✅ 完成（DeepSeek，2026-09-20） | `sales_outlet`、`sys_user_outlet` 实体/Mapper/Flyway V63/租户与索引/契约测试 |
+| DB-OUTLET-002 | 订单与草稿档口 ID及变更审计 | ✅ 完成（DeepSeek，2026-09-20） | `sale_order/order_draft.source_outlet_id` 可空加法迁移、`order_outlet_change_log`，保留 `source_shop` |
+| DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成（DeepSeek，2026-09-20） | `agent_key_outlet`、`agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）与 Key 轮换同事务复制规则 |
+| DATA-OUTLET-001 | 历史档口审计工具 | ✅ 完成（DeepSeek，2026-09-20） | 只读分布报告 + 可编辑名称映射 CTE（可自动映射/未映射/疑似批次/空值/冲突），不直接改生产 |
 
 验收门禁：迁移在空库和当前生产副本上可执行、可幂等验证；不得改变订单金额、状态、商品明细和文件绑定。
 

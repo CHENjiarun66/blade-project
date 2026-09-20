@@ -7,6 +7,19 @@
 
 ---
 
+## 0. Codex 审核整改记录（2026-09-21）
+
+Codex 独立审核后不放行，本轮（同一分支，未 amend 前三笔 `de5bd89`/`dbe938c`/`f685a98`）补齐以下 Series A 缺口：
+
+- **P0-1 消除档口范围歧义**：V63 为 `agent_key` 增加 `outlet_scope_type varchar(20) NOT NULL DEFAULT 'NONE'`（`ALL`/`ASSIGNED`/`NONE`，不用 `outlet_id=0` 哨兵）。`ALL` 不依赖关联行、新档口自动可见；`ASSIGNED` 必须至少一条有效 `agent_key_outlet`；`NONE` 拒绝档口业务，历史 Key 迁移后默认 NONE 不静默扩权。`AgentKey` 实体新增 `outletScopeType`；契约测试覆盖默认 NONE。
+- **P0-2 Key 轮换复制规则**：`AgentKeyManagementService.rotate` 在同一事务内复制旧 Key 的 `outletScopeType` 与当前有效 `agent_key_outlet` 绑定（保留 `is_default`、带 `tenant_id`、不跨租户），旧 Key 仍按原逻辑停用；新建 Key（create）在 Series B/E UI 接入前保持 NONE。新增真实单元测试：轮换复制 scope type、两条绑定与默认标记；复制失败时旧 Key 状态不被错误更新；构造器适配。
+- **P1-1 审计脚本映射能力**：`scripts/outlet-source-shop-audit.sql` 新增可由发布人员编辑的名称映射 CTE（`name_mapping`），输出可自动映射/未映射/疑似批次·纯数字（空值见 A1/B1、冲突见 C1），全程只 SELECT、无写语句/DDL/临时表。新增静态测试 `OutletAuditSqlReadOnlyTest` 断言脚本不含写语句且含映射输出。
+- **P1-2 文档状态真相**：统一 03-TASKS.md（Series A 摘要区与 Phase 7.1 均已标 ✅）、ROM/SOW Series A 四行标 ✅；DATABASE.md 修正「忽略租户的表」为 `TenantLineHandler` 实际口径（未改拦截行为），并补充 `agent_key.outlet_scope_type` 说明。
+
+本次整改以独立提交记录（见本分支 git log），未 push、未部署、未触碰 NAS/生产、未回填数据。
+
+---
+
 ## 1. 只读基线审计结论
 
 | 项 | 结论 |
@@ -89,11 +102,14 @@ mvn test -Dtest='OutletFlywayMigrationTest'
 mvn test -Dtest='OrderV51SchemaTest,OrderDraftV48SchemaTest,OrderDraftV59SchemaTest,OrderCompatAdapterTest,OrderActionStateMachineTest,OrderFactConsistencyTest,FileAssetSchemaTest'
 # → Tests run: 51, Failures: 0, Errors: 0, Skipped: 0（相关后端回归）
 
+mvn test -Dtest='AgentKeyManagementServiceTest,OutletAccessControlSchemaTest,OutletEntityMappingTest,OutletAuditSqlReadOnlyTest,OutletFlywayMigrationTest'
+# → Tests run: 24, Failures: 0, Errors: 0, Skipped: 0（整改后定向回归，含空库 Flyway V1→V63）
+
 mvn test
-# → 全量后端测试 Tests run: 544, Failures: 0, Errors: 0, Skipped: 0（含本 Series A 新增 12 项）
+# → 全量后端测试 Tests run: 550, Failures: 0, Errors: 0, Skipped: 0（含本 Series A 新增 18 项）
 ```
 
-新增测试 12 项 + 相关回归 51 项 + 全量后端 544/544 全部通过。`OutletFlywayMigrationTest` 在本地 MySQL 8.3 上创建一次性空库执行 V1→V63，验证后删除；未触碰 `blade_project_prod`（生产副本）等库（回归/全量测试按既有约定连接本地 `blade_project` 开发库，属正常测试行为，非生产/NAS）。
+整改前新增测试 12 项 + 相关回归 51 项；整改后新增 6 项（AgentKey 轮换复制 ×2、审计脚本只读契约 ×2、schema/实体契约各 ×1），合计新增 18 项，全量后端 550/550 全部通过。`OutletFlywayMigrationTest` 在本地 MySQL 8.3 上创建一次性空库执行 V1→V63，验证后删除；未触碰 `blade_project_prod`（生产副本）等库（回归/全量测试按既有约定连接本地 `blade_project` 开发库，属正常测试行为，非生产/NAS）。
 
 ---
 

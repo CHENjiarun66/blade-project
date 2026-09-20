@@ -6,7 +6,18 @@
 
 ---
 
-## 2026-09-20 变更记录
+## 2026-09-21 变更记录
+
+### [整改] - 档口 Series A 经 Codex 审核后的缺口补齐
+
+- `agent_key` 增加 `outlet_scope_type varchar(20) NOT NULL DEFAULT 'NONE'`（`ALL`/`ASSIGNED`/`NONE`），消除“无关联行到底是 ALL 还是 NONE”的歧义；`ALL` 不依赖关联行、新档口自动可见，`ASSIGNED` 必须至少一条有效关联，`NONE` 拒绝档口业务；历史 Key 迁移后默认 NONE，不静默扩权。`AgentKey` 实体新增 `outletScopeType`，契约测试覆盖默认 NONE。
+- `AgentKeyManagementService.rotate` 在同一事务内复制旧 Key 的 `outletScopeType` 与当前有效 `agent_key_outlet` 绑定（保留 `is_default`、带 `tenant_id`、不跨租户），旧 Key 仍按原逻辑停用；新建 Key 在管理 UI 接入前保持 NONE。新增轮换复制与复制失败单元测试。
+- `scripts/outlet-source-shop-audit.sql` 新增发布人员可编辑的名称映射 CTE，输出可自动映射/未映射/疑似批次·纯数字，全程只 SELECT、无写语句/DDL/临时表；新增静态只读契约测试。
+- 文档统一：03-TASKS.md、ROM/SOW 的 DB-OUTLET-001~003 与 DATA-OUTLET-001 状态一致；DATABASE.md 修正“忽略租户的表”为 `TenantLineHandler` 实际口径（未改拦截行为）。
+- 影响范围：仅 Series A 数据模型与 Key 轮换复制逻辑，未进入 Series B、未部署、未触碰 NAS/生产、未回填数据。
+- 验证命令与结果（实际执行）：
+  - `mvn test -Dtest='AgentKeyManagementServiceTest,OutletAccessControlSchemaTest,OutletEntityMappingTest,OutletAuditSqlReadOnlyTest,OutletFlywayMigrationTest'` → 24/24 通过（含空库 Flyway V1→V63）；
+  - `mvn test` → 全量后端 550/550 通过（含本次新增 6 项，合计新增 18 项档口测试）。
 
 ### [功能开发] - 档口主数据与数据权限 Series A 数据模型（V63）
 

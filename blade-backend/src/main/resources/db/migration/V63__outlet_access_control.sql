@@ -63,6 +63,13 @@ CREATE TABLE `agent_key_outlet` (
   KEY `idx_agent_key_outlet_key` (`tenant_id`, `agent_key_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent Key 档口关联';
 
+-- ── 3.4a agent_key 档口范围类型 ──────────────────────────────────────────
+-- 消除“无关联行到底是 ALL 还是 NONE”的歧义：ALL 不依赖关联行；ASSIGNED 必须至少
+-- 一条有效 agent_key_outlet；NONE 拒绝档口业务。历史 Key 迁移后默认 NONE，不得
+-- 静默获得全档口权限；生产 Key 范围由 Series F 人工确认。
+ALTER TABLE `agent_key`
+  ADD COLUMN `outlet_scope_type` varchar(20) NOT NULL DEFAULT 'NONE' COMMENT '档口范围：ALL/ASSIGNED/NONE' AFTER `scopes`;
+
 -- ── 3.5 order_outlet_change_log 订单档口变更审计 ────────────────────────
 CREATE TABLE `order_outlet_change_log` (
   `id` bigint NOT NULL AUTO_INCREMENT,

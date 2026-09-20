@@ -1,6 +1,7 @@
 package com.blade.outlet;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.blade.agent.entity.AgentKey;
 import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.entity.Order;
 import com.blade.outlet.entity.AgentKeyOutlet;
@@ -71,6 +72,11 @@ class OutletEntityMappingTest {
     void orderAndDraftGainSourceOutletId() {
         assertHasField(Order.class, "sourceOutletId", Long.class);
         assertHasField(OrderDraft.class, "sourceOutletId", Long.class);
+    }
+
+    @Test
+    void agentKeyGainsOutletScopeType() {
+        assertHasField(AgentKey.class, "outletScopeType", String.class);
     }
 
     // ==================== 辅助方法 ====================

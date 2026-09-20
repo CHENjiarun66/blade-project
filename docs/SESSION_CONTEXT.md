@@ -5,11 +5,12 @@
 
 ---
 
-## 2026-09-20 档口 Series A 数据模型完成
+## 2026-09-20 档口 Series A 数据模型完成（含 Codex 审核整改）
 
-- 档口权限改造 Series A（数据模型与兼容迁移）已完成，交付报告见 [2026-09-20-outlet-series-a-delivery.md](./superpowers/plans/2026-09-20-outlet-series-a-delivery.md)。
+- 档口权限改造 Series A（数据模型与兼容迁移）已完成并经 Codex 审核整改，交付报告见 [2026-09-20-outlet-series-a-delivery.md](./superpowers/plans/2026-09-20-outlet-series-a-delivery.md)。
 - V63 加法迁移落地：`sales_outlet`、`sys_user_outlet`、`agent_key_outlet`、`order_outlet_change_log` 四表；`sale_order.source_outlet_id`（可空）与 `order_draft.source_outlet_id`（可空）及租户前缀索引；`source_shop` 保留不改写历史数据。
-- 新增 `com.blade.outlet` 实体/Mapper 与只读审计 `scripts/outlet-source-shop-audit.sql`；测试 12 项新增 + 回归 51/51，空库 Flyway V1→V63 通过。
+- Codex 整改补齐：`agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）消除范围歧义；`rotate` 同事务复制范围与有效绑定、新建 Key 保持 NONE；审计脚本新增可编辑名称映射 CTE（全程只读）；文档状态统一。
+- 新增 `com.blade.outlet` 实体/Mapper 与只读审计 `scripts/outlet-source-shop-audit.sql`；空库 Flyway V1→V63 通过，相关测试与全量后端通过（见交付报告）。
 - 未做（保持 TODO）：档口 CRUD、用户授权、统一访问策略、订单/草稿写入、统计/导出/文件/Agent、历史回填与生产发布（Series B-G）。
 
 ## 2026-09-20 档口主数据与数据权限规划
