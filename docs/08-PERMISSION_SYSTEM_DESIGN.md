@@ -2,7 +2,7 @@
 
 > 本文档描述权限系统当前实现和补充说明。
 > 若与 [architecture/DATABASE.md](./architecture/DATABASE.md) 或 Flyway 迁移脚本冲突，以迁移脚本累计结果为准。
-> 更新日期：2026-04-10
+> 更新日期：2026-09-20
 
 ---
 
@@ -239,3 +239,40 @@ CREATE TABLE sys_role_menu (
 1. `sys_role_menu` 当前不作为权限判断主路径。
 2. 租户隔离依赖 `TenantLineInnerInterceptor`，权限数据必须保证 `tenant_id` 正确。
 3. 若后续新增权限编码或权限类型，必须同时更新迁移脚本、`DATABASE.md` 和本文档。
+
+---
+
+## 九、档口数据范围目标模型（已确认，待开发）
+
+现有 `btn:order:viewAll` 将订单访问简化为“全租户全部订单”或“本人订单”，无法表达老板跨档口、档口负责人查看所属档口、销售员锁定档口等业务。目标模型拆成两个正交维度：
+
+| 维度 | 可选范围 | 含义 |
+|---|---|---|
+| 档口范围 | `ALL / ASSIGNED / NONE` | 全租户档口、用户绑定档口、无可访问档口 |
+| 人员范围 | `ALL_USERS / SELF` | 在允许档口内看全部人员或仅本人 |
+
+拟新增权限：
+
+- `data:outlet:all`：访问本租户全部档口。
+- `data:order:peopleAll`：在可访问档口内查看全部人员订单。
+- `menu:outlet`、`btn:outlet:create/edit/disable`：档口管理。
+
+第一期仍使用当前权限表结构，`data:*` 作为 `type=2` 授权能力保存，不新增第五种权限类型。用户的具体档口集合保存在 `sys_user_outlet`，不是角色权限的替代品。
+
+访问计算顺序：
+
+```text
+租户隔离 → 档口范围 → 人员范围 → 按钮/API 动作权限 → 字段权限
+```
+
+约束：
+
+1. Owner/Admin 默认 `ALL + ALL_USERS`。
+2. 财务默认 `ALL + ALL_USERS`，但写操作和金额字段仍需独立权限。
+3. 档口负责人为 `ASSIGNED + ALL_USERS`。
+4. 销售员默认 `ASSIGNED + SELF`。
+5. 无有效档口绑定且无 `data:outlet:all` 时范围为 `NONE`，不得回落到全部数据。
+6. 现有 `btn:order:viewAll` 只用于兼容迁移，不得在新策略中继续单独绕过档口范围。
+7. 后端策略必须覆盖订单、草稿、统计、导出、文件和 Agent API；前端菜单或按钮隐藏不是权限边界。
+
+完整设计和角色矩阵见 [20-OUTLET_ACCESS_CONTROL_DESIGN.md](./20-OUTLET_ACCESS_CONTROL_DESIGN.md)。

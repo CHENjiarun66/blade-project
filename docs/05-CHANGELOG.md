@@ -8,6 +8,14 @@
 
 ## 2026-09-20 变更记录
 
+### [架构设计] - 档口主数据、用户多档口与数据权限边界
+
+- 新增 `20-OUTLET_ACCESS_CONTROL_DESIGN.md`：档口从订单自由文本升级为正式主数据，用户可绑定一个或多个档口并设置个人默认档口；老板可访问全部档口，销售员只能访问绑定档口。
+- 订单数据范围拆为“档口范围 `ALL/ASSIGNED/NONE` × 人员范围 `ALL_USERS/SELF`”，销售员默认 `ASSIGNED + SELF`，档口负责人为 `ASSIGNED + ALL_USERS`，Owner/Admin 为 `ALL + ALL_USERS`。
+- 规划 `sales_outlet`、`sys_user_outlet`、`agent_key_outlet` 以及订单/草稿 `source_outlet_id`；`source_shop` 保留为历史名称快照，不再作为权限依据。
+- 新增 `2026-09-20-outlet-access-control-rom-sow.md` 和 Phase 7.1 任务组，覆盖数据库、统一后端策略、用户/档口页面、订单草稿、统计导出、文件、Agent、历史迁移和 NAS 发布门禁。
+- 本次只更新架构、PRD、任务和决策文档，未修改运行代码、数据库或生产环境。
+
 ### [Bug 修复已验证、待生产发布] - 单据批次误写来源档口
 
 - 确认问题属于后端数据写入错误，不是详情页表达错误：草稿确认正式订单时，旧逻辑在 `sourceShop` 为空的情况下错误使用 `sourceBatchNo` 兜底，导致第 42 批的订单详情把“来源档口/店铺”显示为 `42`。

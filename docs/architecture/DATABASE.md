@@ -5,6 +5,8 @@
 > 新增或变更字段时，必须同步更新本文档；专题设计文档只记录增量设计，不重复维护整表最终版。
 > 最后更新：2026-06-21
 
+> 已确认但尚未实施的档口结构变更包括 `sales_outlet`、`sys_user_outlet`、`agent_key_outlet`、`order_outlet_change_log` 以及订单/草稿 `source_outlet_id`。在对应 Flyway 落地前，这些结构不属于当前数据库事实；设计和任务见 [20-OUTLET_ACCESS_CONTROL_DESIGN.md](../20-OUTLET_ACCESS_CONTROL_DESIGN.md)。
+
 ---
 
 ## 一、系统模块（System）

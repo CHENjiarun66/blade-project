@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-09-20 档口主数据与数据权限规划
+
+- 档口已确定从订单自由文本升级为正式主数据和数据权限边界，设计见 [20-OUTLET_ACCESS_CONTROL_DESIGN.md](./20-OUTLET_ACCESS_CONTROL_DESIGN.md)。
+- 用户与档口为多对多关系：Owner/Admin 可访问全部档口；档口负责人可看绑定档口内全部人员；销售员默认只能看本人在绑定档口的订单。
+- 订单范围按“租户 ∩ 档口范围 `ALL/ASSIGNED/NONE` ∩ 人员范围 `ALL_USERS/SELF` ∩ 动作/字段权限”计算，必须统一覆盖列表、详情、草稿、统计、导出、文件和 Agent API。
+- 目标结构包括 `sales_outlet`、`sys_user_outlet`、`agent_key_outlet`、`order_outlet_change_log` 以及订单/草稿 `source_outlet_id`；现有 `source_shop` 保留为名称快照。
+- 开发任务已拆为 A～G 七个系列，见 [2026-09-20-outlet-access-control-rom-sow.md](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)。当前仅完成设计和任务规划，尚未修改运行代码、数据库或生产环境。
+
 ## 2026-09-18 Agent 接入与生产基线
 
 - 新增 [19-AGENT_CONNECTION_PLAYBOOK.md](./19-AGENT_CONNECTION_PLAYBOOK.md)，把生产入口、MCP 配置、14 个工具、scope、首次只读验收、错误处理和标准 Agent 指令集中为单页接入流程。

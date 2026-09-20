@@ -32,6 +32,7 @@
 | PC 管理端页面开发 | ✅ 完成 | 订单/库存/商品/客户管理页面 |
 | 看板系统开发 | ⏳ 部分完成 | 仪表盘、趋势、库存周转和数据分析已完成；仪表盘数据权限待补 |
 | 外部 Agent 对接 | ⏳ 进行中 | 款式趋势、颜色尺码结构、纸单草稿和 WhatsApp 本地归档已完成；经营类只读接口、生产联调和限流仍待完成 |
+| 档口主数据与数据权限 | 📝 已规划 | 用户多档口、订单二维数据范围、统计/导出/文件/Agent 全出口收口待开发 |
 
 ### 近期主线与状态口径（2026-08-29）
 
@@ -72,6 +73,7 @@
 | P1-1 | TEST-WA-NAS-001 | 依赖生产 Collector/Worker Key、网络和备份 | Mac 增量同步、客户工作区、媒体和定向扫描在 NAS 验收 |
 | P1-2 | BE-556～BE-560、BE-585、BE-562 | 先完成数据包和毛利脱敏，再做限流与真实 Agent 回归 | Agent Gateway 经营接口按租户和 scope 稳定返回 |
 | P1-3 | BE-506 | 与客户归属、订单创建人和分析权限一起设计 | 仪表盘按角色显示正确数据范围 |
+| P0-4 | DB-OUTLET-001～003、BE-OUTLET-001～010、BA-OUTLET-001～006、TEST-OUTLET-001～004、DATA-OUTLET-001～003 | 按[档口权限 ROM/SOW](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)完成主数据、用户绑定和统一后端策略后，才能切换订单/草稿/统计出口 | 销售员无法越权访问其他档口；Owner 可跨档口；历史订单安全回填且全部出口同口径 |
 
 ---
 
@@ -542,6 +544,44 @@
 | BA-702 | 角色管理页面 | ✅ 完成 | 角色列表、新建/编辑与权限分配；修复权限树勾选残留（setCheckedKeys 重应用 + 叶子过滤防父节点全选）、半选父节点合并提交（getHalfCheckedKeys）；角色删除保护覆盖；Playwright 完整 CRUD + 半选持久化验收通过 |
 | BA-703 | 权限配置页面 | ✅ 完成 | 权限树配置（新建/编辑/删除）；权限删除加子权限引用保护；修复软删不生效（deleteById）；前端删除操作补错误提示；Playwright 删除保护验收通过 |
 | BA-704 | 个人中心页面 | ✅ 完成 | 修改密码、个人信息；头部下拉菜单新增个人中心入口 |
+
+### Phase 7.1: 档口主数据与跨档口数据权限（P0）
+
+> 业务和架构依据：[20-OUTLET_ACCESS_CONTROL_DESIGN.md](./20-OUTLET_ACCESS_CONTROL_DESIGN.md)
+> 实施顺序和验收门禁：[2026-09-20-outlet-access-control-rom-sow.md](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)
+
+| 任务 ID | 任务 | 状态 | 备注 |
+|---------|------|------|------|
+| ARCH-OUTLET-001 | 档口和数据范围契约冻结 | ✅ 完成（Codex，2026-09-20） | 锁定档口主数据、用户多档口、`ALL/ASSIGNED/NONE × ALL_USERS/SELF`、Agent Key 档口范围和生产迁移边界 |
+| DB-OUTLET-001 | 档口与用户关联表 | ⏳ TODO | 新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则 |
+| DB-OUTLET-002 | 订单与草稿档口 ID 及变更审计 | ⏳ TODO | 为 `sale_order/order_draft` 增加可空 `source_outlet_id`，新增 `order_outlet_change_log`；保留 `source_shop` 名称快照和兼容双读 |
+| DB-OUTLET-003 | Agent Key 档口关联 | ⏳ TODO | 新增 `agent_key_outlet`，定义 Key 轮换、默认档口和全部/指定档口范围 |
+| BE-OUTLET-001 | 档口主数据服务与 API | ⏳ TODO | CRUD、启停、默认档口、历史引用保护和 `/api/outlets/options` |
+| BE-OUTLET-002 | 用户多档口绑定 | ⏳ TODO | 用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |
+| BE-OUTLET-003 | 档口和人员范围权限 | ⏳ TODO | 新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |
+| BE-OUTLET-004 | 统一 `OutletAccessPolicy` | ⏳ TODO | 用户/Agent 范围解析、默认档口、选项裁剪和写入校验；无绑定明确拒绝 |
+| BE-OUTLET-005 | `OrderAccessPolicy` 二维范围重构 | ⏳ TODO | 订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围 |
+| BE-OUTLET-006 | 草稿档口权限接入 | ⏳ TODO | 草稿列表/详情/新建/编辑/删除/确认统一范围；转正式订单时二次校验 |
+| BE-OUTLET-007 | 订单/草稿 DTO 与名称快照 | ⏳ TODO | 接入 `sourceOutletId/code/name`；服务端从主数据生成 `source_shop`，禁止单据批次兜底 |
+| BE-OUTLET-008 | 看板与分析范围接入 | ⏳ TODO | 汇总、趋势、排行和客户贡献先裁剪档口/人员范围再聚合；缓存键包含范围摘要 |
+| BE-OUTLET-009 | 导出与文件权限接入 | ⏳ TODO | 订单导出、订单/草稿图片绑定与预览同列表/详情范围一致 |
+| BE-OUTLET-010 | Agent Key 档口范围 | ⏳ TODO | Key 签发/轮换、capabilities、档口查询和草稿/订单写入校验；越权档口返回 403 |
+| BA-OUTLET-001 | 档口管理页面 | ⏳ TODO | 列表、搜索、新建/编辑、启停、默认档口和历史引用提示 |
+| BA-OUTLET-002 | 用户管理档口授权 | ⏳ TODO | 可访问档口多选、默认档口、权限摘要和销售员必选校验 |
+| BA-OUTLET-003 | 订单与草稿档口选择器 | ⏳ TODO | 单档口锁定、多档口只显示授权集合、Owner 显示全部启用档口 |
+| BA-OUTLET-004 | 订单/草稿档口筛选 | ⏳ TODO | 列表按档口筛选，Owner 可处理“待归档档口”历史数据 |
+| BA-OUTLET-005 | 统计档口筛选与对比 | ⏳ TODO | “全部档口”仅汇总当前授权集合；Owner 支持单/多档口对比 |
+| BA-OUTLET-006 | Agent Key 档口配置 | ⏳ TODO | 全部/指定档口、默认档口和服务器 capability 同步展示 |
+| DATA-OUTLET-001 | 历史档口只读审计工具 | ⏳ TODO | 统计 `source_shop` 分布并输出自动映射、疑似批次、空值和冲突清单；不写生产 |
+| DATA-OUTLET-002 | 生产副本映射预演 | ⏳ TODO | 回填订单/草稿并对账数量、金额、状态、明细和文件绑定，脚本可重复执行 |
+| DATA-OUTLET-003 | 用户初始档口授权清单 | ⏳ TODO | Owner/财务/负责人/销售员的初始档口和人员范围需人工确认后迁移 |
+| TEST-OUTLET-001 | 后端越权矩阵 | ⏳ TODO | 单/多/全部/无档口、SELF/ALL_USERS、跨租户和禁用档口 |
+| TEST-OUTLET-002 | 订单与草稿 E2E | ⏳ TODO | 快速录单、手工/Agent 草稿、草稿确认、正式订单和伪造档口请求 |
+| TEST-OUTLET-003 | 全出口防泄漏回归 | ⏳ TODO | 列表、详情、统计、导出、文件、Agent 和缓存跨角色切换 |
+| TEST-OUTLET-004 | 全量回归与性能 | ⏳ TODO | 后端全量、PC 构建、关键 E2E 和档口范围 SQL 查询计划 |
+| DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | ⏳ TODO | 双份备份、先双读后切写、生产副本预演、异常清单确认、发布验收和回滚证据 |
+| ARCH-OUTLET-002 | 兼容期复盘 | ⏳ TODO | 稳定一个发布周期后评估旧 `btn:order:viewAll`、空档口兼容和 ID 非空约束 |
+| DOC-OUTLET-001 | 文档与接入手册收口 | ⏳ TODO | 实现完成后同步 PRD、数据库、权限、API、Agent 手册和发布记录 |
 
 ### Phase 8: 纸单草稿人工复核（P0）
 
