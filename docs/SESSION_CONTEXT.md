@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-09-21 档口 Series C Codex 终审整改完成
+
+- 修复 P0：NULL 档口列表/详情一致性、严格租户隔离（含 tenant=0 不绕过）、草稿确认档口贯通与禁用档口阻断、重复 externalRefNo IDOR；P1：默认优先级/绑定交集/NONE 保留范围位、真实矩阵测试。
+- 交付报告见 [2026-09-21-outlet-series-c-delivery.md](./superpowers/plans/2026-09-21-outlet-series-c-delivery.md)；全量后端 617/617 通过。
+
 ## 2026-09-21 档口 Series C 统一访问策略完成
 
 - `OutletAccessPolicy`（用户/Agent 二维范围快照、读写分离、默认优先级、结构化 options）、`OrderAccessPolicy` 二维重构、草稿访问收口、V65 迁移（`data:outlet:unassigned` + `order_draft.created_by_user_id`）已完成。

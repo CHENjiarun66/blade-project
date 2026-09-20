@@ -7,6 +7,24 @@
 
 ---
 
+## 0. Codex 终审整改记录（2026-09-21）
+
+逐条映射问题 → 修复 → 测试（独立整改 commit `[dsh]`）：
+
+| 编号 | 问题 | 修复 | 测试 |
+|---|---|---|---|
+| P0-1 | 列表/详情对 `source_outlet_id=NULL` 授权不一致 | `OutletAccessScope.outletFilter()` 统一六种形态（ALL±/ASSIGNED±/NONE±），`OrderAccessPolicy.applyScopePredicate` 与 `OutletAccessPolicy.applyDraftReadScope` 共用；先档口谓词再独立叠加人员维度 | `OutletScopeMatrixTest.outletFilterCoversAllSixCombinations`、`orderAndDraftDetailsMatchFilterSemanticsForAssignedUnassigned`、`noneUnassignedShowsOnlyNullRowsAndDetailAllowsNull`、`noneWithoutUnassignedDeniesAll`；`OutletNullScopeIntegrationTest.assignedWithUnassignedSeesNullInListAndDetail`、`assignedWithoutUnassignedCannotSeeNullInListOrDetail` |
+| P0-2 | `scope.tenantId==0` 绕过租户隔离 | 删除绕过；实体/范围租户任一为空或不相等 fail closed；Agent 校验 principal/context/DB key 租户一致且非空、Key 存在且启用未过期 | `orderRequireAccessFailsClosedOnTenantMismatchOrZeroScope`、`draftRequireAccessFailsClosedOnTenantMismatch`、`agentScopeFailsClosedWhenKeyMissing`、`agentScopeFailsClosedWhenKeyDisabledOrExpiredOrTenantMismatch` |
+| P0-3 | 草稿确认丢失档口 ID；禁用档口仍可确认 | `OrderCreateDTO.sourceOutletId`；`toOrderCreate` 携带；`OrderServiceImpl.create` 先 `requireUseOutlet` 再由主数据生成 `sourceShop` 快照并写 `order.sourceOutletId`（不信任客户端文本）；`confirm` 顺序 = requireDraftAccess → 幂等返回 → 空档口阻断 → requireUseOutlet | `OrderDraftConfirmFinanceTest.confirmDraft_propagatesOutletIdAndMasterNameSnapshot`、`confirmDraft_disabledOutletIsRejected`、`confirmDraft_withSourceShop_preservesExplicitSourceShop`（断言改为主数据名称） |
+| P0-4 | 重复 `externalRefNo` IDOR/存在性泄露 | `OrderDraftWriter.resolveDuplicate`：仅同创建主体（Agent key id / 手工 user id）幂等并仍需读取策略；不同主体 409 且不暴露 ID；并发 `DuplicateKeyException` 同处理；manual(null creator) 不可被认领 | `OrderDraftDuplicateRefTest.manualSameActorIsIdempotentWithDraftId`、`manualDifferentActorGets409WithoutExistingDraftId`、`manualNullCreatorCannotBeClaimedByAnotherActor`、`agentSameKeyIsIdempotentWithDraftId`、`agentDifferentKeyGets409`、`agentCannotClaimManualDraft` |
+| P1-1 | 范围解析与默认 | ALL 也使用个人/Key 默认；ASSIGNED 绑定与本租户未删档口取交集；NONE 保留真实 peopleAll/unassigned；`canReadOutlet` 仅认 readable 集合（不再无条件 true）；`loadTenantOutlets` 显式租户+未删 | `userAllUsesPersonalDefault`、`agentAllUsesKeyDefaultAndAssignedIntersectsTenantOutlets`、`disabledOutletReadableButNotUsable`、`peopleScopeIndependentAndViewAllCompatDoesNotBypass` |
+| P1-2 | 测试用宽泛 mock 掩盖策略 | 新增真实矩阵/集成测试（行为断言，非字符串/仅 scope 对象）：`OutletScopeMatrixTest`、`OutletNullScopeIntegrationTest`、`OrderDraftDuplicateRefTest`；保留 `OutletTestScopes` 仅给不关心权限的旧单测 | 上列各测试 |
+| P1-7 | V65 迁移/权限 | 静态+真实库断言：`data:outlet:unassigned` 仅 OWNER/ADMIN（FINANCE/SALES 无）；`order_draft.created_by_user_id` 与索引存在；V1→V65 空库通过 | `OutletV65SchemaTest.addsUnassignedPermissionGrantedOnlyToOwnerAdmin`、`addsDraftCreatorColumnAndIndexes`；`OutletPermissionMigrationIntegrationTest.unassignedPermissionExistsOnlyForOwnerAdmin`、`orderDraftHasCreatorColumn`；`OutletFlywayMigrationTest` |
+
+验证（整改 commit）：全量后端 **617/617**；前端 `npm run build` 通过；Playwright `e2e-outlet.spec.ts` **3 passed**。
+
+---
+
 ## 1. 迁移
 
 **V65__outlet_access_policy.sql**（最高旧版本 V64）：

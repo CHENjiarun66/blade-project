@@ -8,6 +8,15 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口 Series C 经 Codex 终审后的缺口补齐
+
+- P0-1：`OutletAccessScope.outletFilter()` 统一六种档口过滤形态，订单与草稿共用，列表与详情对 `source_outlet_id=NULL` 语义一致（ASSIGNED+unassigned=IN OR NULL；NONE+unassigned=IS NULL）。
+- P0-2：删除 `tenantId==0` 绕过，实体/范围租户为空或不相等一律 fail closed；Agent 校验 principal/context/DB key 租户一致且非空、Key 存在启用未过期。
+- P0-3：草稿确认贯通档口：`OrderCreateDTO.sourceOutletId` → `OrderServiceImpl.create` `requireUseOutlet` + 主数据名称快照 + `order.sourceOutletId`；`confirm` 幂等返回优先、空档口阻断、禁用档口拒绝。
+- P0-4：`externalRefNo` 重复仅同创建主体幂等，不同主体 409 且不泄露 ID；null creator 不可被认领。
+- P1：ALL 使用个人/Key 默认；ASSIGNED 绑定与本租户档口取交集；NONE 保留 people/unassigned；`canReadOutlet` 仅认 readable。
+- 测试：新增 `OutletScopeMatrixTest`、`OutletNullScopeIntegrationTest`、`OrderDraftDuplicateRefTest`、`OutletV65SchemaTest`；全量后端 617/617，前端构建与 e2e-outlet 通过。
+
 ### [功能开发] - 档口 Series C 统一后端数据访问策略（V65）
 
 - 新增统一 `OutletAccessPolicy` / `OutletAccessScope`：JWT 用户与 Agent 的档口范围（ALL/ASSIGNED/NONE）与人员范围（ALL_USERS/SELF）二维唯一事实；读写分离（禁用档口可读历史、不可用于写入）；默认档口优先级个人/Key → 租户 → 唯一可用；`GET /api/outlets/options` 改为结构化契约（scopeType/peopleScope/locked/defaultOutletId/items），前端已适配。
