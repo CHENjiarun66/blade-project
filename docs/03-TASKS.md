@@ -427,6 +427,7 @@
 | BE-1012 | 图片派生图/缩略图底座 | ✅ 完成 | SOW：docs/superpowers/plans/2026-06-18-file-derivatives-v1-sow.md；V38 新增 file_derivative；已建立派生图服务、生成器、存储 Provider 脚手架；上传后生成 thumb/card，失败不回滚原图；新增 GET /api/files/{id}/variant?type=thumb/card 并复用原图权限/previewToken，缺失时回退原图；新增当前租户幂等批量补生成接口；2026-06-18 已在本机测试环境为 tenant 1 的 89 张历史图补齐 178 个派生文件（0 FAILED、0 缺失），生产环境仍须按运维规范单独执行 |
 | BE-1013 | 商品素材查询 API | ✅ 完成 | GET /api/products/{id}/file-bindings，返回 main/gallery/skuImages 分组，previewUrl 统一为 /api/files/{fileId}/preview |
 | BE-1014 | 商品/SKU 删除引用保护验收 + SKU精细更新 | ✅ 完成 | 新增 PUT /api/products/skus 单个SKU更新；syncProductSkus 保留已有 SKU price/costPrice/barCode/status；delete/deleteColor/deleteSize 添加引用保护，有引用时提示建议禁用；39 个后端测试全部通过 |
+| BE-1015 | 订单图片绑定一致性与历史修复 | ✅ 完成并发布（2026-09-20） | 上传和订单编辑时同步 `file_business_bind`，文件中心“订单图片”聚合 `order`/`order_draft`；V61 补齐历史绑定。release `20260920_104500` 验证 38/38 个订单图片引用已绑定、重复/跨租户/缺失绑定均为 0，未绑定列表中的订单图片为 0 |
 
 ### Phase 6.7: 客户 iPad 现货展示页后端（P1）
 
