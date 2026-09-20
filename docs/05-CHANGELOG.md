@@ -8,6 +8,12 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口 Series B2 经 Codex 终审后的缺口补齐
+
+- 多角色校验：`GET /api/system/roles/all` 的 `RoleVO` 新增服务端派生 `grantsOutletAll`（`RolePermissionMapper` 单次查询、角色集合按租户过滤，避免跨租户/N+1）；前端 `requiresSalesOutlet` 改为「含 ROLE_SALES 且所选角色都未授予 data:outlet:all 且无档口」，与后端一致，自定义授权角色可行。
+- 筛选栏/分页：档口页筛选栏内联宽度覆盖 Element Plus（桌面同排、窄屏换行）；搜索按钮先重置第 1 页再加载。
+- 验证：后端 `RoleOutletScopeContractTest` + `OutletPermissionMigrationIntegrationTest` 10/10，全量后端 583/583；前端 `npm run build` 通过；Playwright `e2e-outlet.spec.ts` 3 passed。
+
 ### [功能开发] - 档口 Series B2 前端（BA-OUTLET-001/002）
 
 - 新增 `blade-admin/src/api/outlet.ts` typed API 与 `/outlets` 档口管理页：搜索/状态筛选/分页、编码/名称/类型/默认/状态/绑定用户/订单/草稿列、新建编辑、设默认、启停二次确认（含引用数）；菜单受 `menu:outlet`、按钮受 `btn:outlet:*` 控制。

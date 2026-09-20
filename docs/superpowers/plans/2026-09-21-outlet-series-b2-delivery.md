@@ -6,6 +6,14 @@
 
 ---
 
+## 0. Codex 终审整改记录（2026-09-21）
+
+- **Blocker 1 多角色校验不一致**：前端原先只要选中 `ROLE_SALES` 且无档口就阻止，严于后端（后端允许所选角色集合含 `data:outlet:all` 时无绑定）。整改：后端 `GET /api/system/roles/all` 的 `RoleVO` 新增服务端派生 `grantsOutletAll`（`RolePermissionMapper.selectRoleIdsByPermissionCodeAndRoleIds` 单次查询，角色集合来自已按租户过滤的 `sys_role`，避免跨租户与 N+1）；前端 `requiresSalesOutlet` 改为「含 ROLE_SALES 且所选角色都未授予 data:outlet:all 且无档口」。覆盖：ROLE_SALES 单独→阻止；ROLE_SALES + OWNER（grantsOutletAll）→放行；自定义授权角色→可行；角色权限变化由服务端返回体现。
+- **Blocker 2 筛选栏/分页**：筛选栏改用内联宽度覆盖 Element Plus（`width: 16rem`/`8rem; flex: 0 0 auto`），桌面同排、窄屏换行；搜索按钮改为 `reload()`，与回车/清空/状态一致先重置到第 1 页再加载。
+- 测试：后端 `RoleOutletScopeContractTest`（单测，单次查询非 N+1）与 `OutletPermissionMigrationIntegrationTest.roleListExposesOutletAllContract`（真实库 OWNER/ADMIN/FINANCE=true、SALES=false）；前端 `npm run build`；Playwright `e2e-outlet.spec.ts` **3 passed**（新增正向/负向多角色与紧凑筛选栏/分页重置断言，截图 `e2e-outlet-08-compact-filter.png`）。
+
+---
+
 ## 1. 交付内容
 
 ### BA-OUTLET-001 档口管理页
@@ -21,7 +29,7 @@
 - options 来自后端 `GET /api/outlets/options`，不自行构造全量。
 - 「可访问档口」多选；「默认档口」只从已选档口选择；移除档口时自动清掉非法默认（watch）。
 - 只读权限摘要来自后端 `UserVO.outletScope/peopleScope`（全部档口/指定档口/无档口；全部人员/仅本人），前端不按角色名推导。
-- `ROLE_SALES`（真实 roleCode）无档口时前端阻止保存；后端仍是最终门禁；角色下拉展示 `roleName（roleCode）`。
+- `ROLE_SALES`（真实 roleCode）**且所选角色都未授予 `data:outlet:all`** 且无档口时前端阻止保存；`grantsOutletAll` 由后端 `GET /api/system/roles/all` 服务端派生，因此 ROLE_SALES + OWNER/ADMIN/FINANCE 或自定义授权角色可无绑定；后端仍是最终门禁；角色下拉展示 `roleName（roleCode）`。
 - 仅状态启停的独立操作只提交 `{id, status}`，不提交 `outletIds/defaultOutletId`；完整编辑表单才明确提交档口。
 - 兼容旧用户：字段缺失用空数组/null；切换角色不清空已选档口；不增加全局档口切换器。
 
@@ -49,16 +57,23 @@
 ## 3. 测试与验收
 
 ```bash
+# 后端契约
+cd blade-backend
+mvn test -Dtest='RoleOutletScopeContractTest,OutletPermissionMigrationIntegrationTest'
+# → 10/10（RoleOutletScopeContractTest 1 + 集成 9）
+
+# 前端
 cd blade-admin
 npm run build     # vue-tsc 类型检查 + vite build 通过（产出 outlets-*.js）
 npx playwright test e2e-outlet.spec.ts --reporter=line
-# → 2 passed（BA-OUTLET-001 / BA-OUTLET-002）
+# → 3 passed（列表/CRUD/启停、用户授权、筛选栏紧凑与分页重置）
 ```
 
 浏览器验收（本地 dev：后端 8080 + 前端 5777，均连本地开发库，未连生产）：
 - BA-OUTLET-001：菜单入口可见 → `/outlets` 列表 → 新建档口出现 → 编辑时编码只读+提示 → 禁用二次确认含「历史数据仍保留」引用提示 → 状态变禁用。
-- BA-OUTLET-002：选 `ROLE_SALES` 不选档口 → 提示「销售员至少绑定一个档口」并阻止；选档口+默认后保存成功；状态切换发出的 `PUT /api/system/users` payload 断言 `status=0` 且**不含** `outletIds/defaultOutletId`。
-- 截图证据：`blade-admin/test-screenshots/e2e-outlet-01..07-*.png`（test-screenshots 已在 .gitignore）。
+- BA-OUTLET-001（整改）：筛选栏 4 个控件同一行（y 差 < 8px）、搜索输入非全宽（<400px）；第 2 页点击搜索后请求 `current=1`。
+- BA-OUTLET-002：选 `ROLE_SALES` 不选档口 → 提示「销售员至少绑定一个档口」并阻止；再选 `ROLE_OWNER`（服务端 `grantsOutletAll`）→ 警告消失（放行）；取消 `ROLE_OWNER` → 警告恢复；选档口+默认后保存成功；状态切换发出的 `PUT /api/system/users` payload 断言 `status=0` 且**不含** `outletIds/defaultOutletId`。
+- 截图证据：`blade-admin/test-screenshots/e2e-outlet-01..08-*.png`（test-screenshots 已在 .gitignore）。
 - 测试数据用后可回收：E2E 档口 `E2E*`、用户 `e2eoutlet*`，验收后已从本地开发库清理（0/0）。
 
 无可用前端单测框架（无 vitest/vue-test-utils），本轮以前端类型检查/构建 + Playwright 等价浏览器验收替代。
@@ -67,8 +82,8 @@ npx playwright test e2e-outlet.spec.ts --reporter=line
 
 ## 4. 安全与兼容说明
 
-- 前端仅展示后端返回的 `outletScope/peopleScope` 与 `/api/outlets/options`，不自行假定全档口。
-- 销售员无档口仅前端拦截，后端 `UserServiceImpl` 仍是最终门禁。
+- 前端仅展示后端返回的 `outletScope/peopleScope`、`/api/outlets/options` 与角色 `grantsOutletAll`，不按内置 roleCode 猜测全档口；自定义授权角色由服务端事实驱动。
+- 销售员无档口校验与后端 `UserServiceImpl` 的 `data:outlet:all` 规则一致；后端仍是最终门禁。
 - 状态启停不提交档口字段，避免误重写 `sys_user_outlet`。
 - 沿用现有 Blade 主题/Element Plus/Tailwind，未引入新字体或紫色模板；未进入 Series C 数据过滤。
 
