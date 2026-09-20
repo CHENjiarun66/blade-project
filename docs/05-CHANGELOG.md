@@ -8,6 +8,17 @@
 
 ## 2026-09-20 变更记录
 
+### [功能开发] - 档口主数据与数据权限 Series A 数据模型（V63）
+
+- 新增 Flyway `V63__outlet_access_control.sql`（加法迁移）：`sales_outlet`、`sys_user_outlet`、`agent_key_outlet`、`order_outlet_change_log` 四张表；`sale_order.source_outlet_id`（可空）与 `order_draft.source_outlet_id`（可空）字段及租户前缀索引。正式订单 `source_outlet_id` 保持可空，草稿允许为空；`source_shop` 保留不改写历史数据。
+- 新增 `com.blade.outlet` 实体与 Mapper（SalesOutlet/SysUserOutlet/AgentKeyOutlet/OrderOutletChangeLog）；`Order`、`OrderDraft` 实体新增 `sourceOutletId` 字段。
+- 新增只读历史档口审计 `scripts/outlet-source-shop-audit.sql`（仅 SELECT，无 UPDATE/DELETE），输出 source_shop 分布/空值/疑似批次/纯数字/订单草稿冲突候选。
+- 影响范围：仅新增表/字段/索引与文档，不改订单金额、状态、明细、图片绑定或 source_shop；不进入 CRUD、权限策略、前端或生产部署。
+- 验证命令与结果（实际执行）：
+  - `cd blade-backend && mvn test -Dtest='OutletAccessControlSchemaTest,OutletEntityMappingTest'` → 11/11 通过；
+  - `mvn test -Dtest='OutletFlywayMigrationTest'` → 空库 Flyway V1→V63 连续迁移成功（65 个迁移文件，pending=0，临时库自动删除）；
+  - `mvn test -Dtest='OrderV51SchemaTest,OrderDraftV48SchemaTest,OrderDraftV59SchemaTest,OrderCompatAdapterTest,OrderActionStateMachineTest,OrderFactConsistencyTest,FileAssetSchemaTest'` → 51/51 通过。
+
 ### [架构设计] - 档口主数据、用户多档口与数据权限边界
 
 - 新增 `20-OUTLET_ACCESS_CONTROL_DESIGN.md`：档口从订单自由文本升级为正式主数据，用户可绑定一个或多个档口并设置个人默认档口；老板可访问全部档口，销售员只能访问绑定档口。

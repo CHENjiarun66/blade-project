@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/18 17:44:05　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/20 23:55:46　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,18 +73,18 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">186 完成 · 0 进行中 · 22 待办 · 0 部分 · 6 暂缓</span>
+          <span class="card-nums">188 完成 · 0 进行中 · 22 待办 · 0 部分 · 6 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:89%"></div></div>
-        <div class="bar-label">89% 完成（活跃 208 项，暂缓 6 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+        <div class="bar-label">90% 完成（活跃 210 项，暂缓 6 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">89 完成 · 0 进行中 · 0 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">89 完成 · 0 进行中 · 21 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:100%"></div></div>
-        <div class="bar-label">100% 完成（活跃 89 项，暂缓 2 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:81%"></div></div>
+        <div class="bar-label">81% 完成（活跃 110 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -102,7 +102,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">31</span></h2>
+      <h2>🟡 还没做 <span class="count">52</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -259,6 +259,153 @@
         <td class="td-remark">V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
       </tr>
       <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-001</td>
+        <td class="td-name">档口主数据服务与 API</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">CRUD、启停、默认档口、历史引用保护和 `/api/outlets/options` |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-002</td>
+        <td class="td-name">用户多档口绑定</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-003</td>
+        <td class="td-name">档口和人员范围权限</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-004</td>
+        <td class="td-name">统一 `OutletAccessPolicy`</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">用户/Agent 范围解析、默认档口、选项裁剪和写入校验；无绑定明确拒绝 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-005</td>
+        <td class="td-name">`OrderAccessPolicy` 二维范围重构</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-006</td>
+        <td class="td-name">草稿档口权限接入</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">草稿列表/详情/新建/编辑/删除/确认统一范围；转正式订单时二次校验 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-007</td>
+        <td class="td-name">订单/草稿 DTO 与名称快照</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">接入 `sourceOutletId/code/name`；服务端从主数据生成 `source_shop`，禁止单据批次兜底 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-008</td>
+        <td class="td-name">看板与分析范围接入</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">汇总、趋势、排行和客户贡献先裁剪档口/人员范围再聚合；缓存键包含范围摘要 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-009</td>
+        <td class="td-name">导出与文件权限接入</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">订单导出、订单/草稿图片绑定与预览同列表/详情范围一致 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BE-OUTLET-010</td>
+        <td class="td-name">Agent Key 档口范围</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">Key 签发/轮换、capabilities、档口查询和草稿/订单写入校验；越权档口返回 403 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-OUTLET-001</td>
+        <td class="td-name">档口管理页面</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">列表、搜索、新建/编辑、启停、默认档口和历史引用提示 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-OUTLET-002</td>
+        <td class="td-name">用户管理档口授权</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">可访问档口多选、默认档口、权限摘要和销售员必选校验 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-OUTLET-003</td>
+        <td class="td-name">订单与草稿档口选择器</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">单档口锁定、多档口只显示授权集合、Owner 显示全部启用档口 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-OUTLET-004</td>
+        <td class="td-name">订单/草稿档口筛选</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">列表按档口筛选，Owner 可处理“待归档档口”历史数据 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-OUTLET-005</td>
+        <td class="td-name">统计档口筛选与对比</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">“全部档口”仅汇总当前授权集合；Owner 支持单/多档口对比 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">BA-OUTLET-006</td>
+        <td class="td-name">Agent Key 档口配置</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">全部/指定档口、默认档口和服务器 capability 同步展示 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">TEST-OUTLET-001</td>
+        <td class="td-name">后端越权矩阵</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">单/多/全部/无档口、SELF/ALL_USERS、跨租户和禁用档口 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">TEST-OUTLET-002</td>
+        <td class="td-name">订单与草稿 E2E</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">快速录单、手工/Agent 草稿、草稿确认、正式订单和伪造档口请求 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">TEST-OUTLET-003</td>
+        <td class="td-name">全出口防泄漏回归</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">列表、详情、统计、导出、文件、Agent 和缓存跨角色切换 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">TEST-OUTLET-004</td>
+        <td class="td-name">全量回归与性能</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">后端全量、PC 构建、关键 E2E 和档口范围 SQL 查询计划 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">DOC-OUTLET-001</td>
+        <td class="td-name">文档与接入手册收口</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">实现完成后同步 PRD、数据库、权限、API、Agent 手册和发布记录 |</td>
+      </tr>
+      <tr data-status="todo">
         <td class="td-id">FE-005</td>
         <td class="td-name">@blade/core 封装</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
@@ -404,7 +551,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 291 项） <span class="count">291</span></h2>
+      <h2>✅ 已完成（共 293 项） <span class="count">293</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1387,11 +1534,18 @@
         <td class="td-remark">`customers:create` 只允许新增客户；重复电话返回 `DUPLICATE`；V60 记录 Agent Key 来源并已上线 |</td>
       </tr>
       <tr data-status="done">
-        <td class="td-id">AGENT-KEY-001</td>
-        <td class="td-name">Mac Agent Key 管理器与授权代理 v1</td>
+        <td class="td-id">BE-592</td>
+        <td class="td-name">Agent 商品/草稿成本独立授权</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
-        <td class="td-remark">原生 macOS SwiftUI 应用；完整 Key 存系统钥匙串，统一展示名称/Agent/scope/剩余时间；附带白名单 MCP/命令代理，调用前选 Key 并授权，模型只能获得 API 结果；源码与测试见 `tools/blade-agent-key-manager` |</td>
+        <td class="td-remark">新增 `products:cost:write`、`orders:cost:write`；商品成本当前为商品级统一值并应用到全部 SKU，草稿成本与普通草稿写入分离；随 release `20260920_004327` 上线 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">AGENT-KEY-001</td>
+        <td class="td-name">Mac Agent Key 管理器与授权代理</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5.5: 外部 Agent 对接（P2）</td>
+        <td class="td-remark">原生 macOS SwiftUI 应用；完整 Key 存系统钥匙串，附带白名单 MCP/命令代理。`/api/agent/capabilities`、服务器权限同步和成本独立 scope 已分别随 release `20260919_103607`、`20260920_004327` 上线；源码与测试见 `tools/blade-agent-key-manager` |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-606</td>
@@ -1651,6 +1805,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
         <td class="td-remark">新增 PUT /api/products/skus 单个SKU更新；syncProductSkus 保留已有 SKU price/costPrice/barCode/status；delete/deleteColor/deleteSize 添加引用保护，有引用时提示建议禁用；39 个后端测试全部通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-1015</td>
+        <td class="td-name">订单图片绑定一致性与历史修复</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6.6: 文件中心与数字资产中心（P1）</td>
+        <td class="td-remark">上传和订单编辑时同步 `file_business_bind`，文件中心“订单图片”聚合 `order`/`order_draft`；V61 补齐历史绑定。release `20260920_104500` 验证 38/38 个订单图片引用已绑定、重复/跨租户/缺失绑定均为 0，未绑定列表中的订单图片为 0 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-1020</td>

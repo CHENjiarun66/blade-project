@@ -3,9 +3,9 @@
 > 本文档汇总 BladeProject 当前数据库表结构，按模块分组。
 > **完整结构以 `blade-backend/src/main/resources/db/migration/*.sql` 的累计结果为准。**
 > 新增或变更字段时，必须同步更新本文档；专题设计文档只记录增量设计，不重复维护整表最终版。
-> 最后更新：2026-06-21
+> 最后更新：2026-09-20
 
-> 已确认但尚未实施的档口结构变更包括 `sales_outlet`、`sys_user_outlet`、`agent_key_outlet`、`order_outlet_change_log` 以及订单/草稿 `source_outlet_id`。在对应 Flyway 落地前，这些结构不属于当前数据库事实；设计和任务见 [20-OUTLET_ACCESS_CONTROL_DESIGN.md](../20-OUTLET_ACCESS_CONTROL_DESIGN.md)。
+> 档口结构（`sales_outlet`、`sys_user_outlet`、`agent_key_outlet`、`order_outlet_change_log` 以及订单/草稿 `source_outlet_id`）已随 `V63__outlet_access_control.sql` 加法迁移落地，属当前数据库事实；完整字段与索引见本文档「档口模块」章节，设计依据见 [20-OUTLET_ACCESS_CONTROL_DESIGN.md](../20-OUTLET_ACCESS_CONTROL_DESIGN.md)。
 
 ---
 
@@ -452,7 +452,7 @@
 
 ### 4.1 sale_order 订单表
 
-**来源迁移**：`V2__product_order.sql`、`V5__order_refactor.sql`、`V7__order_table_rename.sql`、`V8__order_images.sql`、`V8__order_payment_delivery_fields.sql`、`V10__order_salesman.sql`、`V19__order_add_salesman_name.sql`、`V21__order_delivery_plan.sql`、`V29__order_quick_entry_finance.sql`、`V30__order_source_shop.sql`、`V39__order_write_off.sql`
+**来源迁移**：`V2__product_order.sql`、`V5__order_refactor.sql`、`V7__order_table_rename.sql`、`V8__order_images.sql`、`V8__order_payment_delivery_fields.sql`、`V10__order_salesman.sql`、`V19__order_add_salesman_name.sql`、`V21__order_delivery_plan.sql`、`V29__order_quick_entry_finance.sql`、`V30__order_source_shop.sql`、`V39__order_write_off.sql`、`V51__order_lifecycle_finance.sql`、`V63__outlet_access_control.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -461,6 +461,7 @@
 | order_date | date | | 订单日期（纸质单据日期） |
 | source_doc_no | varchar(50) | | 正式订单兼容纸质单据号；草稿批次与单号按 `批次_单号` 生成 |
 | source_shop | varchar(100) | | 订单来源档口/店铺，不等同于仓库 |
+| source_outlet_id | bigint | | 档口主数据ID（V63，可空；权限与统计依据，历史订单回填前允许 NULL） |
 | order_type | varchar(20) | NOT NULL, DEFAULT 'SPOT' | 订单类型：SPOT现货/PREORDER订货 |
 | customer_id | bigint | | 客户ID |
 | customer_name | varchar(50) | NOT NULL | 客户名称 |
@@ -498,7 +499,7 @@
 | create_time | datetime | DEFAULT | 创建时间 |
 | update_time | datetime | | 更新时间 |
 
-**索引**：`uk_order_no(order_no, tenant_id)`, `idx_tenant_id(tenant_id)`, `idx_status(status)`, `idx_customer_phone(customer_phone)`
+**索引**：`uk_order_no(order_no, tenant_id)`, `idx_tenant_id(tenant_id)`, `idx_status(status)`, `idx_customer_phone(customer_phone)`, `idx_so_source_outlet(tenant_id, source_outlet_id)`
 
 **说明**：
 - 当前库中保留 `confirm_time`，但业务主流程更多使用 `pay_time`、`deliver_time`、`complete_time`。
@@ -672,17 +673,111 @@
 
 ---
 
-## 六、多租户设计
+## 六、档口模块（Outlet）
 
-### 6.1 租户隔离方式
+> 档口是订单归属和经营分析维度，不等同于库存仓库。本模块随 `V63__outlet_access_control.sql`（Series A 数据模型）落地；主数据 CRUD、权限策略与历史回填属 Series B-G，尚未实施。设计依据见 [20-OUTLET_ACCESS_CONTROL_DESIGN.md](../20-OUTLET_ACCESS_CONTROL_DESIGN.md)。
+
+### 6.1 sales_outlet 档口主表
+
+**来源迁移**：`V63__outlet_access_control.sql`
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | bigint | PK | 档口ID |
+| tenant_id | bigint | NOT NULL | 租户ID |
+| outlet_code | varchar(30) | NOT NULL | 档口稳定编码（API/导入/Agent 使用） |
+| outlet_name | varchar(100) | NOT NULL | 档口名称 |
+| outlet_type | varchar(20) | NOT NULL, DEFAULT 'STORE' | 档口类型 |
+| contact_name | varchar(50) | | 联系人 |
+| phone | varchar(30) | | 电话 |
+| address | varchar(255) | | 地址 |
+| sort | int | NOT NULL, DEFAULT 0 | 排序 |
+| is_tenant_default | tinyint | NOT NULL, DEFAULT 0 | 租户默认档口：1是 0否 |
+| status | tinyint | NOT NULL, DEFAULT 1 | 状态：1启用 0禁用 |
+| remark | varchar(500) | | 备注 |
+| deleted | tinyint | NOT NULL, DEFAULT 0 | 软删除标记 |
+| create_by | bigint | | 创建人 |
+| create_time | datetime | DEFAULT | 创建时间 |
+| update_by | bigint | | 更新人 |
+| update_time | datetime | DEFAULT | 更新时间 |
+
+**索引**：`uk_outlet_code_tenant(tenant_id, outlet_code)`, `idx_outlet_tenant_status(tenant_id, status, deleted)`
+
+### 6.2 sys_user_outlet 用户档口关联
+
+**来源迁移**：`V63__outlet_access_control.sql`
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | bigint | PK | ID |
+| tenant_id | bigint | NOT NULL | 租户ID |
+| user_id | bigint | NOT NULL | 用户ID（sys_user.id） |
+| outlet_id | bigint | NOT NULL | 档口ID（sales_outlet.id） |
+| is_default | tinyint | NOT NULL, DEFAULT 0 | 个人默认档口：1是 0否 |
+| status | tinyint | NOT NULL, DEFAULT 1 | 状态：1启用 0禁用 |
+| deleted | tinyint | NOT NULL, DEFAULT 0 | 软删除标记 |
+| create_by | bigint | | 创建人 |
+| create_time | datetime | DEFAULT | 创建时间 |
+| update_time | datetime | DEFAULT | 更新时间 |
+
+**索引**：`uk_user_outlet_tenant(tenant_id, user_id, outlet_id)`, `idx_user_outlet_user(tenant_id, user_id, status, deleted)`, `idx_user_outlet_outlet(tenant_id, outlet_id, status, deleted)`
+
+### 6.3 agent_key_outlet Agent Key 档口关联
+
+**来源迁移**：`V63__outlet_access_control.sql`
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | bigint | PK | ID |
+| tenant_id | bigint | NOT NULL | 租户ID |
+| agent_key_id | bigint | NOT NULL | Agent Key ID（agent_key.id） |
+| outlet_id | bigint | NOT NULL | 档口ID（sales_outlet.id） |
+| is_default | tinyint | NOT NULL, DEFAULT 0 | Key 默认档口：1是 0否 |
+| status | tinyint | NOT NULL, DEFAULT 1 | 状态：1启用 0禁用 |
+| create_time | datetime | DEFAULT | 创建时间 |
+
+**索引**：`uk_agent_key_outlet(tenant_id, agent_key_id, outlet_id)`, `idx_agent_key_outlet_key(tenant_id, agent_key_id, status)`
+
+### 6.4 order_outlet_change_log 订单档口变更审计
+
+**来源迁移**：`V63__outlet_access_control.sql`
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | bigint | PK | ID |
+| tenant_id | bigint | NOT NULL | 租户ID |
+| order_id | bigint | NOT NULL | 订单ID（sale_order.id） |
+| old_outlet_id | bigint | | 原档口ID |
+| old_outlet_name | varchar(100) | | 原档口名称快照 |
+| new_outlet_id | bigint | NOT NULL | 新档口ID |
+| new_outlet_name | varchar(100) | NOT NULL | 新档口名称快照 |
+| reason | varchar(500) | NOT NULL | 变更原因 |
+| operator_id | bigint | NOT NULL | 操作人ID |
+| create_time | datetime | DEFAULT | 创建时间 |
+
+**索引**：`idx_outlet_change_order(tenant_id, order_id, create_time)`
+
+**说明**：只追加不更新；历史归档和已确认/已完成订单改档口必须写入。
+
+### 6.5 订单与草稿档口字段
+
+- `sale_order.source_outlet_id`（bigint，可空，V63 新增）：档口主数据 ID，权限与统计依据。正式订单最终须非空，但历史回填（Series F）完成前保持可空，禁止直接加 NOT NULL。
+- `order_draft.source_outlet_id`（bigint，可空，V63 新增）：草稿允许为空（历史迁移 / Owner 待补资料），索引 `idx_order_draft_source_outlet(tenant_id, source_outlet_id)`。
+- `source_shop` 继续保留为档口名称快照，不再作为权限依据；不改写历史数据。
+
+---
+
+## 七、多租户设计
+
+### 7.1 租户隔离方式
 
 **唯一正确方式**：MyBatis-Plus 的 `TenantLineInnerInterceptor` 自动处理。
 
-### 6.2 租户字段规范
+### 7.2 租户字段规范
 
 除忽略表外，所有业务表都应包含 `tenant_id` 字段。
 
-### 6.3 忽略租户的表
+### 7.3 忽略租户的表
 
 | 表名 | 说明 |
 |------|------|
@@ -692,7 +787,7 @@
 
 ---
 
-## 七、版本来源速查
+## 八、版本来源速查
 
 | 迁移 | 说明 |
 |------|------|
@@ -718,3 +813,4 @@
 | V35 | 文件中心、业务绑定、文件夹和操作日志表结构 |
 | V48 | Agent 订单草稿导入和原始单据关联 |
 | V61 | 从订单图片 JSON、旧上传字段和草稿来源文件补齐订单图片业务绑定 |
+| V63 | 档口主数据、用户/Agent Key 档口关联、订单档口变更审计，订单/草稿 `source_outlet_id` |

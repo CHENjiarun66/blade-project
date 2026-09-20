@@ -32,7 +32,7 @@
 | PC 管理端页面开发 | ✅ 完成 | 订单/库存/商品/客户管理页面 |
 | 看板系统开发 | ⏳ 部分完成 | 仪表盘、趋势、库存周转和数据分析已完成；仪表盘数据权限待补 |
 | 外部 Agent 对接 | ⏳ 进行中 | 款式趋势、颜色尺码结构、纸单草稿和 WhatsApp 本地归档已完成；经营类只读接口、生产联调和限流仍待完成 |
-| 档口主数据与数据权限 | 📝 已规划 | 用户多档口、订单二维数据范围、统计/导出/文件/Agent 全出口收口待开发 |
+| 档口主数据与数据权限 | ⏳ 进行中 | Series A 数据模型与兼容迁移完成（V63）；档口 CRUD、权限策略、前端与生产回填待 Series B-G |
 
 ### 近期主线与状态口径（2026-08-29）
 
@@ -74,6 +74,19 @@
 | P1-2 | BE-556～BE-560、BE-585、BE-562 | 先完成数据包和毛利脱敏，再做限流与真实 Agent 回归 | Agent Gateway 经营接口按租户和 scope 稳定返回 |
 | P1-3 | BE-506 | 与客户归属、订单创建人和分析权限一起设计 | 仪表盘按角色显示正确数据范围 |
 | P0-4 | DB-OUTLET-001～003、BE-OUTLET-001～010、BA-OUTLET-001～006、TEST-OUTLET-001～004、DATA-OUTLET-001～003 | 按[档口权限 ROM/SOW](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)完成主数据、用户绑定和统一后端策略后，才能切换订单/草稿/统计出口 | 销售员无法越权访问其他档口；Owner 可跨档口；历史订单安全回填且全部出口同口径 |
+
+### 档口权限 Series A 数据模型与兼容迁移（2026-09-20，DeepSeek）
+
+> 本轮只做数据模型加法迁移，不进入 CRUD、权限策略、前端或生产部署。ROM/SOW 见 [2026-09-20-outlet-access-control-rom-sow.md](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)，交付报告见 [2026-09-20-outlet-series-a-delivery.md](./superpowers/plans/2026-09-20-outlet-series-a-delivery.md)。
+
+| 任务 ID | 任务 | 状态 | 备注 |
+|---------|------|------|------|
+| DB-OUTLET-001 | 档口与用户关联表 | ✅ 完成 | `sales_outlet`、`sys_user_outlet` 实体/Mapper/Flyway V63/租户与索引/契约测试 |
+| DB-OUTLET-002 | 订单与草稿档口 ID 及变更审计 | ✅ 完成 | `sale_order/order_draft.source_outlet_id` 可空加法迁移 + `order_outlet_change_log`，保留 `source_shop` 不改写历史 |
+| DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成 | `agent_key_outlet` 表/实体/Mapper；仅建模型，不改 Key 签发/轮换服务 |
+| DATA-OUTLET-001 | 历史档口审计工具 | ✅ 完成 | `scripts/outlet-source-shop-audit.sql`：只读分布/空值/疑似批次/纯数字/冲突候选，不含 UPDATE/DELETE |
+
+未做任务（保持 TODO）：Series B 档口 CRUD 与用户授权、Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口，均不在本轮范围。
 
 ---
 
