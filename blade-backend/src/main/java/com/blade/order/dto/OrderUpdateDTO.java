@@ -38,6 +38,9 @@ public class OrderUpdateDTO {
     @Schema(description = "客户名称")
     private String customerName;
 
+    @Schema(description = "关联客户ID；客户名称有传值时，本字段为空表示取消客户主档关联，仅保留订单快照")
+    private Long customerId;
+
     @Size(max = 20, message = "手机号最多20位")
     @Schema(description = "客户电话")
     private String customerPhone;
@@ -85,6 +88,8 @@ public class OrderUpdateDTO {
     public void setOrderType(String orderType) { this.orderType = orderType; }
     public String getCustomerName() { return customerName; }
     public void setCustomerName(String customerName) { this.customerName = customerName; }
+    public Long getCustomerId() { return customerId; }
+    public void setCustomerId(Long customerId) { this.customerId = customerId; }
     public String getCustomerPhone() { return customerPhone; }
     public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
     public String getCustomerAddress() { return customerAddress; }

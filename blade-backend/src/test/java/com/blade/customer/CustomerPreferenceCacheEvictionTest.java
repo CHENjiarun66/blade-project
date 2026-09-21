@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -107,6 +108,29 @@ class CustomerPreferenceCacheEvictionTest {
                 "取消订单落库后应失效该订单客户的全部偏好缓存键，实际残留：" + keysFor(chainCustomerId));
     }
 
+    @Test
+    void preferenceCountsPurchasedQuantityInsteadOfSkuRows() {
+        String suffix = Long.toString(System.nanoTime()).substring(8);
+        chainCustomerId = customer("数量口径客户" + suffix);
+        Long outletId = outlet("QTY-" + suffix);
+        Long userId = user("qty_" + suffix);
+        bind(userId, outletId);
+        authenticate(userId);
+        Long orderId = order(outletId, chainCustomerId, userId);
+        jdbc.update("UPDATE sale_order SET fulfillment_status='COMPLETED', status=4 WHERE id=?", orderId);
+        preferenceItem(orderId, "连衣裙", "黑色", "M", 24);
+        preferenceItem(orderId, "连衣裙", "白色", "L", 6);
+
+        CustomerPreferenceQueryDTO dto = new CustomerPreferenceQueryDTO();
+        var preference = customerService.getPreference(chainCustomerId, dto);
+
+        assertEquals(30, preference.getCategories().get(0).getCount(), "商品统计必须累计购买件数，而不是 SKU 行数");
+        assertEquals(24, preference.getColors().stream()
+                .filter(item -> "黑色".equals(item.getColorName())).findFirst().orElseThrow().getCount());
+        assertEquals(6, preference.getSizes().stream()
+                .filter(item -> "L".equals(item.getSizeName())).findFirst().orElseThrow().getCount());
+    }
+
     // ==================== fixtures ====================
 
     private String key(Long customerId, String fingerprint, String start, String end) {
@@ -168,5 +192,11 @@ class CustomerPreferenceCacheEvictionTest {
                         + "VALUES(?,CURDATE(),'SPOT',?,?,100,0,0,3,'CONFIRMED','UNDECIDED','UNPAID',0,0,0,0,100,0,?,?,1,0,0)",
                 orderNo, customerId, "缓存联动客户", salesmanId, outletId);
         return jdbc.queryForObject("SELECT id FROM sale_order WHERE order_no=?", Long.class, orderNo);
+    }
+
+    private void preferenceItem(Long orderId, String productName, String color, String size, int quantity) {
+        jdbc.update("INSERT INTO sale_order_item(tenant_id,order_id,product_id,product_name,color_name,size_name,price,quantity,subtotal) "
+                        + "VALUES(1,?,1,?,?,?,10,?,?)",
+                orderId, productName, color, size, quantity, quantity * 10);
     }
 }

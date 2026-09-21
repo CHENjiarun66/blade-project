@@ -183,6 +183,7 @@ export interface OrderUpdateDTO {
   outletChangeReason?: string
   orderType?: string
   customerName?: string
+  customerId?: number
   customerPhone?: string
   customerAddress?: string
   needDelivery?: number

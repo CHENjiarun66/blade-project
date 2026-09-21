@@ -209,7 +209,7 @@
               </label>
               <label class="field-block">
                 <span>客户电话</span>
-                <el-input v-model="current.customerPhone" :disabled="readonly" clearable placeholder="客户联系电话" />
+                <el-input v-model="current.customerPhone" :disabled="readonly" clearable placeholder="客户联系电话" @input="onCustomerPhoneInput" />
                 <small>识别原文：{{ current.rawCustomerPhone || '空' }}</small>
               </label>
               <label class="field-block">
@@ -961,6 +961,11 @@ function onCustomerSelect(customer: CustomerVO) {
 }
 
 function onCustomerNameInput() {
+  if (current.value) current.value.customerId = undefined
+}
+
+function onCustomerPhoneInput() {
+  // 修改已有客户的电话后，订单只保留当前填写的客户快照，避免错误关联到原客户主档。
   if (current.value) current.value.customerId = undefined
 }
 

@@ -99,6 +99,7 @@ class OrderActionStateMachineTest {
                 new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:allocate"),
                 new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:deliver"),
                 new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:cancel"),
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:edit"),
                 new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:view")));
         SecurityContextHolder.setContext(securityContext);
 
@@ -141,6 +142,24 @@ class OrderActionStateMachineTest {
         order.setVersion(0);
         when(orderMapper.selectByIdForUpdate(id, TENANT_ID)).thenReturn(order);
         return order;
+    }
+
+    @Test
+    void editOrder_isAllowedBeforeSettlementAndLockedAfterSettlementOrFulfillmentChoice() {
+        Order order = settledConfirmedOrder(90L);
+        order.setCollectionStatus(CollectionStatus.PARTIAL.name());
+        order.setGrossReceivedAmount(new BigDecimal("40.00"));
+        order.setNetReceivedAmount(new BigDecimal("40.00"));
+        order.setBalanceAmount(new BigDecimal("60.00"));
+
+        assertTrue(actionService.computeAllowedActions(order).contains(OrderActionService.EDIT_ORDER));
+
+        order.setCollectionStatus(CollectionStatus.SETTLED.name());
+        assertFalse(actionService.computeAllowedActions(order).contains(OrderActionService.EDIT_ORDER));
+
+        order.setCollectionStatus(CollectionStatus.PARTIAL.name());
+        order.setFulfillmentMode(FulfillmentMode.STOCK_LINKED.name());
+        assertFalse(actionService.computeAllowedActions(order).contains(OrderActionService.EDIT_ORDER));
     }
 
     @Test

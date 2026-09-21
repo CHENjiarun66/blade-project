@@ -16,6 +16,14 @@
         <!-- 状态操作按钮（按后端 allowedActions 白名单展示，历史行回退旧判断） -->
         <template v-if="order">
           <el-button
+            v-if="hasAction('editOrder')"
+            type="primary"
+            plain
+            @click="openOrderEdit"
+          >
+            编辑订单
+          </el-button>
+          <el-button
             v-if="hasAction('recordPayment') && !legacyUnmigrated"
             type="warning"
             plain
@@ -588,6 +596,129 @@
       </div>
     </div>
 
+    <!-- 未结清、未进入履约阶段的订单内容编辑 -->
+    <el-dialog
+      v-model="showOrderEditDialog"
+      title="编辑订单"
+      width="1040px"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <div class="order-edit-dialog space-y-6">
+        <el-alert
+          type="info"
+          :closable="false"
+          title="未收款或部分收款、且尚未进入履约流程时，可修改客户和商品。已结清后将自动锁定。"
+        />
+
+        <section class="edit-section">
+          <h3>客户信息</h3>
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <label class="edit-field">
+              <span>客户名称</span>
+              <el-autocomplete
+                v-model="orderEditForm.customerName"
+                :fetch-suggestions="queryEditCustomerSuggestions"
+                value-key="name"
+                clearable
+                placeholder="可选择已有客户，也可留空按散客保存"
+                class="!w-full"
+                @select="selectEditCustomer"
+                @input="orderEditForm.customerId = undefined"
+              >
+                <template #default="{ item }">
+                  <div class="flex flex-col py-1">
+                    <span class="font-medium text-gray-900">{{ item.name }}</span>
+                    <span class="text-xs text-gray-400">{{ item.phones?.[0] || '无电话' }} · {{ item.address || '无地址' }}</span>
+                  </div>
+                </template>
+              </el-autocomplete>
+            </label>
+            <label class="edit-field">
+              <span>客户电话</span>
+              <el-input v-model="orderEditForm.customerPhone" clearable placeholder="可留空" />
+            </label>
+            <label class="edit-field">
+              <span>客户地址</span>
+              <el-input v-model="orderEditForm.customerAddress" clearable placeholder="可留空" />
+            </label>
+          </div>
+          <p class="mt-2 text-xs text-gray-400">
+            未选择客户主档时，只保存本订单上的客户快照，不会自动创建客户，也不会阻止保存。
+          </p>
+        </section>
+
+        <section class="edit-section">
+          <div class="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <h3>商品明细</h3>
+              <p class="mt-1 text-xs text-gray-400">修改后会重新计算订单应收、成本和尾款。</p>
+            </div>
+            <el-button type="primary" plain @click="addOrderEditItem">添加商品</el-button>
+          </div>
+          <div class="overflow-x-auto rounded-xl border border-gray-200">
+            <table class="order-edit-table">
+              <thead>
+                <tr>
+                  <th>商品 / SKU</th>
+                  <th>数量</th>
+                  <th>销售单价</th>
+                  <th v-if="canEditCost">成本价</th>
+                  <th>小计</th>
+                  <th aria-label="操作"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, index) in orderEditItems" :key="row.key">
+                  <td>
+                    <el-select
+                      v-model="row.skuId"
+                      filterable
+                      placeholder="搜索款号、商品或 SKU"
+                      class="!w-full"
+                      @change="applyOrderEditSku(row)"
+                    >
+                      <el-option
+                        v-for="sku in orderEditSkuOptions"
+                        :key="sku.skuId"
+                        :label="sku.label"
+                        :value="sku.skuId"
+                      />
+                    </el-select>
+                  </td>
+                  <td><el-input-number v-model="row.quantity" :min="1" :step="1" :precision="0" controls-position="right" /></td>
+                  <td><el-input-number v-model="row.price" :min="0" :precision="2" :controls="false" /></td>
+                  <td v-if="canEditCost"><el-input-number v-model="row.costPrice" :min="0" :precision="2" :controls="false" /></td>
+                  <td class="font-bold text-blue-600">¥ {{ fmt(rowSubtotal(row)) }}</td>
+                  <td>
+                    <el-button link type="danger" :disabled="orderEditItems.length === 1" @click="removeOrderEditItem(index)">删除</el-button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="edit-section">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <label class="edit-field"><span>客户运费收入</span><el-input-number v-model="orderEditForm.freightAmount" :min="0" :precision="2" :controls="false" class="!w-full" /></label>
+            <label v-if="canEditCost" class="edit-field"><span>实际运费成本</span><el-input-number v-model="orderEditForm.freightCost" :min="0" :precision="2" :controls="false" class="!w-full" /></label>
+            <div class="edit-total-card"><span>修改后应收</span><strong>¥ {{ fmt(orderEditTotal) }}</strong></div>
+            <div class="edit-total-card" :class="{ invalid: orderEditTotal < currentReceived }">
+              <span>当前已收</span><strong>¥ {{ fmt(currentReceived) }}</strong>
+            </div>
+          </div>
+          <p v-if="orderEditTotal < currentReceived" class="mt-3 text-sm font-medium text-red-600">
+            修改后应收不能低于当前已收款，请调整商品、数量或价格。
+          </p>
+        </section>
+      </div>
+      <template #footer>
+        <el-button :disabled="orderEditSaving" @click="showOrderEditDialog = false">取消</el-button>
+        <el-button type="primary" :loading="orderEditSaving" @click="saveOrderEdit">保存修改</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 确认收款弹窗 -->
     <el-dialog v-model="showPayDialog" title="确认收款" width="520px" :close-on-click-modal="false">
       <div class="space-y-5 py-2">
@@ -839,13 +970,18 @@ import { computed, ref, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
-import { getOrderById, confirmSettlement, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO, type AddPaymentDTO, refundPayment, chooseFulfillmentMode, splitPlaceholderItem } from '@/api/order'
+import { getOrderById, updateOrder, confirmSettlement, addPayment, completeOrder, cancelOrder, getDeliveriesByOrderId, confirmDelivery, deliverOrder as deliverOrderApi, createDeliveryPlan, getDeliveryPlan, updateDeliveryPlan, confirmAdjustment as confirmAdjustmentApi, cancelAdjustment as cancelAdjustmentApi, getAdjustmentLogs, type OrderVO, type OrderDeliveryVO, type DeliveryPlanVO, type AdjustmentLogDTO, type AddPaymentDTO, refundPayment, chooseFulfillmentMode, splitPlaceholderItem } from '@/api/order'
 import { getAllWarehouses, getInventoryByWarehouse, type WarehouseVO, type InventoryVO } from '@/api/inventory'
+import { getProductPage } from '@/api/product'
+import { getCustomerPage, type CustomerVO } from '@/api/customer'
 import { parseImageSources, parseImageVariantSources } from '@/api/file'
 import { hasFriendlySkuName, skuColorDisplay, skuFriendlyName, skuSizeDisplay } from '@/utils/skuDisplay'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
+const canEditCost = computed(() => authStore.permissions.includes('field:cost_price'))
 
 const order = ref<OrderVO | null>(null)
 const loading = ref(true)
@@ -959,6 +1095,179 @@ function hasAction(action: string): boolean {
   const list = order.value?.allowedActions
   if (!list || list.length === 0) return false
   return list.includes(action)
+}
+
+type OrderEditSkuOption = {
+  skuId: number
+  label: string
+  price: number
+  costPrice: number
+}
+
+type OrderEditItem = {
+  key: string
+  skuId?: number
+  quantity: number
+  price: number
+  costPrice?: number
+}
+
+const showOrderEditDialog = ref(false)
+const orderEditSaving = ref(false)
+const orderEditSkuOptions = ref<OrderEditSkuOption[]>([])
+const orderEditItems = ref<OrderEditItem[]>([])
+const orderEditForm = reactive({
+  customerId: undefined as number | undefined,
+  customerName: '',
+  customerPhone: '',
+  customerAddress: '',
+  freightAmount: 0,
+  freightCost: 0,
+})
+
+const orderEditTotal = computed(() => roundMoney(
+  orderEditItems.value.reduce((sum, row) => sum + Number(row.quantity || 0) * Number(row.price || 0), 0)
+    + Number(orderEditForm.freightAmount || 0),
+))
+
+function editRowKey() {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `edit-row-${Date.now()}-${Math.random()}`
+}
+
+async function loadOrderEditSkuOptions() {
+  const response = await getProductPage({ current: 1, size: 1000, status: 1 })
+  const records = response.data?.records || []
+  const options: OrderEditSkuOption[] = []
+  for (const product of records) {
+    for (const sku of product.skus || []) {
+      if (sku.status !== 1) continue
+      const semantic = sku.skuType === 'PLACEHOLDER'
+        ? '整款录入（颜色/尺码未指定）'
+        : sku.skuType === 'DEFAULT'
+          ? '无规格商品'
+          : `${sku.colorName || '-'} / ${sku.sizeName || '-'}`
+      options.push({
+        skuId: sku.id,
+        label: `${product.productCode} · ${product.name} · ${semantic}`,
+        price: Number(sku.price || product.wholesalePrice || 0),
+        costPrice: Number(sku.costPrice || product.costPrice || 0),
+      })
+    }
+  }
+  // 历史订单可能引用已停用 SKU；保留当前选项，避免打开编辑框后无法原样保存。
+  for (const item of order.value?.items || []) {
+    if (options.some(option => option.skuId === item.skuId)) continue
+    options.push({
+      skuId: item.skuId,
+      label: `${item.productName} · ${skuFriendlyName(item)}（历史 SKU）`,
+      price: Number(item.price || 0),
+      costPrice: Number(item.costPrice || 0),
+    })
+  }
+  orderEditSkuOptions.value = options
+}
+
+async function openOrderEdit() {
+  if (!order.value || !hasAction('editOrder')) return
+  orderEditForm.customerId = order.value.customerId || undefined
+  orderEditForm.customerName = order.value.customerName || ''
+  orderEditForm.customerPhone = order.value.customerPhone || ''
+  orderEditForm.customerAddress = order.value.customerAddress || ''
+  orderEditForm.freightAmount = Number(order.value.freightAmount || 0)
+  orderEditForm.freightCost = Number(order.value.freightCost || 0)
+  orderEditItems.value = (order.value.items || []).map(item => ({
+    key: editRowKey(),
+    skuId: item.skuId,
+    quantity: Number(item.quantity || 1),
+    price: Number(item.price || 0),
+    costPrice: Number(item.costPrice || 0),
+  }))
+  if (orderEditItems.value.length === 0) addOrderEditItem()
+  showOrderEditDialog.value = true
+  try {
+    await loadOrderEditSkuOptions()
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载商品目录失败')
+  }
+}
+
+async function queryEditCustomerSuggestions(query: string, callback: (items: CustomerVO[]) => void) {
+  const keyword = query.trim()
+  if (!keyword) {
+    callback([])
+    return
+  }
+  try {
+    const response = await getCustomerPage({ current: 1, size: 10, keyword })
+    callback(response.data.records || [])
+  } catch {
+    callback([])
+  }
+}
+
+function selectEditCustomer(customer: CustomerVO) {
+  orderEditForm.customerId = customer.id
+  orderEditForm.customerName = customer.name
+  orderEditForm.customerPhone = customer.phones?.[0] || ''
+  orderEditForm.customerAddress = customer.address || ''
+}
+
+function addOrderEditItem() {
+  orderEditItems.value.push({ key: editRowKey(), quantity: 1, price: 0, costPrice: 0 })
+}
+
+function removeOrderEditItem(index: number) {
+  if (orderEditItems.value.length <= 1) return
+  orderEditItems.value.splice(index, 1)
+}
+
+function applyOrderEditSku(row: OrderEditItem) {
+  const sku = orderEditSkuOptions.value.find(option => option.skuId === row.skuId)
+  if (!sku) return
+  row.price = sku.price
+  row.costPrice = sku.costPrice
+}
+
+function rowSubtotal(row: OrderEditItem) {
+  return Number(row.quantity || 0) * Number(row.price || 0)
+}
+
+async function saveOrderEdit() {
+  if (!order.value || orderEditSaving.value) return
+  if (orderEditItems.value.some(row => !row.skuId || !row.quantity || row.quantity <= 0)) {
+    ElMessage.warning('请为每一行选择 SKU 并填写有效数量')
+    return
+  }
+  if (orderEditTotal.value < currentReceived.value) {
+    ElMessage.warning('修改后应收不能低于当前已收款')
+    return
+  }
+  orderEditSaving.value = true
+  try {
+    await updateOrder(order.value.id, {
+      customerId: orderEditForm.customerId,
+      customerName: orderEditForm.customerName.trim() || '散客',
+      customerPhone: orderEditForm.customerPhone.trim(),
+      customerAddress: orderEditForm.customerAddress.trim(),
+      freightAmount: Number(orderEditForm.freightAmount || 0),
+      ...(canEditCost.value ? { freightCost: Number(orderEditForm.freightCost || 0) } : {}),
+      items: orderEditItems.value.map(row => ({
+        skuId: row.skuId!,
+        quantity: Number(row.quantity),
+        price: Number(row.price || 0),
+        ...(canEditCost.value ? { costPrice: Number(row.costPrice || 0) } : {}),
+      })),
+    })
+    ElMessage.success('订单已更新，金额与尾款已重新计算')
+    showOrderEditDialog.value = false
+    await loadOrder()
+  } catch (error: any) {
+    ElMessage.error(error.message || '保存订单失败')
+  } finally {
+    orderEditSaving.value = false
+  }
 }
 
 function fmt(v: number | undefined | null): string {
@@ -1581,6 +1890,83 @@ function formatDateTime(dateStr: string) {
 <style scoped>
 .order-detail-page {
   padding: 0;
+}
+
+.edit-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 20px;
+  background: #fff;
+}
+
+.edit-section > h3,
+.edit-section > div > div > h3 {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edit-field > span,
+.edit-total-card > span {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.order-edit-table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
+}
+
+.order-edit-table th {
+  padding: 12px;
+  color: #6b7280;
+  background: #f8fafc;
+  font-size: 12px;
+  text-align: left;
+}
+
+.order-edit-table td {
+  padding: 12px;
+  border-top: 1px solid #eef2f7;
+}
+
+.order-edit-table th:first-child,
+.order-edit-table td:first-child {
+  min-width: 360px;
+}
+
+.edit-total-card {
+  display: flex;
+  min-height: 76px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: #eff6ff;
+}
+
+.edit-total-card strong {
+  color: #1d4ed8;
+  font-size: 20px;
+}
+
+.edit-total-card.invalid {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.edit-total-card.invalid strong {
+  color: #dc2626;
 }
 
 .order-detail-image-thumb {

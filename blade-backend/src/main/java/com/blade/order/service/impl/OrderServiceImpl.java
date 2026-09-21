@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.exception.BusinessException;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
+import com.blade.customer.entity.Customer;
+import com.blade.customer.mapper.CustomerMapper;
 import com.blade.file.service.FileService;
 import com.blade.inventory.entity.Warehouse;
 import com.blade.inventory.mapper.WarehouseMapper;
@@ -85,6 +87,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderAccessPolicy accessPolicy;
     private final com.blade.outlet.policy.OutletAccessPolicy outletAccessPolicy;
     private final OrderOutletChangeLogMapper outletChangeLogMapper;
+    private final CustomerMapper customerMapper;
 
     private static final String ORDER_TYPE_SPOT = "SPOT";
     private static final String ORDER_TYPE_PREORDER = "PREORDER";
@@ -111,7 +114,8 @@ public class OrderServiceImpl implements OrderService {
                             CustomerStatsCacheService customerStatsCacheService,
                             OrderAccessPolicy accessPolicy,
                             com.blade.outlet.policy.OutletAccessPolicy outletAccessPolicy,
-                            OrderOutletChangeLogMapper outletChangeLogMapper) {
+                            OrderOutletChangeLogMapper outletChangeLogMapper,
+                            CustomerMapper customerMapper) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.deliveryPlanMapper = deliveryPlanMapper;
@@ -131,6 +135,7 @@ public class OrderServiceImpl implements OrderService {
         this.accessPolicy = accessPolicy;
         this.outletAccessPolicy = outletAccessPolicy;
         this.outletChangeLogMapper = outletChangeLogMapper;
+        this.customerMapper = customerMapper;
     }
 
     @Override
@@ -597,10 +602,22 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("订单不存在");
         }
         accessPolicy.requireAccess(order);
-        // 终审 P0-7：可编辑性按新生命周期与财务事实判断，不再依赖旧数字状态
-        boolean hasFinancialFacts = financialRecordMapper.selectCount(new LambdaQueryWrapper<OrderFinancialRecord>()
-                .eq(OrderFinancialRecord::getOrderId, order.getId())
-                .eq(OrderFinancialRecord::getTenantId, order.getTenantId())) > 0;
+        Long originalCustomerId = order.getCustomerId();
+        boolean canEditCost = currentAuthorities().contains("field:cost_price");
+        BigDecimal requestedFreightCost = canEditCost ? dto.getFreightCost() : null;
+        if (!canEditCost && dto.getItems() != null) {
+            // 成本字段属于敏感写权限。即使绕过前端直接伪造请求，也只能由 SKU/商品主档重新解析成本。
+            dto.getItems().forEach(item -> item.setCostPrice(null));
+        }
+        // 订单结构（客户、商品、金额）只允许在已确认、尚未进入履约且未结清时修改。
+        // 正常部分收款不是锁死订单的理由；短款、退款、退货等不可逆财务事实仍禁止直接改结构。
+        boolean editableOrderContent = order.getFulfillmentStatus() != null
+                && com.blade.order.enums.FulfillmentStatus.CONFIRMED.name().equals(order.getFulfillmentStatus())
+                && com.blade.order.enums.FulfillmentMode.UNDECIDED.name().equals(order.getFulfillmentMode())
+                && !com.blade.order.enums.CollectionStatus.SETTLED.name().equals(order.getCollectionStatus())
+                && safeAmount(order.getWriteOffAmount()).compareTo(ZERO) == 0
+                && safeAmount(order.getCashRefundAmount()).compareTo(ZERO) == 0
+                && safeAmount(order.getSalesReturnAmount()).compareTo(ZERO) == 0;
         boolean afterShipped = order.getFulfillmentStatus() != null
                 && (com.blade.order.enums.FulfillmentStatus.SHIPPED.name().equals(order.getFulfillmentStatus())
                     || com.blade.order.enums.FulfillmentStatus.COMPLETED.name().equals(order.getFulfillmentStatus()));
@@ -619,20 +636,33 @@ public class OrderServiceImpl implements OrderService {
             return;
         }
         boolean hasFinancialChange = amountChanged(order.getFreightAmount(), dto.getFreightAmount())
-                || amountChanged(order.getFreightCost(), dto.getFreightCost())
+                || amountChanged(order.getFreightCost(), requestedFreightCost)
                 || (dto.getItems() != null && !dto.getItems().isEmpty());
-        if (hasFinancialChange && (hasFinancialFacts
-                || (order.getFulfillmentStatus() != null
-                    && !com.blade.order.enums.FulfillmentStatus.CONFIRMED.name().equals(order.getFulfillmentStatus()))
-                || order.getStatus() != 0)) {
-            throw BusinessException.of(400, "订单已产生收款、履约或配货事实，不允许直接修改金额和明细；请使用取消、冲销或调整流程");
+        boolean hasContentChange = dto.getOrderDate() != null
+                || dto.getSourceDocNo() != null
+                || dto.getOrderType() != null
+                || dto.getCustomerName() != null
+                || dto.getCustomerPhone() != null
+                || dto.getCustomerAddress() != null
+                || dto.getNeedDelivery() != null
+                || dto.getDeliveryAddress() != null
+                || hasFinancialChange;
+        if (hasContentChange && !editableOrderContent) {
+            throw BusinessException.of(400, "订单已结清或已进入履约流程，不能修改客户、商品及金额；仍可补充备注和图片");
         }
         if (dto.getOrderDate() != null) order.setOrderDate(dto.getOrderDate());
         if (dto.getSourceDocNo() != null) order.setSourceDocNo(dto.getSourceDocNo());
         // 档口只能通过 sourceOutletId + 原因 + 审计修改；自由文本 sourceShop 不再生效
         applyOutletChange(order, dto);
         if (dto.getOrderType() != null) order.setOrderType(normalizeOrderType(dto.getOrderType()));
-        if (dto.getCustomerName() != null) order.setCustomerName(dto.getCustomerName());
+        if (dto.getCustomerName() != null) {
+            String customerName = dto.getCustomerName().trim();
+            if (customerName.isEmpty()) {
+                customerName = "散客";
+            }
+            order.setCustomerId(resolveEditableCustomerId(dto.getCustomerId(), order.getTenantId()));
+            order.setCustomerName(customerName);
+        }
         if (dto.getCustomerPhone() != null) order.setCustomerPhone(dto.getCustomerPhone());
         if (dto.getCustomerAddress() != null) order.setCustomerAddress(dto.getCustomerAddress());
         if (dto.getNeedDelivery() != null) order.setNeedDelivery(dto.getNeedDelivery());
@@ -640,7 +670,7 @@ public class OrderServiceImpl implements OrderService {
         if (dto.getRemark() != null) order.setRemark(dto.getRemark());
         if (dto.getImages() != null) order.setImages(dto.getImages());
         if (dto.getFreightAmount() != null) order.setFreightAmount(safeAmount(dto.getFreightAmount()));
-        if (dto.getFreightCost() != null) order.setFreightCost(safeAmount(dto.getFreightCost()));
+        if (requestedFreightCost != null) order.setFreightCost(safeAmount(requestedFreightCost));
         if (dto.getItems() != null && !dto.getItems().isEmpty()) {
             LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(OrderItem::getOrderId, order.getId());
@@ -651,6 +681,10 @@ public class OrderServiceImpl implements OrderService {
             OrderTotals totals = dto.getItems() != null && !dto.getItems().isEmpty()
                     ? calculateTotals(dto.getItems(), order.getFreightAmount(), order.getFreightCost())
                     : calculateTotalsFromExistingItems(order.getId(), order.getFreightAmount(), order.getFreightCost());
+            BigDecimal currentNetReceived = safeAmount(order.getNetReceivedAmount());
+            if (totals.totalAmount().compareTo(currentNetReceived) < 0) {
+                throw BusinessException.of(400, "修改后的订单应收不能低于当前已收款：" + currentNetReceived);
+            }
             applyTotals(order, totals);
             // 订单价值变化后由统一快照服务重算收款快照
             snapshotService.recalculateAndApply(order);
@@ -661,6 +695,24 @@ public class OrderServiceImpl implements OrderService {
             throw BusinessException.of(409, "订单已被其他操作更新，请刷新后重试");
         }
         fileService.syncFilesFromJson("order", order.getId(), order.getImages());
+        customerStatsCacheService.evictPreferenceCache(originalCustomerId);
+        if (!java.util.Objects.equals(originalCustomerId, order.getCustomerId())) {
+            customerStatsCacheService.evictPreferenceCache(order.getCustomerId());
+        }
+    }
+
+    private Long resolveEditableCustomerId(Long requestedCustomerId, Long tenantId) {
+        if (requestedCustomerId == null) {
+            return null;
+        }
+        Customer customer = customerMapper.selectById(requestedCustomerId);
+        if (customer == null
+                || Integer.valueOf(1).equals(customer.getDeleted())
+                || !java.util.Objects.equals(tenantId, customer.getTenantId())) {
+            // 保留订单上的客户名称/电话/地址快照，但不建立无效或跨租户主档关系。
+            return null;
+        }
+        return customer.getId();
     }
 
     @Override

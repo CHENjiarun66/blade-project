@@ -335,7 +335,7 @@
       show-icon
     >
       <template #title>
-        已收款订单会锁定金额结构；可继续维护客户基础信息、备注和订单图片。已发货订单仅允许维护备注和图片。
+        已结清或已进入履约流程的订单会锁定客户、商品与金额结构；备注和订单图片仍可维护。
       </template>
     </el-alert>
     <el-form
@@ -390,7 +390,7 @@
       <el-form-item label="运费收入">
         <el-input-number v-model="editForm.freightAmount" :disabled="!canEditFinancialFields" :min="0" :precision="2" :controls="false" class="!w-full" />
       </el-form-item>
-      <el-form-item label="运费成本">
+      <el-form-item v-if="canEditCost" label="运费成本">
         <el-input-number v-model="editForm.freightCost" :disabled="!canEditFinancialFields" :min="0" :precision="2" :controls="false" class="!w-full" />
       </el-form-item>
       <el-form-item label="送货方式">
@@ -585,8 +585,9 @@ const originalOutletId = ref<number | null>(null)
 const editingOutletPending = computed(() => editingOrder.value?.sourceOutletId == null)
 const editImageValues = ref<string[]>([])
 const editImageSources = computed(() => parseImageVariantSources(JSON.stringify(editImageValues.value), 'thumb'))
-const canEditBasicFields = computed(() => (editingOrder.value?.status ?? 0) < 4)
-const canEditFinancialFields = computed(() => (editingOrder.value?.status ?? 0) === 0)
+const canEditBasicFields = computed(() => editingOrder.value?.allowedActions?.includes('editOrder') === true)
+const canEditFinancialFields = computed(() => canEditBasicFields.value)
+const canEditCost = computed(() => authStore.permissions.includes('field:cost_price'))
 const imageViewerVisible = ref(false)
 const imageViewerUrls = ref<string[]>([])
 const imageViewerIndex = ref(0)
@@ -667,7 +668,7 @@ async function handleEditSave() {
     }
     if (canEditFinancialFields.value) {
       payload.freightAmount = editForm.freightAmount
-      payload.freightCost = editForm.freightCost
+      if (canEditCost.value) payload.freightCost = editForm.freightCost
     }
     await updateOrder(editingOrder.value.id, payload)
     ElMessage.success('订单信息已更新')

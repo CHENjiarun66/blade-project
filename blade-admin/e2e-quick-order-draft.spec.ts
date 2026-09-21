@@ -94,6 +94,8 @@ test('快速录单可将未完成内容暂存为同一张手工草稿且不跳�
   })
 
   await page.goto('/orders/quick')
+  await expect(page.getByRole('complementary', { name: '订单图片对照栏' })).toBeVisible()
+  await expect(page.getByText('固定在右侧，录入商品时可持续对照原图。')).toBeVisible()
   await page.getByPlaceholder('如 41').fill('41')
   await page.getByPlaceholder('如 0135').fill('0135')
 
@@ -106,11 +108,12 @@ test('快速录单可将未完成内容暂存为同一张手工草稿且不跳�
 
   await page.getByPlaceholder('输入客户名称筛选').fill('尚未建档客户')
   await page.getByPlaceholder('纸单备注、特殊说明').fill('先存草稿，商品稍后补')
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('.quick-image-empty input[type="file"]').setInputFiles({
     name: 'quick-order.jpg',
     mimeType: 'image/jpeg',
     buffer: Buffer.from('quick-order-image'),
   })
+  await expect(page.locator('.quick-main-image')).toBeVisible()
 
   await page.getByRole('button', { name: '添加到草稿' }).click()
 

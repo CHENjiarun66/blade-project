@@ -3,6 +3,7 @@ package com.blade.customer.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 @Schema(description = "客户订单记录VO（精简版）")
@@ -40,6 +41,12 @@ public class CustomerOrderVO {
 
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
+
+    @Schema(description = "订单日期")
+    private LocalDate orderDate;
+
+    @Schema(description = "纸质单据号")
+    private String sourceDocNo;
 
     @Schema(description = "商品数量")
     private Integer totalQuantity;
@@ -79,6 +86,10 @@ public class CustomerOrderVO {
 
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
+    public LocalDate getOrderDate() { return orderDate; }
+    public void setOrderDate(LocalDate orderDate) { this.orderDate = orderDate; }
+    public String getSourceDocNo() { return sourceDocNo; }
+    public void setSourceDocNo(String sourceDocNo) { this.sourceDocNo = sourceDocNo; }
     public Integer getTotalQuantity() { return totalQuantity; }
     public void setTotalQuantity(Integer totalQuantity) { this.totalQuantity = totalQuantity; }
 

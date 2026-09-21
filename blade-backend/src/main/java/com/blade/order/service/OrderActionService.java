@@ -60,6 +60,7 @@ public class OrderActionService {
     public static final String SHIP_ORDER = "shipOrder";
     public static final String COMPLETE_ORDER = "completeOrder";
     public static final String CANCEL_ORDER = "cancelOrder";
+    public static final String EDIT_ORDER = "editOrder";
 
     private final OrderMapper orderMapper;
     private final OrderFinancialRecordMapper recordMapper;
@@ -522,6 +523,19 @@ public class OrderActionService {
                 || safe(order.getWriteOffAmount()).compareTo(BigDecimal.ZERO) > 0
                 || safe(order.getCashRefundAmount()).compareTo(BigDecimal.ZERO) > 0;
         boolean terminal = status == FulfillmentStatus.COMPLETED || status == FulfillmentStatus.CANCELLED;
+
+        // 客户、商品和订单金额属于订单结构。只允许在“已确认、未选择履约方式、尚未结清”阶段修改；
+        // 部分收款仍可改，但服务端会校验修改后的应收不得低于当前净实收。
+        boolean editableOrderContent = migrated
+                && status == FulfillmentStatus.CONFIRMED
+                && FulfillmentMode.UNDECIDED.name().equals(order.getFulfillmentMode())
+                && !settled
+                && safe(order.getWriteOffAmount()).compareTo(BigDecimal.ZERO) == 0
+                && safe(order.getCashRefundAmount()).compareTo(BigDecimal.ZERO) == 0
+                && safe(order.getSalesReturnAmount()).compareTo(BigDecimal.ZERO) == 0;
+        if (authorities.contains("btn:order:edit") && editableOrderContent) {
+            actions.add(EDIT_ORDER);
+        }
 
         if (authorities.contains("btn:order:recordPayment") && !terminal && !settled) {
             actions.add(RECORD_PAYMENT);

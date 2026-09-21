@@ -1,6 +1,8 @@
 package com.blade.order;
 
 import com.blade.common.tenant.TenantContext;
+import com.blade.customer.mapper.CustomerMapper;
+import com.blade.customer.service.CustomerStatsCacheService;
 import com.blade.file.service.FileService;
 import com.blade.inventory.service.InventoryService;
 import com.blade.order.dto.AddPaymentDTO;
@@ -67,6 +69,8 @@ class OrderServiceImplSoftCouplingTest {
     @Mock private OrderFinanceSnapshotService snapshotService;
     @Mock private OrderActionService actionService;
     @Mock private com.blade.order.service.OrderAccessPolicy accessPolicy;
+    @Mock private CustomerStatsCacheService customerStatsCacheService;
+    @Mock private CustomerMapper customerMapper;
 
     @InjectMocks
     private OrderServiceImpl orderService;
@@ -87,6 +91,7 @@ class OrderServiceImplSoftCouplingTest {
                 new org.springframework.security.core.authority.SimpleGrantedAuthority("btn:order:view")));
         SecurityContextHolder.setContext(securityContext);
         lenient().when(snapshotService.records(anyLong(), anyLong())).thenReturn(List.of());
+        lenient().when(orderMapper.updateById(any(Order.class))).thenReturn(1);
     }
 
     @AfterEach
@@ -236,22 +241,93 @@ class OrderServiceImplSoftCouplingTest {
     }
 
     @Test
-    void updateFinancialFields_shouldRejectWhenFinancialFactsExist() {
+    void updateFinancialFields_shouldAllowPartialReceiptBeforeFulfillment() {
         Order order = stubOrder(30L, 0);
         order.setFulfillmentStatus("CONFIRMED");
+        order.setFulfillmentMode("UNDECIDED");
         order.setCollectionStatus("PARTIAL");
         order.setFreightAmount(BigDecimal.ZERO);
+        order.setFreightCost(BigDecimal.ZERO);
+        order.setWriteOffAmount(BigDecimal.ZERO);
+        order.setCashRefundAmount(BigDecimal.ZERO);
+        order.setSalesReturnAmount(BigDecimal.ZERO);
+        order.setNetReceivedAmount(new BigDecimal("40.00"));
         when(orderMapper.selectById(30L)).thenReturn(order);
         when(financialRecordMapper.selectCount(any())).thenReturn(1L);
+        when(orderItemMapper.selectList(any())).thenReturn(List.of());
         OrderUpdateDTO dto = new OrderUpdateDTO();
         dto.setId(30L);
-        dto.setFreightAmount(new BigDecimal("1.00"));
+        dto.setFreightAmount(new BigDecimal("100.00"));
+
+        orderService.update(dto);
+
+        verify(orderMapper).updateById(order);
+        verify(snapshotService).recalculateAndApply(order);
+    }
+
+    @Test
+    void updateOrderContent_shouldRejectAfterSettlement() {
+        Order order = stubOrder(31L, 0);
+        order.setFulfillmentStatus("CONFIRMED");
+        order.setFulfillmentMode("UNDECIDED");
+        order.setCollectionStatus("SETTLED");
+        order.setWriteOffAmount(BigDecimal.ZERO);
+        order.setCashRefundAmount(BigDecimal.ZERO);
+        order.setSalesReturnAmount(BigDecimal.ZERO);
+        when(orderMapper.selectById(31L)).thenReturn(order);
+        OrderUpdateDTO dto = new OrderUpdateDTO();
+        dto.setId(31L);
+        dto.setCustomerName("不能修改");
 
         BusinessException ex = assertThrows(BusinessException.class, () -> orderService.update(dto));
 
         assertEquals(400, ex.getCode());
-        verify(orderItemMapper, never()).delete(any());
         verify(orderMapper, never()).updateById(any(Order.class));
-        verify(snapshotService, never()).recalculateAndApply(any());
+    }
+
+    @Test
+    void updateOrderContent_shouldDetachInvalidCustomerButKeepSnapshot() {
+        Order order = stubOrder(32L, 0);
+        order.setCustomerId(8L);
+        order.setFulfillmentStatus("CONFIRMED");
+        order.setFulfillmentMode("UNDECIDED");
+        order.setCollectionStatus("UNPAID");
+        order.setWriteOffAmount(BigDecimal.ZERO);
+        order.setCashRefundAmount(BigDecimal.ZERO);
+        order.setSalesReturnAmount(BigDecimal.ZERO);
+        when(orderMapper.selectById(32L)).thenReturn(order);
+        when(customerMapper.selectById(999L)).thenReturn(null);
+        OrderUpdateDTO dto = new OrderUpdateDTO();
+        dto.setId(32L);
+        dto.setCustomerId(999L);
+        dto.setCustomerName("未建档客户");
+
+        orderService.update(dto);
+
+        assertNull(order.getCustomerId());
+        assertEquals("未建档客户", order.getCustomerName());
+        verify(orderMapper).updateById(order);
+    }
+
+    @Test
+    void updateOrderContent_shouldIgnoreCostFieldsWithoutCostPermission() {
+        Order order = stubOrder(33L, 0);
+        order.setFulfillmentStatus("CONFIRMED");
+        order.setFulfillmentMode("UNDECIDED");
+        order.setCollectionStatus("UNPAID");
+        order.setFreightCost(new BigDecimal("6.00"));
+        order.setWriteOffAmount(BigDecimal.ZERO);
+        order.setCashRefundAmount(BigDecimal.ZERO);
+        order.setSalesReturnAmount(BigDecimal.ZERO);
+        when(orderMapper.selectById(33L)).thenReturn(order);
+        OrderUpdateDTO dto = new OrderUpdateDTO();
+        dto.setId(33L);
+        dto.setFreightCost(new BigDecimal("999.00"));
+
+        orderService.update(dto);
+
+        assertEquals(0, new BigDecimal("6.00").compareTo(order.getFreightCost()));
+        verify(snapshotService, never()).recalculateAndApply(order);
+        verify(orderMapper).updateById(order);
     }
 }

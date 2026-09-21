@@ -3,6 +3,7 @@ package com.blade.order.draft;
 import com.blade.common.tenant.TenantContext;
 import com.blade.file.service.FileService;
 import com.blade.file.entity.FileStorage;
+import com.blade.customer.mapper.CustomerMapper;
 import com.blade.order.draft.dto.OrderDraftDTO;
 import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.draft.mapper.OrderDraftItemMapper;
@@ -41,7 +42,8 @@ class OrderDraftWithoutSourceImageTest {
         ProductSkuMapper skuMapper = mock(ProductSkuMapper.class);
         FileService fileService = mock(FileService.class);
         OrderDraftWriter writer = new OrderDraftWriter(
-                draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper(), com.blade.outlet.OutletTestScopes.allScopedPolicy());
+                draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper(),
+                com.blade.outlet.OutletTestScopes.allScopedPolicy(), mock(com.blade.customer.mapper.CustomerMapper.class));
 
         doAnswer(invocation -> {
             OrderDraft draft = invocation.getArgument(0);
@@ -83,7 +85,8 @@ class OrderDraftWithoutSourceImageTest {
         ProductSkuMapper skuMapper = mock(ProductSkuMapper.class);
         FileService fileService = mock(FileService.class);
         OrderDraftWriter writer = new OrderDraftWriter(
-                draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper(), com.blade.outlet.OutletTestScopes.allScopedPolicy());
+                draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper(),
+                com.blade.outlet.OutletTestScopes.allScopedPolicy(), mock(com.blade.customer.mapper.CustomerMapper.class));
 
         doAnswer(invocation -> {
             OrderDraft draft = invocation.getArgument(0);
@@ -120,5 +123,50 @@ class OrderDraftWithoutSourceImageTest {
         verify(draftMapper).insert(draftCaptor.capture());
         assertEquals(101L, draftCaptor.getValue().getSourceFileId());
         verify(fileService).syncFiles(eq("order_draft"), eq(91L), eq(List.of(101L, 102L)));
+    }
+
+    @Test
+    void invalidCustomerLinkIsClearedWhileSnapshotIsPreserved() {
+        OrderDraftMapper draftMapper = mock(OrderDraftMapper.class);
+        OrderDraftItemMapper itemMapper = mock(OrderDraftItemMapper.class);
+        ProductSkuMapper skuMapper = mock(ProductSkuMapper.class);
+        FileService fileService = mock(FileService.class);
+        CustomerMapper customerMapper = mock(CustomerMapper.class);
+        OrderDraftWriter writer = new OrderDraftWriter(
+                draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper(),
+                com.blade.outlet.OutletTestScopes.allScopedPolicy(), customerMapper);
+
+        doAnswer(invocation -> {
+            OrderDraft draft = invocation.getArgument(0);
+            draft.setId(92L);
+            return 1;
+        }).when(draftMapper).insert(any(OrderDraft.class));
+        ProductSku sku = new ProductSku();
+        sku.setId(10L);
+        sku.setProductId(20L);
+        sku.setStatus(1);
+        sku.setPrice(new BigDecimal("25.00"));
+        when(skuMapper.selectById(10L)).thenReturn(sku);
+        when(customerMapper.selectById(999L)).thenReturn(null);
+        TenantContext.setTenantId(7L);
+
+        OrderDraftDTO.Item item = new OrderDraftDTO.Item();
+        item.setSkuId(10L);
+        item.setQuantity(1);
+        item.setSalePrice(new BigDecimal("25.00"));
+        OrderDraftDTO.SaveRequest request = new OrderDraftDTO.SaveRequest();
+        request.setExternalRefNo("draft-invalid-customer");
+        request.setCustomerId(999L);
+        request.setCustomerName("临时客户");
+        request.setCustomerPhone("123456");
+        request.setItems(List.of(item));
+
+        writer.create(request, null, 9L);
+
+        ArgumentCaptor<OrderDraft> draftCaptor = ArgumentCaptor.forClass(OrderDraft.class);
+        verify(draftMapper).insert(draftCaptor.capture());
+        assertEquals(null, draftCaptor.getValue().getCustomerId());
+        assertEquals("临时客户", draftCaptor.getValue().getCustomerName());
+        assertEquals("123456", draftCaptor.getValue().getCustomerPhone());
     }
 }

@@ -6,6 +6,8 @@ import com.blade.common.exception.BusinessException;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
 import com.blade.file.service.FileService;
+import com.blade.customer.entity.Customer;
+import com.blade.customer.mapper.CustomerMapper;
 import com.blade.order.draft.dto.OrderDraftDTO;
 import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.draft.entity.OrderDraftItem;
@@ -55,6 +57,7 @@ public class OrderDraftService {
     private final FileService fileService;
     private final ObjectMapper objectMapper;
     private final OutletAccessPolicy outletAccessPolicy;
+    private final CustomerMapper customerMapper;
 
     public PageResult<OrderDraftDTO.Summary> page(int current,
                                                   int size,
@@ -225,7 +228,7 @@ public class OrderDraftService {
 
     private OrderCreateDTO toOrderCreate(OrderDraft draft, List<OrderDraftItem> items) {
         OrderCreateDTO dto = new OrderCreateDTO();
-        dto.setCustomerId(draft.getCustomerId());
+        dto.setCustomerId(resolveExistingCustomerId(draft.getCustomerId()));
         dto.setCustomerName(blankToWalkIn(draft.getCustomerName()));
         dto.setCustomerPhone(draft.getCustomerPhone());
         dto.setOrderDate(draft.getOrderDate());
@@ -270,6 +273,17 @@ public class OrderDraftService {
         }
         if (orderNo != null && !orderNo.isBlank()) return orderNo;
         return draft.getExternalRefNo();
+    }
+
+    private Long resolveExistingCustomerId(Long customerId) {
+        if (customerId == null) return null;
+        Customer customer = customerMapper.selectById(customerId);
+        if (customer == null
+                || Integer.valueOf(1).equals(customer.getDeleted())
+                || !java.util.Objects.equals(TenantContext.requireTenantId(), customer.getTenantId())) {
+            return null;
+        }
+        return customer.getId();
     }
 
     private Map<Long, String> outletCodes(List<Long> outletIds) {

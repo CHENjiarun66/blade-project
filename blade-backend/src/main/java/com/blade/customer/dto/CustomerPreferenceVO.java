@@ -36,7 +36,7 @@ public class CustomerPreferenceVO {
     public static class CategoryPreference {
         @Schema(description = "品类名称")
         private String categoryName;
-        @Schema(description = "购买次数")
+        @Schema(description = "购买件数")
         private Integer count;
         @Schema(description = "占比（0-100）")
         private Double percentage;
@@ -53,7 +53,7 @@ public class CustomerPreferenceVO {
     public static class ColorPreference {
         @Schema(description = "颜色名称")
         private String colorName;
-        @Schema(description = "购买次数")
+        @Schema(description = "购买件数")
         private Integer count;
         @Schema(description = "占比（0-100）")
         private Double percentage;
@@ -70,7 +70,7 @@ public class CustomerPreferenceVO {
     public static class SizePreference {
         @Schema(description = "尺码名称")
         private String sizeName;
-        @Schema(description = "购买次数")
+        @Schema(description = "购买件数")
         private Integer count;
         @Schema(description = "占比（0-100）")
         private Double percentage;

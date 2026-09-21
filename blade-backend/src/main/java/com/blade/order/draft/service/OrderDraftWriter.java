@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.blade.common.exception.BusinessException;
 import com.blade.common.tenant.TenantContext;
 import com.blade.file.service.FileService;
+import com.blade.customer.entity.Customer;
+import com.blade.customer.mapper.CustomerMapper;
 import com.blade.order.draft.dto.OrderDraftDTO;
 import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.draft.entity.OrderDraftItem;
@@ -38,6 +40,7 @@ public class OrderDraftWriter {
     private final FileService fileService;
     private final ObjectMapper objectMapper;
     private final OutletAccessPolicy outletAccessPolicy;
+    private final CustomerMapper customerMapper;
 
     @Transactional
     public OrderDraftDTO.BatchResult create(OrderDraftDTO.SaveRequest request, Long agentKeyId) {
@@ -190,7 +193,7 @@ public class OrderDraftWriter {
         draft.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));
         draft.setRawCustomerName(trim(request.getRawCustomerName()));
         draft.setRawCustomerPhone(trim(request.getRawCustomerPhone()));
-        draft.setCustomerId(request.getCustomerId());
+        draft.setCustomerId(resolveExistingCustomerId(request.getCustomerId(), draft.getTenantId()));
         draft.setCustomerName(trim(request.getCustomerName()) == null ? "散客" : request.getCustomerName().trim());
         draft.setCustomerPhone(trim(request.getCustomerPhone()));
         draft.setCustomerCountryCode(trim(request.getCustomerCountryCode()));
@@ -208,6 +211,21 @@ public class OrderDraftWriter {
         draft.setDeliveryAddress(trim(request.getDeliveryAddress()));
         draft.setNote(trim(request.getNote()));
         draft.setWarnings(writeJson(warnings));
+    }
+
+    /**
+     * 草稿允许录入客户快照而不创建客户主档。传入的客户 ID 已不存在或不属于当前租户时，
+     * 自动取消关联并保留名称/电话/地址，避免确认正式订单时被无效外键阻断。
+     */
+    private Long resolveExistingCustomerId(Long customerId, Long tenantId) {
+        if (customerId == null) return null;
+        Customer customer = customerMapper.selectById(customerId);
+        if (customer == null
+                || Integer.valueOf(1).equals(customer.getDeleted())
+                || !java.util.Objects.equals(tenantId, customer.getTenantId())) {
+            return null;
+        }
+        return customer.getId();
     }
 
     private void insertItems(Long draftId,

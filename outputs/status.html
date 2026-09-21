@@ -57,7 +57,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 17:41:16　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/22 00:10:25　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -74,10 +74,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">192 完成 · 0 进行中 · 26 待办 · 0 部分 · 8 暂缓</span>
+          <span class="card-nums">193 完成 · 0 进行中 · 26 待办 · 0 部分 · 8 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:88%"></div></div>
-        <div class="bar-label">88% 完成（活跃 218 项，暂缓 8 项）</div>
+        <div class="bar-label">88% 完成（活跃 219 项，暂缓 8 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -508,7 +508,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 320 项） <span class="count">320</span></h2>
+      <h2>✅ 已完成（共 321 项） <span class="count">321</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -970,7 +970,7 @@
         <td class="td-name">订单编辑接口</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 3.3: 订单状态机修复与功能完善（P0）</td>
-        <td class="td-remark">PUT /api/orders/{id}；创建状态可改金额结构；已收款后锁商品明细/数量/金额/运费但允许维护基础信息、备注、图片；已发货后仅允许备注/图片 |</td>
+        <td class="td-remark">PUT /api/orders/{id}；新状态机下仅“已确认 + 履约方式未决定 + 未收款/部分收款”允许修改客户、商品明细、数量、售价和运费，修改后应收不得低于当前净实收；已结清或进入履约后锁定结构，已发货/已完成仅允许备注、图片和受控档口变更 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-136</td>
@@ -1166,7 +1166,7 @@
         <td class="td-name">客户商品偏好分析接口</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 4.5: 客户模块国际化升级（2026-04-24）</td>
-        <td class="td-remark">GET /api/customers/{id}/preference，颜色/尺码/品类偏好统计 |</td>
+        <td class="td-remark">GET /api/customers/{id}/preference，颜色/尺码/品类偏好统一按订单明细 quantity（购买件数）累计，不再按 SKU 行数计数；缓存版本升级并保留订单动作失效机制 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-410</td>
@@ -1208,7 +1208,14 @@
         <td class="td-name">订单记录分页</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
-        <td class="td-remark">后端支持 page/size 参数（默认1/20，最大100），返回 PageResult 含 total/pages；前端需结合实际页面接入 |</td>
+        <td class="td-remark">后端支持 page/size 参数（默认1/20，最大100），返回 PageResult 含 total/pages；客户详情页已接入 10/20/50/100 分页并展示纸质单号、订单日期，108 单等大客户可完整翻页查看 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">DATA-CUSTOMER-001</td>
+        <td class="td-name">生产客户订单重复审计</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 4.6: 客户模块优化（P1-P2）</td>
+        <td class="td-remark">API 分页无重复渲染、订单数量与明细数量一致；发现 Shakirah 两张、Gracemi 两张高度疑似历史重复订单，另有 JA 同纸质单号但日期不同记录；不自动删除，须备份后由业务逐单确认 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-416</td>
@@ -1558,7 +1565,7 @@
         <td class="td-name">草稿确认转正式订单</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计 |</td>
+        <td class="td-remark">JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计；未建档客户允许只保留订单快照或留空按散客处理，失效/跨租户 customerId 会解除关联且不阻断确认 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-616</td>
@@ -1894,7 +1901,7 @@
         <td class="td-name">订单详情页</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
-        <td class="td-remark">查看 + 状态操作 + 支付状态/定金/送货状态 + 追加收款按钮（status=0且paymentStatus≠2）+ 追加收款弹窗 |</td>
+        <td class="td-remark">查看、状态/收款/配货操作；按后端 `allowedActions.editOrder` 在“已确认 + 未进入履约 + 未收款/部分收款”显示编辑入口，可修改客户快照、商品/SKU、数量、售价、成本（受字段权限控制）和运费，并阻止应收低于当前净实收 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-203</td>
@@ -1922,7 +1929,7 @@
         <td class="td-name">PC 快速录单增强</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
-        <td class="td-remark">单张纸单连续录入、来源档口/店铺独立于仓库、订货/现货标记、运费收入/成本、成本与毛利快照、订单图片统一上传、结算与汇总左右并列、列表/详情/导出展示 |</td>
+        <td class="td-remark">单张纸单连续录入、来源档口/店铺独立于仓库、订货/现货标记、运费收入/成本、成本与毛利快照；订单图片统一上传并在桌面端固定于右侧大图对照栏（缩放、缩略图切换、删除，最多 10 张），录入区保持独立滚动且不使用抽屉 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-207</td>

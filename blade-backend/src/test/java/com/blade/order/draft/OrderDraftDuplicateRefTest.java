@@ -27,7 +27,8 @@ class OrderDraftDuplicateRefTest {
     private final FileService fileService = mock(FileService.class);
     private final OutletAccessPolicy outletAccessPolicy = mock(OutletAccessPolicy.class);
     private final OrderDraftWriter writer = new OrderDraftWriter(
-            draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper(), outletAccessPolicy);
+            draftMapper, itemMapper, skuMapper, fileService, new ObjectMapper(), outletAccessPolicy,
+            mock(com.blade.customer.mapper.CustomerMapper.class));
 
     private OrderDraftDTO.SaveRequest request(String ref) {
         OrderDraftDTO.SaveRequest request = new OrderDraftDTO.SaveRequest();

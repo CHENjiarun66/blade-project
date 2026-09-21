@@ -76,6 +76,8 @@ export interface CustomerOrderVO {
   totalAmountText: string
   paidAmountText: string
   createTime: string
+  orderDate?: string
+  sourceDocNo?: string
   totalQuantity: number
   items: CustomerOrderItemVO[]
 }
@@ -149,8 +151,8 @@ export function getCustomerStats(id: number) {
 }
 
 // 客户历史订单
-export function getCustomerOrders(id: number) {
-  return client.get<{ records: CustomerOrderVO[]; total: number; size: number; current: number; pages: number }>(`/customers/${id}/orders`)
+export function getCustomerOrders(id: number, params: { current: number; size: number }) {
+  return client.get<{ records: CustomerOrderVO[]; total: number; size: number; current: number; pages: number }>(`/customers/${id}/orders`, { params })
 }
 
 // 客户商品偏好

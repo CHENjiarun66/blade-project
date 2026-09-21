@@ -25,8 +25,8 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-12 gap-6 items-start">
-      <section class="col-span-12 space-y-6">
+    <div class="quick-workspace">
+      <section class="quick-editor space-y-6">
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <section class="form-panel">
             <div class="panel-title">
@@ -402,32 +402,6 @@
                 <span>备注</span>
                 <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="纸单备注、特殊说明" />
               </label>
-              <div class="field-block md:col-span-3">
-                <span>订单图片</span>
-                <div class="flex flex-wrap gap-4">
-                  <div
-                    v-for="(image, index) in imageSources"
-                    :key="image"
-                    class="quick-image-tile group"
-                  >
-                    <img :src="image" alt="" class="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      class="quick-image-remove"
-                      aria-label="移除订单图片"
-                      @click="removeImage(index)"
-                    >
-                      <span class="material-symbols-outlined text-[14px]">close</span>
-                    </button>
-                  </div>
-                  <label class="quick-image-upload">
-                    <span class="material-symbols-outlined text-2xl text-gray-400">add_photo_alternate</span>
-                    <span class="text-[10px] font-bold text-gray-500">上传图片</span>
-                    <input type="file" multiple accept="image/*" class="hidden" @change="handleImageUpload" />
-                  </label>
-                </div>
-                <p class="text-xs text-gray-400">支持 JPG、PNG、GIF，可多选上传。</p>
-              </div>
             </div>
           </div>
 
@@ -448,6 +422,66 @@
           </div>
         </div>
       </section>
+
+      <aside class="quick-image-aside" aria-label="订单图片对照栏">
+        <section class="quick-image-card">
+          <div class="quick-image-header">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#408aee]">document_scanner</span>
+                <h3>订单图片</h3>
+                <el-tag v-if="imageSources.length" size="small" effect="plain">
+                  {{ activeOrderImageIndex + 1 }} / {{ imageSources.length }}
+                </el-tag>
+              </div>
+              <p>固定在右侧，录入商品时可持续对照原图。</p>
+            </div>
+            <label class="quick-image-add-button">
+              <span class="material-symbols-outlined">add_photo_alternate</span>
+              <span>添加图片</span>
+              <input type="file" multiple accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleImageUpload" />
+            </label>
+          </div>
+
+          <div v-if="imageSources.length" class="quick-image-canvas">
+            <el-image
+              :key="imageSources[activeOrderImageIndex]"
+              :src="imageSources[activeOrderImageIndex]"
+              :preview-src-list="imageSources"
+              :initial-index="activeOrderImageIndex"
+              fit="contain"
+              class="quick-main-image"
+              preview-teleported
+              :alt="`订单参考图片第 ${activeOrderImageIndex + 1} 张`"
+            />
+            <div class="quick-image-hint">
+              <span class="material-symbols-outlined">zoom_in</span>
+              点击图片可放大查看细节
+            </div>
+          </div>
+          <label v-else class="quick-image-empty">
+            <span class="material-symbols-outlined">add_photo_alternate</span>
+            <strong>导入订单图片</strong>
+            <span>图片会固定显示在这里，方便边看边录入。</span>
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleImageUpload" />
+          </label>
+
+          <div v-if="imageSources.length" class="quick-image-thumbnails">
+            <button
+              v-for="(image, index) in imageSources"
+              :key="imageFileIds[index]"
+              type="button"
+              class="quick-image-thumbnail"
+              :class="{ active: index === activeOrderImageIndex }"
+              @click="activeOrderImageIndex = index"
+            >
+              <img :src="image" :alt="`订单图片 ${index + 1}`" />
+              <span>{{ index === 0 ? '首图' : index + 1 }}</span>
+              <span class="quick-image-delete" role="button" aria-label="移除订单图片" @click.stop="removeImage(index)">×</span>
+            </button>
+          </div>
+        </section>
+      </aside>
     </div>
   </div>
 </template>
@@ -459,7 +493,7 @@ import { ElMessage } from 'element-plus'
 import { createOrder } from '@/api/order'
 import { confirmOrderDraft, createOrderDraft, saveOrderDraft, type DraftSaveRequest } from '@/api/orderDraft'
 import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO } from '@/api/customer'
-import { fileVariantUrl, parseImageSources, uploadFile } from '@/api/file'
+import { filePreviewUrl, fileVariantUrl, parseImageSources, uploadFile } from '@/api/file'
 import { getProductFileBindings, getProductPage, type ProductVO, type ProductSku, type ProductFileBindingsVO } from '@/api/product'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
 import OutletSelect from '@/components/OutletSelect.vue'
@@ -537,6 +571,7 @@ const skuOptions = ref<SkuOption[]>([])
 const filteredSkuOptions = ref<SkuOption[]>([])
 const imageSources = ref<string[]>([])
 const imageFileIds = ref<string[]>([])
+const activeOrderImageIndex = ref(0)
 
 // 按商品批量添加 SKU
 const selectedProductId = ref<number | undefined>(undefined)
@@ -1137,12 +1172,19 @@ async function handleImageUpload(event: Event) {
   if (!target.files?.length) return
 
   try {
-    for (const file of Array.from(target.files)) {
+    const remaining = Math.max(0, 10 - imageFileIds.value.length)
+    const files = Array.from(target.files).slice(0, remaining)
+    if (files.length === 0) {
+      ElMessage.warning('每张订单最多上传 10 张图片')
+      return
+    }
+    for (const file of files) {
       const res = await uploadFile(file, 'order')
       const fileId = res.data.id
       imageFileIds.value.push(String(fileId))
-      imageSources.value.push(fileVariantUrl(fileId, 'thumb'))
+      imageSources.value.push(filePreviewUrl(fileId))
     }
+    activeOrderImageIndex.value = Math.max(0, imageSources.value.length - files.length)
   } catch (error: any) {
     ElMessage.error(error.message || '图片上传失败')
   } finally {
@@ -1153,6 +1195,7 @@ async function handleImageUpload(event: Event) {
 function removeImage(index: number) {
   imageSources.value.splice(index, 1)
   imageFileIds.value.splice(index, 1)
+  activeOrderImageIndex.value = Math.min(activeOrderImageIndex.value, Math.max(0, imageSources.value.length - 1))
 }
 
 function resetForNext(previousSourceOrderNo = '') {
@@ -1172,6 +1215,7 @@ function resetForNext(previousSourceOrderNo = '') {
   form.items = []
   imageSources.value = []
   imageFileIds.value = []
+  activeOrderImageIndex.value = 0
   needDelivery.value = false
   savedDraftId.value = undefined
   draftExternalRefNo.value = ''
@@ -1349,6 +1393,209 @@ onMounted(async () => {
 <style scoped>
 .quick-order-page {
   min-width: 1180px;
+}
+
+.quick-workspace {
+  display: grid;
+  grid-template-columns: minmax(720px, 1fr) minmax(380px, 34%);
+  align-items: start;
+  gap: 24px;
+}
+
+.quick-editor,
+.quick-image-aside {
+  min-width: 0;
+}
+
+.quick-image-aside {
+  position: sticky;
+  top: 80px;
+  align-self: start;
+}
+
+.quick-image-card {
+  overflow: hidden;
+  border: 1px solid #dbe3ee;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 10%);
+}
+
+.quick-image-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.quick-image-header h3 {
+  color: #111827;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.quick-image-header p {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.quick-image-add-button {
+  display: inline-flex;
+  min-height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 0 12px;
+  color: #2563eb;
+  background: #eff6ff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.quick-image-add-button:hover {
+  border-color: #408aee;
+  background: #dbeafe;
+}
+
+.quick-image-canvas {
+  position: relative;
+  display: flex;
+  min-height: 560px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    linear-gradient(45deg, rgb(255 255 255 / 3%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(255 255 255 / 3%) 25%, transparent 25%),
+    #151a22;
+  background-position: 0 0, 12px 12px;
+  background-size: 24px 24px;
+}
+
+.quick-main-image {
+  width: 100%;
+  height: min(720px, calc(100vh - 250px));
+  min-height: 560px;
+  cursor: zoom-in;
+}
+
+.quick-main-image :deep(.el-image__inner) {
+  padding: 14px;
+}
+
+.quick-image-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #e2e8f0;
+  background: rgb(15 23 42 / 78%);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.quick-image-empty {
+  display: flex;
+  min-height: 560px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px;
+  color: #64748b;
+  background: #f8fafc;
+  text-align: center;
+  cursor: pointer;
+}
+
+.quick-image-empty .material-symbols-outlined {
+  color: #94a3b8;
+  font-size: 52px;
+}
+
+.quick-image-empty strong {
+  color: #334155;
+  font-size: 15px;
+}
+
+.quick-image-empty span:last-of-type {
+  max-width: 240px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.quick-image-thumbnails {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.quick-image-thumbnail {
+  position: relative;
+  height: 72px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  padding: 0;
+  background: #e2e8f0;
+  cursor: pointer;
+}
+
+.quick-image-thumbnail.active {
+  border-color: #408aee;
+  box-shadow: 0 0 0 2px rgb(64 138 238 / 14%);
+}
+
+.quick-image-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.quick-image-thumbnail > span:not(.quick-image-delete) {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  border-radius: 999px;
+  padding: 2px 6px;
+  color: #fff;
+  background: rgb(15 23 42 / 72%);
+  font-size: 10px;
+}
+
+.quick-image-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(220 38 38 / 88%);
+  font-size: 16px;
+  line-height: 1;
+}
+
+@media (min-width: 1600px) {
+  .quick-workspace {
+    grid-template-columns: minmax(820px, 1fr) minmax(430px, 34%);
+  }
 }
 
 .form-panel {

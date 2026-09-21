@@ -535,6 +535,8 @@ public class CustomerServiceImpl implements CustomerService {
             vo.setTotalAmountText(formatMoney(order.getTotalAmount()));
             vo.setPaidAmountText(formatMoney(order.getPaidAmount()));
             vo.setCreateTime(order.getCreateTime());
+            vo.setOrderDate(order.getOrderDate());
+            vo.setSourceDocNo(order.getSourceDocNo());
 
             // 从已分组的 Map 中获取订单项
             List<OrderItem> items = itemsByOrderId.getOrDefault(order.getId(), java.util.Collections.emptyList());
@@ -571,7 +573,7 @@ public class CustomerServiceImpl implements CustomerService {
         OrderReadScope scope = orderAccessPolicy.resolveReadScope(null, false);
         String startDate = (dto != null && dto.getStartDate() != null) ? dto.getStartDate() : "all";
         String endDate = (dto != null && dto.getEndDate() != null) ? dto.getEndDate() : "all";
-        String cacheKey = CustomerStatsCacheService.PREFERENCE_KEY_PREFIX + customerId + ":"
+        String cacheKey = CustomerStatsCacheService.PREFERENCE_KEY_PREFIX + customerId + ":qty-v2:"
                 + scope.cacheFingerprint() + ":" + startDate + ":" + endDate;
 
         // 尝试从缓存获取
@@ -623,14 +625,17 @@ public class CustomerServiceImpl implements CustomerService {
         java.util.Map<String, Integer> sizeCount = new java.util.HashMap<>();
         java.util.Set<String> productTypes = new java.util.HashSet<>();
 
+        int totalQuantity = 0;
         for (OrderItem item : items) {
+            int quantity = item.getQuantity() == null ? 0 : Math.max(item.getQuantity(), 0);
+            totalQuantity += quantity;
             if (item.getProductName() != null) productTypes.add(item.getProductName());
-            if (item.getColorName() != null) categoryCount.merge(item.getProductName(), 1, Integer::sum);
-            if (item.getColorName() != null) colorCount.merge(item.getColorName(), 1, Integer::sum);
-            if (item.getSizeName() != null) sizeCount.merge(item.getSizeName(), 1, Integer::sum);
+            if (item.getProductName() != null) categoryCount.merge(item.getProductName(), quantity, Integer::sum);
+            if (item.getColorName() != null) colorCount.merge(item.getColorName(), quantity, Integer::sum);
+            if (item.getSizeName() != null) sizeCount.merge(item.getSizeName(), quantity, Integer::sum);
         }
 
-        int total = items.size();
+        int total = totalQuantity;
         CustomerPreferenceVO vo = new CustomerPreferenceVO();
         vo.setCustomerId(customerId);
         vo.setProductTypeCount(productTypes.size());

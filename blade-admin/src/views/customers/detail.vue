@@ -72,8 +72,9 @@
                 <div>
                   <span class="font-bold text-gray-900 mr-3">{{ order.orderNo }}</span>
                   <el-tag size="small" :type="statusType(order.status)">{{ order.statusName }}</el-tag>
+                  <span v-if="order.sourceDocNo" class="ml-3 text-xs text-gray-400">纸质单号 {{ order.sourceDocNo }}</span>
                 </div>
-                <span class="text-xs text-gray-400">{{ formatDate(order.createTime) }}</span>
+                <span class="text-xs text-gray-400">订单日期 {{ formatDate(order.orderDate || order.createTime) }}</span>
               </div>
 
               <!-- 订单项 -->
@@ -98,6 +99,19 @@
                   <span class="text-gray-500">{{ order.totalAmountText }}</span>
                 </div>
               </div>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white px-5 py-4 shadow-sm">
+              <span class="text-sm text-gray-500">共 {{ ordersTotal }} 笔订单，当前显示第 {{ ordersPage }} / {{ ordersPages || 1 }} 页</span>
+              <el-pagination
+                v-model:current-page="ordersPage"
+                v-model:page-size="ordersPageSize"
+                background
+                layout="sizes, prev, pager, next"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="ordersTotal"
+                @current-change="loadOrders"
+                @size-change="handleOrdersPageSizeChange"
+              />
             </div>
           </div>
         </div>
@@ -220,6 +234,10 @@ const prefLoading = ref(false)
 
 const customer = ref<CustomerVO | null>(null)
 const customerOrders = ref<any[]>([])
+const ordersPage = ref(1)
+const ordersPageSize = ref(20)
+const ordersTotal = ref(0)
+const ordersPages = ref(0)
 const preference = ref<any | null>(null)
 
 const totalOrderedItems = computed(() => {
@@ -265,11 +283,21 @@ async function loadInfo() {
 async function loadOrders() {
   ordersLoading.value = true
   try {
-    const res = await getCustomerOrders(customerId)
+    const res = await getCustomerOrders(customerId, {
+      current: ordersPage.value,
+      size: ordersPageSize.value,
+    })
     customerOrders.value = res.data.records || []
+    ordersTotal.value = Number(res.data.total || 0)
+    ordersPages.value = Number(res.data.pages || 0)
   } finally {
     ordersLoading.value = false
   }
+}
+
+function handleOrdersPageSizeChange() {
+  ordersPage.value = 1
+  loadOrders()
 }
 
 async function loadPreference() {
@@ -289,7 +317,7 @@ onMounted(() => {
 })
 
 watch(activeTab, (tab) => {
-  if (tab === 'orders' && customerOrders.value.length === 0) {
+  if (tab === 'orders' && ordersTotal.value === 0 && customerOrders.value.length === 0) {
     loadOrders()
   } else if (tab === 'preference' && preference.value === null) {
     loadPreference()
