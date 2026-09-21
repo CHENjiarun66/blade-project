@@ -44,7 +44,7 @@
         label="档口"
         :loading="outletsLoading"
         :disabled="outletsLoading"
-        :error-messages="outletError"
+        :error="!!outletError"
         class="mb-2"
         @update:model-value="outletError = ''"
       />
