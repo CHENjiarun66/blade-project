@@ -1,7 +1,7 @@
 # 订单录入、订单可编辑窗口与客户统计修复生产发布记录
 
 > 日期：2026-09-22
-> 状态：本地实现、全量回归、生产备份与生产副本 V61→V68 演练完成；待执行生产发布和冒烟验证后回填本记录。
+> 状态：已于 2026-09-22 发布生产；自动发布门禁、数据回填对账与外网基础冒烟通过。Agent Key 档口范围需管理员在系统中人工复核并重新签发。
 > 原则：本次不自动合并或删除任何历史订单。
 
 ## 1. 发布范围
@@ -56,13 +56,13 @@
 
 ## 4. 发布前门禁
 
-- [ ] 记录当前生产镜像/tag、Git commit、Flyway 版本和应用配置。
-- [ ] 完成数据库全量备份、订单/客户/草稿/文件绑定关键表单表备份，以及 uploads 文件目录快照。
+- [x] 记录当前生产镜像/tag、Git commit、Flyway 版本和应用配置。
+- [x] 完成数据库全量备份、订单/客户/草稿/文件绑定关键表单表备份，以及 uploads 文件目录快照。
 - [x] 在隔离库完成一次恢复验证。
 - [x] 执行 V67 `sales_outlet` 租户默认重复检查，结果为空。
 - [x] 执行 V68 `sys_user_outlet` 与 `agent_key_outlet` 有效默认重复检查，结果为空。
 - [ ] 如 V68 预检失败：人工处理重复，执行 `flyway repair` 后再 `migrate`；禁止跳过 repair 或手工补列/索引。
-- [ ] 确认部署包包含本记录对应 commit，工作区无未提交发布文件。
+- [x] 确认部署包包含本记录对应 commit，工作区无未提交发布文件。
 
 ## 5. 生产冒烟
 
@@ -83,11 +83,14 @@
 
 ## 7. 发布后回填
 
-- 实际 Git commit：待回填
-- 生产发布包/镜像：待回填
-- 发布前 Flyway / 发布后 Flyway：待回填
-- 数据库备份路径与校验：待回填
-- uploads 快照路径与校验：待回填
-- 发布时间、执行人、复核人：待回填
-- 冒烟结果：待回填
-- 回滚是否触发：待回填
+- 实际 Git commit：`104db0e73c8abf8e4d04d5e79cd951fe9a5b496d`
+- 生产发布包/镜像：release `20260922_021834`；`blade-backend:20260922_021834`、`blade-web:20260922_021834`
+- 发布前 Flyway / 发布后 Flyway：V61 / V68
+- 数据库备份路径与校验：NAS `/volume2/blade/db-backups/nas_blade_project_prod_20260922_021834`；Mac `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260922_021834`；压缩数据库与 schema 均通过 SHA-256 校验
+- uploads 快照路径与校验：`nas_blade_project_prod_20260922_002500_pre_2a10694/uploads.tar.gz`，651 MB、397 个文件，NAS/Mac SHA-256 一致
+- 发布时间、执行人、复核人：2026-09-22 02:18–02:25（Asia/Shanghai）；Codex 自动发布门禁执行与复核
+- 生产档口初始化：新增租户 1 默认档口 `YULONG / 御龙`；169 张正式订单由保留的 `source_shop=御龙` 回填 `source_outlet_id`，3 张异常/空来源订单保持未归档；已确认草稿按演练规则恢复为不回填，最终 73 张草稿的档口字段均未改动
+- 数据对账：172 张有效订单、总额 ¥392,225.00、净实收 ¥390,303.00、752 行订单明细、385 行草稿明细均与发布前一致；错误档口映射 0
+- 冒烟结果：Flyway V68、旧订单迁移/重放 0、生命周期/财务台账/占位 SKU 发布不变量全部通过；后端与 Web 容器健康；外网 `/catalog` 返回 200；无 Key 调用 capabilities 返回 401；生产日志无启动 ERROR/Exception
+- Agent Key：现有唯一启用 Key（id=5）业务 scopes 保留，但 V63 安全迁移后 `outlet_scope_type=NONE`。必须由 OWNER/ADMIN 在“系统设置 → Agent Key”中人工选择 `御龙`（建议 `ASSIGNED`）并重新签发，再将新 Key 保存到 Mac Key Manager；本次不绕过审计静默扩权
+- 回滚是否触发：否
