@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 11:01:00　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 11:27:42　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -81,10 +81,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">97 完成 · 0 进行中 · 13 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">101 完成 · 0 进行中 · 9 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:88%"></div></div>
-        <div class="bar-label">88% 完成（活跃 110 项，暂缓 2 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:92%"></div></div>
+        <div class="bar-label">92% 完成（活跃 110 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -110,7 +110,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">44</span></h2>
+      <h2>🟡 还没做 <span class="count">40</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -267,13 +267,6 @@
         <td class="td-remark">V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-007</td>
-        <td class="td-name">订单/草稿 DTO 与名称快照</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">接入 `sourceOutletId/code/name`；服务端从主数据生成 `source_shop`，禁止单据批次兜底 |</td>
-      </tr>
-      <tr data-status="todo">
         <td class="td-id">BE-OUTLET-008</td>
         <td class="td-name">看板与分析范围接入</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
@@ -295,20 +288,6 @@
         <td class="td-remark">Key 签发/轮换、capabilities、档口查询和草稿/订单写入校验；越权档口返回 403 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BA-OUTLET-003</td>
-        <td class="td-name">订单与草稿档口选择器</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">单档口锁定、多档口只显示授权集合、Owner 显示全部启用档口 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-OUTLET-004</td>
-        <td class="td-name">订单/草稿档口筛选</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">列表按档口筛选，Owner 可处理“待归档档口”历史数据 |</td>
-      </tr>
-      <tr data-status="todo">
         <td class="td-id">BA-OUTLET-005</td>
         <td class="td-name">统计档口筛选与对比</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
@@ -328,13 +307,6 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
         <td class="td-remark">单/多/全部/无档口、SELF/ALL_USERS、跨租户和禁用档口 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">TEST-OUTLET-002</td>
-        <td class="td-name">订单与草稿 E2E</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">快速录单、手工/Agent 草稿、草稿确认、正式订单和伪造档口请求 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">TEST-OUTLET-003</td>
@@ -503,7 +475,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 309 项） <span class="count">309</span></h2>
+      <h2>✅ 已完成（共 313 项） <span class="count">313</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-001</td>
@@ -2277,6 +2249,13 @@
         <td class="td-remark">草稿列表/批次/详情/更新/确认统一范围；selectForUpdate 后复核；空档口确认阻断 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-OUTLET-007</td>
+        <td class="td-name">订单/草稿 DTO 与名称快照</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">正式订单必须有具体档口；`sourceOutletId/code/name` 返回；服务端主数据名称快照；改档口高权限 + 原因 + 审计（V66）；列表结构化筛选 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BA-OUTLET-001</td>
         <td class="td-name">档口管理页面</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -2289,6 +2268,27 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
         <td class="td-remark">可访问档口多选、默认档口、权限摘要和销售员必选校验 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-OUTLET-003</td>
+        <td class="td-name">订单与草稿档口选择器</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">单档口锁定、多档口只显示授权集合、Owner 显示全部启用档口；快速录单/新建/草稿详情/编辑弹窗接入，改档口需原因 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-OUTLET-004</td>
+        <td class="td-name">订单/草稿档口筛选</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">列表按档口筛选，待归档仅授权可见；历史空值标签与详情名称展示 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">TEST-OUTLET-002</td>
+        <td class="td-name">订单与草稿 E2E</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">后端 17 例 + Playwright 5 例：快速录单、手工/Agent 草稿、草稿确认、正式订单、列表筛选、待归档和伪造档口 403 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-803</td>

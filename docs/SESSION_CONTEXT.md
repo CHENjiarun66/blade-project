@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-09-21 档口 Series D：订单与草稿档口交互完成
+
+- 正式订单创建必须有具体档口（显式 ID/编码 → 默认 → 400），`data:outlet:unassigned` 不能新建空档口订单；`source_shop` 只用主数据名称快照。订单/草稿列表新增 `sourceOutletId`/`unassignedOnly` 结构化筛选（越权 403、待归档仅授权、互斥）。
+- 改档口：V66 `btn:order:changeOutlet`（仅 OWNER/ADMIN）+ 原因 + `order_outlet_change_log` 审计；历史 NULL 归档另需 `data:outlet:unassigned`；已完成订单保留金额/明细约束，仅允许备注/图片/显式高权限改档口。
+- 前端共享 `OutletSelect`：单档口只读、多档口授权选择、待归档提示、改档口原因；快速录单/新建/草稿详情/订单编辑/列表筛选/待归档标签全部接入，移除可编辑 `sourceShop`。
+- commit `8071dc0`（后端）、`7759a67`（前端）；全量后端 650/650，`npm run build` 通过，Series D Playwright 5 passed + 相关 e2e 5 passed。交付报告见 [2026-09-21-outlet-series-d-delivery.md](./superpowers/plans/2026-09-21-outlet-series-d-delivery.md)。
+- 未做（保持 TODO）：Series E 统计/导出/文件/Agent 全出口、Series F 历史迁移与发布、Series G 收口。
+
 ## 2026-09-21 档口 Series C 第二轮 Codex 终审整改完成
 
 - 补漏 P0：草稿“新建”统一接入档口范围（`OrderDraftWriter.create/update`）。Agent 只认 `sourceOutletCode`，传 `sourceOutletId` 返回 400；未传 code 时用默认档口，无默认 403，绝不写空。手工显式 ID → 默认 → 无默认时仅 `data:outlet:unassigned` 可写空，否则 400。

@@ -164,6 +164,8 @@ GET /api/orders
 | size | int | 否 | 每页条数，默认 20 |
 | status | int | 否 | 订单状态：0创建/1已付款/2已发货/3已完成/4已取消/5退货中/6已退货 |
 | keyword | string | 否 | 搜索关键词（订单号/客户名） |
+| sourceOutletId | long | 否 | 按来源档口筛选；只允许当前用户 `readable` 集合，伪造/越权返回 403（不静默空结果） |
+| unassignedOnly | boolean | 否 | 仅看“待归档档口”（`source_outlet_id IS NULL`）；需 `data:outlet:unassigned`，与 `sourceOutletId` 互斥（400）。不传表示全部（仍由统一档口 × 人员范围裁剪） |
 
 **请求示例**：
 ```
@@ -183,6 +185,9 @@ GET /api/orders?current=1&size=20&status=0&keyword=张三
         "totalAmount": 1000.00,
         "status": 0,
         "statusName": "待处理",
+        "sourceOutletId": 12,
+        "sourceOutletCode": "YL",
+        "sourceShop": "御龙",
         "createTime": "2026-03-21 10:00:00"
       }
     ],
@@ -251,6 +256,7 @@ POST /api/orders
   "customerName": "张三",
   "customerPhone": "13800138000",
   "customerAddress": "北京市朝阳区xxx",
+  "sourceOutletId": 12,
   "remark": "尽快发货",
   "items": [
     {
@@ -262,6 +268,11 @@ POST /api/orders
   ]
 }
 ```
+
+**档口规则（Series D）**：
+- 每张正式订单必须有具体档口：显式 `sourceOutletId` → 稳定 `sourceOutletCode`（可选，未传 ID 时按当前可用集合解析）→ 统一默认优先级（个人/租户/唯一可用）；仍不能确定返回 `400 请选择档口`。
+- `data:outlet:unassigned` 只用于历史空值读取/草稿待归档，**不能新建空档口正式订单**。
+- 目标档口必须同租户、未删除、启用且当前操作者可用；`source_shop` 一律由档口主数据名称生成，忽略客户端 `sourceShop`；`sourceBatchNo` 不得兜底。
 
 **成功响应**：
 ```json
@@ -343,11 +354,20 @@ PUT /api/orders/{id}
   "needDelivery": 1,
   "deliveryAddress": "送货地址",
   "remark": "备注",
-  "images": "[\"101\",\"102\"]"
+  "images": "[\"101\",\"102\"]",
+  "sourceOutletId": 12,
+  "outletChangeReason": "门店搬迁，重新归属"
 }
 ```
 
-**说明**：所有字段均为可选，按字段是否传值选择性更新。`status >= 4`（已发货/已完成/已取消）的订单禁止修改。
+**说明**：所有字段均为可选，按字段是否传值选择性更新。
+
+**改档口（Series D 高风险动作）**：
+- 未传 `sourceOutletId` = 保持原值；传入与原值相同 = 不写审计。
+- 变更档口或给历史 `source_outlet_id=NULL` 归档必须拥有 `btn:order:changeOutlet`（V66 迁移仅授予 OWNER/ADMIN；后端强制，不依赖前端隐藏），目标档口必须同租户、未删、启用且当前可写。
+- 必须填写非空 `outletChangeReason`；同事务向 `order_outlet_change_log` 追加旧/新 ID、名称、原因、操作者；历史 NULL 归档额外要求 `data:outlet:unassigned`。
+- 已发货/已完成订单原本仅允许备注/图片，显式改档口作为独立高权限例外可执行；金额、明细及其他字段不被放开。
+- 自由文本 `sourceShop` 不再生效，名称快照始终来自主数据。
 
 **成功响应**：
 ```json
@@ -1097,6 +1117,7 @@ V59 起草稿响应增加 `entrySource`：`AGENT` 保持上述纸单语义，`MA
 - 新建：Agent 传 `sourceOutletCode` 时按当前 Key 可用档口解析，越权/禁用/不存在返回 403；未传时使用 Key/租户默认档口，无默认返回 403，绝不写空。手工传 `sourceOutletId` 时校验可用且授权；未传时回填默认档口；无默认时仅拥有 `data:outlet:unassigned` 可写空，否则返回 400。
 - 更新：`sourceOutletId`/`sourceOutletCode` 均省略则保留既有档口；传入则改到当前可用且授权的档口并刷新名称快照。
 - 响应：`View`/`Summary` 返回 `sourceOutletId`、`sourceOutletCode`（编码派生自主数据）；`sourceShop` 为服务端主数据名称快照，忽略客户端传入值。
+- 列表筛选（Series D）：`GET /api/order-drafts` 新增 `sourceOutletId`（仅当前 `readable` 集合，越权 403）与 `unassignedOnly`（仅 `data:outlet:unassigned`，与 `sourceOutletId` 互斥 400）；不传为“全部档口”，仍受统一档口 × 人员范围裁剪。
 - 幂等与失败语义：同创建主体（Agent Key ID / 手工 user ID）同 `externalRefNo` 重试返回 `DUPLICATE` 并携带原 `draftId`；不同主体返回 409 且不暴露已有 ID；被拒绝的首次请求不落库。历史 `source_outlet_id=NULL` 的 Agent 草稿重试不升级为可读，返回通用 `ERROR` 且不泄漏内部 ID。
 
 SKU 候选补充规则：候选返回 `skuType` 和 `placeholder`。只按款号查询任何显式规格商品时，`PLACEHOLDER` 以 `matchScore=1.00` 优先返回，即使当前只有一个具体 `NORMAL` SKU；请求包含 `colorName` 或 `sizeCode` 时不返回占位 SKU。只有纯无规格 `DEFAULT` 商品按款号直接返回实际 SKU。英文 SKU 编码是接口稳定标识，前端应将 `DEFAULT/NA-NA` 显示为“无规格商品（实际 SKU）”，将 `PLACEHOLDER/UNSPEC-UNSPEC` 显示为“整款录入（颜色/尺码未指定）”。`GET /api/agent/analytics/sku-mix` 的款号总量包含占位销量，真实 `skus/colors/sizes` 排名排除占位量，并通过 `unspecified`、`historicalNoVariant`、`variantCoverageRate`、`variantDataQuality` 分别描述当前整款录入量、商品升级规格前的历史无规格量及规格覆盖质量。
