@@ -66,7 +66,13 @@ public class OutletBackfillService {
     }
 
     public OutletBackfillReport preview(long tenantId, Path reportDir, List<OutletBackfillMappingRow> rows) {
-        return execute(tenantId, reportDir, rows, false);
+        return execute(tenantId, reportDir, rows, false, "PREVIEW", null, null);
+    }
+
+    /** preview 也允许显式 operator/期望库名/映射文件路径，用于把审计证据写入报告。 */
+    public OutletBackfillReport preview(long tenantId, Path reportDir, List<OutletBackfillMappingRow> rows,
+                                        String operator, String expectedDatabaseName, String mappingFile) {
+        return execute(tenantId, reportDir, rows, false, operator, expectedDatabaseName, mappingFile);
     }
 
     /** 仅包内可构造 approval（安全闸门签发），外部包无法绕过 gate 调用写入。 */
@@ -75,14 +81,18 @@ public class OutletBackfillService {
         if (approval == null) {
             throw BusinessException.of(400, "apply 需要经安全闸门签发的审批凭证");
         }
-        return execute(approval.tenantId(), approval.reportDir(), rows, true);
+        return execute(approval.tenantId(), approval.reportDir(), rows, true,
+                approval.operator(), approval.databaseName(), approval.mappingFile());
     }
 
     private OutletBackfillReport execute(long tenantId, Path reportDir,
-                                         List<OutletBackfillMappingRow> rows, boolean apply) {
+                                         List<OutletBackfillMappingRow> rows, boolean apply,
+                                         String operator, String expectedDatabaseName, String mappingFile) {
+        String startedAt = LocalDateTime.now().toString();
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         List<OutletBackfillReport.ValueGroup> groups = new ArrayList<>();
+        List<OutletBackfillReport.MappingDecision> mappingDecisions = new ArrayList<>();
         validateReportDir(reportDir, apply);
         Map<String, Long> outletIdByShop = validate(tenantId, rows, errors, warnings);
         if (!errors.isEmpty()) {
@@ -100,9 +110,10 @@ public class OutletBackfillService {
 
         for (OutletBackfillMappingRow row : rows) {
             if (row.isMap()) {
-                processMapRow(tenantId, row, outletIdByShop.get(row.legacySourceShop()), apply, counters, groups, warnings);
+                mappingDecisions.add(processMapRow(tenantId, row, outletIdByShop.get(row.legacySourceShop()),
+                        apply, counters, groups, warnings));
             } else {
-                collectDecidedRow(tenantId, row, groups);
+                mappingDecisions.add(collectDecidedRow(tenantId, row, groups));
             }
         }
         Map<String, Object> after = snapshot(tenantId);
@@ -112,8 +123,13 @@ public class OutletBackfillService {
         }
 
         long mapRows = rows.stream().filter(OutletBackfillMappingRow::isMap).count();
+        String resolvedOperator = operator == null || operator.isBlank() ? "PREVIEW" : operator.trim();
+        String actualDatabaseName = jdbc.queryForObject("SELECT DATABASE()", String.class);
         OutletBackfillReport report = new OutletBackfillReport(
-                apply ? "APPLY" : "PREVIEW", tenantId, rows.size(), (int) mapRows,
+                apply ? "APPLY" : "PREVIEW", tenantId, resolvedOperator,
+                startedAt, LocalDateTime.now().toString(),
+                expectedDatabaseName, actualDatabaseName, sha256File(mappingFile),
+                rows.size(), (int) mapRows,
                 (int) rows.stream().filter(r -> OutletBackfillMapping.DECISION_SKIP.equals(r.decision())).count(),
                 (int) rows.stream().filter(r -> OutletBackfillMapping.DECISION_REVIEW.equals(r.decision())).count(),
                 counters.ordersCandidates, counters.draftsCandidates,
@@ -123,7 +139,7 @@ public class OutletBackfillService {
                 counters.ordersSuspect, counters.draftsSuspect,
                 counters.confirmedDraftsSkipped,
                 counters.ordersConcurrentSkipped, counters.draftsConcurrentSkipped,
-                before, after, consistent, groups, warnings, errors, null, null);
+                before, after, consistent, mappingDecisions, groups, warnings, errors, null, null);
         if (reportDir == null) {
             return report;
         }
@@ -181,7 +197,7 @@ public class OutletBackfillService {
         return outletIdByShop;
     }
 
-    private void processMapRow(long tenantId,
+    private OutletBackfillReport.MappingDecision processMapRow(long tenantId,
                                OutletBackfillMappingRow row,
                                Long outletId,
                                boolean apply,
@@ -255,9 +271,11 @@ public class OutletBackfillService {
                 && count("SELECT COUNT(*) FROM order_draft WHERE tenant_id=? AND deleted=0 AND TRIM(source_shop)=?", tenantId, shop) == 0) {
             warnings.add("映射值在库中无匹配数据: " + shop);
         }
+        int orderUpdated = 0;
+        int draftUpdated = 0;
         if (apply) {
-            int orderUpdated = updateSourceOutletId("sale_order", orderIds, outletId, tenantId);
-            int draftUpdated = updateSourceOutletId("order_draft", draftIds, outletId, tenantId);
+            orderUpdated = updateSourceOutletId("sale_order", orderIds, outletId, tenantId);
+            draftUpdated = updateSourceOutletId("order_draft", draftIds, outletId, tenantId);
             counters.ordersUpdated += orderUpdated;
             counters.draftsUpdated += draftUpdated;
             int orderConcurrent = orderIds.size() - orderUpdated;
@@ -271,9 +289,11 @@ public class OutletBackfillService {
                 warnings.add("检测到并发写入，已跳过 " + (orderConcurrent + draftConcurrent) + " 行: " + shop);
             }
         }
+        return new OutletBackfillReport.MappingDecision(shop, row.outletCode(), row.decision(), row.reason(),
+                orderIds.size(), draftIds.size(), orderUpdated, draftUpdated);
     }
 
-    private void collectDecidedRow(long tenantId, OutletBackfillMappingRow row,
+    private OutletBackfillReport.MappingDecision collectDecidedRow(long tenantId, OutletBackfillMappingRow row,
                                    List<OutletBackfillReport.ValueGroup> groups) {
         String bucket = OutletBackfillMapping.DECISION_SKIP.equals(row.decision()) ? BUCKET_SKIP : BUCKET_REVIEW;
         int orderCount = count("SELECT COUNT(*) FROM sale_order WHERE tenant_id=? AND deleted=0 AND TRIM(source_shop)=?",
@@ -284,6 +304,8 @@ public class OutletBackfillService {
                 orderSamples(tenantId, "TRIM(source_shop)=?", row.legacySourceShop()));
         addGroup(groups, "order_draft", bucket, row.legacySourceShop(), draftCount,
                 draftSamples(tenantId, "TRIM(source_shop)=?", row.legacySourceShop()));
+        return new OutletBackfillReport.MappingDecision(row.legacySourceShop(), row.outletCode(), row.decision(),
+                row.reason(), orderCount, draftCount, 0, 0);
     }
 
     private void collectBlankNull(long tenantId, List<OutletBackfillReport.ValueGroup> groups) {
@@ -398,6 +420,9 @@ public class OutletBackfillService {
         snap.put("sourceShopDigest", sourceShopDigest(tenantId));
         snap.put("orderIdShopDigest", idShopDigest("sale_order", tenantId));
         snap.put("draftIdShopDigest", idShopDigest("order_draft", tenantId));
+        // source_outlet_id 赋值摘要：apply 前后必须只在“空 → 指定档口”方向变化，可据此重建赋值结果
+        snap.put("orderIdOutletDigest", idOutletDigest("sale_order", tenantId));
+        snap.put("draftIdOutletDigest", idOutletDigest("order_draft", tenantId));
         snap.put("orderItemCount", count("SELECT COUNT(*) FROM sale_order_item i JOIN sale_order o ON o.id=i.order_id "
                 + "WHERE o.tenant_id=? AND o.deleted=0", tenantId));
         snap.put("draftItemCount", count("SELECT COUNT(*) FROM order_draft_item i JOIN order_draft d ON d.id=i.draft_id "
@@ -412,7 +437,9 @@ public class OutletBackfillService {
 
     private boolean consistent(Map<String, Object> before, Map<String, Object> after) {
         for (String key : before.keySet()) {
-            if (key.equals("sourceOutletNullCount") || key.equals("sourceOutletFilledCount")) {
+            // 这些指标在 apply 中按设计变化（仅 source_outlet_id 赋值），不参与“未改动”对账
+            if (key.equals("sourceOutletNullCount") || key.equals("sourceOutletFilledCount")
+                    || key.equals("orderIdOutletDigest") || key.equals("draftIdOutletDigest")) {
                 continue;
             }
             if (!Objects.equals(before.get(key), after.get(key))) {
@@ -434,14 +461,16 @@ public class OutletBackfillService {
             throw BusinessException.of(500, "报告写入失败: " + e.getMessage());
         }
         return new OutletBackfillReport(
-                report.mode(), report.tenantId(), report.mappingRows(), report.mapRows(), report.skipRows(),
+                report.mode(), report.tenantId(), report.operator(), report.startedAt(), report.finishedAt(),
+                report.expectedDatabaseName(), report.actualDatabaseName(), report.mappingFileSha256(),
+                report.mappingRows(), report.mapRows(), report.skipRows(),
                 report.reviewRows(), report.ordersCandidates(), report.draftsCandidates(),
                 report.ordersUpdated(), report.draftsUpdated(), report.ordersAlreadyApplied(),
                 report.draftsAlreadyApplied(), report.ordersConflict(), report.draftsConflict(),
                 report.ordersSuspect(), report.draftsSuspect(), report.confirmedDraftsSkipped(),
                 report.ordersConcurrentSkipped(), report.draftsConcurrentSkipped(),
-                report.before(), report.after(), report.reconciliationConsistent(), report.groups(),
-                report.warnings(), report.errors(), json.toString(), markdown.toString());
+                report.before(), report.after(), report.reconciliationConsistent(), report.mappingDecisions(),
+                report.groups(), report.warnings(), report.errors(), json.toString(), markdown.toString());
     }
 
     private Path unique(Path dir, String base, String suffix) {
@@ -458,6 +487,12 @@ public class OutletBackfillService {
         StringBuilder md = new StringBuilder();
         md.append("# Outlet Backfill Report (").append(report.mode()).append(")\n\n");
         md.append("- tenant_id: ").append(report.tenantId()).append("\n");
+        md.append("- operator: ").append(report.operator()).append("\n");
+        md.append("- started_at: ").append(report.startedAt()).append("\n");
+        md.append("- finished_at: ").append(report.finishedAt()).append("\n");
+        md.append("- expected_database: ").append(report.expectedDatabaseName()).append("\n");
+        md.append("- actual_database: ").append(report.actualDatabaseName()).append("\n");
+        md.append("- mapping_file_sha256: ").append(report.mappingFileSha256()).append("\n");
         md.append("- mapping rows: ").append(report.mappingRows())
                 .append(" (MAP ").append(report.mapRows())
                 .append(" / SKIP ").append(report.skipRows())
@@ -470,7 +505,17 @@ public class OutletBackfillService {
                 .append(report.draftsConflict()).append("/").append(report.draftsSuspect()).append("\n");
         md.append("- confirmed drafts skipped: ").append(report.confirmedDraftsSkipped()).append("\n");
         md.append("- reconciliation consistent: ").append(report.reconciliationConsistent()).append("\n\n");
-        md.append("## Groups\n\n| table | bucket | value | count | sample refs |\n|---|---|---|---|---|\n");
+        md.append("## Mapping decisions\n\n")
+                .append("| legacy_source_shop | outlet_code | decision | reason | orders_candidates | drafts_candidates | orders_updated | drafts_updated |\n")
+                .append("|---|---|---|---|---|---|---|---|\n");
+        for (OutletBackfillReport.MappingDecision decision : report.mappingDecisions()) {
+            md.append("| ").append(decision.legacySourceShop()).append(" | ").append(decision.outletCode())
+                    .append(" | ").append(decision.decision()).append(" | ").append(decision.reason())
+                    .append(" | ").append(decision.ordersCandidates()).append(" | ").append(decision.draftsCandidates())
+                    .append(" | ").append(decision.ordersUpdated()).append(" | ").append(decision.draftsUpdated())
+                    .append(" |\n");
+        }
+        md.append("\n## Groups\n\n| table | bucket | value | count | sample refs |\n|---|---|---|---|---|\n");
         for (OutletBackfillReport.ValueGroup group : report.groups()) {
             md.append("| ").append(group.table()).append(" | ").append(group.bucket()).append(" | ")
                     .append(group.value()).append(" | ").append(group.count()).append(" | ")
@@ -506,18 +551,48 @@ public class OutletBackfillService {
 
     /** id + source_shop 的稳定 SHA-256，保证分布相同但值交换也无法蒙混。 */
     private String idShopDigest(String table, long tenantId) {
-        List<String> rows = jdbc.query("SELECT id, COALESCE(source_shop,'<NULL>') FROM " + table
+        return idColumnDigest(table, "COALESCE(source_shop,'<NULL>')", tenantId);
+    }
+
+    /** id + source_outlet_id 的稳定 SHA-256，记录 apply 前后赋值的可重建摘要。 */
+    private String idOutletDigest(String table, long tenantId) {
+        return idColumnDigest(table, "COALESCE(CAST(source_outlet_id AS CHAR),'<NULL>')", tenantId);
+    }
+
+    private String idColumnDigest(String table, String columnExpr, long tenantId) {
+        List<String> rows = jdbc.query("SELECT id, " + columnExpr + " FROM " + table
                         + " WHERE tenant_id=? AND deleted=0 ORDER BY id",
                 (rs, rowNum) -> rs.getLong(1) + ":" + rs.getString(2), tenantId);
+        return sha256Lines(rows);
+    }
+
+    private static String sha256Lines(List<String> lines) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            for (String row : rows) {
-                digest.update(row.getBytes(StandardCharsets.UTF_8));
+            for (String line : lines) {
+                digest.update(line.getBytes(StandardCharsets.UTF_8));
                 digest.update((byte) '\n');
             }
             return HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    /** 映射文件 SHA-256；无文件（如程序化 preview）返回 null，不伪造摘要。 */
+    private static String sha256File(String mappingFile) {
+        if (mappingFile == null || mappingFile.isBlank()) {
+            return null;
+        }
+        Path path = Path.of(mappingFile);
+        if (!Files.isRegularFile(path)) {
+            return null;
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(Files.readAllBytes(path)));
+        } catch (IOException | NoSuchAlgorithmException e) {
+            throw new IllegalStateException("无法计算映射文件 SHA-256: " + mappingFile, e);
         }
     }
 

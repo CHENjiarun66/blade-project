@@ -28,6 +28,7 @@ class OutletBackfillSafetyGateTest {
         properties.setExpectedDatabaseName("blade_rehearsal");
         properties.setReportDir(tempDir.toString());
         properties.setCopyEnvironmentAck(true);
+        properties.setOperator("ops-dsh");
         return properties;
     }
 
@@ -62,6 +63,12 @@ class OutletBackfillSafetyGateTest {
         noReport.setReportDir(null);
         assertThrows(BusinessException.class,
                 () -> gate.requireApplyAllowed(noReport, "jdbc:mysql://mysql:3306/blade_rehearsal", "blade_rehearsal"));
+
+        OutletBackfillProperties noOperator = base();
+        noOperator.setOperator("  ");
+        assertThrows(BusinessException.class,
+                () -> gate.requireApplyAllowed(noOperator, "jdbc:mysql://mysql:3306/blade_rehearsal", "blade_rehearsal"),
+                "apply 必须显式提供 operator");
     }
 
     @Test

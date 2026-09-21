@@ -36,6 +36,9 @@ public class OutletBackfillProperties {
     /** 生产副本环境确认；apply 时必须为 true（作为第二层，不是唯一依据）。 */
     private boolean copyEnvironmentAck = false;
 
+    /** 显式操作人；apply 必须提供（写入审计报告），preview 可留空并记为 PREVIEW。 */
+    private String operator;
+
     public boolean isApply() { return apply; }
     public void setApply(boolean apply) { this.apply = apply; }
     public Long getTenantId() { return tenantId; }
@@ -48,4 +51,6 @@ public class OutletBackfillProperties {
     public void setReportDir(String reportDir) { this.reportDir = reportDir; }
     public boolean isCopyEnvironmentAck() { return copyEnvironmentAck; }
     public void setCopyEnvironmentAck(boolean copyEnvironmentAck) { this.copyEnvironmentAck = copyEnvironmentAck; }
+    public String getOperator() { return operator; }
+    public void setOperator(String operator) { this.operator = operator; }
 }

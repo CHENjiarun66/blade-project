@@ -43,7 +43,7 @@ public class OutletBackfillSafetyGate {
         requireApplyAllowed(properties, jdbcUrl, databaseName);
         return new OutletBackfillApproval(
                 properties.getTenantId(), Path.of(properties.getReportDir()),
-                databaseName, properties.getMappingFile(), Instant.now());
+                databaseName, properties.getMappingFile(), properties.getOperator().trim(), Instant.now());
     }
 
     /**
@@ -61,6 +61,9 @@ public class OutletBackfillSafetyGate {
         }
         if (!properties.isCopyEnvironmentAck()) {
             throw BusinessException.of(400, "apply 必须确认连接的是生产副本（blade.outlet.backfill.copy-environment-ack=true）");
+        }
+        if (properties.getOperator() == null || properties.getOperator().isBlank()) {
+            throw BusinessException.of(400, "apply 必须显式提供 operator（操作人）以写入审计报告");
         }
         String expected = properties.getExpectedDatabaseName();
         if (expected == null || expected.isBlank()) {

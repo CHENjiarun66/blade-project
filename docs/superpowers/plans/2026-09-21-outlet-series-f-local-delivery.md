@@ -184,3 +184,20 @@ java -jar blade-backend.jar \
 | P1 | CLI 一次性任务退出、文档口径 | CLI 命令示范加 `--spring.main.web-application-type=none`；本报告新增本章节；16/17/19 Agent 手册已核对为当前版本（本轮无 diff）；STATUS 以 03-TASKS/本报告为权威，`🚧 本地完成/待外部` 不代表生产完成 | 文档复核 |
 
 验证（整改）：全量后端 **777/777**；`git diff --check` 无输出；workspace clean。前端本轮无改动，沿用上一轮构建/E2E 结果。
+
+## 9. 第二批A：回填报告审计证据增强（代码完成、生产副本演练与人工确认未完成）
+
+状态口径：**代码与自动化测试完成；真实生产副本 apply、异常清单确认、对账签字均未执行，待外部人工。**
+
+| 审计字段 | 实现 | 测试 |
+|---|---|---|
+| 逐条 mapping | `OutletBackfillReport.MappingDecision`：legacy_source_shop/outlet_code/decision/reason + 该值 orders/drafts 候选数与实际更新数，可逐条重建结果 | `OutletBackfillServiceIntegrationTest.applyUpdatesOnlySourceOutletIdWritesReportsAndIsIdempotent` |
+| operator | `blade.outlet.backfill.operator`；apply 在安全闸门强制非空，preview 可缺省并在报告中明确记为 `PREVIEW` | `OutletBackfillSafetyGateTest.rejectsWhenAnyBaseGateMissing`（operator 空拒绝）、`...previewReportsAuditEvidenceAndMarksPreviewOperator` |
+| 运行时间 | `startedAt`/`finishedAt`（ISO 本地时间） | 同上 |
+| 预期/实际副本库名 | `expectedDatabaseName`（apply 即闸门校验值）/`actualDatabaseName`（`SELECT DATABASE()`）；报告不含 JDBC/密码/凭据 | 同上（断言 JSON 不含 `jdbc:`/`password`） |
+| 映射文件 SHA-256 | 对实际映射文件字节做 SHA-256；无文件（程序化 preview）为 null，不伪造 | 同上 |
+| apply 前后 source_outlet_id 赋值摘要 | 新增 `orderIdOutletDigest`/`draftIdOutletDigest`（`id + source_outlet_id` SHA-256），与 `orderIdShopDigest`/`draftIdShopDigest` 并存；对账仍严格校验 source_shop/金额/状态/明细不变，仅排除按设计变化的 outlet 赋值指标 | `applyUpdatesOnlySourceOutletIdWritesReportsAndIsIdempotent` |
+
+安全不变量保持：dry-run 默认、apply 正向副本库名门（`*_copy/_rehearsal/_staging/_test` + 期望库名完全一致 + 可写 report-dir + operator）、只改 `source_outlet_id`、不改 `source_shop`、租户隔离、对账、幂等。
+
+验证：`mvn -Dtest='OutletBackfill*Test' test` 22/22 通过（Mapping 7、SafetyGate 6、ServiceIntegration 7、ServiceUpdate 2）。

@@ -15,14 +15,16 @@ public final class OutletBackfillApproval {
     private final Path reportDir;
     private final String databaseName;
     private final String mappingFile;
+    private final String operator;
     private final Instant approvedAt;
 
     OutletBackfillApproval(long tenantId, Path reportDir, String databaseName,
-                           String mappingFile, Instant approvedAt) {
+                           String mappingFile, String operator, Instant approvedAt) {
         this.tenantId = tenantId;
         this.reportDir = reportDir;
         this.databaseName = databaseName;
         this.mappingFile = mappingFile;
+        this.operator = operator;
         this.approvedAt = approvedAt;
     }
 
@@ -30,5 +32,6 @@ public final class OutletBackfillApproval {
     public Path reportDir() { return reportDir; }
     public String databaseName() { return databaseName; }
     public String mappingFile() { return mappingFile; }
+    public String operator() { return operator; }
     public Instant approvedAt() { return approvedAt; }
 }

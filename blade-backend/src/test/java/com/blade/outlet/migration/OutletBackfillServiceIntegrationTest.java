@@ -11,13 +11,17 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,6 +44,7 @@ class OutletBackfillServiceIntegrationTest {
 
     @TempDir Path tempDir;
 
+    private Path mappingFile;
     private long enabledA;
     private long enabledB;
     private long o1;
@@ -52,7 +57,13 @@ class OutletBackfillServiceIntegrationTest {
     private String o1No;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        mappingFile = tempDir.resolve("mapping-e3f.csv");
+        Files.writeString(mappingFile,
+                "tenant_id,legacy_source_shop,outlet_code,decision,reason\n"
+                        + TENANT + ",御龙,E3F-A,MAP,\n"
+                        + TENANT + ",总店,E3F-B,MAP,\n",
+                java.nio.charset.StandardCharsets.UTF_8);
         enabledA = insertOutlet(TENANT, "E3F-A", 1, 0);
         enabledB = insertOutlet(TENANT, "E3F-B", 1, 0);
         insertOutlet(TENANT, "E3F-D", 0, 0);
@@ -76,7 +87,8 @@ class OutletBackfillServiceIntegrationTest {
     }
 
     private OutletBackfillApproval approval() {
-        return new OutletBackfillApproval(TENANT, tempDir, "blade_rehearsal", "/tmp/mapping.csv", Instant.now());
+        return new OutletBackfillApproval(TENANT, tempDir, "blade_rehearsal", mappingFile.toString(),
+                "ops-dsh", Instant.now());
     }
 
     @Test
@@ -118,6 +130,26 @@ class OutletBackfillServiceIntegrationTest {
         assertEquals(2, first.ordersUpdated());
         assertEquals(1, first.draftsUpdated());
         assertTrue(first.reconciliationConsistent());
+        // 审计证据：operator/时间/库名/映射文件摘要/逐条决策/赋值摘要
+        assertEquals("ops-dsh", first.operator());
+        assertNotNull(first.startedAt());
+        assertNotNull(first.finishedAt());
+        assertEquals("blade_rehearsal", first.expectedDatabaseName());
+        assertEquals(jdbc.queryForObject("SELECT DATABASE()", String.class), first.actualDatabaseName());
+        assertEquals(sha256(mappingFile), first.mappingFileSha256());
+        assertEquals(2, first.mappingDecisions().size());
+        OutletBackfillReport.MappingDecision yulong = first.mappingDecisions().stream()
+                .filter(d -> "御龙".equals(d.legacySourceShop())).findFirst().orElseThrow();
+        assertEquals("E3F-A", yulong.outletCode());
+        assertEquals(1, yulong.ordersUpdated());
+        assertEquals(1, yulong.draftsUpdated());
+        OutletBackfillReport.MappingDecision zongdian = first.mappingDecisions().stream()
+                .filter(d -> "总店".equals(d.legacySourceShop())).findFirst().orElseThrow();
+        assertEquals(1, zongdian.ordersUpdated());
+        assertEquals(0, zongdian.draftsUpdated());
+        assertTrue(first.before().containsKey("orderIdOutletDigest"));
+        assertTrue(first.before().containsKey("draftIdOutletDigest"));
+        assertTrue(first.after().containsKey("orderIdOutletDigest"));
         assertNotNull(first.reportJsonPath());
         assertNotNull(first.reportMarkdownPath());
         assertTrue(Files.size(Path.of(first.reportJsonPath())) > 0);
@@ -157,6 +189,33 @@ class OutletBackfillServiceIntegrationTest {
         assertEquals(0, report.ordersCandidates());
         assertTrue(report.warnings().stream().anyMatch(w -> w.contains("疑似批次")));
         assertGroup(report, "sale_order", OutletBackfillService.BUCKET_SUSPECT, 1);
+    }
+
+    @Test
+    void previewReportsAuditEvidenceAndMarksPreviewOperator() throws Exception {
+        OutletBackfillReport defaulted = service.preview(TENANT, tempDir, List.of(map("御龙", "E3F-A")));
+        assertEquals("PREVIEW", defaulted.operator());
+        assertNull(defaulted.mappingFileSha256());
+
+        OutletBackfillReport explicit = service.preview(TENANT, tempDir, List.of(map("御龙", "E3F-A")),
+                "auditor-1", "blade_rehearsal", mappingFile.toString());
+        assertEquals("auditor-1", explicit.operator());
+        assertEquals("blade_rehearsal", explicit.expectedDatabaseName());
+        assertEquals(sha256(mappingFile), explicit.mappingFileSha256());
+        assertNotNull(explicit.startedAt());
+        assertNotNull(explicit.finishedAt());
+        assertEquals(jdbc.queryForObject("SELECT DATABASE()", String.class), explicit.actualDatabaseName());
+
+        String markdown = Files.readString(Path.of(explicit.reportMarkdownPath()));
+        assertTrue(markdown.contains("operator: auditor-1"));
+        assertTrue(markdown.contains("mapping_file_sha256: " + sha256(mappingFile)));
+        assertTrue(markdown.contains("expected_database: blade_rehearsal"));
+        assertTrue(markdown.contains("## Mapping decisions"));
+        assertTrue(markdown.contains("御龙"));
+        // 报告只含审计元数据，绝不泄露连接凭据
+        String json = Files.readString(Path.of(explicit.reportJsonPath())).toLowerCase();
+        assertTrue(!json.contains("password"));
+        assertTrue(!json.contains("jdbc:"));
     }
 
     @Test
@@ -248,5 +307,10 @@ class OutletBackfillServiceIntegrationTest {
 
     private void assertNullOutlet(long rowId, String table) {
         assertEquals(null, outletId(rowId, table));
+    }
+
+    private String sha256(Path path) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return HexFormat.of().formatHex(digest.digest(Files.readAllBytes(path)));
     }
 }

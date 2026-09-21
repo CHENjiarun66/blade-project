@@ -45,7 +45,8 @@ public class OutletBackfillCli implements ApplicationRunner {
         } else {
             Path reportDir = properties.getReportDir() == null || properties.getReportDir().isBlank()
                     ? null : Path.of(properties.getReportDir());
-            report = service.preview(tenantId, reportDir, rows);
+            report = service.preview(tenantId, reportDir, rows,
+                    properties.getOperator(), properties.getExpectedDatabaseName(), mappingFile);
         }
         System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(report));
     }
