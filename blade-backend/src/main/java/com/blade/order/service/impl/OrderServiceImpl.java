@@ -399,6 +399,8 @@ public class OrderServiceImpl implements OrderService {
         if (requested == null || requested.equals(order.getSourceOutletId())) {
             return;
         }
+        // 改档口审计 operator_id 为 NOT NULL：必须先取得可靠 User，任何写入前 fail closed，不伪造 1L
+        Long operatorId = requireCurrentUserId();
         accessPolicy.requireChangeOutletPermission();
         if (order.getSourceOutletId() == null) {
             accessPolicy.requireUnassignedAccess();
@@ -417,7 +419,7 @@ public class OrderServiceImpl implements OrderService {
         log.setNewOutletId(target.getId());
         log.setNewOutletName(target.getOutletName());
         log.setReason(reason);
-        log.setOperatorId(getCurrentUserId());
+        log.setOperatorId(operatorId);
         outletChangeLogMapper.insert(log);
 
         order.setSourceOutletId(target.getId());
@@ -833,6 +835,18 @@ public class OrderServiceImpl implements OrderService {
         // 无默认用户（终审 P0-2）：无登录上下文时操作人为空，不得伪造 admin
         User user = getCurrentUser();
         return user != null ? user.getId() : null;
+    }
+
+    /**
+     * 改档口审计要求可靠操作人：无 User principal 或 id 为空一律 fail closed，
+     * 由业务层抛 401，而不是落库时触发 operator_id NOT NULL 数据库异常。
+     */
+    private Long requireCurrentUserId() {
+        User user = getCurrentUser();
+        if (user == null || user.getId() == null) {
+            throw BusinessException.of(401, "缺少可靠当前用户，无法记录档口变更审计");
+        }
+        return user.getId();
     }
 
     private User getCurrentUser() {
