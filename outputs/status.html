@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 16:03:46　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 16:20:05　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -419,7 +419,7 @@
         <td class="td-name">档口主数据服务/API</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
-        <td class="td-remark">`/api/outlets` CRUD/启停/options/引用统计/默认唯一；租户隔离、跨租户 404 |</td>
+        <td class="td-remark">`/api/outlets` CRUD/启停/options/引用统计/默认唯一；租户隔离、跨租户 404；无租户上下文 fail-closed 403 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-002</td>
@@ -2148,7 +2148,7 @@
         <td class="td-name">档口主数据服务与 API</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">CRUD、启停、默认档口、引用统计和 `/api/outlets/options`。第二批B：V67 用 generated nullable guard + `uk_outlet_tenant_default` 在数据库层保证每租户最多一个未删除默认且遇历史重复 fail-closed；设置默认按“租户级串行锁（`sys_tenant` FOR UPDATE）→清同租户其它默认→标记目标”，SQL 显式 `tenant_id`+`deleted`，默认必须启用、禁用清除默认；`pageList` 改为按页内 outletIds 一次 GROUP BY 批量计数，消除逐行 3 次 count 的 N+1 |</td>
+        <td class="td-remark">CRUD、启停、默认档口、引用统计和 `/api/outlets/options`。第二批B：V67 用 generated nullable guard + `uk_outlet_tenant_default` 在数据库层保证每租户最多一个未删除默认且遇历史重复 fail-closed；设置默认按“租户级串行锁（`sys_tenant` FOR UPDATE）→清同租户其它默认→标记目标”，SQL 显式 `tenant_id`+`deleted`，默认必须启用、禁用清除默认；`pageList` 改为按页内 outletIds 一次 GROUP BY 批量计数，消除逐行 3 次 count 的 N+1。第四批：`TenantContext.requireTenantId` 统一 fail-closed 且 `TenantLineHandler` 不再回退 tenant=1；`lockTenantRow` 返回 null 时设置默认 403 并回滚 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-002</td>

@@ -304,6 +304,15 @@ Owner 的 `ALL` 范围可在 SQL 中省略 `IN`，但不能省略租户条件。
 - 无权用户不仅不能看到明细，也不能通过总数、金额、排行、导出任务状态推断其他档口数据。
 - 权限或用户档口绑定变化后，必须失效相关用户的统计和选项缓存。
 
+### 5.5 租户上下文 fail-closed（第四批，安全破坏性收紧）
+
+- `TenantContext.requireTenantId()` 是唯一租户入口；缺失时抛业务 403“缺少租户上下文”，**任何位置不得回退 `tenant=1`**。
+- `TenantLineHandler.getTenantId()` 直接调用该入口，缺上下文时 MyBatis 层 fail-closed；业务写入口另在方法首行主动 `requireTenantId()`，保证用户得到稳定 403 而不是底层包装异常。
+- `ProductServiceImpl`、`CustomerServiceImpl`、`UserServiceImpl.create`、`RoleServiceImpl.create`、`PermissionServiceImpl.create/assignPermissions` 已移除全部 `?: 1L` 回退；客户实体 `tenant_id` 为空用专用校验 fail-closed。
+- 认证链必须在任何租户业务表查询前设置上下文：`AuthService.login/refresh`、JWT filter、Agent/Collector auth；`FileCleanupScheduler` 按租户循环 set/finally clear；回填 CLI 用 JdbcTemplate 显式 tenant。后台/定时/异步路径上线前必须逐一确认，禁止把租户业务表加入 ignore list 规避。
+- `SalesOutletMapper.lockTenantRow` 返回 null（`sys_tenant` 无对应行）时设置默认档口直接 403 并回滚，不得继续清/设默认。
+- 这是**破坏性收紧**：依赖隐式 `tenant=1` 的调用会改为 403/异常。发布前必须验证所有认证链与后台任务均在调用前显式设置上下文，并确认无租户请求不再落到 tenant1。
+
 ---
 
 ## 六、API 规划

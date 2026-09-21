@@ -13,6 +13,13 @@
 - [ ] 已确认本次不删除 `btn:order:viewAll`、不加 `source_outlet_id NOT NULL`。
 - [ ] 变更窗口、回滚窗口、负责人和联系链已明确。
 
+### 0.1 租户上下文 fail-closed 上线前验证（第四批，破坏性收紧）
+
+- [ ] 确认代码无任何 `tenant=1` 隐式回退；登录、JWT、refresh、Agent、Collector、文件清理定时任务、回填 CLI 均在访问租户业务表前显式设置 `TenantContext`。
+- [ ] 冒烟：缺失租户上下文/凭据的请求不再返回 tenant1 数据，而是 401/403；业务写入口返回稳定 403。
+- [ ] 观察日志：正常认证链不应出现“缺少租户上下文”；后台任务按租户 set/finally clear。
+- [ ] 禁止把 `sys_user` 等租户业务表加入 MyBatis 租户拦截器 ignore list 来绕过。
+
 ## 1. 备份（执行前）
 
 - [ ] 数据库全量备份：`mysqldump --single-transaction --routines --triggers <copy_db> > backup_YYYYMMDD.sql`。
