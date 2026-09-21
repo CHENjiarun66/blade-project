@@ -11,6 +11,8 @@
 - 改档口：V66 `btn:order:changeOutlet`（仅 OWNER/ADMIN）+ 原因 + `order_outlet_change_log` 审计；历史 NULL 归档另需 `data:outlet:unassigned`；已完成订单保留金额/明细约束，仅允许备注/图片/显式高权限改档口。
 - 前端共享 `OutletSelect`：单档口只读、多档口授权选择、待归档提示、改档口原因；快速录单/新建/草稿详情/订单编辑/列表筛选/待归档标签全部接入，移除可编辑 `sourceShop`。
 - commit `8071dc0`（后端）、`7759a67`（前端）；全量后端 650/650，`npm run build` 通过，Series D Playwright 5 passed + 相关 e2e 5 passed。交付报告见 [2026-09-21-outlet-series-d-delivery.md](./superpowers/plans/2026-09-21-outlet-series-d-delivery.md)。
+- 终审整改：档口 options 改为仅并发去重不持久缓存（logout/clearAuthState 清理），`OrderDraftDTO.Summary` 补 `sourceShop` 名称快照。
+- **现存安全缺口（Series E P0 必须先修）**：`OrderServiceImpl.exportOrders` 未接 `applyReadPredicate`/显式档口筛选，拥有导出权限的越权用户可导出其他档口订单；**feature 分支在 Series E 修复前不得部署**。
 - 未做（保持 TODO）：Series E 统计/导出/文件/Agent 全出口、Series F 历史迁移与发布、Series G 收口。
 
 ## 2026-09-21 档口 Series C 第二轮 Codex 终审整改完成

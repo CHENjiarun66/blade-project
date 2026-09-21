@@ -8,12 +8,19 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口 Series D 经 Codex 终审后的缺口补齐
+
+- P0/P1-1：前端档口 options 由“永久缓存已完成 Promise”改为“只对并发中的请求去重，不持久缓存已完成结果”（settle 后仅在仍指向本次 Promise 时清空；force 先清空，旧请求 finally 不误清新请求）；新增无业务依赖 `utils/outletOptionsCache.ts`，`client.clearAuthState` 与 `stores/auth.logout` 调用 `resetOutletOptionsCache`，避免换账号/档口增删停用后读到旧 scope。
+- P1-2：`OrderDraftDTO.Summary` 新增 `sourceShop`，`OrderDraftService.toSummary` 写入服务端名称快照；前端 `OrderDraftSummary` 补字段。
+- P1-3：修正交付文档对订单导出的失真描述——`OrderServiceImpl.exportOrders` 实际未接 `applyReadPredicate`/显式档口筛选，记为 Series E 必须修复的现存全出口安全缺口，feature 分支在 Series E 完成前不得部署；修复测试文件 EOF 空行。
+- 验证：全量后端 650/650；`npm run build` 通过；Series D Playwright 6 passed，相关 e2e 回归通过；`git diff --check e8137b9..HEAD` 无输出。
+
 ### [功能开发] - 档口 Series D：订单与草稿档口交互（BE-OUTLET-007 / BA-OUTLET-003/004）
 
 - 正式订单创建必须有具体档口：显式 `sourceOutletId` → 稳定 `sourceOutletCode` → 统一默认优先级；仍不能确定返回 400；`data:outlet:unassigned` 不能新建空档口订单；`source_shop` 一律由主数据名称生成，忽略客户端自由文本与批次兜底。
 - 返回契约：`OrderVO` 增加 `sourceOutletId`/`sourceOutletCode`（编码派生自主数据）；订单与草稿列表新增 `sourceOutletId`/`unassignedOnly` 结构化筛选，越权 403、待归档仅 unassigned、两者互斥。
 - 改档口：新增 V66 `btn:order:changeOutlet`（仅 OWNER/ADMIN）+ `OrderUpdateDTO.sourceOutletId/outletChangeReason`；同值不写审计；变更/历史 NULL 归档需权限 + 非空原因并写 `order_outlet_change_log`；历史 NULL 另需 `data:outlet:unassigned`；已完成订单仅允许备注/图片/显式高权限改档口，金额明细不放开。
-- 前端：新增共享 `OutletSelect` + options 缓存；快速录单/新建订单/草稿详情/订单编辑弹窗接入，单档口只读、多档口授权选择、待归档提示、改档口原因；订单/草稿列表档口筛选与待归档标签；页面移除可编辑 `sourceShop`。
+- 前端：新增共享 `OutletSelect` + options 并发去重；快速录单/新建订单/草稿详情/订单编辑弹窗接入，单档口只读、多档口授权选择、待归档提示、改档口原因；订单/草稿列表档口筛选与待归档标签；页面移除可编辑 `sourceShop`。
 - 验证：全量后端 650/650；`npm run build` 通过；Series D Playwright 5 passed，相关 e2e 5 passed。
 - 影响范围：仅 Series D；未进入统计/导出/文件/Agent 全出口（Series E）、历史回填与发布（Series F/G）；未 push/部署/NAS/生产。
 

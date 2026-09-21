@@ -606,7 +606,7 @@
 | BE-OUTLET-006 | 草稿档口权限接入 | ✅ 完成（DeepSeek，2026-09-21） | 草稿列表/批次/详情/更新/确认统一范围；selectForUpdate 后复核；空档口确认阻断 |
 | BE-OUTLET-007 | 订单/草稿 DTO 与名称快照 | ✅ 完成（DeepSeek，2026-09-21） | 正式订单必须有具体档口；`sourceOutletId/code/name` 返回；服务端主数据名称快照；改档口高权限 + 原因 + 审计（V66）；列表结构化筛选 |
 | BE-OUTLET-008 | 看板与分析范围接入 | ⏳ TODO | 汇总、趋势、排行和客户贡献先裁剪档口/人员范围再聚合；缓存键包含范围摘要 |
-| BE-OUTLET-009 | 导出与文件权限接入 | ⏳ TODO | 订单导出、订单/草稿图片绑定与预览同列表/详情范围一致 |
+| BE-OUTLET-009 | 导出与文件权限接入 | ⏳ TODO（Series E P0） | **现存安全缺口**：`OrderServiceImpl.exportOrders` 未接 `applyReadPredicate`/显式档口筛选，Series E 必须先修复；修复前 feature 分支不得部署。订单导出、订单/草稿图片绑定与预览需同列表/详情范围一致 |
 | BE-OUTLET-010 | Agent Key 档口范围 | ⏳ TODO | Key 签发/轮换、capabilities、档口查询和草稿/订单写入校验；越权档口返回 403 |
 | BA-OUTLET-001 | 档口管理页面 | ✅ 完成（DeepSeek，2026-09-21） | 列表、搜索、新建/编辑、启停、默认档口和历史引用提示 |
 | BA-OUTLET-002 | 用户管理档口授权 | ✅ 完成（DeepSeek，2026-09-21） | 可访问档口多选、默认档口、权限摘要和销售员必选校验 |

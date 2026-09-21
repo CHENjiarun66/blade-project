@@ -17,6 +17,20 @@
 
 ---
 
+## 0.1 Codex Series D 终审整改记录（2026-09-21）
+
+针对 Codex 对 Series D 的终审发现，追加整改 commit `795800c`（代码/测试/e2e）与本报告所在文档 commit：
+
+| 编号 | 问题 | 修复 | 测试 |
+|---|---|---|---|
+| P0/P1-1 | 前端档口 options 永久缓存：完成后的 Promise 不释放，退出换账号/档口增删停用后仍可能读到旧账号或旧数据 | `outletOptions.ts` 改为“只对并发中的请求去重，不持久缓存已完成结果”：请求 settle 后仅当槽位仍指向本次 Promise 才清空；`force` 先清空再请求，旧请求的 `finally` 因身份不匹配不会清掉新请求。新增无业务依赖的 `utils/outletOptionsCache.ts` 承载缓存槽，`client.clearAuthState` 与 `stores/auth.logout` 调用 `resetOutletOptionsCache` 作为纵深防御（避免 client/auth ↔ api 循环依赖） | Playwright `e2e-order-outlet.spec.ts` › `BA-OUTLET-003 档口 options 不持久缓存：跨页面重挂载重新拉取真实结果`（两次不同 options 响应，断言第二次请求发生且新选项生效） |
+| P1-2 | 草稿列表真实契约缺 `sourceShop`：`OrderDraftDTO.Summary` 与 `toSummary` 未返回名称，前端 `OrderDraftSummary` 与 `draft-list.vue` 依赖 `row.sourceShop`，远端只回编码 | `OrderDraftDTO.Summary` 新增 `sourceShop`，`OrderDraftService.toSummary` 写入 `draft.getSourceShop()`（服务端名称快照）；前端 `OrderDraftSummary` 补 `sourceShop` | 后端 `OrderOutletWriteRulesTest.draftPage_filterByOutlet_andUnassignedPermission`、`OrderDraftOutletAttributionTest.viewAndSummary_exposeOutletIdAndCode` 对真实 page Summary 断言 `sourceOutletId`/`sourceOutletCode`/`sourceShop`；Playwright 草稿列表用例断言正常行显示“御龙” |
+| P1-3 | 交付文档失真：误称订单导出“仍受统一读范围保护”；实际 `OrderServiceImpl.exportOrders` 只加 tenant + 页面筛选，未调用 `applyReadPredicate` | 保留 Summary 三字段陈述；将导出准确记录为**现存全出口安全缺口**（Series E 必须修复），明确本 feature 分支在 Series E 完成前不得部署；修正测试文件 EOF 多余空行 | `git diff --check e8137b9..HEAD` 无输出；全量后端回归 |
+
+验证（整改 commit）：后端 `mvn test` **650/650**，Failures 0、Errors 0、Skipped 0；前端 `npm run build` 通过；Playwright `e2e-order-outlet.spec.ts` **6 passed**，相关 e2e 回归通过。
+
+---
+
 ## 1. 迁移 V66：订单改档口高权限
 
 `V66__order_change_outlet_permission.sql`：
@@ -97,16 +111,16 @@ Playwright `e2e-order-outlet.spec.ts`（**5 例**）：
 cd blade-backend && mvn test                                   # 650/650
 cd blade-admin && npm run build                                # vue-tsc + vite 通过
 npx playwright test e2e-order-outlet.spec.ts e2e-outlet.spec.ts \
-  e2e-quick-order-draft.spec.ts e2e-manual-draft-confirm.spec.ts   # 10 passed
+  e2e-quick-order-draft.spec.ts e2e-manual-draft-confirm.spec.ts   # 11 passed
 ```
 
 - 全量后端 **650/650**，Failures 0、Errors 0、Skipped 0。
 - 前端 `npm run build` 通过。
-- Series D Playwright **5 passed**；相关既有 e2e **5 passed**。
+- Series D Playwright **6 passed**；相关既有 e2e **5 passed**（合计 11）。
 
-## 7. 已知限制（临时）
+## 7. 已知限制与安全缺口（临时）
 
 - Series E/F/G 未做：统计/导出/文件/Agent 全出口档口范围、历史生产回填、非空约束与旧权限下线、兼容期复盘。
-- 订单导出暂未应用显式 `sourceOutletId` 筛选（仍受统一读范围保护），留待 Series E 与导出范围一起收口。
+- **【现存全出口安全缺口 · Series E 必须修复】** `OrderServiceImpl.exportOrders` 目前只按 `tenant_id + deleted + 页面字段筛选` 查询，**没有调用** `OrderAccessPolicy.applyReadPredicate`，也没有显式档口筛选；拥有 `btn:order:export` 的越权用户可导出当前租户其他档口订单。**本 feature 分支在 Series E 完成导出范围收口前不得部署。**
 - Agent 仍无档口选项查询接口（`GET /api/agent/outlets` 属 Series E）；当前 Key 依赖默认档口或运营方提供的 `sourceOutletCode`。
 - 历史 `source_outlet_id` 为空的数据未回填，按“待归档档口”处理。
