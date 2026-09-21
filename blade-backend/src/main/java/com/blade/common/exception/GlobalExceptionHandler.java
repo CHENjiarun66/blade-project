@@ -12,10 +12,17 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /** cause 链安全遍历上限，防止异常链异常深或成环。 */
+    private static final int MAX_CAUSE_DEPTH = 8;
 
     @ExceptionHandler(BusinessException.class)
     public R<?> handleBusinessException(BusinessException e) {
@@ -55,8 +62,31 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public R<?> handleRuntimeException(RuntimeException e) {
+        // MyBatis/MyBatis-Plus 会把拦截器抛出的 BusinessException 包装成 MyBatisSystemException；
+        // 在受限深度的 cause 链中找回 BusinessException 的业务码，避免 403 被误报为 400。
+        // 仅当确实存在 BusinessException 时才采用其 code/message；否则保持原 RuntimeException 的 400。
+        BusinessException business = findBusinessException(e);
+        if (business != null) {
+            return R.fail(business.getCode(), business.getMessage());
+        }
         log.warn("业务异常: {}", e.getMessage());
         return R.fail(400, e.getMessage());
+    }
+
+    /** 安全遍历 cause 链（防环、有限深度）；只认 BusinessException，不回传其它 cause 文本。 */
+    private static BusinessException findBusinessException(Throwable throwable) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = throwable;
+        for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
+            if (current instanceof BusinessException business) {
+                return business;
+            }
+            if (!seen.add(current)) {
+                return null; // 检测到循环 cause，停止
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     @ExceptionHandler(Exception.class)
