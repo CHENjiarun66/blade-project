@@ -580,9 +580,9 @@
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
 | ARCH-OUTLET-001 | 档口和数据范围契约冻结 | ✅ 完成（Codex，2026-09-20） | 锁定档口主数据、用户多档口、`ALL/ASSIGNED/NONE × ALL_USERS/SELF`、Agent Key 档口范围和生产迁移边界 |
-| DB-OUTLET-001 | 档口与用户关联表 | ✅ 完成（DeepSeek，2026-09-20） | 新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则 |
+| DB-OUTLET-001 | 档口与用户关联表 | ✅ 完成（DeepSeek，2026-09-20；V68 默认唯一硬化） | 新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则；V68 增加 `user_default_guard` 生成列 + `uk_user_outlet_default`，数据库层保证每用户最多一个有效默认，历史重复 fail-closed |
 | DB-OUTLET-002 | 订单与草稿档口 ID 及变更审计 | ✅ 完成（DeepSeek，2026-09-20） | 为 `sale_order/order_draft` 增加可空 `source_outlet_id`，新增 `order_outlet_change_log`；保留 `source_shop` 名称快照和兼容双读 |
-| DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成（DeepSeek，2026-09-20） | 新增 `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）；轮换同事务复制范围与绑定 |
+| DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成（DeepSeek，2026-09-20；V68 默认唯一硬化） | 新增 `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）；轮换同事务复制范围与绑定；V68 增加 `agent_key_default_guard` 生成列 + `uk_agent_key_outlet_default`，每 Key 最多一个有效默认，历史重复 fail-closed |
 | DB-OUTLET-004 | 非空约束评估 | ⏳ TODO（待外部） | 存量归档完成后评估正式订单 `source_outlet_id NOT NULL`；不是首发必做，需先完成生产副本回填与对账 |
 | BE-OUTLET-001 | 档口主数据服务与 API | ✅ 完成（DeepSeek，2026-09-21；第二批B + 第四批强化） | CRUD、启停、默认档口、引用统计和 `/api/outlets/options`。第二批B：V67 用 generated nullable guard + `uk_outlet_tenant_default` 在数据库层保证每租户最多一个未删除默认且遇历史重复 fail-closed；设置默认按“租户级串行锁（`sys_tenant` FOR UPDATE）→清同租户其它默认→标记目标”，SQL 显式 `tenant_id`+`deleted`，默认必须启用、禁用清除默认；`pageList` 改为按页内 outletIds 一次 GROUP BY 批量计数，消除逐行 3 次 count 的 N+1。第四批：`TenantContext.requireTenantId` 统一 fail-closed 且 `TenantLineHandler` 不再回退 tenant=1；`lockTenantRow` 返回 null 时设置默认 403 并回滚 |
 | BE-OUTLET-002 | 用户多档口绑定 | ✅ 完成（DeepSeek，2026-09-21） | 用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |

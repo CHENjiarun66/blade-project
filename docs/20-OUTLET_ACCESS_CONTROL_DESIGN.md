@@ -160,7 +160,7 @@ CREATE TABLE sys_user_outlet (
 规则：
 
 - 用户默认档口必须属于该用户的有效绑定集合。
-- 每个用户最多一个有效默认档口。
+- 每个用户最多一个有效默认档口。V68 用 STORED 生成列 `user_default_guard`（deleted=0 且 status=1 且 is_default=1 时=user_id，否则 NULL）+ `uk_user_outlet_default(tenant_id, user_default_guard)` 在数据库层兜底；服务层写入顺序为“先 `deleteByUserId` 清旧绑定、再插入新默认”，不产生瞬时双默认。
 - 用户、档口和关联记录必须属于同一租户。
 - 用户停用不删除历史关联；重新启用后按现行授权恢复或重新配置。
 
@@ -208,6 +208,8 @@ Agent Key 的业务 scope 决定“能做什么”，档口关联决定“可以
 | `NONE` | 拒绝档口业务 | 否；默认值，历史 Key 迁移后不得静默获得全档口权限 |
 
 使用 `outlet_scope_type` 显式表达范围，禁止用 `outlet_id=0` 等哨兵值。Key 轮换时在同一事务内复制旧 Key 的 `outlet_scope_type` 与当前有效 `agent_key_outlet` 绑定（保留默认档口标记，不跨租户）；新建 Key 在管理 UI 接入前保持 `NONE`。
+
+每个 Key 最多一个有效默认档口，由 V68 的 STORED 生成列 `agent_key_default_guard`（status=1 且 is_default=1 时=agent_key_id，否则 NULL）+ `uk_agent_key_outlet_default(tenant_id, agent_key_default_guard)` 在数据库层兜底；rotate 始终为新 Key 新建行，不会与旧 Key 的默认行冲突。
 
 ### 3.5 `order_outlet_change_log` 订单档口变更审计
 

@@ -56,8 +56,32 @@
 - [ ] **V67 DDL 影响实测（副本）**：在接近生产数据量的副本上记录 `ALTER TABLE sales_outlet`
       新增 STORED 生成列 + 唯一索引的耗时与锁表影响；评估是否需要 `ALGORITHM=INPLACE`/低峰窗口，
       并把实测结果写入发布记录（生成列可能触发表重建/拷贝）。
-- [ ] `sys_user_outlet` / `agent_key_outlet` 的“每主体一个默认”目前仅服务层保证（无 DB 唯一索引），
-      上线前执行重复审计：`SELECT tenant_id,user_id,COUNT(*) FROM sys_user_outlet WHERE deleted=0 AND is_default=1 GROUP BY tenant_id,user_id HAVING COUNT(*)>1;`（Key 表同构）；发现重复由人工归一。
+
+### 2.2 用户/Agent Key 默认唯一性检查（V68 前置，fail-closed）
+
+- [ ] V68 为 `sys_user_outlet`/`agent_key_outlet` 增加 STORED 生成列 + 唯一索引（每主体一个有效默认）。
+- [ ] 应用 V68 前对目标库执行（只读）：
+  ```sql
+  SELECT tenant_id, user_id, COUNT(*) AS default_cnt
+    FROM sys_user_outlet
+   WHERE deleted = 0 AND status = 1 AND is_default = 1
+   GROUP BY tenant_id, user_id
+  HAVING COUNT(*) > 1;
+
+  SELECT tenant_id, agent_key_id, COUNT(*) AS default_cnt
+    FROM agent_key_outlet
+   WHERE status = 1 AND is_default = 1
+   GROUP BY tenant_id, agent_key_id
+  HAVING COUNT(*) > 1;
+  ```
+- [ ] 结果必须为空。**V68 fail-closed**：存在重复时迁移会因 `uk_user_outlet_default` /
+      `uk_agent_key_outlet_default` 唯一键冲突中止，不静默删/改；由人工确认保留哪条，
+      显式 `UPDATE ... SET is_default = 0` 清理其余并留痕后重跑。
+- [ ] V68 成功后复核 `SHOW CREATE TABLE` 含 `user_default_guard`/`agent_key_default_guard`
+      与两个唯一索引；记录 DDL 耗时/锁表影响。
+- [ ] **回滚边界**：V67/V68 为生成列+唯一索引的加法迁移，应用可回滚到旧镜像；数据库回滚需
+      备份 restore 或定向 `DROP INDEX` + `DROP COLUMN`（生成列/索引不承载业务数据，删除不丢行），
+      但回滚前须确认服务层仍按“每主体一个默认”写入，避免回滚后产生脏数据。
 
 ## 3. 回填预演（dry-run，副本）
 

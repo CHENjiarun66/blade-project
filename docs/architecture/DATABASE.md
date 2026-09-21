@@ -679,7 +679,7 @@
 
 ### 6.1 sales_outlet 档口主表
 
-**来源迁移**：`V63__outlet_access_control.sql`
+**来源迁移**：`V63__outlet_access_control.sql`；默认唯一性 `V67__outlet_tenant_default_unique.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -696,16 +696,17 @@
 | status | tinyint | NOT NULL, DEFAULT 1 | 状态：1启用 0禁用 |
 | remark | varchar(500) | | 备注 |
 | deleted | tinyint | NOT NULL, DEFAULT 0 | 软删除标记 |
+| tenant_default_guard | tinyint | GENERATED STORED | V67：deleted=0 且 is_tenant_default=1 时为 1，否则 NULL |
 | create_by | bigint | | 创建人 |
 | create_time | datetime | DEFAULT | 创建时间 |
 | update_by | bigint | | 更新人 |
 | update_time | datetime | DEFAULT | 更新时间 |
 
-**索引**：`uk_outlet_code_tenant(tenant_id, outlet_code)`, `idx_outlet_tenant_status(tenant_id, status, deleted)`
+**索引**：`uk_outlet_code_tenant(tenant_id, outlet_code)`, `idx_outlet_tenant_status(tenant_id, status, deleted)`, `uk_outlet_tenant_default(tenant_id, tenant_default_guard)`（V67，每租户最多一个未删除默认档口，历史重复 fail-closed）
 
 ### 6.2 sys_user_outlet 用户档口关联
 
-**来源迁移**：`V63__outlet_access_control.sql`
+**来源迁移**：`V63__outlet_access_control.sql`；默认唯一性 `V68__outlet_subject_default_unique.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -716,15 +717,16 @@
 | is_default | tinyint | NOT NULL, DEFAULT 0 | 个人默认档口：1是 0否 |
 | status | tinyint | NOT NULL, DEFAULT 1 | 状态：1启用 0禁用 |
 | deleted | tinyint | NOT NULL, DEFAULT 0 | 软删除标记 |
+| user_default_guard | bigint | GENERATED STORED | V68：deleted=0 且 status=1 且 is_default=1 时为 user_id，否则 NULL |
 | create_by | bigint | | 创建人 |
 | create_time | datetime | DEFAULT | 创建时间 |
 | update_time | datetime | DEFAULT | 更新时间 |
 
-**索引**：`uk_user_outlet_tenant(tenant_id, user_id, outlet_id)`, `idx_user_outlet_user(tenant_id, user_id, status, deleted)`, `idx_user_outlet_outlet(tenant_id, outlet_id, status, deleted)`
+**索引**：`uk_user_outlet_tenant(tenant_id, user_id, outlet_id)`, `idx_user_outlet_user(tenant_id, user_id, status, deleted)`, `idx_user_outlet_outlet(tenant_id, outlet_id, status, deleted)`, `uk_user_outlet_default(tenant_id, user_default_guard)`（V68，每用户最多一个有效默认；历史重复 fail-closed）
 
 ### 6.3 agent_key_outlet Agent Key 档口关联
 
-**来源迁移**：`V63__outlet_access_control.sql`
+**来源迁移**：`V63__outlet_access_control.sql`；默认唯一性 `V68__outlet_subject_default_unique.sql`
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -734,9 +736,10 @@
 | outlet_id | bigint | NOT NULL | 档口ID（sales_outlet.id） |
 | is_default | tinyint | NOT NULL, DEFAULT 0 | Key 默认档口：1是 0否 |
 | status | tinyint | NOT NULL, DEFAULT 1 | 状态：1启用 0禁用 |
+| agent_key_default_guard | bigint | GENERATED STORED | V68：status=1 且 is_default=1 时为 agent_key_id，否则 NULL |
 | create_time | datetime | DEFAULT | 创建时间 |
 
-**索引**：`uk_agent_key_outlet(tenant_id, agent_key_id, outlet_id)`, `idx_agent_key_outlet_key(tenant_id, agent_key_id, status)`
+**索引**：`uk_agent_key_outlet(tenant_id, agent_key_id, outlet_id)`, `idx_agent_key_outlet_key(tenant_id, agent_key_id, status)`, `uk_agent_key_outlet_default(tenant_id, agent_key_default_guard)`（V68，每 Key 最多一个有效默认；历史重复 fail-closed）
 
 **关联字段**：`agent_key.outlet_scope_type varchar(20) NOT NULL DEFAULT 'NONE'`（V63 新增，位于 `scopes` 之后）。合法取值 `ALL`（本租户全部启用档口，不依赖逐档口关联行，新档口自动可见）/ `ASSIGNED`（仅 `agent_key_outlet` 绑定的启用档口，必须至少一条有效关联）/ `NONE`（拒绝档口业务，默认值）。Series E3 轮换语义：`outletScopeType/outletIds/defaultOutletId` 为 null 时分别继承旧 Key，显式传入按新配置；单事务先建新 Key 再停旧 Key；ALL 不写逐档口冗余绑定，仅可存一条默认档口标记；`readOutletConfig` 对 ALL 的 `outletIds` 恒为空。
 
