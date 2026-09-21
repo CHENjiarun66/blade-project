@@ -8,6 +8,15 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口 Series E2 经 Codex 终审后的缺口补齐
+
+- P0-1 列表 SQL 租户边界：`buildVisibilityCondition` 所有 `file_business_bind` 子查询与 target 查询显式 `b.tenant_id`，跨租户污染绑定不影响本租户文件。
+- P0-2 权限对齐：列表 SQL 拆为 `hasPermittedNonSensitive`（仅调用者拥有的映射类型）+ `hasAnyMappedNonSensitive`，与 direct read 一致；无 `menu:product` 时 product/sku 文件列表与详情都不可见。
+- P0-3 匿名 PUBLIC 非敏感媒体：新增全局媒体加载（`selectActiveByIdGlobal` / `getActiveFileGlobal` / `loadResourceForMedia`）；敏感文件无论 PUBLIC 都按业务范围，非敏感 PUBLIC 匿名可读，非 PUBLIC 认证+同租户；不恢复 tenant=1 fallback。
+- P0-4 可靠操作者：upload 要求可靠 User principal（否则 403），operatorId 不得为 null，且在任何 storage 调用之前；删除 1L fallback。
+- P1 参数化：`VisibilityCondition(sql, params)` + `wrapper.apply` 的 `{n}` 占位符参数化 tenant/actor/outlet IDs。
+- 新增反例测试：跨租户污染、权限对齐、NONE、多档口 IN、unassigned、匿名 PUBLIC 商品/订单、previewToken、无可信用户上传。全量后端 684/684。
+
 ### [功能开发] - 档口 Series E2：文件中心与订单/草稿图片档口闭环（BE-OUTLET-009 文件部分）
 
 - 新增集中 `FileBusinessAccessPolicy`：order/draft 分别复用 `OrderAccessPolicy.requireAccess` / `OutletAccessPolicy.requireDraftAccess`；多敏感绑定 ALL 规则；legacy `file_storage.business_*` 兜底；未绑定仅创建者或 `btn:file:viewAll`；缺 tenant/actor fail closed，`viewAll` 不绕过业务范围。
