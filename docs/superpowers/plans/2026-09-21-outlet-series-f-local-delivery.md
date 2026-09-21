@@ -13,7 +13,10 @@
 |---|---|
 | `8213dea` | `feat(outlet): add Series F historical outlet backfill dry-run tooling [dsh]`（回填工具 + 授权建议包 + EXPLAIN 脚本） |
 | `8189078` | `test(outlet): add Series F backfill and scope matrix audit tests [dsh]`（18 例测试） |
-| 本文档所在 commit | `docs(outlet): record Series F local release preparation [dsh]` |
+| `2948ab7` | `docs(outlet): record Series F local release preparation [dsh]` |
+| `35ebcc0` | `fix(outlet): fail-closed copy identity gate and complete backfill reports [dsh]`（Codex 终审整改 P0-1~P0-4/P1） |
+| `ecac2e5` | `test(outlet): add Series F remediation counterexamples [dsh]`（8 例反例/契约测试） |
+| 本文档所在 commit | `docs(outlet): record Series F Codex remediation [dsh]` |
 
 ## 1. 明确范围（本地 vs 外部）
 
@@ -61,37 +64,62 @@
 - apply 在同一事务内取前后快照：行数、`total_amount`、`gross_received_amount`、`net_received_amount`、
   `cash_refund_amount`、`sales_return_amount`、`write_off_amount`、状态分布、`source_shop` 分布、
   订单/草稿明细数、文件绑定数；除 `source_outlet_id` 空/非空计数外必须完全一致，否则抛错回滚。
+- 另按 `id + source_shop` 生成稳定 SHA-256 摘要（`orderIdShopDigest`/`draftIdShopDigest`），
+  即使分布相同但值被交换也会被识别。
 - 重复执行：第二次 `ordersUpdated=0/draftsUpdated=0`，`alreadyApplied` 增加；`reconciliationConsistent=true`。
+- UPDATE 同时带 `tenant_id=?`、`source_outlet_id IS NULL`、分块 `id IN (...)`；若候选选取后被并发填入，
+  更新行数少于候选数，差额计入并发冲突/跳过并告警，绝不覆盖。
 
-### 2.5 安全闸门（只在生产副本）
+### 2.5 安全闸门（fail-closed 正向副本身份，只在生产副本）
 
 - 默认 `blade.outlet.backfill.apply=false`（dry-run）。
-- apply 需同时：显式映射文件、显式租户、`copy-environment-ack=true`、`apply=true`。
-- 连接串/库名命中 `prod`/`production`/`nas` 直接 403。
-- 命令示例（**不在本分支执行**）：
+- apply 必须同时满足（正向证明，不能只靠 ack）：
+  1. 显式映射文件、显式租户、`apply=true`；
+  2. 显式 `expected-database-name`，且与实际 `SELECT DATABASE()` **完全一致**；
+  3. 实际库名匹配副本命名模式 `*_copy` / `*_rehearsal` / `*_staging` / `*_test`（正则 `(?i)^[a-z0-9_]+_(copy|rehearsal|staging|test)$`）；`blade` 等生产常用名直接拒绝；
+  4. 显式 `copy-environment-ack=true`；
+  5. 显式 `report-dir` 且目录可创建/可写；
+  6. 第二层黑名单：连接串或库名命中 `prod`/`production`/`nas` 直接 403。
+- 写入入口 `OutletBackfillService.apply(OutletBackfillApproval, rows)`：`OutletBackfillApproval` 构造器包内可见，
+  只有 `OutletBackfillSafetyGate.approve(...)` 能签发，外部包无法绕过闸门调用写入。
+- 命令示例（**不在本分支执行**，一次性任务加 `--spring.main.web-application-type=none`）：
 
 ```bash
-# dry-run
+# dry-run（可选 report-dir，产出 JSON + Markdown）
 java -jar blade-backend.jar \
+  --spring.main.web-application-type=none \
   --blade.outlet.backfill.mapping-file=/secure/path/outlet-mapping.csv \
-  --blade.outlet.backfill.tenant-id=<tenant>
+  --blade.outlet.backfill.tenant-id=<tenant> \
+  --blade.outlet.backfill.report-dir=/secure/reports
 
 # apply（仅生产副本）
 java -jar blade-backend.jar \
+  --spring.main.web-application-type=none \
   --blade.outlet.backfill.mapping-file=/secure/path/outlet-mapping.csv \
   --blade.outlet.backfill.tenant-id=<tenant> \
+  --blade.outlet.backfill.report-dir=/secure/reports \
   --blade.outlet.backfill.apply=true \
+  --blade.outlet.backfill.expected-database-name=blade_rehearsal \
   --blade.outlet.backfill.copy-environment-ack=true
 ```
 
 模板：`scripts/outlet-backfill-plan-template.csv`。
 
-### 2.6 自动测试
+### 2.6 报告
+
+- `OutletBackfillReport` 同时含计数与结构化 `groups`（按 `sale_order`/`order_draft` 分开）：
+  `BLANK_NULL`、`UNMAPPED`、`MAP_CANDIDATE`、`SKIP`、`REVIEW`、`SUSPECT`、`ALREADY_APPLIED`、
+  `CONFLICT`、`CONFIRMED_DRAFT_SKIPPED`，每条含 value/count/sampleRefs（订单号或草稿 externalRefNo，最多 5 条）。
+- 样例严格限定 `tenant_id`；报告不含 JDBC/凭据/密码。
+- 指定 `report-dir` 时同时输出稳定命名（含模式+租户+时间戳，已存在则追加序号，不静默覆盖）的 JSON 与 Markdown。
+
+### 2.7 自动测试
 
 - `OutletBackfillMappingTest`（7）：解析/注释/表头/纯数字/MAP 缺码/非 MAP 带码/重复/非法租户与 decision。
-- `OutletBackfillSafetyGateTest`（3）：四重闸门缺失、生产/NAS 特征拒绝、合法副本放行。
-- `OutletBackfillServiceIntegrationTest`（5，真实库事务回滚）：dry-run 不写库、apply 只改 ID 且幂等、
-  冲突不覆盖、确认草稿跳过、疑似批次跳过、未知/禁用/删除/跨租户整体拒绝、对账一致。
+- `OutletBackfillSafetyGateTest`（6）：基础闸门缺失、`jdbc:mysql://mysql:3306/blade`+`blade`+ack 反例、expected 名称不匹配、非 copy 命名、生产/NAS 黑名单第二层、合法 rehearsal 放行。
+- `OutletBackfillServiceIntegrationTest`（6，真实库事务回滚）：dry-run 分类/样例不写库、apply 只改 ID 且幂等、冲突不覆盖、确认草稿跳过、疑似批次跳过、未知/禁用/删除/跨租户整体拒绝、UPDATE tenant+NULL 谓词、JSON+Markdown 输出。
+- `OutletBackfillServiceUpdateTest`（2）：UPDATE 带 tenant/null 条件 + 1200 ID 分 3 块；空列表不触库。
+- `OutletOpsSqlContractTest`（2）：运维 SQL 无写/DDL 关键字；`@tenant_id`/`:tenant_id` 闸门与关键语句 tenant 条件。
 
 ## 3. 初始用户-档口授权建议/确认包（DATA-OUTLET-003 本地）
 
@@ -117,10 +145,10 @@ java -jar blade-backend.jar \
 
 ## 5. 验证结果
 
-- 全量后端 `mvn test`：**769/769**，Failures 0 / Errors 0 / Skipped 0
-  （E3 基线 751，Series F 本地新增 18 例）。
-- PC 构建 `npm run build`：通过（仅既有 chunk 体积告警）。
-- 关键 E2E（本地后端 + Vite）：见 §5.1；环境限制如实记录。
+- 全量后端 `mvn test`：**777/777**，Failures 0 / Errors 0 / Skipped 0
+  （E3 基线 751，Series F 本地新增 26 例，其中 Codex 终审整改新增 8 例）。
+- PC 构建 `npm run build`：沿用上一轮通过（本轮纯后端工具/脚本/文档，无前端改动，未重复构建）。
+- 关键 E2E（本地后端 + Vite）：沿用上一轮 16 passed（本轮无前端改动）；环境限制如实记录。
 - `git diff --check`：无输出；workspace clean（工具隐藏目录已本地排除，未提交）。
 
 ### 5.1 E2E
@@ -144,3 +172,15 @@ java -jar blade-backend.jar \
 - TEST-OUTLET-004：生产规模查询计划与性能结论。
 - Series G：`btn:order:viewAll` 下线评估、`source_outlet_id NOT NULL` 评估、`salesman_id` 索引评估。
 - 本分支不删除 `btn:order:viewAll`、不加 NOT NULL、不虚报任何生产执行。
+
+## 8. Codex 终审整改（P0-1 ~ P0-4 / P1）
+
+| 编号 | 问题 | 修复 | 测试 |
+|---|---|---|---|
+| P0-1 | 安全闸门只靠 ack + 黑名单，真实生产 `jdbc:mysql://mysql:3306/blade` 不命中 | fail-closed 正向副本身份：显式 `expected-database-name` 与实际 `SELECT DATABASE()` 完全一致；实际库名匹配 `*_copy/_rehearsal/_staging/_test`；显式可写 `report-dir`；黑名单降为第二层；`OutletBackfillApproval` 构造器包内可见，仅 gate 可签发，写入入口 `apply(approval, rows)`，事务代理保持生效 | `OutletBackfillSafetyGateTest`（含 `jdbc:mysql://mysql:3306/blade`+`blade`+ack 必须拒绝、expected 不匹配拒绝、合法 rehearsal 放行）、`OutletBackfillServiceIntegrationTest.apply*` |
+| P0-2 | 报告只有计数，无空值/未映射/疑似/冲突/样例；无 JSON/Markdown | `OutletBackfillReport.groups` 按 `sale_order`/`order_draft` 分类（`BLANK_NULL/UNMAPPED/MAP_CANDIDATE/SKIP/REVIEW/SUSPECT/ALREADY_APPLIED/CONFLICT/CONFIRMED_DRAFT_SKIPPED`），含 value/count/sampleRefs（≤5，严格 tenant）；显式 `report-dir` 输出时间戳 JSON+Markdown，不静默覆盖；apply 强制 report-dir 可写 | `OutletBackfillServiceIntegrationTest.previewReportsCandidatesGroupsAndSamplesWithoutWriting`、`applyUpdatesOnlySourceOutletIdWritesReportsAndIsIdempotent`；`OutletBackfillMappingTest` |
+| P0-3 | UPDATE 未含 tenant/null、无分块；冲突告警用累计计数；对账仅分布 | UPDATE `SET source_outlet_id=? WHERE tenant_id=? AND source_outlet_id IS NULL AND id IN (...)`，500/块；候选后并发填入按差额计入 conflict/concurrent 并告警；冲突判定改当前行局部计数；新增 `id + source_shop` SHA-256 对账摘要 | `OutletBackfillServiceUpdateTest`、`OutletBackfillServiceIntegrationTest.updateHelperEnforcesTenantAndNullPredicate` |
+| P0-4 | 运维 SQL 可返回全租户 | `outlet-source-shop-audit.sql`/`outlet-user-outlet-authorization-suggestions.sql` 改为 `SET @tenant_id = NULL` fail-closed，所有语句/CTE/JOIN 按同 tenant；`outlet-scope-explain.sql` 保持显式 `:tenant_id` | `OutletOpsSqlContractTest`（只读关键字 + tenant 闸门 + 关键语句 tenant 条件） |
+| P1 | CLI 一次性任务退出、文档口径 | CLI 命令示范加 `--spring.main.web-application-type=none`；本报告新增本章节；16/17/19 Agent 手册已核对为当前版本（本轮无 diff）；STATUS 以 03-TASKS/本报告为权威，`🚧 本地完成/待外部` 不代表生产完成 | 文档复核 |
+
+验证（整改）：全量后端 **777/777**；`git diff --check` 无输出；workspace clean。前端本轮无改动，沿用上一轮构建/E2E 结果。

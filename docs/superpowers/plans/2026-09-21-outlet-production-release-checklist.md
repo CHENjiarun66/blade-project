@@ -23,37 +23,44 @@
 
 ## 2. 事实审计（只读，副本）
 
+- [ ] 两个审计 SQL 都必须先 `SET @tenant_id = <tenant>;`；未设置/NULL 时 fail-closed（零行），不得返回全租户。
 - [ ] 运行 `scripts/outlet-source-shop-audit.sql`，导出分布/空值/纯数字/批次/冲突报告。
 - [ ] 运行 `scripts/outlet-user-outlet-authorization-suggestions.sql`，导出用户授权建议报告。
-- [ ] 运行 `scripts/outlet-scope-explain.sql`，记录 single/multi/all/none/unassigned 的 EXPLAIN 与索引清单。
+- [ ] 运行 `scripts/outlet-scope-explain.sql`（显式 `:tenant_id`），记录 single/multi/all/none/unassigned 的 EXPLAIN 与索引清单。
 - [ ] 人工复核疑似批次/纯数字清单，确认不进入映射。
 
 ## 3. 回填预演（dry-run，副本）
 
 - [ ] 准备映射 CSV（模板 `scripts/outlet-backfill-plan-template.csv`，列 `tenant_id,legacy_source_shop,outlet_code,decision,reason`）。
-- [ ] 执行 dry-run（不写库）：
+- [ ] 执行 dry-run（不写库，可选 report-dir 产出 JSON+Markdown）：
   ```bash
   java -jar blade-backend.jar \
-    --blade.outlet.backfill.mapping-file=/secure/path/outlet-mapping.csv \
-    --blade.outlet.backfill.tenant-id=<tenant>
-  ```
-- [ ] 核对 JSON 报告：`mapRows/skipRows/reviewRows`、`ordersCandidates/draftsCandidates`、
-      `ordersConflict/draftsConflict`、`ordersSuspect/draftsSuspect`、`confirmedDraftsSkipped`、`warnings`。
-- [ ] 确认无 `errors`，且冲突/疑似清单已人工判定。
-- [ ] 记录回填前基线：行数、金额、收款、状态、明细、文件绑定、`source_shop` 摘要。
-
-## 4. 副本 apply（显式闸门）
-
-- [ ] 执行 apply（仅在副本，需四重显式确认）：
-  ```bash
-  java -jar blade-backend.jar \
+    --spring.main.web-application-type=none \
     --blade.outlet.backfill.mapping-file=/secure/path/outlet-mapping.csv \
     --blade.outlet.backfill.tenant-id=<tenant> \
+    --blade.outlet.backfill.report-dir=/secure/reports
+  ```
+- [ ] 核对 JSON 报告：`mapRows/skipRows/reviewRows`、`ordersCandidates/draftsCandidates`、
+      `ordersConflict/draftsConflict`、`ordersSuspect/draftsSuspect`、`confirmedDraftsSkipped`、
+      `groups`（BLANK_NULL/UNMAPPED/MAP_CANDIDATE/SKIP/REVIEW/SUSPECT/ALREADY_APPLIED/CONFLICT/CONFIRMED_DRAFT_SKIPPED，含样例）、`warnings`。
+- [ ] 确认无 `errors`，且冲突/疑似清单已人工判定。
+- [ ] 记录回填前基线：行数、金额、收款、状态、明细、文件绑定、`source_shop` 摘要与 `id+source_shop` 摘要。
+
+## 4. 副本 apply（fail-closed 正向闸门）
+
+- [ ] 执行 apply（仅在副本，必须通过正向副本身份验证；`expected-database-name` 必须与实际库名一致且匹配 `*_copy/_rehearsal/_staging/_test`）：
+  ```bash
+  java -jar blade-backend.jar \
+    --spring.main.web-application-type=none \
+    --blade.outlet.backfill.mapping-file=/secure/path/outlet-mapping.csv \
+    --blade.outlet.backfill.tenant-id=<tenant> \
+    --blade.outlet.backfill.report-dir=/secure/reports \
     --blade.outlet.backfill.apply=true \
+    --blade.outlet.backfill.expected-database-name=blade_rehearsal \
     --blade.outlet.backfill.copy-environment-ack=true
   ```
-- [ ] 确认安全闸门拒绝任何生产/NAS 特征连接（命中即 403）。
-- [ ] 核对 apply 报告 `reconciliationConsistent=true`；否则事务已回滚，立即停止。
+- [ ] 确认安全闸门拒绝：`expected-database-name` 不匹配、非 copy 命名（如 `blade`）、生产/NAS 特征（命中即 403）。
+- [ ] 核对 apply 报告 `reconciliationConsistent=true`（含 `orderIdShopDigest`/`draftIdShopDigest`）；否则事务已回滚，立即停止。
 - [ ] 再次执行 dry-run，确认 `ordersUpdated=0/draftsUpdated=0`、`alreadyApplied` 增加（幂等）。
 
 ## 5. 对账与验收

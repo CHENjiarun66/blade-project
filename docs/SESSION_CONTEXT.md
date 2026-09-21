@@ -11,6 +11,7 @@
 - DATA-OUTLET-003 本地建议包：`scripts/outlet-user-outlet-authorization-suggestions.sql`（只读）+ `scripts/outlet-user-outlet-authorization-template.csv`；decision 恒 NEEDS_REVIEW，绝不自动授权；人工确认/授权待外部。
 - TEST-OUTLET-004 本地：`OutletScopeCrossResourceAuditTest`（档口×人员×user/agent×订单/草稿/统计读范围矩阵）+ `OutletIndexCoverageTest`（索引核对）+ `scripts/outlet-scope-explain.sql`（single/multi/all/none/unassigned EXPLAIN）。发现 `sale_order.salesman_id` 无独立索引，生产规模性能待评估；未改 schema。
 - 文档：新增 Series F 本地交付报告与生产副本/备份/灰度/回滚 checklist（只写不执行）；修正 ROM-SOW 中 B/C 已完成却仍 TODO 的行。
+- Codex 终审整改：安全闸门改为 fail-closed 正向副本身份（expected-database-name 与实际一致 + `*_copy/_rehearsal/_staging/_test` 命名 + report-dir；`blade` 拒绝；黑名单第二层；`OutletBackfillApproval` 包内构造，写入入口限可见性）；报告补 `groups` 分类/样例与 JSON+Markdown；UPDATE 带 tenant/null/分块并处理并发；对账加 id+source_shop 摘要；运维 SQL 全部 `@tenant_id` fail-closed + 静态契约测试。全量后端 **777/777**。
 - 未完成（待外部）：生产副本映射预演与对账、初始授权人工确认与写入、备份/灰度/回滚执行、生产规模性能、Series G 收口（btn:order:viewAll 下线评估、NOT NULL 评估）。
 - 未做（保持）：不删除 `btn:order:viewAll`，不加 `source_outlet_id NOT NULL`，不 push/部署/NAS/生产。
 

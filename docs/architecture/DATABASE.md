@@ -766,7 +766,7 @@
 - `sale_order.source_outlet_id`（bigint，可空，V63 新增）：档口主数据 ID，权限与统计依据。正式订单最终须非空，但历史回填（Series F）完成前保持可空，禁止直接加 NOT NULL；本分支不新增 NOT NULL 迁移。
 - `order_draft.source_outlet_id`（bigint，可空，V63 新增）：草稿允许为空（历史迁移 / Owner 待补资料），索引 `idx_order_draft_source_outlet(tenant_id, source_outlet_id)`、`idx_order_draft_tenant_outlet(tenant_id, source_outlet_id, status)`、`idx_order_draft_tenant_creator(tenant_id, created_by_user_id, status)`。
 - `source_shop` 继续保留为档口名称快照，不再作为权限依据；不改写历史数据。
-- 历史回填工具（`com.blade.outlet.migration`，Series F 本地）：显式 CSV 映射，默认 dry-run，apply 只更新 `source_outlet_id`，冲突不覆盖、疑似批次跳过、前后对账、幂等；只在生产副本执行，apply 需显式安全闸门，未改 schema。已知 `sale_order.salesman_id` 无独立索引，生产规模计划评估留 Series G。
+- 历史回填工具（`com.blade.outlet.migration`，Series F 本地）：显式 CSV 映射，默认 dry-run，apply 只更新 `source_outlet_id`，冲突不覆盖、疑似批次跳过、前后对账（含 `id+source_shop` 摘要）、幂等；apply 需 fail-closed 正向副本身份（`expected-database-name` 与实际一致 + `*_copy/_rehearsal/_staging/_test` 命名 + 可写 report-dir + 生产/NAS 黑名单第二层），报告输出 JSON+Markdown；只在生产副本执行，未改 schema。已知 `sale_order.salesman_id` 无独立索引，生产规模计划评估留 Series G。
 
 ---
 

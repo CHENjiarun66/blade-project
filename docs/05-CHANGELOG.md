@@ -8,6 +8,15 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口 Series F 经 Codex 终审后的缺口补齐
+
+- P0-1 副本安全闸门改为 fail-closed 正向身份验证：apply 必须显式 `expected-database-name` 且与实际 `SELECT DATABASE()` 完全一致、实际库名匹配 `*_copy/_rehearsal/_staging/_test`、显式可写 `report-dir`；生产常用名 `blade` 直接拒绝；`prod/production/nas` 黑名单保留为第二层；`OutletBackfillApproval` 构造器包内可见，仅 `OutletBackfillSafetyGate.approve` 可签发，写入入口 `apply(approval, rows)` 限制可见性且 `@Transactional` 保持生效。反例：`jdbc:mysql://mysql:3306/blade`+库名 `blade`+ack=true 必须拒绝。
+- P0-2 报告补全：`OutletBackfillReport.groups` 按 `sale_order`/`order_draft` 分类，覆盖 `BLANK_NULL/UNMAPPED/MAP_CANDIDATE/SKIP/REVIEW/SUSPECT/ALREADY_APPLIED/CONFLICT/CONFIRMED_DRAFT_SKIPPED`，含 value/count/sampleRefs（≤5，严格 tenant，不泄密）；显式 `report-dir` 输出稳定命名 JSON+Markdown，不静默覆盖；apply 强制 report-dir 可写。
+- P0-3 并发/租户：UPDATE 带 `tenant_id=?` + `source_outlet_id IS NULL` + 分块 `id IN`（500/块）并校验更新数；并发填入按差额计入 conflict/concurrent 并告警；冲突告警改当前行局部计数；对账新增 `id + source_shop` SHA-256 摘要。
+- P0-4 运维 SQL 租户隔离：`outlet-source-shop-audit.sql`、`outlet-user-outlet-authorization-suggestions.sql` 改为 `SET @tenant_id = NULL` fail-closed，所有语句/CTE/JOIN 按同 tenant；`outlet-scope-explain.sql` 保持显式 `:tenant_id`；新增静态契约测试确认无写语句且含租户闸门。
+- P1：CLI 文档命令加 `--spring.main.web-application-type=none`；Series F 报告新增“Codex 终审整改”章节；16/17/19 Agent 手册已核对为当前版本（本轮无 diff）；STATUS 以 03-TASKS/报告为权威。
+- 测试：整改新增 8 例（安全闸门 3、报告/集成 1、UPDATE 分块 2、SQL 契约 2）；全量后端 **777/777**；`git diff --check` 无输出。前端本轮无改动，沿用上一轮构建/E2E。
+
 ### [功能开发] - 档口 Series F：本地发布准备（历史回填预演、初始授权建议包、本地回归/性能预演）
 
 - 新增 `com.blade.outlet.migration` 历史档口回填工具：显式 CSV（`tenant_id,legacy_source_shop,outlet_code,decision,reason`）解析与静态校验（纯数字拒绝自动映射、MAP 必须有启用且同租户未删除档口、SKIP/REVIEW 必须有 reason、同租户同值冲突报错）；`OutletBackfillService` 默认 dry-run，apply 单事务且只更新 `sale_order`/`order_draft.source_outlet_id`，`source_shop` 原值保留；冲突不覆盖、疑似批次/编号跳过、确认草稿跳过；前后对账行数/金额/收款/状态/明细/文件绑定/`source_shop`，不一致回滚；幂等；`OutletBackfillSafetyGate` 要求 apply + 映射文件 + 租户 + 副本确认，并拒绝生产/NAS 特征；`OutletBackfillCli` 仅在显式传入映射文件时运行。只允许在生产副本执行。
