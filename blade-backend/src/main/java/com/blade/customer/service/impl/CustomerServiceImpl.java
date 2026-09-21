@@ -1,6 +1,7 @@
 package com.blade.customer.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.exception.BusinessException;
@@ -38,7 +39,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -108,6 +111,10 @@ public class CustomerServiceImpl implements CustomerService {
         wrapper.orderByDesc(Customer::getId);
         IPage<Customer> result = customerMapper.selectPage(page, wrapper);
 
+        // 订单数：一次解析范围，按当前页 customer_id 批量 GROUP BY，口径与 stats/orders 一致
+        OrderReadScope orderScope = orderAccessPolicy.resolveReadScope(null, false);
+        List<Long> customerIds = result.getRecords().stream().map(Customer::getId).toList();
+        Map<Long, Long> orderCounts = countOrdersByCustomer(customerIds, orderScope);
         List<CustomerVO> voList = result.getRecords().stream().map(customer -> {
             CustomerVO vo = convertToVO(customer);
             // 查询该客户的所有电话
@@ -116,11 +123,8 @@ public class CustomerServiceImpl implements CustomerService {
                        .eq(CustomerPhone::getDeleted, 0);
             List<CustomerPhone> phones = customerPhoneMapper.selectList(phoneWrapper);
             vo.setPhones(phones.stream().map(CustomerPhone::getPhone).collect(Collectors.toList()));
-            // 查询该客户的订单数量
-            LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
-            orderWrapper.eq(Order::getCustomerId, customer.getId());
-            Long orderCount = orderMapper.selectCount(orderWrapper);
-            vo.setOrderCount(orderCount.intValue());
+            // 订单数量：仅当前调用者档口 × 人员可读范围（默认排除历史 NULL）
+            vo.setOrderCount(orderCounts.getOrDefault(customer.getId(), 0L).intValue());
             return vo;
         }).collect(Collectors.toList());
 
@@ -151,11 +155,10 @@ public class CustomerServiceImpl implements CustomerService {
                    .eq(CustomerPhone::getDeleted, 0);
         List<CustomerPhone> phones = customerPhoneMapper.selectList(phoneWrapper);
         vo.setPhones(phones.stream().map(CustomerPhone::getPhone).collect(Collectors.toList()));
-        // 查询该客户的订单数量
-        LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
-        orderWrapper.eq(Order::getCustomerId, customer.getId());
-        Long orderCount = orderMapper.selectCount(orderWrapper);
-        vo.setOrderCount(orderCount.intValue());
+        // 订单数量：应用档口 × 人员范围（默认排除历史 NULL），口径与 stats/orders 一致
+        OrderReadScope scope = orderAccessPolicy.resolveReadScope(null, false);
+        vo.setOrderCount(countOrdersByCustomer(List.of(customer.getId()), scope)
+                .getOrDefault(customer.getId(), 0L).intValue());
         return vo;
     }
 
@@ -195,11 +198,10 @@ public class CustomerServiceImpl implements CustomerService {
         // 4. 组装VO
         CustomerVO vo = convertToVO(customer);
         vo.setPhones(phones.stream().map(CustomerPhone::getPhone).collect(Collectors.toList()));
-        // 5. 查询该客户的订单数量
-        LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
-        orderWrapper.eq(Order::getCustomerId, customer.getId());
-        Long orderCount = orderMapper.selectCount(orderWrapper);
-        vo.setOrderCount(orderCount.intValue());
+        // 5. 订单数量：应用档口 × 人员范围（默认排除历史 NULL），口径与 stats/orders 一致
+        OrderReadScope scope = orderAccessPolicy.resolveReadScope(null, false);
+        vo.setOrderCount(countOrdersByCustomer(List.of(customer.getId()), scope)
+                .getOrDefault(customer.getId(), 0L).intValue());
 
         return vo;
     }
@@ -380,6 +382,45 @@ public class CustomerServiceImpl implements CustomerService {
             throw BusinessException.of(403, "客户缺少租户信息");
         }
         return customer.getTenantId();
+    }
+
+    /**
+     * 按 customer_id 批量统计当前调用者档口 × 人员范围内的订单数（一条 GROUP BY，避免 N+1）。
+     * 口径与客户 stats/orders 一致：未归档 source_outlet_id=NULL 默认排除，NONE=1=0。
+     */
+    private Map<Long, Long> countOrdersByCustomer(List<Long> customerIds, OrderReadScope scope) {
+        if (customerIds == null || customerIds.isEmpty()) {
+            return Map.of();
+        }
+        QueryWrapper<Order> wrapper = new QueryWrapper<>();
+        wrapper.select("customer_id AS customerId", "COUNT(*) AS cnt")
+                .eq("tenant_id", scope.tenantId())
+                .eq("deleted", 0)
+                .in("customer_id", customerIds)
+                .groupBy("customer_id");
+        scope.applySalesPredicate(wrapper);
+        List<Map<String, Object>> rows = orderMapper.selectMaps(wrapper);
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Long> counts = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Object id = valueIgnoreCase(row, "customerId");
+            if (id instanceof Number number) {
+                Object cnt = valueIgnoreCase(row, "cnt");
+                counts.put(number.longValue(), cnt instanceof Number c ? c.longValue() : 0L);
+            }
+        }
+        return counts;
+    }
+
+    private static Object valueIgnoreCase(Map<String, Object> row, String key) {
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     private CustomerVO convertToVO(Customer customer) {

@@ -156,9 +156,63 @@ class CustomerOrderScopeIntegrationTest {
                 .andExpect(jsonPath("$.data.productTypeCount").value(1));
     }
 
+    // ==================== 客户 orderCount 范围一致性 ====================
+
+    @Test
+    void orderCountIsScopedOnListDetailAndSearch() throws Exception {
+        Fixture f = seedFixture();
+        Long c = f.customerId;
+        String phone = f.customerPhone;
+
+        // SELF + ASSIGNED A：仅 oA1 -> 1
+        String selfToken = login(f.userSelfName);
+        mockMvc.perform(get("/api/customers").param("keyword", f.customerName)
+                        .header("Authorization", "Bearer " + selfToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records.length()").value(1))
+                .andExpect(jsonPath("$.data.records[0].orderCount").value(1));
+        mockMvc.perform(get("/api/customers/{id}", c).header("Authorization", "Bearer " + selfToken))
+                .andExpect(jsonPath("$.data.orderCount").value(1));
+        mockMvc.perform(get("/api/customers/search").param("phone", phone)
+                        .header("Authorization", "Bearer " + selfToken))
+                .andExpect(jsonPath("$.data.orderCount").value(1));
+
+        // ALL_USERS + ASSIGNED A：oA1+oA2 -> 2
+        String leadToken = login(f.userLeadName);
+        mockMvc.perform(get("/api/customers").param("keyword", f.customerName)
+                        .header("Authorization", "Bearer " + leadToken))
+                .andExpect(jsonPath("$.data.records[0].orderCount").value(2));
+        mockMvc.perform(get("/api/customers/{id}", c).header("Authorization", "Bearer " + leadToken))
+                .andExpect(jsonPath("$.data.orderCount").value(2));
+        mockMvc.perform(get("/api/customers/search").param("phone", phone)
+                        .header("Authorization", "Bearer " + leadToken))
+                .andExpect(jsonPath("$.data.orderCount").value(2));
+
+        // ALL + ALL_USERS：oA1+oA2+oB1 -> 3，排除 source_outlet_id NULL
+        String ownerToken = login(f.userOwnerName);
+        mockMvc.perform(get("/api/customers").param("keyword", f.customerName)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(jsonPath("$.data.records[0].orderCount").value(3));
+        mockMvc.perform(get("/api/customers/{id}", c).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(jsonPath("$.data.orderCount").value(3));
+
+        // NONE：0
+        String noneToken = login(f.userNoneName);
+        mockMvc.perform(get("/api/customers").param("keyword", f.customerName)
+                        .header("Authorization", "Bearer " + noneToken))
+                .andExpect(jsonPath("$.data.records[0].orderCount").value(0));
+        mockMvc.perform(get("/api/customers/{id}", c).header("Authorization", "Bearer " + noneToken))
+                .andExpect(jsonPath("$.data.orderCount").value(0));
+        mockMvc.perform(get("/api/customers/search").param("phone", phone)
+                        .header("Authorization", "Bearer " + noneToken))
+                .andExpect(jsonPath("$.data.orderCount").value(0));
+    }
+
     // ==================== fixtures ====================
 
-    private record Fixture(Long customerId, Long oA1, String userSelfName, String userLeadName,
+    private record Fixture(Long customerId, String customerName, String customerPhone, Long oA1,
+                           String userSelfName, String userLeadName,
                            String userOwnerName, String userNoneName, String userNoPermName) {
     }
 
@@ -166,7 +220,11 @@ class CustomerOrderScopeIntegrationTest {
         String suffix = Long.toString(System.nanoTime()).substring(8);
         Long outletA = outlet("CS-A-" + suffix);
         Long outletB = outlet("CS-B-" + suffix);
-        Long customerId = customer("范围客户" + suffix);
+        String customerName = "范围客户" + suffix;
+        Long customerId = customer(customerName);
+        String customerPhone = "138" + suffix;
+        jdbc.update("INSERT INTO crm_customer_phone(customer_id,phone,is_primary,tenant_id,deleted) "
+                + "VALUES(?,?,1,1,0)", customerId, customerPhone);
 
         Long roleSelf = role("E2E_CS_SELF", "客户范围销售");
         grant(roleSelf, "btn:customer:viewOrders");
@@ -199,7 +257,8 @@ class CustomerOrderScopeIntegrationTest {
         bind(userSelf, outletA);
         bind(userLead, outletA);
 
-        return new Fixture(customerId, oA1, selfName, leadName, ownerName, noneName, noPermName);
+        return new Fixture(customerId, customerName, customerPhone, oA1, selfName, leadName,
+                ownerName, noneName, noPermName);
     }
 
     private Long outlet(String code) {

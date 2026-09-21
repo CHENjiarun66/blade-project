@@ -1,6 +1,7 @@
 package com.blade.order.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.blade.order.entity.Order;
 
 import java.util.ArrayList;
@@ -71,6 +72,28 @@ public record OrderReadScope(
     public void applyPendingArchivePredicate(LambdaQueryWrapper<Order> wrapper) {
         wrapper.isNull(Order::getSourceOutletId);
         applyPeoplePredicate(wrapper);
+    }
+
+    /**
+     * 同 {@link #applySalesPredicate(LambdaQueryWrapper)} 的字符串列版本，供
+     * {@code QueryWrapper.select(...)/groupBy(...)} 的 GROUP BY 批量统计复用，保证口径单一。
+     */
+    public void applySalesPredicate(QueryWrapper<Order> wrapper) {
+        if (isNone()) {
+            wrapper.apply("1 = 0");
+        } else if (isAll()) {
+            wrapper.isNotNull("source_outlet_id");
+        } else if (readableOutletIds.isEmpty()) {
+            wrapper.apply("1 = 0");
+        } else {
+            wrapper.in("source_outlet_id", readableOutletIds);
+        }
+        if (selectedOutletIds != null) {
+            wrapper.in("source_outlet_id", selectedOutletIds);
+        }
+        if (!peopleAll) {
+            wrapper.eq("salesman_id", actorId != null ? actorId : -1L);
+        }
     }
 
     private void applyPeoplePredicate(LambdaQueryWrapper<Order> wrapper) {
