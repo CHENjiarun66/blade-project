@@ -125,17 +125,17 @@ class AgentOutletCodeQueryIntegrationTest {
         // ASSIGNED-A 访问未绑定的 B code
         mockMvc.perform(get("/api/agent/orders").param("sourceOutletCode", otherCode)
                         .header("X-Agent-Key", assignedARawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
 
         mockMvc.perform(get("/api/agent/orders").param("sourceOutletCode", "NO-SUCH-CODE")
                         .header("X-Agent-Key", assignedARawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
 
         mockMvc.perform(get("/api/agent/orders").param("sourceOutletCode", enabledCode)
                         .header("X-Agent-Key", noneRawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
 
@@ -151,26 +151,26 @@ class AgentOutletCodeQueryIntegrationTest {
     void ordersAndAnalyticsRejectCrossTenantCode() throws Exception {
         mockMvc.perform(get("/api/agent/orders").param("sourceOutletCode", crossTenantCode)
                         .header("X-Agent-Key", assignedARawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
 
         mockMvc.perform(get("/api/agent/analytics/style-trends")
                         .param("sourceOutletCodes", crossTenantCode)
                         .header("X-Agent-Key", assignedARawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
 
     @Test
-    void draftCreateStillRejectsDisabledCode() throws Exception {
+    void draftCreateDisabledCodeFailsClosedWithHttp403() throws Exception {
         String body = "{\"orders\":[{\"externalRefNo\":\"E3C-D-" + System.nanoTime()
                 + "\",\"sourceBatchNo\":\"E3C\",\"sourceOrderNo\":\"E3C-1\",\"sourceOutletCode\":\""
                 + disabledCode + "\",\"items\":[{\"sourceRowNo\":1,\"rawDescription\":\"x\",\"quantity\":1,"
                 + "\"salePrice\":10}]}]}";
         mockMvc.perform(post("/api/agent/order-drafts/batch").header("X-Agent-Key", assignedARawKey)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.results[0].status").value("ERROR"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
     }
 
     // ==================== Agent analytics ====================
@@ -211,7 +211,7 @@ class AgentOutletCodeQueryIntegrationTest {
         mockMvc.perform(get("/api/agent/analytics/style-trends")
                         .param("sourceOutletCodes", enabledCode + "," + otherCode)
                         .header("X-Agent-Key", assignedARawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
 
         // sku-mix 未绑定 -> 403
@@ -219,14 +219,14 @@ class AgentOutletCodeQueryIntegrationTest {
                         .param("sourceOutletCodes", otherCode)
                         .param("productName", "x")
                         .header("X-Agent-Key", assignedARawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
 
         // NONE Key -> 403
         mockMvc.perform(get("/api/agent/analytics/style-trends")
                         .param("sourceOutletCodes", enabledCode)
                         .header("X-Agent-Key", noneRawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
 
@@ -235,7 +235,7 @@ class AgentOutletCodeQueryIntegrationTest {
         mockMvc.perform(get("/api/agent/analytics/style-trends")
                         .param("sourceOutletCodes", enabledCode)
                         .header("X-Agent-Key", assignedBRawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }
 

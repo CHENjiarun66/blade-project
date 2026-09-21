@@ -174,10 +174,13 @@ class OrderDraftOutletAttributionTest {
         agentContext(key);
 
         String ref = "agent-none-" + UUID.randomUUID();
-        OrderDraftDTO.BatchResult result = createAgent(key, request(ref));
+        OrderDraftDTO.BatchRequest batch = new OrderDraftDTO.BatchRequest();
+        batch.setOrders(List.of(request(ref)));
 
-        assertEquals("ERROR", result.getStatus());
-        assertNull(result.getDraftId(), "NONE 范围不得生成草稿ID");
+        // 请求级授权失败：整批抛 403，零写入（不再降级为 item ERROR）
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> agentDraftService.createBatch(batch, AgentPrincipal.from(key)));
+        assertEquals(403, ex.getCode());
         assertEquals(0, draftCountByRef(ref), "被拒绝的 Agent 请求不得落库");
     }
 
@@ -233,10 +236,12 @@ class OrderDraftOutletAttributionTest {
         String ref = "agent-unknown-code-" + UUID.randomUUID();
         OrderDraftDTO.SaveRequest request = request(ref);
         request.setSourceOutletCode("NO-SUCH-CODE");
-        OrderDraftDTO.BatchResult result = createAgent(key, request);
+        OrderDraftDTO.BatchRequest batch = new OrderDraftDTO.BatchRequest();
+        batch.setOrders(List.of(request));
 
-        assertEquals("ERROR", result.getStatus());
-        assertNull(result.getDraftId());
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> agentDraftService.createBatch(batch, AgentPrincipal.from(key)));
+        assertEquals(403, ex.getCode());
         assertEquals(0, draftCountByRef(ref));
     }
 
@@ -250,10 +255,12 @@ class OrderDraftOutletAttributionTest {
         String ref = "agent-disabled-code-" + UUID.randomUUID();
         OrderDraftDTO.SaveRequest request = request(ref);
         request.setSourceOutletCode(disabled.getOutletCode());
-        OrderDraftDTO.BatchResult result = createAgent(key, request);
+        OrderDraftDTO.BatchRequest batch = new OrderDraftDTO.BatchRequest();
+        batch.setOrders(List.of(request));
 
-        assertEquals("ERROR", result.getStatus(), "禁用档口不得用于新写");
-        assertNull(result.getDraftId());
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> agentDraftService.createBatch(batch, AgentPrincipal.from(key)));
+        assertEquals(403, ex.getCode(), "禁用档口不得用于新写，请求级 403 整批拒绝");
         assertEquals(0, draftCountByRef(ref));
     }
 
@@ -272,11 +279,13 @@ class OrderDraftOutletAttributionTest {
         String ref = "agent-cross-code-" + UUID.randomUUID();
         OrderDraftDTO.SaveRequest request = request(ref);
         request.setSourceOutletCode(other.getOutletCode());
-        OrderDraftDTO.BatchResult result = createAgent(key, request);
+        OrderDraftDTO.BatchRequest batch = new OrderDraftDTO.BatchRequest();
+        batch.setOrders(List.of(request));
 
-        assertEquals("ERROR", result.getStatus());
-        assertNull(result.getDraftId());
-        assertEquals(0, draftCountByRef(ref));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> agentDraftService.createBatch(batch, AgentPrincipal.from(key)));
+        assertEquals(403, ex.getCode());
+        assertEquals(0, draftCountByRef(ref), "越权 code 必须整批拒绝且零写入");
     }
 
     @Test
@@ -471,11 +480,13 @@ class OrderDraftOutletAttributionTest {
         historical.setDeleted(0);
         draftMapper.insert(historical);
 
-        OrderDraftDTO.BatchResult result = createAgent(key, request(ref));
+        OrderDraftDTO.BatchRequest batch = new OrderDraftDTO.BatchRequest();
+        batch.setOrders(List.of(request(ref)));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> agentDraftService.createBatch(batch, AgentPrincipal.from(key)));
 
-        assertEquals("ERROR", result.getStatus(), "历史空档口不得被 Agent 读回升级");
-        assertNull(result.getDraftId(), "不得通过错误信息泄漏历史草稿ID");
-        assertFalse(result.getMessage() != null && result.getMessage().contains(String.valueOf(historical.getId())),
+        assertEquals(403, ex.getCode(), "历史空档口不得被 Agent 读回升级（请求级 403）");
+        assertFalse(ex.getMessage() != null && ex.getMessage().contains(String.valueOf(historical.getId())),
                 "错误信息不得包含内部草稿ID");
         // 历史草稿保持原状，未被覆盖
         assertEquals("EDITING", draftMapper.selectById(historical.getId()).getStatus());

@@ -5,6 +5,9 @@ import com.blade.agent.entity.AgentKey;
 import com.blade.order.draft.dto.OrderDraftDTO;
 import com.blade.order.draft.service.AgentOrderDraftService;
 import com.blade.order.draft.service.OrderDraftWriter;
+import com.blade.outlet.entity.SalesOutlet;
+import com.blade.outlet.policy.OutletAccessPolicy;
+import com.blade.outlet.policy.OutletAccessScope;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -22,7 +25,8 @@ import static org.mockito.Mockito.when;
 
 class AgentOrderDraftCostPermissionTest {
     private final OrderDraftWriter writer = mock(OrderDraftWriter.class);
-    private final AgentOrderDraftService service = new AgentOrderDraftService(writer);
+    private final OutletAccessPolicy outletAccessPolicy = mock(OutletAccessPolicy.class);
+    private final AgentOrderDraftService service = new AgentOrderDraftService(writer, outletAccessPolicy);
 
     @Test
     void rejectsCostFieldsWhenKeyOnlyHasDraftWriteScope() {
@@ -42,6 +46,10 @@ class AgentOrderDraftCostPermissionTest {
         result.setExternalRefNo("agent-cost-1");
         result.setStatus("CREATED");
         when(writer.create(any(), eq(9L))).thenReturn(result);
+        OutletAccessScope scope = new OutletAccessScope(1L, OutletAccessScope.ActorType.AGENT, 9L,
+                OutletAccessScope.ALL, true, false, List.of(1L), List.of(1L), 1L);
+        when(outletAccessPolicy.resolveCurrentScope()).thenReturn(scope);
+        when(outletAccessPolicy.requireUsableOutlet(1L)).thenReturn(new SalesOutlet());
 
         OrderDraftDTO.BatchResponse response = service.createBatch(
                 request, principal("orders:write,orders:cost:write"));

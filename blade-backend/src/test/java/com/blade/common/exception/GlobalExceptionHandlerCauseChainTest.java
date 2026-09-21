@@ -4,6 +4,8 @@ import com.blade.common.result.R;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.MyBatisSystemException;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -64,10 +66,33 @@ class GlobalExceptionHandlerCauseChainTest {
 
     @Test
     void directBusinessExceptionHandlerUnchanged() {
-        R<?> result = handler.handleBusinessException(BusinessException.of(400, "参数错误"));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/orders/1");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        R<?> result = handler.handleBusinessException(BusinessException.of(400, "参数错误"), request, response);
 
         assertEquals(400, result.getCode());
         assertEquals("参数错误", result.getMessage());
+        assertEquals(200, response.getStatus(), "非 Agent 路径不改变 HTTP 状态");
+    }
+
+    @Test
+    void agentBusiness403SetsRealHttpStatus() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/agent/order-drafts/batch");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        R<?> result = handler.handleBusinessException(BusinessException.of(403, "无权使用该档口"), request, response);
+
+        assertEquals(403, result.getCode());
+        assertEquals(403, response.getStatus(), "Agent 路径业务 403 必须是真 HTTP 403");
+    }
+
+    @Test
+    void agentBusiness400KeepsHttp200BodyCode() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/agent/order-drafts/batch");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        R<?> result = handler.handleBusinessException(BusinessException.of(400, "参数错误"), request, response);
+
+        assertEquals(400, result.getCode());
+        assertEquals(200, response.getStatus(), "Agent 普通业务错误仍 HTTP 200 + body code");
     }
 
     @Test

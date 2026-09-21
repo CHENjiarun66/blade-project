@@ -25,7 +25,16 @@ public class GlobalExceptionHandler {
     private static final int MAX_CAUSE_DEPTH = 8;
 
     @ExceptionHandler(BusinessException.class)
-    public R<?> handleBusinessException(BusinessException e) {
+    public R<?> handleBusinessException(BusinessException e,
+                                        HttpServletRequest request,
+                                        HttpServletResponse response) {
+        // Agent 入口：请求级 401/403 设置真实 HTTP 状态，与 AccessDeniedException 分支一致。
+        // 其它 PC/既有路径响应体契约保持不变（HTTP 200 + body code）。
+        if ((e.getCode() == 401 || e.getCode() == 403)
+                && request.getRequestURI() != null
+                && request.getRequestURI().startsWith("/api/agent/")) {
+            response.setStatus(e.getCode());
+        }
         return R.fail(e.getCode(), e.getMessage());
     }
 

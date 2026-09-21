@@ -411,7 +411,7 @@ class AgentDataAccessIntegrationTest {
         // 订单详情按 ID 直接访问 B 档口订单 -> 业务码 403
         mockMvc.perform(get("/api/agent/orders/{id}", seededOrderId)
                         .header("X-Agent-Key", assignedOtherOutletRawKey))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
 
         // capabilities 不泄露 B 档口 code
@@ -427,17 +427,17 @@ class AgentDataAccessIntegrationTest {
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].code").value(otherOutletCode));
 
-        // 草稿使用 B 档口 code -> 单条 ERROR，不创建
+        // 草稿使用 B 档口 code -> 请求级档口越权，整批真实 HTTP 403 且零写入
         String codeBody = "{\"orders\":[{\"externalRefNo\":\"E3-B-" + System.nanoTime()
                 + "\",\"sourceBatchNo\":\"E3B\",\"sourceOrderNo\":\"E3B-1\",\"sourceOutletCode\":\""
                 + seededOutletCode + "\",\"items\":[{\"sourceRowNo\":1,\"rawDescription\":\"x\",\"quantity\":1,"
                 + "\"salePrice\":10}]}]}";
         mockMvc.perform(post("/api/agent/order-drafts/batch").header("X-Agent-Key", assignedOtherOutletRawKey)
                         .contentType(MediaType.APPLICATION_JSON).content(codeBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.results[0].status").value("ERROR"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
 
-        // 草稿显式内部 ID -> 单条 ERROR，不创建
+        // 草稿显式内部 ID -> 普通输入错误，保留单条 ERROR（HTTP 200）
         String idBody = "{\"orders\":[{\"externalRefNo\":\"E3-ID-" + System.nanoTime()
                 + "\",\"sourceBatchNo\":\"E3I\",\"sourceOrderNo\":\"E3I-1\",\"sourceOutletId\":" + seededOutletId
                 + ",\"items\":[{\"sourceRowNo\":1,\"rawDescription\":\"x\",\"quantity\":1,"

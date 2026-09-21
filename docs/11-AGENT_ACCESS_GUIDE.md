@@ -145,6 +145,15 @@ Agent API 复用 BladeProject 统一响应结构：
 | 参数不合法 | 修正参数后重试，不做无限循环 |
 | 5xx 或网络失败 | 做有限次数退避重试，并保留错误上下文 |
 
+`/api/agent/**` 的请求级授权失败（缺少 scope、Key 档口范围不允许、档口不可用/无默认档口等 `code=401/403`）返回**真实 HTTP 401/403**，不再以 HTTP 200 + body `code=403` 表达；接入方应以 HTTP 状态码判断请求级失败，不要只看响应体。
+
+批量草稿 `POST /api/agent/order-drafts/batch` 的语义：
+
+- **写入前整批预校验**：任一显式 `sourceOutletCode` 越权/不可用，或未传 code 且当前 Key 无可用默认档口，整批立即以 HTTP 403 拒绝，**零草稿写入**；混合批（部分合法 + 部分越权）同样整批拒绝。
+- **单条业务错误**：`400/404/409`（参数不合法、草稿不存在/不可编辑、单据编号冲突、显式传内部 `sourceOutletId` 等）保留 HTTP 200，响应 `results[]` 中该条 `status=ERROR` 并继续处理其余条目。
+- **未知异常/5xx** 不会被降级为单条 ERROR，按正常服务端错误返回。
+- `DUPLICATE` 表示同一 Key 同 `externalRefNo` 的幂等重试，返回原 `draftId`，不产生第二张草稿。
+
 外部 Agent 不应根据失败结果绕开 Gateway 去访问 CRUD API、数据库、Redis 或文件存储。
 
 本机提示“本机权限记录未同步”时，说明 MCP 已启动，但 Key Manager 的本地 scope 尚未与服务器一致；在 Key 详情页点击“同步服务器权限”后重试。同步使用 `GET /api/agent/capabilities`，只返回当前 Key 自身的公开前缀、真实 scope 和到期时间，不要求 Owner JWT。若调用业务接口后服务器实际返回 403，才表示服务器记录的 Key 确实缺少该 scope。纸单录入 Key 通常只有 `catalog:read`、`orders:write` 和按需的 `analytics:read`，应使用 `blade_catalog_search` 验证连接；`blade_products_list` 需要另行授权 `products:read`。
