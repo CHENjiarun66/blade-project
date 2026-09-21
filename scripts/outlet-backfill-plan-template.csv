@@ -1,0 +1,5 @@
+tenant_id,legacy_source_shop,outlet_code,decision,reason
+1,御龙,YL,MAP,2026-09-21 业务确认：御龙 → YL
+1,总店,ZONG,MAP,2026-09-21 业务确认：总店 → ZONG
+1,42,,SKIP,纯数字疑似批次，不自动映射
+1,未知来源,,REVIEW,需人工核对来源后决定

@@ -1,0 +1,4 @@
+tenant_id,user_id,username,outlet_scope,people_scope,default_outlet_code,outlet_codes,decision,reason
+1,23,owner,ALL,ALL_USERS,,,NEEDS_REVIEW,角色拥有 data:outlet:all 与 data:order:peopleAll，请确认
+1,41,salesA,ASSIGNED,SELF,YL,YL;GZ,NEEDS_REVIEW,销售员仅本人订单，请确认档口集合与默认档口
+1,42,salesB,,,,,NEEDS_REVIEW,无法从角色推断档口范围，必须人工填写
