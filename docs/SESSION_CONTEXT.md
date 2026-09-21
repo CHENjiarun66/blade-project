@@ -11,7 +11,8 @@
 - 新增 `GET /api/system/agent-keys/outlets`（含禁用档口，不受管理账号自身范围限制）与 scope `outlets:read`（`agent:outlets:read`）。
 - Agent API：`GET /api/agent/capabilities` 返回档口范围/默认编码/只读与可用档口摘要；新增 `GET /api/agent/outlets`（缺 scope 403、Key 无效 401、NONE 为空）；每请求实时重读 Key 与绑定，无缓存，停用/禁用/轮换下一请求即生效。
 - BA-OUTLET-006：Key Manager 档口范围编辑器（全部/指定/不开放）、列表展示、rotate 回显完整配置、订单/分析权限 + NONE 非阻塞警告、凭证弹窗 capabilities→outlets 接入说明（只用 outletCode）。
-- commit `be2ed13`（后端）、`1e1fef9`（Agent NULL 反例）、`65f38e1`（前端）；全量后端 **735/735**，`npm run build` 通过，Playwright 16 passed（新增 2 + 回归 14），`git diff --check` 无输出。交付报告见 [2026-09-21-outlet-series-e3-delivery.md](./superpowers/plans/2026-09-21-outlet-series-e3-delivery.md)。
+- commit `be2ed13`（后端）、`1e1fef9`（Agent NULL 反例）、`65f38e1`（前端）、`96eb2ae`（docs）、`3312585`（Agent 统计读范围反例）、`652b565`（E3 终审整改：P0-1 ALL 继承轮换、P0-2 Agent 统一 sourceOutletCode/sourceOutletCodes、style-trends 跨周期保留筛选、前端文案）。
+- 终审整改：`readOutletConfig` ALL 的 outletIds 恒空仅留默认档口；Agent orders 拒绝内部 ID、新增 `sourceOutletCode` 并返回 `sourceOutletCode`；Agent analytics 拒绝 `sourceOutletIds`、新增 `sourceOutletCodes` 按 readable 解析；`OutletAccessPolicy.requireReadableOutletByCode`/`resolveReadableOutletIdsByCodes` 集中处理（历史可读禁用、新建仅启用）；`AgentStyleTrendService.toCustomQuery` 复制原筛选。全量后端 **751/751**，`npm run build` 通过，Agent Playwright 2 passed，`git diff --check 3312585..HEAD` 无输出。交付报告见 [2026-09-21-outlet-series-e3-delivery.md](./superpowers/plans/2026-09-21-outlet-series-e3-delivery.md)。
 - 未做（保持 TODO）：Series F 历史档口回填与发布、Series G 旧权限下线与收口。
 
 ## 2026-09-21 档口 Series E2：文件中心/图片档口闭环完成

@@ -1069,10 +1069,11 @@ X-Agent-Key: {agent_key}
 | `periodType` | string | 否 | `TODAY` / `WEEK` / `MONTH` / `QUARTER` / `YEAR` / `CUSTOM`，默认 `WEEK` |
 | `startDate` | date | 否 | `CUSTOM` 周期开始日期 |
 | `endDate` | date | 否 | `CUSTOM` 周期结束日期 |
+| `sourceOutletCodes` | string | 否 | 稳定档口编码，允许逗号分隔或重复；按当前 Key readable 范围解析（历史读取允许已停用档口），越权/不存在/跨租户 403。Agent 不接受内部 `sourceOutletIds`（返回 400） |
 | `comparePeriods` | int | 否 | 对比周期数量，默认 `3`，当前限制 1-6 |
 | `limit` | int | 否 | 返回条数，默认 `20` |
 
-当前响应返回商品维度多周期趋势包，字段包含 `dimension`、`sortBy`、`periodType`、`comparePeriods` 和 `rows`。每个 row 包含当前周期销售事实、`trend`、`recommendation`、`periodSeries` 和 `reasons`。当前不返回成本、毛利、毛利率；库存和补货建议由后续库存建议接口承接。
+当前响应返回商品维度多周期趋势包，字段包含 `dimension`、`sortBy`、`periodType`、`comparePeriods` 和 `rows`。每个 row 包含当前周期销售事实、`trend`、`recommendation`、`periodSeries` 和 `reasons`。每个对比周期都保留同一档口筛选，不会扩大到 Key 全范围。当前不返回成本、毛利、毛利率；库存和补货建议由后续库存建议接口承接。
 
 #### 颜色尺码结构事实包
 
@@ -1087,6 +1088,7 @@ X-Agent-Key: {agent_key}
 | `periodType` | string | 否 | `TODAY` / `WEEK` / `MONTH` / `QUARTER` / `YEAR` / `CUSTOM`，默认 `WEEK` |
 | `startDate` | date | 否 | `CUSTOM` 周期开始日期 |
 | `endDate` | date | 否 | `CUSTOM` 周期结束日期 |
+| `sourceOutletCodes` | string | 否 | 稳定档口编码，允许逗号分隔或重复；按当前 Key readable 范围解析（历史读取允许已停用档口），越权/不存在/跨租户 403。Agent 不接受内部 `sourceOutletIds`（返回 400） |
 | `limit` | int | 否 | 每组返回条数，默认 `20` |
 
 当前响应返回同款 SKU、颜色、尺码三组销售结构事实，字段包含 `productName`、`periodType`、`skus`、`colors`、`sizes` 和 `reasons`。每个 row 包含销售事实和 `signal`，当前 `signal` 表示销售结构：`HOT` / `NORMAL` / `LOW`。当前不返回成本、毛利、毛利率；缺货、积压和补货优先级由后续库存建议接口承接。
@@ -1139,8 +1141,8 @@ Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通�
 | GET | `/api/agent/products/{id}` | `X-Agent-Key` / `agent:products:read` | 读取单个脱敏商品详情 |
 | GET | `/api/agent/products/options` | `X-Agent-Key` / `agent:products:read` | 返回可用于新增商品的分类、颜色、尺码；不返回保留编码 |
 | POST | `/api/agent/products` | `X-Agent-Key` / `agent:products:create` | 新增商品；颜色尺码使用已有编码，同款号返回 DUPLICATE，不更新商品或库存 |
-| GET | `/api/agent/orders?current=1&size=20&startDate=...&endDate=...` | `X-Agent-Key` / `agent:orders:read` | 分页读取正式订单；不返回客户电话/地址、成本和毛利 |
-| GET | `/api/agent/orders/{id}` | `X-Agent-Key` / `agent:orders:read` | 读取正式订单与商品明细；不返回高敏字段 |
+| GET | `/api/agent/orders?current=1&size=20&startDate=...&endDate=...&sourceOutletCode=YL` | `X-Agent-Key` / `agent:orders:read` | 分页读取正式订单；档口筛选只接受稳定 `sourceOutletCode`（按 Key readable 解析，历史读取允许已停用），传内部 `sourceOutletId` 返回 400；不返回客户电话/地址、成本和毛利 |
+| GET | `/api/agent/orders/{id}` | `X-Agent-Key` / `agent:orders:read` | 读取正式订单与商品明细；`sourceOutletCode` 为稳定编码、`sourceShop` 为名称快照；不返回高敏字段 |
 | GET | `/api/agent/customers?current=1&size=20&keyword=...` | `X-Agent-Key` / `agent:customers:read` | 分页读取客户名称、电话、地址、备注和订单数；最大 100 条，属于敏感只读 |
 | GET | `/api/agent/customers/{id}` | `X-Agent-Key` / `agent:customers:read` | 读取单个客户详情；包含客户敏感资料 |
 | POST | `/api/agent/customers` | `X-Agent-Key` / `agent:customers:create` | 只新增客户；重复电话返回 DUPLICATE，不覆盖已有资料；无 `customers:read` 时不回显旧客户 ID/名称 |

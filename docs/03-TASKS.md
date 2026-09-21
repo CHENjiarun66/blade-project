@@ -607,7 +607,7 @@
 | BE-OUTLET-007 | 订单/草稿 DTO 与名称快照 | ✅ 完成（DeepSeek，2026-09-21） | 正式订单必须有具体档口；`sourceOutletId/code/name` 返回；服务端主数据名称快照；改档口高权限 + 原因 + 审计（V66）；列表结构化筛选 |
 | BE-OUTLET-008 | 看板与分析范围接入 | ✅ 完成（DeepSeek，2026-09-21） | Dashboard/Analytics 所有订单型指标统一 `OrderReadScope`（档口 × 人员），未归档默认排除；当前无缓存，新增范围指纹防未来错误缓存；Agent 公共路径同样按 Key 范围裁剪 |
 | BE-OUTLET-009 | 导出与文件权限接入 | ✅ 完成（DeepSeek，2026-09-21） | 订单导出 + 文件中心/订单/草稿图片全出口：`FileBusinessAccessPolicy`、PUBLIC/previewToken 业务校验、多绑定 ALL、SQL 预分页、no-store；第二轮 Codex 整改新增 `FileRequestContext` 去掉 tenant=1/user=1 回退、afterCommit 用文件租户、清理任务多租户遍历（708/708）；Agent 出口留 E3 |
-| BE-OUTLET-010 | Agent Key 档口范围 | ✅ 完成（DeepSeek，2026-09-21） | Key 签发/轮换支持 ALL/ASSIGNED/NONE + 默认档口；create/rotate 单事务写 agent_key_outlet，字段 null 分别继承；新增可配置档口 options 与 `outlets:read` scope；capabilities/outlets 实时反映绑定与禁用（735/735） |
+| BE-OUTLET-010 | Agent Key 档口范围 | ✅ 完成（DeepSeek，2026-09-21） | Key 签发/轮换支持 ALL/ASSIGNED/NONE + 默认档口；create/rotate 单事务写 agent_key_outlet，字段 null 分别继承；新增可配置档口 options 与 `outlets:read` scope；capabilities/outlets 实时反映绑定与禁用；Agent orders/analytics 统一 `sourceOutletCode(s)`、拒绝内部 ID（751/751） |
 | BA-OUTLET-001 | 档口管理页面 | ✅ 完成（DeepSeek，2026-09-21） | 列表、搜索、新建/编辑、启停、默认档口和历史引用提示 |
 | BA-OUTLET-002 | 用户管理档口授权 | ✅ 完成（DeepSeek，2026-09-21） | 可访问档口多选、默认档口、权限摘要和销售员必选校验 |
 | BA-OUTLET-003 | 订单与草稿档口选择器 | ✅ 完成（DeepSeek，2026-09-21） | 单档口锁定、多档口只显示授权集合、Owner 显示全部启用档口；快速录单/新建/草稿详情/编辑弹窗接入，改档口需原因 |
@@ -619,7 +619,7 @@
 | DATA-OUTLET-003 | 用户初始档口授权清单 | ⏳ TODO | Owner/财务/负责人/销售员的初始档口和人员范围需人工确认后迁移 |
 | TEST-OUTLET-001 | 后端越权矩阵 | ⏳ TODO | 单/多/全部/无档口、SELF/ALL_USERS、跨租户和禁用档口 |
 | TEST-OUTLET-002 | 订单与草稿 E2E | ✅ 完成（DeepSeek，2026-09-21） | 后端 17 例 + Playwright 5 例：快速录单、手工/Agent 草稿、草稿确认、正式订单、列表筛选、待归档和伪造档口 403 |
-| TEST-OUTLET-003 | 全出口防泄漏回归 | ✅ 完成（DeepSeek，2026-09-21） | 文件出口（E2）+ Agent 出口（E3）：Agent A 档口无法通过 orders list/detail、草稿 code/内部 ID、capabilities、outlets 推断 B 数据；NONE 为空、缺 `outlets:read` 403、Key 无效 401；Agent 不访问未归档 NULL；三种主体沿用 E1/E2 矩阵（735/735 + Playwright 16 passed） |
+| TEST-OUTLET-003 | 全出口防泄漏回归 | ✅ 完成（DeepSeek，2026-09-21） | 文件出口（E2）+ Agent 出口（E3）：Agent A 档口无法通过 orders list/detail、草稿 code/内部 ID、capabilities、outlets 推断 B 数据；NONE 为空、缺 `outlets:read` 403、Key 无效 401；Agent 不访问未归档 NULL；三种主体沿用 E1/E2 矩阵（751/751 + Playwright 16 passed） |
 | TEST-OUTLET-004 | 全量回归与性能 | ⏳ TODO | 后端全量、PC 构建、关键 E2E 和档口范围 SQL 查询计划 |
 | DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | ⏳ TODO | 双份备份、先双读后切写、生产副本预演、异常清单确认、发布验收和回滚证据 |
 | ARCH-OUTLET-002 | 兼容期复盘 | ⏳ TODO | 稳定一个发布周期后评估旧 `btn:order:viewAll`、空档口兼容和 ID 非空约束 |

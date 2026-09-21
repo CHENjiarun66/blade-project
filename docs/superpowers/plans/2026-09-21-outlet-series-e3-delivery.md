@@ -14,7 +14,10 @@
 | `be2ed13` | `feat(outlet): add agent key outlet scope management and agent outlets API [dsh]`（BE-OUTLET-010 后端、capabilities/outlets、154 例 agent/outlet 测试） |
 | `1e1fef9` | `test(outlet): assert agent never gets unassigned null access [dsh]`（Agent 不得访问未归档 NULL） |
 | `65f38e1` | `feat(outlet): add agent key outlet scope editor to key manager [dsh]`（BA-OUTLET-006 前端 + Playwright 2 例） |
-| 本文档所在 commit | `docs(outlet): record Series E3 delivery [dsh]`（TASKS/CHANGELOG/SESSION_CONTEXT/API_SPEC/ROM-SOW/本报告/STATUS） |
+| `96eb2ae` | `docs(outlet): record Series E3 delivery [dsh]` |
+| `3312585` | `test(outlet): cover agent analytics read scope and refresh E3 counts [dsh]` |
+| `652b565` | `fix(outlet): remediate E3 Codex review (ALL rotate + agent outlet codes) [dsh]`（P0-1/P0-2 后端 + 前端文案 + 16 例测试） |
+| 本文档所在 commit | `docs(outlet): record Series E3 Codex remediation [dsh]`（本报告/CHANGELOG/SESSION_CONTEXT/TASKS/API_SPEC/ROM-SOW/STATUS） |
 
 ## 1. 契约
 
@@ -105,12 +108,14 @@
 
 后端（真实隔离库 + mock 策略）：
 
-- `AgentKeyManagementServiceTest`（23 例）：create ALL/ASSIGNED/NONE、跨租户/删除/禁用、default 非集合/未启用、重复 ID 去重、ALL 冗余绑定拒绝、rotate 继承/显式替换/改范围不继承脏绑定/失败保留旧 Key、`outlets:read` 白名单、可配置档口含禁用。
+- `AgentKeyManagementServiceTest`（27 例）：create ALL/ASSIGNED/NONE、跨租户/删除/禁用、default 非集合/未启用、重复 ID 去重、ALL 冗余绑定拒绝、rotate 继承/显式替换/改范围不继承脏绑定/失败保留旧 Key、`outlets:read` 白名单、可配置档口含禁用；整改新增 ALL+default 仅换 scopes/仅换有效期/全缺省继承与失败保留（`rotateAllScopeWithDefault*` 4 例）。
 - `AgentOutletScopeIntegrationTest`（8 例，真实 MVC + Redis 会话）：capabilities 返回档口摘要且不含内部 id、档口禁用下一请求即时反映、Key 停用 401、outlets 缺 scope 403/缺 Key 401、ALL 只含启用、NONE 为空、ASSIGNED 只含绑定启用且 default 正确。
-- `AgentDataAccessIntegrationTest`（10 例）：新增 `assignedOutletCannotReachOtherOutletThroughAnyAgentOutlet`，串联 orders list/detail、capabilities、outlets、draft create（code/内部 ID）反例，确认 A 档口 Key 无法推断 B 档口数据。
-- `AgentDataAccessContractTest`（4 例）：`AgentOutletsController` 必须 `hasAuthority('agent:outlets:read')`；capabilities/outlets DTO 不含内部 id。
-- `OutletScopeMatrixTest`（14 例）：新增 `agentNeverGetsUnassignedNullAccess`（ALL/ASSIGNED/NONE 均不可访问未归档 NULL）与 `agentAnalyticsReadScopeOnlyAllowsAssignedOutlets`（统计读范围只用 ASSIGNED 集合，越权/跨租户/待归档 403）。
-- 全量后端 `mvn test`：**735/735**，Failures 0 / Errors 0 / Skipped 0（E3 基线 708，新增 27 例）。
+- `AgentOutletCodeQueryIntegrationTest`（整改新增 9 例，真实 MVC）：orders A code 成功并返回 `sourceOutletCode`、内部 ID 400、未绑定/未知/NONE/跨租户 code 403、已停用 code 历史可读但 draft create 仍 ERROR、analytics 内部 ID 400、code 逗号/重复解析、未绑定 403、NONE 403、ASSIGNED-B 看不到 A code。
+- `AgentDataAccessIntegrationTest`（10 例）：`assignedOutletCannotReachOtherOutletThroughAnyAgentOutlet`，串联 orders list/detail、capabilities、outlets、draft create（code/内部 ID）反例，确认 A 档口 Key 无法推断 B 档口数据。
+- `AgentDataAccessContractTest`（6 例）：`AgentOutletsController` 必须 `hasAuthority('agent:outlets:read')`；capabilities/outlets DTO 不含内部 id；整改新增 OrderView 只有 `sourceOutletCode` 无 `sourceOutletId`，analytics 端点签名为 `List` codes 参数。
+- `AgentStyleTrendServiceTest`（3 例）：整改新增 `getStyleTrends_copiesOutletFilterIntoEveryPeriodQuery`，断言每个对比周期都保留同一 `sourceOutletIds` 筛选。
+- `OutletScopeMatrixTest`（14 例）：`agentNeverGetsUnassignedNullAccess`（ALL/ASSIGNED/NONE 均不可访问未归档 NULL）与 `agentAnalyticsReadScopeOnlyAllowsAssignedOutlets`（统计读范围只用 ASSIGNED 集合，越权/跨租户/待归档 403）。
+- 全量后端 `mvn test`：**751/751**，Failures 0 / Errors 0 / Skipped 0（E3 基线 708，E3 新增 43 例；其中整改新增 16 例）。
 
 前端：
 
@@ -148,3 +153,29 @@ npx playwright test e2e/e2e-agent-key-outlet-scope.spec.ts \
 | Agent 未归档 NULL | `OutletScopeMatrixTest.agentNeverGetsUnassignedNullAccess` |
 | JWT 销售员/统计 | 沿用 E1 `OutletAnalyticsScopeTest`、E2 `FileOutletAccessPolicyTest`、`OrderOutletWriteRulesTest` 等 |
 | 缓存/轮换不串 scope | `AgentOutletScopeIntegrationTest`（停用/禁用即时 401/空）+ §4 无缓存结论 |
+
+## 10. Codex E3 终审整改（P0-1 / P0-2）
+
+### 10.1 P0-1 ALL Key 带默认档口的继承轮换
+
+| 问题 | 修复 | 测试 |
+|---|---|---|
+| ALL + default 在 `agent_key_outlet` 存一条默认绑定；`readOutletConfig()` 把它读进 `outletIds`，rotate 全缺省时 `normalizeOutletConfig(ALL, ids=[default])` 被“ALL 不需要绑定具体档口”拒绝 | `readOutletConfig()` 按范围区分：ALL 的 `outletIds` 恒为空、仅保留 `defaultOutletId`；ASSIGNED 返回全部绑定 ID；NONE 均空 | `AgentKeyManagementServiceTest.rotateAllScopeWithDefaultInheritsWhenAllOutletFieldsNull`、`...OnlyScopesChanged`、`...OnlyExpiryChanged`、`rotateAllScopeWithDefaultFailureKeepsPreviousKeyActive` |
+
+### 10.2 P0-2 Agent 查询统一稳定 code，禁止内部 outlet ID
+
+| 编号 | 问题 | 修复 | 测试 |
+|---|---|---|---|
+| 1 | `/api/agent/orders` 可传内部 `sourceOutletId` | 传 `sourceOutletId` → 400；新增 `sourceOutletCode` 按 readable 解析（历史允许已停用；跨租户/删除/未授权 403），转 ID 后复用 `OrderService` | `AgentOutletCodeQueryIntegrationTest.ordersAcceptsReadableCodeAndReturnsSourceOutletCode`、`ordersRejectsInternalOutletId`、`ordersRejectsUnboundUnknownAndNoneCode`、`ordersAllowsDisabledCodeForHistoricalRead`、`ordersAndAnalyticsRejectCrossTenantCode` |
+| 2 | `AgentOrderDTO.OrderView` 无稳定编码 | 增加 `sourceOutletCode`，保留 `sourceShop` 快照 | `AgentDataAccessContractTest.agentOrderViewExposesOutletCodeNotInternalId` + 上述集成断言 |
+| 3 | `/api/agent/analytics/*` 可传内部 `sourceOutletIds` | 非空 `sourceOutletIds` → 400；新增 `sourceOutletCodes`（逗号分隔/重复，去重稳定）解析为 readable ID 后进入 `AnalyticsService`；越权/不存在/跨租户 403 | `AgentOutletCodeQueryIntegrationTest.analyticsRejectsInternalOutletIds`、`analyticsResolvesCodesAndRejectsUnbound`、`analyticsAssignedBCannotSeeACode`、`AgentDataAccessContractTest.agentAnalyticsEndpointsAcceptOutletCodeListParameter` |
+| 4 | 缺少集中方法 | `OutletAccessPolicy.requireReadableOutletByCode`（历史读取允许禁用）与 `resolveReadableOutletIdsByCodes`；与 `requireUsableOutletByCode`（新建仅启用）区分 | 上述集成；`OutletScopeMatrixTest` 既有 usable/readable 语义 |
+| 5 | `AgentStyleTrendService.toCustomQuery(window)` 丢失筛选 | 复制原 query 的 `sourceOutletIds` 与 `pendingArchive` 到每个周期查询 | `AgentStyleTrendServiceTest.getStyleTrends_copiesOutletFilterIntoEveryPeriodQuery` |
+| 6 | 文档/curl 暴露内部 ID | API_SPEC/16/19 明确使用 `sourceOutletCode`/`sourceOutletCodes`；capabilities/outlets 仍只返回 code/name/status | `AgentDataAccessContractTest.agentOutletViewsExposeStableCodesWithoutInternalIds`、`agentOrderViewExposesOutletCodeNotInternalId`；文档复核 |
+| 7 | JWT/PC 不受影响 | PC/JWT analytics 仍用 `sourceOutletIds`；Agent 写草稿仍 `sourceOutletCode`；无改动 | 既有 E1/E2 测试保持通过 |
+
+### 10.3 顺带修正
+
+- `AgentKeyOutletScopeEditor.vue`：ALL 文案由“失败时回退到默认档口”改为“未传 sourceOutletCode 时使用默认档口”。
+
+验证（整改）：全量后端 **751/751**；`npm run build` 通过；Agent Playwright **2 passed**；`git diff --check 3312585..HEAD` 无输出。

@@ -8,6 +8,19 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口 Series E3 经 Codex 终审后的缺口补齐
+
+- P0-1 ALL Key 带默认档口的继承轮换 bug：`readOutletConfig()` 曾把 ALL 的默认标记绑定读成 `outletIds`，导致 rotate 全缺省时 `normalizeOutletConfig(ALL, ids)` 被拒。现按范围区分：ALL 的 `outletIds` 恒为空、仅保留 `defaultOutletId`；ASSIGNED 返回全部绑定 ID；NONE 均空。`AgentKeyManagementServiceTest` 新增 4 例（全缺省/仅换 scopes/仅换有效期继承默认、失败旧 Key ACTIVE）。
+- P0-2 Agent 查询统一稳定 code、禁止内部 outlet ID：
+  - `/api/agent/orders`：传 `sourceOutletId` 返回 400；新增 `sourceOutletCode`，按 Key readable 解析（历史读取允许已停用；跨租户/删除/未授权 403），转 ID 后复用 `OrderService`；`AgentOrderDTO.OrderView` 增加 `sourceOutletCode` 并保留 `sourceShop`。
+  - `/api/agent/analytics/style-trends`、`sku-mix`：非空 `sourceOutletIds` 返回 400；新增 `sourceOutletCodes`（逗号分隔/重复，去重稳定）解析为 readable ID 后再进入 `AnalyticsService`；越权/不存在/跨租户 403。
+  - `OutletAccessPolicy` 新增集中方法 `requireReadableOutletByCode`、`resolveReadableOutletIdsByCodes`，与新建用的 `requireUsableOutletByCode` 区分（历史可读禁用、新建仅启用）。
+  - `AgentStyleTrendService.toCustomQuery` 复制原 query 的 `sourceOutletIds`/`pendingArchive`，避免跨周期扩大到 Key 全范围。
+  - PC/JWT analytics 仍使用 `sourceOutletIds`，Agent 写草稿仍使用 `sourceOutletCode`。
+  - 前端 `AgentKeyOutletScopeEditor` 文案修正为“未传 sourceOutletCode 时使用默认档口”。
+- 测试：整改新增 16 例（`AgentKeyManagementServiceTest` 4、`AgentOutletCodeQueryIntegrationTest` 9、`AgentDataAccessContractTest` 2、`AgentStyleTrendServiceTest` 1）；全量后端 **751/751**；`npm run build` 通过；Agent Playwright 2 passed；`git diff --check 3312585..HEAD` 无输出。
+- 影响范围：仅 Agent Key/订单/分析出口与前端提示；未 push/部署/NAS/生产。
+
 ### [功能开发] - 档口 Series E3：Agent Key 档口范围、capabilities/outlets 与全出口反泄露
 
 - BE-OUTLET-010 后端：`AgentKeyManagementDTO` create/rotate/view/credential 新增 `outletScopeType`/`outletIds`/`defaultOutletId` 与档口摘要 `outlets`；create 默认 `null` 安全解释为 NONE；create/rotate 单事务写 Key + `agent_key_outlet`，rotate 字段为 null 分别继承旧 Key、显式传入按新配置、先建新 Key 再停旧 Key，失败整体回滚旧 Key 仍 ACTIVE；严格校验同租户未删除、ASSIGNED 至少一个且默认在集合内且启用、ALL 不保存冗余绑定、NONE 禁止绑定/默认、去重稳定排序。

@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 14:02:17　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 14:12:57　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -2232,7 +2232,7 @@
         <td class="td-name">Agent Key 档口范围</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">Key 签发/轮换支持 ALL/ASSIGNED/NONE + 默认档口；create/rotate 单事务写 agent_key_outlet，字段 null 分别继承；新增可配置档口 options 与 `outlets:read` scope；capabilities/outlets 实时反映绑定与禁用（735/735） |</td>
+        <td class="td-remark">Key 签发/轮换支持 ALL/ASSIGNED/NONE + 默认档口；create/rotate 单事务写 agent_key_outlet，字段 null 分别继承；新增可配置档口 options 与 `outlets:read` scope；capabilities/outlets 实时反映绑定与禁用；Agent orders/analytics 统一 `sourceOutletCode(s)`、拒绝内部 ID（751/751） |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-OUTLET-001</td>
@@ -2288,7 +2288,7 @@
         <td class="td-name">全出口防泄漏回归</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">文件出口（E2）+ Agent 出口（E3）：Agent A 档口无法通过 orders list/detail、草稿 code/内部 ID、capabilities、outlets 推断 B 数据；NONE 为空、缺 `outlets:read` 403、Key 无效 401；Agent 不访问未归档 NULL；三种主体沿用 E1/E2 矩阵（735/735 + Playwright 16 passed） |</td>
+        <td class="td-remark">文件出口（E2）+ Agent 出口（E3）：Agent A 档口无法通过 orders list/detail、草稿 code/内部 ID、capabilities、outlets 推断 B 数据；NONE 为空、缺 `outlets:read` 403、Key 无效 401；Agent 不访问未归档 NULL；三种主体沿用 E1/E2 矩阵（751/751 + Playwright 16 passed） |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-803</td>

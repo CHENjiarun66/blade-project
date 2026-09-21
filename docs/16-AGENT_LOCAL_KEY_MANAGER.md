@@ -117,7 +117,7 @@ BladeProject /api/agent/*
 | `blade_style_trends` | `analytics:read` | 查询款式趋势 |
 | `blade_sku_mix` | `analytics:read` | 查询颜色尺码结构 |
 
-> Series E3 档口范围：Key 可配置 `ALL`（全部档口）/`ASSIGNED`（指定档口）/`NONE`（不开放档口数据）。需要让 Agent 查询可用档口的 Key 额外授予 `outlets:read`（authority `agent:outlets:read`），对应 `GET /api/agent/outlets`（只返回启用且授权的档口 code/name/default）；无该 scope 返回 403。`GET /api/agent/capabilities` 不需要额外业务 scope，返回 `outletScopeType`、`defaultOutletCode` 与只读/可用档口摘要。Agent 新建草稿/查询订单必须落在 Key 的档口范围内，且一律使用 `outletCode`，不使用内部档口 ID。
+> Series E3 档口范围：Key 可配置 `ALL`（全部档口）/`ASSIGNED`（指定档口）/`NONE`（不开放档口数据）。需要让 Agent 查询可用档口的 Key 额外授予 `outlets:read`（authority `agent:outlets:read`），对应 `GET /api/agent/outlets`（只返回启用且授权的档口 code/name/default）；无该 scope 返回 403。`GET /api/agent/capabilities` 不需要额外业务 scope，返回 `outletScopeType`、`defaultOutletCode` 与只读/可用档口摘要。Agent 新建草稿/查询订单使用 `sourceOutletCode`，分析接口使用 `sourceOutletCodes`（逗号分隔）；一律不使用内部 `sourceOutletId/sourceOutletIds`。
 
 第一次调用或授权失效后，Mac 会先弹出 Key 选择窗口，显示声明的 Agent、HTTP 方法、接口、所需 scope 和符合条件的 Key；随后由独立的系统确认窗口提供“拒绝”“允许一次”和“允许 1 小时”。授权 UI 与持有 Key、执行网络请求的主进程相互隔离，系统窗口只接收非敏感的 Key 名称、Agent 名称、剩余天数和请求说明。
 
