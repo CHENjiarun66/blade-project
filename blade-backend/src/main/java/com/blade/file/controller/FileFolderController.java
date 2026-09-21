@@ -5,10 +5,8 @@ import com.blade.file.dto.FileFolderCreateDTO;
 import com.blade.file.dto.FileFolderUpdateDTO;
 import com.blade.file.dto.FileFolderVO;
 import com.blade.file.service.FileFolderService;
-import com.blade.system.user.entity.User;
+import com.blade.file.service.FileRequestContext;
 import jakarta.validation.Valid;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -47,10 +45,6 @@ public class FileFolderController {
     }
 
     private Long getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        return 1L;
+        return FileRequestContext.requireOperatorId();
     }
 }

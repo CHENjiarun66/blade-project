@@ -52,8 +52,11 @@ public class FileStorageProperties {
         private int purgeRetentionDays = 30;
         /** Cron expression for scheduled cleanup (default: daily 3AM) */
         private String cron = "0 0 3 * * ?";
-        /** Tenant used by the first scheduler slice. Full multi-tenant iteration is a later task. */
-        private Long tenantId = 1L;
+        /**
+         * 可选：显式限定单租户清理。默认 {@code null} 表示不限定，
+         * 定时任务会遍历存在文件的 tenant 逐个清理；绝不隐式回退 tenant=1。
+         */
+        private Long tenantId;
 
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }

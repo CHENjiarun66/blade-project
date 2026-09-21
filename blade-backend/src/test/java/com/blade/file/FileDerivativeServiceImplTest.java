@@ -262,6 +262,63 @@ class FileDerivativeServiceImplTest {
         assertNull(service.loadVariantResource(1L, "thumb"));
     }
 
+    // === 第二轮整改：缺租户 fail closed / 显式租户隔离 ===
+
+    @Test
+    void backfill_withoutTenant_isRejectedWithoutMapperAccess() {
+        TenantContext.clear();
+        java.util.concurrent.atomic.AtomicBoolean touched = new java.util.concurrent.atomic.AtomicBoolean(false);
+        storageHandler.setInterceptor(pair -> touched.set(true));
+        derivativeHandler.setInterceptor(pair -> touched.set(true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.backfill(5));
+        assertEquals("缺少租户上下文", ex.getMessage());
+        assertFalse(touched.get(), "backfill must not touch mappers when tenant context is missing");
+    }
+
+    @Test
+    void generate_afterCommit_usesFileTenantNotContextTenant() {
+        // 事务 afterCommit 阶段 TenantContext 可能已被清理/串租户：必须以 FileStorage 自身租户为准
+        TenantContext.setTenantId(99L);
+        stubGenerator.nextResult = result(320, 240);
+        FileStorage file = imageFile(700L, "/abs/uploads/x.png", "t/x.png");
+        file.setTenantId(2L);
+        derivativeInserts.clear();
+        derivativeUpdateWrappers.clear();
+
+        service.generate(file);
+
+        assertFalse(derivativeInserts.isEmpty(), "should record PENDING derivative rows");
+        assertTrue(derivativeInserts.stream()
+                        .allMatch(fd -> Long.valueOf(2L).equals(fd.getTenantId())),
+                "all derivative writes must carry the file's own tenant 2, never context tenant 99");
+    }
+
+    @Test
+    void loadVariantResource_explicitTenant_isUsedInsteadOfContext() {
+        TenantContext.setTenantId(99L);
+        AtomicReference<Object> captured = new AtomicReference<>();
+        derivativeHandler.setInterceptor(pair -> {
+            java.lang.reflect.Method m = (java.lang.reflect.Method) pair[0];
+            if ("selectOne".equals(m.getName())) {
+                captured.set(((Object[]) pair[1])[0]);
+            }
+        });
+        derivativeHandler.setSelectOneResult(null);
+
+        service.loadVariantResource(5L, "thumb", 2L);
+
+        assertNotNull(captured.get(), "should issue a selectOne query");
+        @SuppressWarnings("unchecked")
+        LambdaQueryWrapper<FileDerivative> wrapper = (LambdaQueryWrapper<FileDerivative>) captured.get();
+        wrapper.getSqlSegment(); // 触发参数收集
+        java.util.Collection<Object> params = wrapper.getParamNameValuePairs().values();
+        assertTrue(params.stream().anyMatch(v -> Long.valueOf(2L).equals(v)),
+                "explicit tenant 2 must be present in the query");
+        assertFalse(params.stream().anyMatch(v -> Long.valueOf(99L).equals(v)),
+                "post-request context tenant 99 must not leak into the query");
+    }
+
     // === Fix #3: backfill starvation ===
 
     @Test

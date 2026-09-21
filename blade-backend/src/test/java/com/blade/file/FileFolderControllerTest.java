@@ -5,8 +5,12 @@ import com.blade.file.dto.FileFolderCreateDTO;
 import com.blade.file.dto.FileFolderUpdateDTO;
 import com.blade.file.dto.FileFolderVO;
 import com.blade.file.service.FileFolderService;
+import com.blade.system.user.entity.User;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -24,8 +28,17 @@ class FileFolderControllerTest {
 
     @BeforeEach
     void setUp() {
+        User current = new User();
+        current.setId(1L);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(current, null, List.of()));
         folderService = new CapturingFileFolderService();
         mockMvc = MockMvcBuilders.standaloneSetup(new FileFolderController(folderService)).build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test

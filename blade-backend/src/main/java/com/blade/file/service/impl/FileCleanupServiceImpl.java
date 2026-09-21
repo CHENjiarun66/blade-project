@@ -2,7 +2,6 @@ package com.blade.file.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.blade.common.tenant.TenantContext;
 import com.blade.file.entity.FileBusinessBind;
 import com.blade.file.entity.FileCleanupLog;
 import com.blade.file.entity.FileStorage;
@@ -10,6 +9,7 @@ import com.blade.file.mapper.FileBusinessBindMapper;
 import com.blade.file.mapper.FileCleanupLogMapper;
 import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.service.FileCleanupService;
+import com.blade.file.service.FileRequestContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,7 +38,7 @@ public class FileCleanupServiceImpl implements FileCleanupService {
     @Override
     public long countUnboundCandidates(int retentionDays) {
         validateRetentionDays(retentionDays);
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
         LocalDateTime cutoff = LocalDateTime.now().minusDays(retentionDays);
 
         // 1. 查找所有当前租户有绑定记录的 fileId
@@ -62,7 +62,7 @@ public class FileCleanupServiceImpl implements FileCleanupService {
     @Transactional
     public long softDeleteUnbound(int retentionDays) {
         validateRetentionDays(retentionDays);
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
         LocalDateTime cutoff = LocalDateTime.now().minusDays(retentionDays);
         Set<Long> boundFileIds = getBoundFileIds(tenantId);
 
@@ -115,7 +115,7 @@ public class FileCleanupServiceImpl implements FileCleanupService {
     @Transactional
     public long markPurged(int retentionDays) {
         validateRetentionDays(retentionDays);
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
         LocalDateTime cutoff = LocalDateTime.now().minusDays(retentionDays);
         Set<Long> boundFileIds = getBoundFileIds(tenantId);
 

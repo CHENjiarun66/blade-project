@@ -2,6 +2,7 @@ package com.blade.file.scheduler;
 
 import com.blade.common.tenant.TenantContext;
 import com.blade.file.config.FileStorageProperties;
+import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.service.FileCleanupService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,13 +10,15 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
- * 文件清理定时任务。
- * 默认 disabled（blade.file.cleanup.enabled=false），需手动启用。
- * 启用后按配置的 cron 表达式执行两步。
- * 第一版只处理配置的 tenantId；全租户遍历另行实现。
- * 1. 软删除未绑定文件
- * 2. 标记可清理的软删除文件为已清理（仅元数据）
+ * 文件清理定时任务（Series E2 第二轮整改）。
+ *
+ * <p>默认 disabled（{@code blade.file.cleanup.enabled=false}），需手动启用。
+ * 多租户语义：未显式配置 {@code blade.file.cleanup.tenant-id} 时，显式遍历存在文件的
+ * tenant，每个 tenant try/finally 设置与清理 TenantContext；一个租户失败不阻断其他租户。
+ * 若显式配置了单租户，则只处理该租户且不使用默认 1。</p>
  */
 @Component
 @ConditionalOnProperty(value = "blade.file.cleanup.enabled", havingValue = "true")
@@ -25,37 +28,49 @@ public class FileCleanupScheduler {
 
     private final FileCleanupService fileCleanupService;
     private final FileStorageProperties properties;
+    private final FileStorageMapper fileStorageMapper;
 
     public FileCleanupScheduler(FileCleanupService fileCleanupService,
-                                 FileStorageProperties properties) {
+                                FileStorageProperties properties,
+                                FileStorageMapper fileStorageMapper) {
         this.fileCleanupService = fileCleanupService;
         this.properties = properties;
+        this.fileStorageMapper = fileStorageMapper;
     }
 
     @Scheduled(cron = "${blade.file.cleanup.cron:0 0 3 * * ?}")
     public void runCleanup() {
-        log.info("文件清理定时任务开始执行");
-
-        Long tenantId = properties.getCleanup().getTenantId() != null
-                ? properties.getCleanup().getTenantId()
-                : 1L;
-        TenantContext.setTenantId(tenantId);
-        try {
-            // Step 1: 软删除未绑定文件
-            int unboundDays = properties.getCleanup().getUnboundRetentionDays();
-            long unboundCount = fileCleanupService.softDeleteUnbound(unboundDays);
-            log.info("未绑定文件软删除完成，处理 {} 个文件（保留 {} 天）", unboundCount, unboundDays);
-
-            // Step 2: 标记可清理的软删除文件
-            int purgeDays = properties.getCleanup().getPurgeRetentionDays();
-            long purgedCount = fileCleanupService.markPurged(purgeDays);
-            log.info("清理标记完成，标记 {} 个文件（保留 {} 天）", purgedCount, purgeDays);
-
-            log.info("文件清理定时任务执行完成");
-        } catch (Exception e) {
-            log.error("文件清理定时任务执行异常", e);
-        } finally {
-            TenantContext.clear();
+        List<Long> tenantIds = resolveTenants();
+        if (tenantIds.isEmpty()) {
+            log.info("文件清理定时任务：没有需要处理的租户");
+            return;
         }
+        log.info("文件清理定时任务开始，租户数 {}", tenantIds.size());
+        int unboundDays = properties.getCleanup().getUnboundRetentionDays();
+        int purgeDays = properties.getCleanup().getPurgeRetentionDays();
+
+        for (Long tenantId : tenantIds) {
+            TenantContext.setTenantId(tenantId);
+            try {
+                long unboundCount = fileCleanupService.softDeleteUnbound(unboundDays);
+                long purgedCount = fileCleanupService.markPurged(purgeDays);
+                log.info("租户 {} 清理完成：软删除 {}，标记 {}（保留 {} / {} 天）",
+                        tenantId, unboundCount, purgedCount, unboundDays, purgeDays);
+            } catch (Exception e) {
+                // 单租户失败不得阻断其他租户
+                log.error("租户 {} 文件清理失败，继续处理其他租户", tenantId, e);
+            } finally {
+                TenantContext.clear();
+            }
+        }
+        log.info("文件清理定时任务执行完成");
+    }
+
+    private List<Long> resolveTenants() {
+        Long configured = properties.getCleanup().getTenantId();
+        if (configured != null) {
+            return List.of(configured);
+        }
+        return fileStorageMapper.selectDistinctTenantIds();
     }
 }

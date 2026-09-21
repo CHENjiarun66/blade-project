@@ -80,5 +80,5 @@ blade:
       enabled: false
       unbound-retention-days: 7
       purge-retention-days: 30
-      tenant-id: 1
+      # tenant-id 不配置时遍历所有存在文件的租户；仅在需要显式单租户清理时才设置
       cron: 0 0 3 * * ?

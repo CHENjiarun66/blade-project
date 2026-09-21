@@ -73,7 +73,7 @@ public class FileController {
         }
         FileStorage file = authorizeMedia(id);
 
-        Resource resource = derivativeService.loadVariantResource(id, type);
+        Resource resource = derivativeService.loadVariantResource(id, type, file.getTenantId());
         CacheControl cache;
         MediaType mediaType;
 

@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
+
 @Mapper
 public interface FileStorageMapper extends BaseMapper<FileStorage> {
 
@@ -17,4 +19,9 @@ public interface FileStorageMapper extends BaseMapper<FileStorage> {
     @InterceptorIgnore(tenantLine = "true")
     @Select("SELECT * FROM file_storage WHERE id = #{id} AND status = 1 LIMIT 1")
     FileStorage selectActiveByIdGlobal(@Param("id") Long id);
+
+    /** 系统清理任务：显式列出存在文件的 tenant（不依赖/不默认 TenantContext）。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT DISTINCT tenant_id FROM file_storage WHERE tenant_id IS NOT NULL ORDER BY tenant_id")
+    List<Long> selectDistinctTenantIds();
 }

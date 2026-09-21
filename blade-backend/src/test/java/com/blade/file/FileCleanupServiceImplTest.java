@@ -172,6 +172,44 @@ class FileCleanupServiceImplTest {
         assertThrows(IllegalArgumentException.class, () -> service.markPurged(0));
     }
 
+    // ==================== 第二轮整改：缺租户必须 fail closed 且无 mapper 副作用 ====================
+
+    @Test
+    void missingTenant_countUnboundCandidates_isRejectedWithoutMapperAccess() {
+        TenantContext.clear();
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.countUnboundCandidates(7));
+        assertEquals("缺少租户上下文", ex.getMessage());
+        assertNoMapperAccess();
+    }
+
+    @Test
+    void missingTenant_softDeleteUnbound_isRejectedWithoutMapperAccess() {
+        TenantContext.clear();
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.softDeleteUnbound(7));
+        assertEquals("缺少租户上下文", ex.getMessage());
+        assertNoMapperAccess();
+    }
+
+    @Test
+    void missingTenant_markPurged_isRejectedWithoutMapperAccess() {
+        TenantContext.clear();
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.markPurged(30));
+        assertEquals("缺少租户上下文", ex.getMessage());
+        assertNoMapperAccess();
+    }
+
+    private void assertNoMapperAccess() {
+        assertFalse(storageHandler.invoked, "storage mapper must not be touched");
+        assertFalse(bindHandler.invoked, "bind mapper must not be touched");
+        assertFalse(logHandler.invoked, "log mapper must not be touched");
+    }
+
     // ==================== Proxy helpers ====================
 
     @SuppressWarnings("unchecked")
@@ -189,6 +227,7 @@ class FileCleanupServiceImplTest {
         private LambdaUpdateWrapper<?> capturedUpdateWrapper;
         private boolean updateLambdaCalled;
         private int nextUpdateRows;
+        private boolean invoked;
 
         void thenSelectList(List<?>... results) {
             selectListResults.addAll(List.of(results));
@@ -205,6 +244,16 @@ class FileCleanupServiceImplTest {
         @Override
         public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) {
             String name = method.getName();
+            switch (name) {
+                case "toString":
+                    return "MockMapper";
+                case "hashCode":
+                    return System.identityHashCode(proxy);
+                case "equals":
+                    return proxy == args[0];
+                default:
+                    invoked = true;
+            }
             switch (name) {
                 case "selectList":
                     return selectListResults.isEmpty() ? List.of() : selectListResults.remove();
@@ -224,12 +273,6 @@ class FileCleanupServiceImplTest {
                         capturedUpdateWrapper = (LambdaUpdateWrapper<?>) args[1];
                     }
                     return nextUpdateRows > 0 ? nextUpdateRows : 1;
-                case "toString":
-                    return "MockMapper";
-                case "hashCode":
-                    return System.identityHashCode(proxy);
-                case "equals":
-                    return proxy == args[0];
                 default:
                     Class<?> retType = method.getReturnType();
                     if (!retType.isPrimitive()) return null;

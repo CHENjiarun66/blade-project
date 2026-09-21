@@ -2,7 +2,6 @@ package com.blade.file.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.blade.common.tenant.TenantContext;
 import com.blade.file.dto.FileFolderCreateDTO;
 import com.blade.file.dto.FileFolderUpdateDTO;
 import com.blade.file.dto.FileFolderVO;
@@ -12,6 +11,7 @@ import com.blade.file.mapper.FileFolderMapper;
 import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.FileFolderService;
+import com.blade.file.service.FileRequestContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,7 +37,7 @@ public class FileFolderServiceImpl implements FileFolderService {
 
     @Override
     public List<FileFolderVO> getTree() {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
 
         LambdaQueryWrapper<FileFolder> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileFolder::getTenantId, tenantId);
@@ -76,7 +76,7 @@ public class FileFolderServiceImpl implements FileFolderService {
     @Override
     @Transactional
     public Long create(FileFolderCreateDTO dto, Long operatorId) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
 
         FileFolder entity = new FileFolder();
         entity.setParentId(dto.getParentId());
@@ -172,7 +172,7 @@ public class FileFolderServiceImpl implements FileFolderService {
     }
 
     private FileFolder getByIdAndTenant(Long id) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
         LambdaQueryWrapper<FileFolder> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileFolder::getId, id);
         wrapper.eq(FileFolder::getTenantId, tenantId);

@@ -2,13 +2,13 @@ package com.blade.file.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.blade.common.tenant.TenantContext;
 import com.blade.file.config.FileStorageProperties;
 import com.blade.file.entity.FileDerivative;
 import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileDerivativeMapper;
 import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.service.FileDerivativeService;
+import com.blade.file.service.FileRequestContext;
 import com.blade.file.service.ImageDerivativeGenerator;
 import com.blade.file.storage.FileStorageService;
 import com.blade.file.storage.StoredFile;
@@ -90,7 +90,11 @@ public class FileDerivativeServiceImpl implements FileDerivativeService {
 
     @Override
     public Resource loadVariantResource(Long fileId, String variantType) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        return loadVariantResource(fileId, variantType, FileRequestContext.requireTenantId());
+    }
+
+    @Override
+    public Resource loadVariantResource(Long fileId, String variantType, Long tenantId) {
         LambdaQueryWrapper<FileDerivative> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileDerivative::getFileId, fileId);
         wrapper.eq(FileDerivative::getVariantType, variantType);
@@ -118,7 +122,7 @@ public class FileDerivativeServiceImpl implements FileDerivativeService {
      */
     @Override
     public BackfillResult backfill(int limit) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
         int batchSize = Math.min(Math.max(1, limit), MAX_BACKFILL_LIMIT);
 
         // Select IMAGE files with status=1 that are missing READY thumb OR missing READY card.

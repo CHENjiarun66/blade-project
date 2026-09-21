@@ -59,6 +59,11 @@ class FileBindingServiceImplTest {
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(1L);
+        com.blade.system.user.entity.User current = new com.blade.system.user.entity.User();
+        current.setId(1L);
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        current, null, java.util.List.of()));
         storageHandler = new MockMapperHandler();
         bindHandler = new MockMapperHandler();
         logHandler = new MockMapperHandler();
@@ -74,6 +79,7 @@ class FileBindingServiceImplTest {
     @AfterEach
     void tearDown() {
         TenantContext.clear();
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 
     // ==================== getBindings ====================
@@ -287,6 +293,80 @@ class FileBindingServiceImplTest {
         assertEquals("batch_move", ((FileOperationLog) logHandler.capturedInsertEntity).getOperationType());
     }
 
+    // ==================== 第二轮整改：缺租户/缺可靠用户必须 fail closed 且无副作用 ====================
+
+    @Test
+    void missingTenant_getBindings_isRejectedWithoutMapperAccess() {
+        TenantContext.clear();
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.getBindings(100L));
+        assertEquals("缺少租户上下文", ex.getMessage());
+        assertNoMapperAccess();
+    }
+
+    @Test
+    void missingTenant_createBindings_isRejectedWithoutMapperAccess() {
+        TenantContext.clear();
+        FileBindingCreateDTO dto = new FileBindingCreateDTO();
+        dto.setFileIds(List.of(1L));
+        dto.setBusinessType("product");
+        dto.setBusinessId(1L);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.createBindings(dto));
+        assertEquals("缺少租户上下文", ex.getMessage());
+        assertNoMapperAccess();
+    }
+
+    @Test
+    void missingTenant_deleteBinding_isRejectedWithoutMapperAccess() {
+        TenantContext.clear();
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.deleteBinding(5L));
+        assertEquals("缺少租户上下文", ex.getMessage());
+        assertNoMapperAccess();
+    }
+
+    @Test
+    void missingTenant_batchDelete_isRejectedWithoutMapperAccess() {
+        TenantContext.clear();
+        FileBatchDeleteDTO dto = new FileBatchDeleteDTO();
+        dto.setFileIds(List.of(1L, 2L));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.batchDelete(dto));
+        assertEquals("缺少租户上下文", ex.getMessage());
+        assertNoMapperAccess();
+    }
+
+    @Test
+    void missingTenant_batchMove_isRejectedWithoutMapperAccess() {
+        TenantContext.clear();
+        FileBatchMoveDTO dto = new FileBatchMoveDTO();
+        dto.setFileIds(List.of(1L, 2L));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.batchMove(dto));
+        assertEquals("缺少租户上下文", ex.getMessage());
+        assertNoMapperAccess();
+    }
+
+    @Test
+    void missingReliableUser_createBindings_isRejectedWithoutMapperAccess() {
+        // 租户存在，但 principal 不可靠（匿名/非 User）时必须 403 且不落库
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        FileBindingCreateDTO dto = new FileBindingCreateDTO();
+        dto.setFileIds(List.of(1L));
+        dto.setBusinessType("product");
+        dto.setBusinessId(1L);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.createBindings(dto));
+        assertEquals("无法解析当前用户", ex.getMessage());
+        assertNoMapperAccess();
+    }
+
+    private void assertNoMapperAccess() {
+        assertFalse(storageHandler.invoked, "storage mapper must not be touched");
+        assertFalse(bindHandler.invoked, "bind mapper must not be touched");
+        assertFalse(logHandler.invoked, "log mapper must not be touched");
+        assertFalse(folderHandler.invoked, "folder mapper must not be touched");
+    }
+
     // ==================== Proxy 辅助 ====================
 
     @SuppressWarnings("unchecked")
@@ -305,6 +385,7 @@ class FileBindingServiceImplTest {
         private int nextUpdateRows;
         private Object capturedInsertEntity;
         private boolean updateLambdaCalled;
+        private boolean invoked;
 
         void thenSelectList(List<?>... results) {
             selectListResults.addAll(List.of(results));
@@ -325,6 +406,16 @@ class FileBindingServiceImplTest {
         @Override
         public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) {
             String name = method.getName();
+            switch (name) {
+                case "toString":
+                    return "MockMapper";
+                case "hashCode":
+                    return System.identityHashCode(proxy);
+                case "equals":
+                    return proxy == args[0];
+                default:
+                    invoked = true;
+            }
             switch (name) {
                 case "selectList":
                     return selectListResults.isEmpty() ? List.of() : selectListResults.remove();
@@ -348,12 +439,6 @@ class FileBindingServiceImplTest {
                         }
                     }
                     return nextUpdateRows > 0 ? nextUpdateRows : (updateLambdaCalled ? 1 : 0);
-                case "toString":
-                    return "MockMapper";
-                case "hashCode":
-                    return System.identityHashCode(proxy);
-                case "equals":
-                    return proxy == args[0];
                 default:
                     Class<?> retType = method.getReturnType();
                     if (!retType.isPrimitive()) return null;

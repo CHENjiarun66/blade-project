@@ -23,6 +23,13 @@ public interface FileDerivativeService {
     Resource loadVariantResource(Long fileId, String variantType);
 
     /**
+     * 按显式 tenant 加载派生图（匿名 PUBLIC 媒体路径使用文件自带 tenant，不依赖请求结束后的上下文）。
+     */
+    default Resource loadVariantResource(Long fileId, String variantType, Long tenantId) {
+        return loadVariantResource(fileId, variantType);
+    }
+
+    /**
      * Backfill derivatives for existing IMAGE files in the current tenant.
      *
      * @param limit max files to process (capped at 500)

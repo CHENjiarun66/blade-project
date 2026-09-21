@@ -2,7 +2,6 @@ package com.blade.file.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.blade.common.tenant.TenantContext;
 import com.blade.file.dto.FileBatchDeleteDTO;
 import com.blade.file.dto.FileBatchMoveDTO;
 import com.blade.file.dto.FileBindingCreateDTO;
@@ -17,9 +16,7 @@ import com.blade.file.mapper.FileOperationLogMapper;
 import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.FileBindingService;
-import com.blade.system.user.entity.User;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import com.blade.file.service.FileRequestContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,7 +48,7 @@ public class FileBindingServiceImpl implements FileBindingService {
 
     @Override
     public List<FileBindingVO> getBindings(Long fileId) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
 
         FileStorage file = fileStorageMapper.selectOne(new LambdaQueryWrapper<FileStorage>()
                 .eq(FileStorage::getId, fileId)
@@ -84,7 +81,7 @@ public class FileBindingServiceImpl implements FileBindingService {
             throw new RuntimeException("businessType和businessId不能为空");
         }
 
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
         Long operatorId = getCurrentUserId();
 
         // 验证所有文件存在且属于当前租户且 status=1
@@ -132,7 +129,7 @@ public class FileBindingServiceImpl implements FileBindingService {
     @Override
     @Transactional
     public void deleteBinding(Long id) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
 
         // 验证绑定存在且属于当前租户且未删除
         LambdaQueryWrapper<FileBusinessBind> queryWrapper = new LambdaQueryWrapper<>();
@@ -173,7 +170,7 @@ public class FileBindingServiceImpl implements FileBindingService {
     public void batchDelete(FileBatchDeleteDTO dto) {
         if (dto.getFileIds() == null || dto.getFileIds().isEmpty()) return;
 
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
 
         List<FileStorage> files = fileStorageMapper.selectList(new LambdaQueryWrapper<FileStorage>()
                 .in(FileStorage::getId, dto.getFileIds())
@@ -215,7 +212,7 @@ public class FileBindingServiceImpl implements FileBindingService {
     public void batchMove(FileBatchMoveDTO dto) {
         if (dto.getFileIds() == null || dto.getFileIds().isEmpty()) return;
 
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = FileRequestContext.requireTenantId();
 
         // 变更前校验文件权限
         List<FileStorage> files = fileStorageMapper.selectList(new LambdaQueryWrapper<FileStorage>()
@@ -275,10 +272,6 @@ public class FileBindingServiceImpl implements FileBindingService {
     }
 
     private Long getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        return 1L;
+        return FileRequestContext.requireOperatorId();
     }
 }
