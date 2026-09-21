@@ -12,6 +12,7 @@ import com.blade.dashboard.dto.DashboardQueryDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,18 +29,21 @@ public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
 
+    @PreAuthorize("hasAuthority('menu:analytics')")
     @GetMapping("/summary")
     @Operation(summary = "获取经营分析汇总")
     public R<AnalyticsSummaryDTO> getSummary(@ModelAttribute DashboardQueryDTO query) {
         return R.ok(analyticsService.getSummary(query));
     }
 
+    @PreAuthorize("hasAuthority('menu:analytics')")
     @GetMapping("/trend")
     @Operation(summary = "获取经营分析趋势")
     public R<AnalyticsTrendDTO> getTrend(@ModelAttribute DashboardQueryDTO query) {
         return R.ok(analyticsService.getTrend(query));
     }
 
+    @PreAuthorize("hasAuthority('menu:analytics')")
     @GetMapping("/product-ranking")
     @Operation(summary = "获取商品维度排行")
     public R<List<AnalyticsRankingDTO>> getProductRanking(@ModelAttribute DashboardQueryDTO query,
@@ -49,6 +53,7 @@ public class AnalyticsController {
         return R.ok(analyticsService.getProductRanking(query, dimension, sortBy, limit));
     }
 
+    @PreAuthorize("hasAuthority('menu:analytics')")
     @GetMapping("/product-detail")
     @Operation(summary = "获取商品分析详情")
     public R<AnalyticsProductDetailDTO> getProductDetail(@ModelAttribute DashboardQueryDTO query,
