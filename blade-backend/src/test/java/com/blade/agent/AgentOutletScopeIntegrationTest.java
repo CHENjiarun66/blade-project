@@ -91,6 +91,7 @@ class AgentOutletScopeIntegrationTest {
 
     @Test
     void capabilitiesReflectsOutletDisableImmediately() throws Exception {
+        TenantContext.setTenantId(1L);
         SalesOutlet disabled = new SalesOutlet();
         disabled.setId(enabledOutletId);
         disabled.setStatus(0);
@@ -107,6 +108,7 @@ class AgentOutletScopeIntegrationTest {
 
     @Test
     void capabilitiesRejectsDisabledKeyImmediately() throws Exception {
+        TenantContext.setTenantId(1L);
         AgentKey key = keyMapper.selectOne(Wrappers.<AgentKey>lambdaQuery()
                 .eq(AgentKey::getKeyPrefix, allKey.substring(0, allKey.indexOf('.'))));
         key.setStatus(AgentKey.STATUS_DISABLED);

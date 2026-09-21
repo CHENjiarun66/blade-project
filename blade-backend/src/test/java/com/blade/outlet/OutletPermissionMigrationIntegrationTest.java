@@ -94,6 +94,7 @@ class OutletPermissionMigrationIntegrationTest {
 
     @Test
     void roleListExposesOutletAllContract() {
+        TenantContext.setTenantId(1L);
         Map<String, Boolean> flags = roleService.getAll().stream()
                 .collect(Collectors.toMap(RoleVO::getRoleCode, RoleVO::getGrantsOutletAll, (a, b) -> a));
         assertEquals(Boolean.TRUE, flags.get("ROLE_OWNER"), "OWNER 应授予 data:outlet:all");

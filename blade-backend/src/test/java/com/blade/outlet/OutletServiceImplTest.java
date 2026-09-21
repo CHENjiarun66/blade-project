@@ -60,7 +60,8 @@ class OutletServiceImplTest {
         });
         when(orderMapper.selectCount(any())).thenReturn(0L);
         when(orderDraftMapper.selectCount(any())).thenReturn(0L);
-        // 默认标记更新返回 1，模拟目标档口启用且未删除
+        // 默认标记更新返回 1，模拟目标档口启用且未删除；租户锁返回租户行
+        when(outletMapper.lockTenantRow(any())).thenReturn(7L);
         when(outletMapper.markTenantDefault(any(), any())).thenReturn(1);
     }
 

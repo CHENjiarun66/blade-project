@@ -301,6 +301,7 @@ class AgentDataAccessIntegrationTest {
                 .andExpect(jsonPath("$.data.result").value("CREATED"))
                 .andExpect(jsonPath("$.data.appliedCostPrice").value(18.5));
 
+        TenantContext.setTenantId(1L);
         Product created = productMapper.selectOne(Wrappers.<Product>lambdaQuery()
                 .eq(Product::getProductCode, createdCode));
         assertEquals(0, new BigDecimal("18.50").compareTo(created.getCostPrice()));

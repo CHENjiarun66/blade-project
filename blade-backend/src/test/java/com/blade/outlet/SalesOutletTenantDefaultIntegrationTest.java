@@ -1,5 +1,6 @@
 package com.blade.outlet;
 
+import com.blade.common.exception.BusinessException;
 import com.blade.common.tenant.TenantContext;
 import com.blade.outlet.dto.OutletUpdateDTO;
 import com.blade.outlet.service.OutletService;
@@ -176,6 +177,36 @@ class SalesOutletTenantDefaultIntegrationTest {
         assertEquals(1, countDefaults(TENANT_1), "并发后每租户必须恰好一个默认");
     }
 
+    @Test
+    void missingSysTenantRowFailsClosedAndRollsBack() {
+        String s = nextSuffix();
+        long missingTenant = 999999L;
+
+        // create + 默认：租户锁返回 null → 403，事务回滚，档口不新增
+        TenantContext.setTenantId(missingTenant);
+        com.blade.outlet.dto.OutletCreateDTO create = new com.blade.outlet.dto.OutletCreateDTO();
+        create.setOutletCode(PREFIX + "MT-NEW-" + s);
+        create.setOutletName("缺失租户档口");
+        create.setIsTenantDefault(1);
+        BusinessException createEx = assertThrows(BusinessException.class, () -> outletService.create(create));
+        assertEquals(403, createEx.getCode());
+        assertEquals(0, count("SELECT COUNT(*) FROM sales_outlet WHERE tenant_id=? AND outlet_code=?", missingTenant,
+                PREFIX + "MT-NEW-" + s), "锁失败必须回滚，档口不得新增");
+
+        // 已有档口 update 为默认：锁返回 null → 403，默认不变化
+        long existing = insertOutlet(missingTenant, PREFIX + "MT-OLD-" + s, 1, 0);
+        com.blade.outlet.dto.OutletUpdateDTO update = new com.blade.outlet.dto.OutletUpdateDTO();
+        update.setId(existing);
+        update.setOutletCode(PREFIX + "MT-OLD-" + s);
+        update.setOutletName("缺失租户旧档口");
+        update.setIsTenantDefault(1);
+        BusinessException updateEx = assertThrows(BusinessException.class, () -> outletService.update(update));
+        assertEquals(403, updateEx.getCode());
+        assertEquals(0, jdbc.queryForObject("SELECT is_tenant_default FROM sales_outlet WHERE id=?",
+                Integer.class, existing), "锁失败不得改变默认");
+        assertEquals(0, countDefaults(missingTenant));
+    }
+
     // ==================== helpers ====================
 
     private void setDefaultViaService(long tenantId, long outletId, String code) {
@@ -198,6 +229,11 @@ class SalesOutletTenantDefaultIntegrationTest {
     private int countDefaults(long tenantId) {
         Integer c = jdbc.queryForObject("SELECT COUNT(*) FROM sales_outlet "
                 + "WHERE tenant_id=? AND deleted=0 AND is_tenant_default=1", Integer.class, tenantId);
+        return c == null ? 0 : c;
+    }
+
+    private int count(String sql, Object... args) {
+        Integer c = jdbc.queryForObject(sql, Integer.class, args);
         return c == null ? 0 : c;
     }
 

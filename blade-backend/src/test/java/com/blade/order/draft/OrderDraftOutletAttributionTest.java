@@ -259,6 +259,7 @@ class OrderDraftOutletAttributionTest {
 
     @Test
     void agentCrossScopeCode_rejected() {
+        TenantContext.setTenantId(1L);
         SalesOutlet bound = seedOutlet("Agent绑A", 1, 0);
         seedOutlet("Agent未绑B", 1, 0);
         // B 不在 Key 绑定内，用它的 code 越权
