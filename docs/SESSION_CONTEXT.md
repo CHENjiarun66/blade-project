@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-09-21 档口第二批A 整改（文件一致性/财务鉴权/入口权限/回填审计/跨租户）
+
+- 基线 `2070ee0`；本批小提交（按项拆分）：文件一致性修复、财务先鉴权后幂等、看板/分析入口 `@PreAuthorize`、回填报告审计证据、跨租户真实反例，另含一处 MyBatis 测试元数据修复。
+- 文件中心：`FileBusinessAccessPolicy.buildVisibilityCondition` 在 `data:order:peopleAll` 且无 `btn:file:viewAll` 时，`actorId` 占位必须仍可用于“本人未绑定文件”条件（此前写成 `create_by = null`，列表/计数与详情不一致）。真实 DB `FileOutletAccessPolicyTest.peopleAll_keepsOwnUnboundFileVisible_butNotOthers_andOrderDraftScopeStillApplies`：本人未绑定文件 list/count/detail 一致可见，他人不可见，订单/草稿仍按档口范围；修复前该用例失败。
+- 财务动作：`OrderActionService.lockForFinancialAction` 改为先加载/锁定订单并 `requireAccess`，再判断幂等短路，避免越权者用真实 orderId + 幂等键从“静默成功/键被占用”推断存在性。`OrderScopeRealDbIntegrationTest` 新增 2 例真实 DB：越权 403 且无流水写入；授权用户同键重试幂等。
+- 看板/分析：`DashboardController` 全部端点加 `menu:dashboard`、`AnalyticsController` 全部端点加 `menu:analytics`；`DashboardAnalyticsPermissionIntegrationTest`（真实登录/JWT/DB 权限）验证无权限 403、有权限 200、互不越权。
+- 回填报告：`OutletBackfillReport` 增加 operator/起止时间/expected+actual 库名/映射文件 SHA-256/逐条 `MappingDecision`（候选与更新数）/前后 `source_outlet_id` 赋值摘要哈希；apply 安全闸门强制 operator，preview 缺省明确记为 `PREVIEW`；报告仍不含凭据。`OutletBackfill*Test` 22/22 通过。文档标记“代码完成、生产副本演练与人工确认未完成”。
+- 跨租户真实反例：新增 `CrossTenantOutletIsolationIntegrationTest`（真实 DB，非 mock）：tenant1 用户绑 tenant2 档口失败且无绑定/无用户残留；tenant1 Agent Key ASSIGNED/ALL 默认 tenant2 档口失败且无 key/绑定副作用；档口服务读/改/启停 tenant2 档口 404 且原行不变（增强既有 mock 的 `UserOutletBindingTest.crossTenantOutletIsRejectedAsNotFound`）。
+- 测试基建：`ProductServiceV2Test` 由普通 `Configuration` 改为 `MybatisConfiguration` + `GlobalConfig`，避免把 `inventory.tenant_id` 污染成 `tenantId` 导致全量顺序下真实 DB 看板用例坏 SQL。
+- 验证：后端全量 **805/805**，Failures 0 / Errors 0 / Skipped 0；本批无前端改动，未运行前端构建；`git diff --check` 无输出；工作区干净（工具隐藏目录本地排除）。
+- 未处理（后续独立批次）：`TenantLineHandler` tenant=1 全局兜底、默认档口数据库唯一约束/N+1、Agent batch 403 HTTP 语义、移动端档口选择、软删除。
+
 ## 2026-09-21 档口完整性审计第一批 Codex 终审整改（缓存键顺序 + 真实 DB/Redis 证据）
 
 - P0-1 缓存键顺序：Codex 终审指出第一批键 `customer:preference:{scopeFingerprint}:{customerId}:...` 无法被 `evictPreferenceCache` 前缀 `customer:preference:{customerId}:*` 命中，动作后缓存永不失效。已修正为 `customer:preference:{customerId}:{scopeFingerprint}:{start}:{end}`，evict 覆盖该客户全部范围/时间窗，不误删他人；`CustomerStatsCacheService` 注释同步。

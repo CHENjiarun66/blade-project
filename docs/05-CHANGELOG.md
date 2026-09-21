@@ -8,6 +8,17 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口第二批A：文件列表一致性、财务先鉴权、看板/分析入口权限、回填审计与跨租户真实反例
+
+- 文件中心一致性：`FileBusinessAccessPolicy.buildVisibilityCondition` 在 `data:order:peopleAll` 且无 `btn:file:viewAll` 时，不再把 `actorId` 占位设为 null；本人未绑定文件在列表/计数与直接读取中一致可见，他人未绑定文件不可见，订单/草稿绑定仍受档口范围约束。新增真实 DB 用例 `FileOutletAccessPolicyTest.peopleAll_keepsOwnUnboundFileVisible_butNotOthers_andOrderDraftScopeStillApplies`（修复前失败）。
+- 财务动作鉴权顺序：`OrderActionService.lockForFinancialAction` 改为先 `selectByIdForUpdate` + `requireAccess`，再判断幂等键，禁止越权者用真实 orderId + 幂等键从静默成功/键占用推断存在性；授权重试语义与并发行锁不退化。`OrderScopeRealDbIntegrationTest` 新增越权 403 无写入、授权同键幂等 2 例真实 DB 反例。
+- 入口权限：`DashboardController` 全部端点加 `@PreAuthorize("hasAuthority('menu:dashboard')")`，`AnalyticsController` 加 `menu:analytics`；新增 `DashboardAnalyticsPermissionIntegrationTest`（真实登录/JWT/DB 权限）覆盖无权限 403、有权限可用、互不越权。
+- 回填报告审计证据：`OutletBackfillReport` 新增 operator、startedAt/finishedAt、expected/actual 库名、mapping 文件 SHA-256、逐条 `MappingDecision`（候选/更新数）与 apply 前后 `source_outlet_id` 摘要哈希；apply 安全闸门强制 operator，preview 缺省明确记为 `PREVIEW`；报告仍严禁 JDBC/密码凭据。dry-run 默认、副本库名门、只改 `source_outlet_id`、租户隔离、对账、幂等均保持。`OutletBackfill*Test` 22/22。文档标记“代码完成、生产副本演练与人工确认未完成”。
+- 跨租户真实反例：新增 `CrossTenantOutletIsolationIntegrationTest`（真实 DB）：tenant1 用户绑定 tenant2 档口失败且无关系残留；tenant1 Agent Key ASSIGNED/ALL 默认 tenant2 档口失败且无 key/绑定副作用；档口服务读/改/启停 tenant2 档口 404 且原行不变。增强既有 mock 的 `UserOutletBindingTest.crossTenantOutletIsRejectedAsNotFound`。
+- 测试基建：`ProductServiceV2Test` 改用 `MybatisConfiguration` + `GlobalConfig` 初始化 `TableInfo`，避免普通 `Configuration` 将 `inventory.tenant_id` 污染为 `tenantId`，修复全量顺序下真实 DB 看板用例的坏 SQL。
+- 验证：后端全量 **805/805**（Failures 0 / Errors 0 / Skipped 0）；本批无前端改动，未运行前端构建；`git diff --check` 无输出。
+- 未处理（后续批次）：`TenantLineHandler` tenant=1 全局兜底、默认档口数据库唯一约束/N+1、Agent batch 403 HTTP 语义、移动端档口选择、软删除。
+
 ### [整改] - 档口完整性审计第一批 Codex 终审：缓存键可失效性与真实 DB/Redis 证据
 
 - P0-1 缓存键顺序修正：第一批 `customer:preference:{scopeFingerprint}:{customerId}:...` 与 `CustomerStatsCacheService.evictPreferenceCache(customerId)` 的前缀删除模式 `customer:preference:{customerId}:*` 不匹配，订单动作后偏好缓存永不失效。现改为 `customer:preference:{customerId}:{scopeFingerprint}:{start}:{end}`（客户 ID 紧邻前缀），一次失效该客户全部范围与时间窗、不误删他人；同步 `CustomerStatsCacheService` 注释明确该约束。
