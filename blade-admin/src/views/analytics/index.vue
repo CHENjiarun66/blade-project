@@ -24,6 +24,25 @@
           value-format="YYYY-MM-DD"
           @change="onFilterChange"
         />
+        <el-select
+          v-model="selectedOutletIds"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          clearable
+          filterable
+          placeholder="全部档口"
+          style="width: 240px"
+          data-testid="analytics-outlet-filter"
+          @change="onFilterChange"
+        >
+          <el-option
+            v-for="outlet in outletOptions"
+            :key="outlet.id"
+            :label="outlet.outletCode ? `${outlet.outletName}（${outlet.outletCode}）` : outlet.outletName"
+            :value="outlet.id"
+          />
+        </el-select>
         <el-button :icon="Refresh" @click="loadAll">刷新</el-button>
       </div>
     </div>
@@ -224,6 +243,7 @@ import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { DataLine, Goods, Histogram, Money, Refresh, RefreshLeft, ShoppingCart, TrendCharts } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import type { PeriodType } from '@/api/dashboard'
+import { getOutletOptions, type OutletOptionVO } from '@/api/outlet'
 import {
   getAnalyticsProductDetail,
   getAnalyticsProductRanking,
@@ -239,6 +259,8 @@ import {
 
 const selectedPeriod = ref<PeriodType>('WEEK')
 const customDateRange = ref<[string, string] | null>(null)
+const outletOptions = ref<OutletOptionVO[]>([])
+const selectedOutletIds = ref<number[]>([])
 const trendMetrics = ref<string[]>(['sales', 'quantity'])
 const dimension = ref<AnalyticsDimension>('PRODUCT')
 const sortBy = ref<AnalyticsSortBy>('SALES')
@@ -284,14 +306,25 @@ const avgProfitPerItem = computed(() => summary.profitVisible && summary.salesQu
   : 0)
 
 function buildFilter() {
+  const outletIds = selectedOutletIds.value.length ? selectedOutletIds.value : undefined
   if (selectedPeriod.value === 'CUSTOM' && customDateRange.value) {
     return {
       periodType: 'CUSTOM' as PeriodType,
       startDate: customDateRange.value[0],
       endDate: customDateRange.value[1],
+      sourceOutletIds: outletIds,
     }
   }
-  return { periodType: selectedPeriod.value }
+  return { periodType: selectedPeriod.value, sourceOutletIds: outletIds }
+}
+
+async function loadOutletOptions() {
+  try {
+    const res = await getOutletOptions()
+    outletOptions.value = res.data?.items || []
+  } catch {
+    outletOptions.value = []
+  }
 }
 
 function formatNumber(value?: number | null) {
@@ -443,6 +476,7 @@ const DetailTable = defineComponent({
 })
 
 onMounted(() => {
+  void loadOutletOptions()
   loadAll()
 })
 </script>

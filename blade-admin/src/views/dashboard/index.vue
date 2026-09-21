@@ -27,6 +27,31 @@
           value-format="YYYY-MM-DD"
           @change="onPeriodChange"
         />
+        <el-select
+          v-model="selectedOutletIds"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          clearable
+          filterable
+          placeholder="全部档口"
+          style="width: 220px"
+          data-testid="dashboard-outlet-filter"
+          @change="onPeriodChange"
+        >
+          <el-option
+            v-for="outlet in outletOptions"
+            :key="outlet.id"
+            :label="outlet.outletCode ? `${outlet.outletName}（${outlet.outletCode}）` : outlet.outletName"
+            :value="outlet.id"
+          />
+        </el-select>
+        <el-checkbox
+          v-if="canUseUnassigned"
+          v-model="pendingArchive"
+          data-testid="dashboard-pending-archive"
+          @change="onPendingArchiveChange"
+        >待归档档口</el-checkbox>
       </div>
     </div>
 
@@ -154,6 +179,9 @@
             <div>
               <div class="text-xl font-bold text-gray-900">{{ stats.pendingOrders || 0 }}</div>
               <div class="text-xs text-gray-500 mt-0.5">待处理订单</div>
+              <div v-if="stats.pendingArchiveCount" class="text-[10px] text-amber-600 mt-0.5" data-testid="dashboard-pending-archive-count">
+                待归档 {{ stats.pendingArchiveCount }}
+              </div>
             </div>
           </div>
         </div>
@@ -276,6 +304,8 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { ShoppingCart, Money, Goods, Odometer, Warning, Calendar, TrendCharts } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { getDashboardStats, getOrderTrend, getTopProducts, getOrderStatus, getInventoryAlerts, getInventoryStats, type PeriodType } from '@/api/dashboard'
+import { getOutletOptions, type OutletOptionVO } from '@/api/outlet'
+import { useAuthStore } from '@/stores/auth'
 
 const trendChartRef = ref<HTMLDivElement>()
 const topProductsChartRef = ref<HTMLDivElement>()
@@ -289,6 +319,11 @@ let orderStatusChart: echarts.ECharts | null = null
 // 日期筛选状态
 const selectedPeriod = ref<PeriodType>('WEEK')
 const customDateRange = ref<[string, string] | null>(null)
+const authStore = useAuthStore()
+const outletOptions = ref<OutletOptionVO[]>([])
+const selectedOutletIds = ref<number[]>([])
+const pendingArchive = ref(false)
+const canUseUnassigned = computed(() => authStore.permissions.includes('data:outlet:unassigned'))
 
 // 周期标签映射
 const periodLabels: Record<PeriodType, string> = {
@@ -315,6 +350,7 @@ function createStatsState() {
     totalProducts: 0,
     pendingOrders: 0,
     pendingOrdersTrend: 0,
+    pendingArchiveCount: null as number | null,
     lowStockAlerts: 0,
     weekOrders: 0,
     weekOrdersTrend: 0,
@@ -338,14 +374,34 @@ const inventoryStats = reactive({
 })
 
 function buildFilter() {
+  const outletIds = selectedOutletIds.value.length ? selectedOutletIds.value : undefined
   if (selectedPeriod.value === 'CUSTOM' && customDateRange.value) {
     return {
       periodType: 'CUSTOM' as PeriodType,
       startDate: customDateRange.value[0],
-      endDate: customDateRange.value[1]
+      endDate: customDateRange.value[1],
+      sourceOutletIds: outletIds,
+      pendingArchive: pendingArchive.value,
     }
   }
-  return { periodType: selectedPeriod.value }
+  return { periodType: selectedPeriod.value, sourceOutletIds: outletIds, pendingArchive: pendingArchive.value }
+}
+
+async function loadOutletOptions() {
+  try {
+    const res = await getOutletOptions()
+    outletOptions.value = res.data?.items || []
+  } catch {
+    outletOptions.value = []
+  }
+}
+
+function onPendingArchiveChange() {
+  // 待归档与档口筛选互斥：勾选时清空档口选择
+  if (pendingArchive.value) {
+    selectedOutletIds.value = []
+  }
+  onPeriodChange()
 }
 
 function formatNumber(num: number): string {
@@ -366,6 +422,10 @@ function getTrendClass(trend: number): string {
 }
 
 function onPeriodChange() {
+  // 档口选择与待归档互斥：选档口时自动取消待归档
+  if (selectedOutletIds.value.length && pendingArchive.value) {
+    pendingArchive.value = false
+  }
   loadAll()
 }
 
@@ -578,6 +638,7 @@ function loadAll() {
 }
 
 onMounted(() => {
+  void loadOutletOptions()
   loadAll()
   loadInventoryAlerts()
 })

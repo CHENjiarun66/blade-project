@@ -6,6 +6,26 @@ export interface DateRangeFilter {
   periodType: PeriodType
   startDate?: string
   endDate?: string
+  /** 档口筛选：仅允许当前用户可访问档口；空数组/不传=当前完整可见范围 */
+  sourceOutletIds?: number[]
+  /** 仅看待归档档口（需 data:outlet:unassigned）；与 sourceOutletIds 互斥 */
+  pendingArchive?: boolean
+}
+
+/**
+ * 统一序列化统计筛选：sourceOutletIds 用逗号拼接，Spring 可直接绑定 List<Long>，
+ * 避免 axios 数组括号写法导致后端绑定失败。后端仍会逐项做授权校验。
+ */
+export function buildFilterParams(filter?: DateRangeFilter): Record<string, unknown> | undefined {
+  if (!filter) return undefined
+  const params: Record<string, unknown> = { periodType: filter.periodType }
+  if (filter.startDate) params.startDate = filter.startDate
+  if (filter.endDate) params.endDate = filter.endDate
+  if (filter.sourceOutletIds && filter.sourceOutletIds.length) {
+    params.sourceOutletIds = filter.sourceOutletIds.join(',')
+  }
+  if (filter.pendingArchive) params.pendingArchive = true
+  return params
 }
 
 export interface DashboardStats {
@@ -20,6 +40,8 @@ export interface DashboardStats {
   totalProducts: number
   pendingOrders: number
   pendingOrdersTrend: number
+  /** 待归档档口订单数：仅 data:outlet:unassigned + pendingArchive=true 时返回 */
+  pendingArchiveCount?: number | null
   // 新增字段
   lowStockAlerts: number
   weekOrders: number
@@ -68,19 +90,19 @@ export interface InventoryStats {
 }
 
 export function getDashboardStats(filter?: DateRangeFilter) {
-  return client.get<{ code: number; data: DashboardStats }>('/dashboard/stats', { params: filter }) as any
+  return client.get<{ code: number; data: DashboardStats }>('/dashboard/stats', { params: buildFilterParams(filter) }) as any
 }
 
 export function getOrderTrend(filter?: DateRangeFilter) {
-  return client.get<{ code: number; data: OrderTrend }>('/dashboard/trend', { params: filter }) as any
+  return client.get<{ code: number; data: OrderTrend }>('/dashboard/trend', { params: buildFilterParams(filter) }) as any
 }
 
 export function getTopProducts(filter?: DateRangeFilter) {
-  return client.get<{ code: number; data: TopProduct[] }>('/dashboard/top-products', { params: filter }) as any
+  return client.get<{ code: number; data: TopProduct[] }>('/dashboard/top-products', { params: buildFilterParams(filter) }) as any
 }
 
 export function getOrderStatus(filter?: DateRangeFilter) {
-  return client.get<{ code: number; data: OrderStatus[] }>('/dashboard/order-status', { params: filter }) as any
+  return client.get<{ code: number; data: OrderStatus[] }>('/dashboard/order-status', { params: buildFilterParams(filter) }) as any
 }
 
 export function getInventoryAlerts() {
