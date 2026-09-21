@@ -51,6 +51,7 @@ public class OrderPlaceholderSplitService {
     private final ProductMapper productMapper;
     private final ProductColorMapper productColorMapper;
     private final ProductSizeMapper productSizeMapper;
+    private final OrderAccessPolicy accessPolicy;
 
     public OrderPlaceholderSplitService(OrderMapper orderMapper,
                                         OrderItemMapper orderItemMapper,
@@ -58,7 +59,8 @@ public class OrderPlaceholderSplitService {
                                         ProductSkuMapper productSkuMapper,
                                         ProductMapper productMapper,
                                         ProductColorMapper productColorMapper,
-                                        ProductSizeMapper productSizeMapper) {
+                                        ProductSizeMapper productSizeMapper,
+                                        OrderAccessPolicy accessPolicy) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.adjustmentLogMapper = adjustmentLogMapper;
@@ -66,6 +68,7 @@ public class OrderPlaceholderSplitService {
         this.productMapper = productMapper;
         this.productColorMapper = productColorMapper;
         this.productSizeMapper = productSizeMapper;
+        this.accessPolicy = accessPolicy;
     }
 
     /**
@@ -85,6 +88,8 @@ public class OrderPlaceholderSplitService {
         if (order == null) {
             throw BusinessException.of(404, "订单不存在");
         }
+        // 锁单后、读取/删除/插入任何明细之前统一做档口 × 人员范围校验
+        accessPolicy.requireAccess(order);
         requireSplittable(order);
 
         OrderItem placeholder = orderItemMapper.selectOne(new LambdaQueryWrapper<OrderItem>()

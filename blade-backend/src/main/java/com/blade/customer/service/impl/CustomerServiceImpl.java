@@ -27,6 +27,8 @@ import com.blade.order.entity.Order;
 import com.blade.order.entity.OrderItem;
 import com.blade.order.mapper.OrderMapper;
 import com.blade.order.mapper.OrderItemMapper;
+import com.blade.order.service.OrderAccessPolicy;
+import com.blade.order.service.OrderReadScope;
 import com.blade.system.user.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -50,9 +52,10 @@ public class CustomerServiceImpl implements CustomerService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final OrderFactsService orderFactsService;
     private final CustomerStatsCacheService customerStatsCacheService;
+    private final OrderAccessPolicy orderAccessPolicy;
 
     @Autowired
-    public CustomerServiceImpl(CustomerMapper customerMapper, CustomerPhoneMapper customerPhoneMapper, OrderMapper orderMapper, OrderItemMapper orderItemMapper, CustomerOperationLogMapper operationLogMapper, RedisTemplate<String, Object> redisTemplate, OrderFactsService orderFactsService, CustomerStatsCacheService customerStatsCacheService) {
+    public CustomerServiceImpl(CustomerMapper customerMapper, CustomerPhoneMapper customerPhoneMapper, OrderMapper orderMapper, OrderItemMapper orderItemMapper, CustomerOperationLogMapper operationLogMapper, RedisTemplate<String, Object> redisTemplate, OrderFactsService orderFactsService, CustomerStatsCacheService customerStatsCacheService, OrderAccessPolicy orderAccessPolicy) {
         this.customerMapper = customerMapper;
         this.customerPhoneMapper = customerPhoneMapper;
         this.orderMapper = orderMapper;
@@ -61,6 +64,7 @@ public class CustomerServiceImpl implements CustomerService {
         this.redisTemplate = redisTemplate;
         this.orderFactsService = orderFactsService;
         this.customerStatsCacheService = customerStatsCacheService;
+        this.orderAccessPolicy = orderAccessPolicy;
     }
 
     @Override
@@ -388,8 +392,11 @@ public class CustomerServiceImpl implements CustomerService {
             throw new RuntimeException("客户不存在");
         }
 
+        // 档口 × 人员范围统一解析一次；统计口径默认排除历史 NULL，禁止先查后过滤。
+        OrderReadScope scope = orderAccessPolicy.resolveReadScope(null, false);
         LambdaQueryWrapper<Order> orderWrapper = new LambdaQueryWrapper<>();
         orderWrapper.eq(Order::getCustomerId, customerId);
+        scope.applySalesPredicate(orderWrapper);
         List<Order> orders = orderMapper.selectList(orderWrapper);
 
         int totalOrders = orders.size();
@@ -429,9 +436,12 @@ public class CustomerServiceImpl implements CustomerService {
         int size = dto.getSize() != null && dto.getSize() > 0 ? Math.min(dto.getSize(), dto.getMaxSize() != null ? dto.getMaxSize() : 100) : 20;
 
         Page<Order> page = new Page<>(current, size);
+        OrderReadScope scope = orderAccessPolicy.resolveReadScope(null, false);
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getCustomerId, customerId)
                .orderByDesc(Order::getCreateTime);
+        // 分页前先应用档口 × 人员范围（total 与 records 使用同一谓词）
+        scope.applySalesPredicate(wrapper);
 
         // 查询订单总数
         Long totalCount = orderMapper.selectCount(wrapper);
@@ -503,10 +513,12 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerPreferenceVO getPreference(Long customerId, CustomerPreferenceQueryDTO dto) {
-        // 构建缓存 key：customer:preference:{customerId}:{startDate}:{endDate}
+        // 缓存键必须包含档口 × 人员范围指纹，避免不同租户/档口/人员/绑定复用同一结果。
+        OrderReadScope scope = orderAccessPolicy.resolveReadScope(null, false);
         String startDate = (dto != null && dto.getStartDate() != null) ? dto.getStartDate() : "all";
         String endDate = (dto != null && dto.getEndDate() != null) ? dto.getEndDate() : "all";
-        String cacheKey = "customer:preference:" + customerId + ":" + startDate + ":" + endDate;
+        String cacheKey = "customer:preference:" + scope.cacheFingerprint()
+                + ":" + customerId + ":" + startDate + ":" + endDate;
 
         // 尝试从缓存获取
         Object cached = redisTemplate.opsForValue().get(cacheKey);
@@ -520,6 +532,8 @@ public class CustomerServiceImpl implements CustomerService {
                     .and(w -> w.in(Order::getFulfillmentStatus, java.util.Arrays.asList("SHIPPED", "COMPLETED"))
                             .or(sub -> sub.isNull(Order::getFulfillmentStatus)
                                     .in(Order::getStatus, java.util.Arrays.asList(4, 5))));
+        // 档口 × 人员范围 + 默认排除历史 NULL
+        scope.applySalesPredicate(orderWrapper);
 
         // 时间范围过滤
         if (dto != null && dto.getStartDate() != null && !dto.getStartDate().isBlank()) {

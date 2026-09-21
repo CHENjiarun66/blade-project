@@ -92,7 +92,10 @@ class OrderPlaceholderSplitTest {
                 .thenAnswer(inv -> { auditLogs.add(inv.getArgument(0)); return 1; });
 
         splitService = new OrderPlaceholderSplitService(orderMapper, orderItemMapper,
-                adjustmentLogMapper, productSkuMapper, productMapper, productColorMapper, productSizeMapper);
+                adjustmentLogMapper, productSkuMapper, productMapper, productColorMapper, productSizeMapper,
+                new com.blade.order.service.OrderAccessPolicy(
+                        mock(com.blade.system.user.mapper.UserMapper.class),
+                        com.blade.outlet.OutletTestScopes.allScopedPolicy()));
     }
 
     @AfterEach

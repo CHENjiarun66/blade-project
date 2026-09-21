@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 import org.springframework.web.bind.annotation.*;
@@ -67,18 +68,21 @@ public class CustomerController {
     }
 
     @GetMapping("/{id}/stats")
+    @PreAuthorize("hasAuthority('btn:customer:viewOrders')")
     @Operation(summary = "客户基础统计")
     public R<CustomerStatsVO> getStats(@PathVariable Long id) {
         return R.ok(customerService.getStats(id));
     }
 
     @GetMapping("/{id}/orders")
+    @PreAuthorize("hasAuthority('btn:customer:viewOrders')")
     @Operation(summary = "客户历史订单（分页）")
     public R<PageResult<CustomerOrderVO>> getCustomerOrders(@PathVariable Long id, CustomerOrderPageDTO dto) {
         return R.ok(customerService.getCustomerOrders(id, dto));
     }
 
     @GetMapping("/{id}/preference")
+    @PreAuthorize("hasAuthority('btn:customer:viewOrders')")
     @Operation(summary = "客户商品偏好分析")
     public R<CustomerPreferenceVO> getPreference(@PathVariable Long id, CustomerPreferenceQueryDTO dto) {
         return R.ok(customerService.getPreference(id, dto));

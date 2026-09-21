@@ -182,9 +182,10 @@ class OrderFactConsistencyTest {
                     "仪表盘订单数必须与统一事实服务一致");
             assertTrue(stats.getPeriodOrders() >= 6, "本次种子至少贡献 6 笔已收款经营订单");
 
-            // ── 客户统计与事实服务一致（取消订单不进消费额） ──
+            // ── 客户统计与事实服务一致（取消订单不进消费额；历史 NULL 默认排除） ──
             CustomerStatsVO customerStats = customerService.getStats(customerId);
             BigDecimal expectedSpending = business.stream()
+                    .filter(o -> o.getSourceOutletId() != null)
                     .map(orderFactsService::gross)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             assertEquals(0, customerStats.getTotalSpending().compareTo(expectedSpending),

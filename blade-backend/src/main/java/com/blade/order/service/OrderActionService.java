@@ -408,11 +408,10 @@ public class OrderActionService {
      */
     @Transactional
     public void shipOrder(Long orderId, String source) {
-        Long tenantId = currentTenant();
-        Order order = orderMapper.selectByIdForUpdate(orderId, tenantId);
-        if (order == null) {
-            throw BusinessException.of(404, "订单不存在");
-        }
+        // 与其它动作一致：先锁单并做租户 + 档口 × 人员范围校验，
+        // 再进入幂等返回、占位/配货/库存校验与状态变更。禁止先做业务判断后鉴权。
+        Order order = lockOrder(orderId);
+        Long tenantId = order.getTenantId();
         requireMigrated(order);
         FulfillmentStatus current = currentStatus(order);
         if (current == FulfillmentStatus.SHIPPED || current == FulfillmentStatus.COMPLETED) {

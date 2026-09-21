@@ -175,12 +175,16 @@ public class UserServiceImpl implements UserService {
             }
         }
 
+        List<Role> finalRoles = resolvedRoles != null
+                ? resolvedRoles
+                : roleMapper.selectByUserId(dto.getId());
+
         if (dto.getOutletIds() != null) {
-            List<Role> roles = resolvedRoles != null
-                    ? resolvedRoles
-                    : roleMapper.selectByUserId(dto.getId());
-            validateAndSaveOutletBindings(roles, dto.getId(), user.getTenantId(),
+            validateAndSaveOutletBindings(finalRoles, dto.getId(), user.getTenantId(),
                     dto.getOutletIds(), dto.getDefaultOutletId());
+        } else {
+            // 旧客户端 outletIds=null：保留现有绑定，但最终角色若为销售员仍须满足必绑。
+            validateRetainedOutletBindings(finalRoles, dto.getId());
         }
     }
 
@@ -247,11 +251,22 @@ public class UserServiceImpl implements UserService {
         boolean hasOutletAll = codes.contains(PERM_OUTLET_ALL);
         boolean isSales = roles.stream().anyMatch(r -> SALES_ROLE_CODE.equals(r.getRoleCode()));
 
-        if (defaultOutletId != null && !contains(outletIds, defaultOutletId)) {
+        // 去重且保持首次出现顺序，避免重复 ID 触发 uk_user_outlet_tenant 唯一键 500
+        LinkedHashSet<Long> distinct = new LinkedHashSet<>();
+        if (outletIds != null) {
+            for (Long outletId : outletIds) {
+                if (outletId != null) {
+                    distinct.add(outletId);
+                }
+            }
+        }
+        Long[] distinctOutletIds = distinct.toArray(Long[]::new);
+
+        if (defaultOutletId != null && !contains(distinctOutletIds, defaultOutletId)) {
             throw BusinessException.of(400, "默认档口必须属于已选档口");
         }
 
-        boolean empty = outletIds == null || outletIds.length == 0;
+        boolean empty = distinctOutletIds.length == 0;
         if (empty) {
             if (isSales && !hasOutletAll) {
                 throw BusinessException.of(400, "销售员至少绑定一个档口");
@@ -260,7 +275,7 @@ public class UserServiceImpl implements UserService {
             return;
         }
 
-        for (Long outletId : outletIds) {
+        for (Long outletId : distinctOutletIds) {
             SalesOutlet outlet = salesOutletMapper.selectById(outletId);
             if (outlet == null) {
                 throw BusinessException.of(404, "档口不存在");
@@ -271,7 +286,7 @@ public class UserServiceImpl implements UserService {
         }
 
         sysUserOutletMapper.deleteByUserId(userId);
-        for (Long outletId : outletIds) {
+        for (Long outletId : distinctOutletIds) {
             SysUserOutlet binding = new SysUserOutlet();
             binding.setTenantId(tenantId);
             binding.setUserId(userId);
@@ -280,6 +295,27 @@ public class UserServiceImpl implements UserService {
             binding.setStatus(1);
             binding.setDeleted(0);
             sysUserOutletMapper.insert(binding);
+        }
+    }
+
+    /**
+     * 旧客户端兼容：outletIds=null 表示保留现有绑定；但最终角色要求档口时，
+     * 必须基于保留后的"启用且未删除"绑定校验，否则整体回滚角色变更。
+     */
+    private void validateRetainedOutletBindings(List<Role> roles, Long userId) {
+        Set<String> codes = permissionCodesForRoles(roles);
+        boolean hasOutletAll = codes.contains(PERM_OUTLET_ALL);
+        boolean isSales = roles.stream().anyMatch(r -> SALES_ROLE_CODE.equals(r.getRoleCode()));
+        if (!isSales || hasOutletAll) {
+            return;
+        }
+        List<Long> boundIds = sysUserOutletMapper.selectOutletIdsByUserId(userId);
+        boolean hasEnabledBinding = boundIds != null && boundIds.stream().anyMatch(outletId -> {
+            SalesOutlet outlet = salesOutletMapper.selectById(outletId);
+            return outlet != null && Integer.valueOf(1).equals(outlet.getStatus());
+        });
+        if (!hasEnabledBinding) {
+            throw BusinessException.of(400, "销售员至少绑定一个启用档口");
         }
     }
 
