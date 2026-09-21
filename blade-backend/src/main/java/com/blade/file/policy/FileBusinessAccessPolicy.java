@@ -94,13 +94,17 @@ public class FileBusinessAccessPolicy {
         }
 
         List<FileBusinessBind> binds = activeBindings(file.getId(), tenantId);
-        if (!binds.isEmpty()) {
+        boolean hasMappedBinding = binds.stream()
+                .map(FileBusinessBind::getBusinessType)
+                .filter(Objects::nonNull)
+                .anyMatch(BUSINESS_PERMISSION_MAP::containsKey);
+        if (hasMappedBinding) {
             // 非敏感业务绑定：沿用既有权限映射（product/sku 等）
             requireMappedBindingPermission(binds);
             return;
         }
 
-        // 未绑定/临时文件：仅创建者本人或 viewAll
+        // 未绑定 / 仅 temp 等未知绑定：仅创建者本人或 viewAll
         if (hasViewAll()) {
             return;
         }
@@ -209,9 +213,8 @@ public class FileBusinessAccessPolicy {
 
         String hasSensitive = "EXISTS (SELECT 1 FROM file_business_bind b WHERE b.file_id = file_storage.id"
                 + " AND b.deleted = 0 AND b.business_type IN ('order','order_draft'))";
-        String hasNonSensitive = "EXISTS (SELECT 1 FROM file_business_bind b WHERE b.file_id = file_storage.id"
-                + " AND b.deleted = 0 AND b.business_type NOT IN ('order','order_draft'))";
-        String hasAny = "EXISTS (SELECT 1 FROM file_business_bind b WHERE b.file_id = file_storage.id AND b.deleted = 0)";
+        String hasMappedNonSensitive = "EXISTS (SELECT 1 FROM file_business_bind b WHERE b.file_id = file_storage.id"
+                + " AND b.deleted = 0 AND b.business_type IN ('product','sku','inventory_log','ocr_document','whatsapp_message'))";
         String allSensitiveAccessible = "NOT EXISTS (SELECT 1 FROM file_business_bind b"
                 + " WHERE b.file_id = file_storage.id AND b.deleted = 0"
                 + " AND b.business_type IN ('order','order_draft') AND NOT " + accessibleForB + ")";
@@ -221,8 +224,8 @@ public class FileBusinessAccessPolicy {
 
         return "("
                 + "(" + hasSensitive + " AND " + allSensitiveAccessible + ")"
-                + " OR (NOT " + hasSensitive + " AND " + hasNonSensitive + ")"
-                + " OR (NOT " + hasAny + " AND ("
+                + " OR (NOT " + hasSensitive + " AND " + hasMappedNonSensitive + ")"
+                + " OR (NOT " + hasSensitive + " AND NOT " + hasMappedNonSensitive + " AND ("
                 +     "(file_storage.business_type = 'order' AND " + legacyOrderAccessible + ")"
                 +     " OR (file_storage.business_type = 'order_draft' AND " + legacyDraftAccessible + ")"
                 +     " OR ((file_storage.business_type IS NULL"

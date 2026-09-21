@@ -406,6 +406,39 @@ class FileOutletAccessPolicyTest {
                 () -> fileBindingService.getBindings(fileB)).getCode());
     }
 
+    @Test
+    void tempBoundFile_ownerOtherViewAll() {
+        long outletA = seedOutlet(1L, "E2-TB-A");
+        long salesA = seedUser(1L, "e2tba" + System.nanoTime() % 100000);
+        long salesB = seedUser(1L, "e2tbb" + System.nanoTime() % 100000);
+        long admin = seedUser(1L, "e2tbc" + System.nanoTime() % 100000);
+        bindUser(salesA, outletA);
+        String prefix = "e2tb-" + System.nanoTime();
+        long file = seedFile(1L, salesA, "PRIVATE", null, null, prefix + ".png");
+        bind(file, "temp", 0L);
+
+        auth(salesA, "btn:file:viewOwn");
+        assertDoesNotThrow(() -> policy.requireFileRead(fileById(file)), "temp 绑定仍归创建者");
+
+        auth(salesB, "btn:file:viewOwn");
+        assertEquals(403, assertThrows(BusinessException.class,
+                () -> policy.requireFileRead(fileById(file))).getCode());
+
+        auth(admin, "btn:file:viewAll");
+        assertDoesNotThrow(() -> policy.requireFileRead(fileById(file)));
+
+        FilePageDTO dto = new FilePageDTO();
+        dto.setCurrent(1L);
+        dto.setSize(20L);
+        dto.setKeyword(prefix);
+        auth(salesA, "menu:file");
+        assertTrue(fileService.pageList(dto).getRecords().stream()
+                .anyMatch(r -> file == ((com.blade.file.dto.FileVO) r).getId()), "temp 绑定列表仅创建者可见");
+        auth(salesB, "menu:file");
+        assertFalse(fileService.pageList(dto).getRecords().stream()
+                .anyMatch(r -> file == ((com.blade.file.dto.FileVO) r).getId()));
+    }
+
     // ==================== tenant / fail closed ====================
 
     @Test
