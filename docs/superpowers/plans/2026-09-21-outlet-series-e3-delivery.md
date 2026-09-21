@@ -174,6 +174,8 @@ npx playwright test e2e/e2e-agent-key-outlet-scope.spec.ts \
 | 6 | 文档/curl 暴露内部 ID | API_SPEC/16/19 明确使用 `sourceOutletCode`/`sourceOutletCodes`；capabilities/outlets 仍只返回 code/name/status | `AgentDataAccessContractTest.agentOutletViewsExposeStableCodesWithoutInternalIds`、`agentOrderViewExposesOutletCodeNotInternalId`；文档复核 |
 | 7 | JWT/PC 不受影响 | PC/JWT analytics 仍用 `sourceOutletIds`；Agent 写草稿仍 `sourceOutletCode`；无改动 | 既有 E1/E2 测试保持通过 |
 
+> 集成测试同时确认 Agent orders 传 A code 时只返回 A 档口订单（B 档口订单不在结果集），分析接口混入未绑定 B code 返回 403。
+
 ### 10.3 顺带修正
 
 - `AgentKeyOutletScopeEditor.vue`：ALL 文案由“失败时回退到默认档口”改为“未传 sourceOutletCode 时使用默认档口”。

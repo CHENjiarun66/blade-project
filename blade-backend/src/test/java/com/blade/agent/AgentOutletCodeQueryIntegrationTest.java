@@ -55,8 +55,10 @@ class AgentOutletCodeQueryIntegrationTest {
     private String enabledCode;
     private Long disabledOutletId;
     private String disabledCode;
+    private Long otherOutletId;
     private String otherCode;
     private String crossTenantCode;
+    private String enabledOrderNo;
 
     private String assignedARawKey;
     private String assignedBRawKey;
@@ -71,14 +73,16 @@ class AgentOutletCodeQueryIntegrationTest {
         disabledCode = "E3C-D-" + suffix.substring(Math.max(0, suffix.length() - 8));
         disabledOutletId = insertOutlet(1L, disabledCode, "E3禁用", 0);
         otherCode = "E3C-B-" + suffix.substring(Math.max(0, suffix.length() - 8));
-        Long otherOutletId = insertOutlet(1L, otherCode, "E3未绑定", 1);
+        otherOutletId = insertOutlet(1L, otherCode, "E3未绑定", 1);
         // 跨租户档口：显式切到 tenant 2 插入，随后恢复 tenant 1
         crossTenantCode = "E3C-X-" + suffix.substring(Math.max(0, suffix.length() - 8));
         TenantContext.setTenantId(2L);
         insertOutlet(2L, crossTenantCode, "E3跨租户", 1);
         TenantContext.setTenantId(1L);
 
-        insertOrder(enabledOutletId, "E3C-ORD-" + suffix);
+        enabledOrderNo = "E3C-ORD-" + suffix;
+        insertOrder(enabledOutletId, enabledOrderNo);
+        insertOrder(otherOutletId, "E3C-OTH-" + suffix);
         assignedARawKey = issueKey("agk_e3c_a_" + suffix,
                 "orders:read,orders:write,analytics:read,outlets:read", "ASSIGNED",
                 List.of(enabledOutletId, disabledOutletId), enabledOutletId);
@@ -102,6 +106,9 @@ class AgentOutletCodeQueryIntegrationTest {
                         .header("X-Agent-Key", assignedARawKey))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
+                // 只统计/返回 A 档口订单，B 档口订单不出现
+                .andExpect(jsonPath("$.data.records.length()").value(1))
+                .andExpect(jsonPath("$.data.records[0].orderNo").value(enabledOrderNo))
                 .andExpect(jsonPath("$.data.records[0].sourceOutletCode").value(enabledCode));
     }
 
