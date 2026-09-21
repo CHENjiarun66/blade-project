@@ -88,6 +88,7 @@ export interface OrderDraftSummary {
   sourceOrderNo?: string
   sourceOutletId?: number | null
   sourceOutletCode?: string | null
+  sourceShop?: string | null
   sourceFileId?: number
   sourceFileCount?: number
   customerName: string

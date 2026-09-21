@@ -425,7 +425,13 @@ class OrderOutletWriteRulesTest {
 
         PageResult<OrderDraftDTO.Summary> byOutlet = draftService.page(
                 1, 50, "EDITING", null, null, null, false, null, null, outletA, null);
-        assertTrue(byOutlet.getRecords().stream().anyMatch(s -> draftA == s.getId()));
+        OrderDraftDTO.Summary summaryA = byOutlet.getRecords().stream()
+                .filter(s -> draftA == s.getId())
+                .findFirst()
+                .orElseThrow();
+        assertEquals(outletA, summaryA.getSourceOutletId());
+        assertEquals("D-DRF-A", summaryA.getSourceOutletCode());
+        assertEquals("档口D-DRF-A", summaryA.getSourceShop(), "Summary 必须返回服务端名称快照");
         assertTrue(byOutlet.getRecords().stream().allMatch(s -> outletA == s.getSourceOutletId()));
 
         // 无 unassigned：待归档筛选 403
@@ -455,6 +461,8 @@ class OrderOutletWriteRulesTest {
         draft.setStatus("EDITING");
         draft.setCustomerName("草稿筛选客户");
         draft.setSourceOutletId(outletId);
+        draft.setSourceShop(outletId == null ? null
+                : jdbc.queryForObject("SELECT outlet_name FROM sales_outlet WHERE id=?", String.class, outletId));
         draft.setCreatedByUserId(createdByUserId);
         draft.setWarningAcknowledged(0);
         draft.setDeleted(0);
@@ -475,4 +483,3 @@ class OrderOutletWriteRulesTest {
                 "改档口高权限只能授予 OWNER/ADMIN");
     }
 }
-

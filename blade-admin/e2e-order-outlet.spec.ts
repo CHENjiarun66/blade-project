@@ -95,6 +95,49 @@ test.describe('Series D 档口选择器与筛选', () => {
     expect(createPayload?.sourceOutletId).toBe(2)
   })
 
+  test('BA-OUTLET-003 档口 options 不持久缓存：跨页面重挂载重新拉取真实结果', async ({ page }) => {
+    await initAdmin(page)
+    let optionsCalls = 0
+    const firstItems = [
+      { id: 1, outletCode: 'YL', outletName: '御龙', status: 1 },
+      { id: 2, outletCode: 'HZ', outletName: '杭州档', status: 1 },
+    ]
+    const secondItems = [
+      { id: 2, outletCode: 'HZ', outletName: '杭州档', status: 1 },
+      { id: 3, outletCode: 'SZ', outletName: '苏州档', status: 1 },
+    ]
+
+    await page.route('**/api/**', async (route) => {
+      const url = new URL(route.request().url())
+      if (!url.pathname.startsWith('/api/')) return route.continue()
+      if (url.pathname === '/api/auth/codes') return route.fulfill({ json: ADMIN_PERMISSIONS })
+      if (url.pathname === '/api/user/info') return route.fulfill({ json: ADMIN_INFO })
+      if (url.pathname === '/api/outlets/options') {
+        optionsCalls += 1
+        const items = optionsCalls === 1 ? firstItems : secondItems
+        return route.fulfill({ json: ok({ scopeType: 'ALL', peopleScope: 'ALL_USERS', locked: false, defaultOutletId: items[0].id, items }) })
+      }
+      if (url.pathname === '/api/products') return route.fulfill({ json: ok({ records: [], total: 0, size: 1000, current: 1, pages: 0 }) })
+      if (url.pathname === '/api/customers') return route.fulfill({ json: ok({ records: [], total: 0, size: 10, current: 1, pages: 0 }) })
+      if (url.pathname === '/api/order-drafts/batches') return route.fulfill({ json: ok([]) })
+      if (url.pathname === '/api/order-drafts') return route.fulfill({ json: ok({ records: [], total: 0, size: 20, current: 1, pages: 0 }) })
+      if (url.pathname === '/api/orders') return route.fulfill({ json: ok({ records: [], total: 0, size: 20, current: 1, pages: 0 }) })
+      if (url.pathname === '/api/warehouses' || url.pathname === '/api/inventory/by-warehouse') return route.fulfill({ json: ok([]) })
+      return route.fulfill({ status: 404, json: { code: 404, message: `Unmocked ${url.pathname}` } })
+    })
+
+    await page.goto('/orders/quick')
+    await expect(page.locator('[data-testid="quick-outlet"]')).toContainText('御龙')
+
+    // SPA 内切换页面（不整页刷新），后一次挂载必须重新取服务器 options，不能复用旧结果
+    await page.getByRole('button', { name: '返回订单' }).click()
+    await expect(page).toHaveURL(/\/orders$/)
+    await page.getByRole('button', { name: '新建订单' }).click()
+    await expect(page).toHaveURL(/\/orders\/new$/)
+    await expect(page.locator('[data-testid="new-order-outlet"]')).toContainText('杭州档')
+    expect(optionsCalls).toBeGreaterThanOrEqual(2)
+  })
+
   test('BA-OUTLET-004 草稿列表档口筛选与待归档标签', async ({ page }) => {
     await initAdmin(page)
     const draftRecords = [
@@ -119,6 +162,8 @@ test.describe('Series D 档口选择器与筛选', () => {
 
     await page.goto('/orders/drafts')
     await expect(page.locator('[data-testid="draft-pending-outlet-tag"]')).toBeVisible()
+    // 真实 Summary 契约必须返回 sourceShop 名称快照，正常行显示“御龙”而不是仅编码
+    await expect(page.locator('tr', { hasText: '正常档客户' })).toContainText('御龙')
 
     await page.locator('[data-testid="draft-outlet-filter"]').click()
     await page.getByRole('option', { name: '待归档档口' }).click()

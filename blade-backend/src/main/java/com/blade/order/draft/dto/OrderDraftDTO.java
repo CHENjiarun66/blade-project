@@ -173,6 +173,7 @@ public final class OrderDraftDTO {
         private String sourceOrderNo;
         private Long sourceOutletId;
         private String sourceOutletCode;
+        private String sourceShop;
         private Long sourceFileId;
         private Integer sourceFileCount;
         private String customerName;

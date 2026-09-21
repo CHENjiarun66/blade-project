@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { clearCatalogCaches } from '@/utils/catalogCache'
+import { resetOutletOptionsCache } from '@/utils/outletOptionsCache'
 
 interface UserInfo {
   userId: string
@@ -82,6 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('userInfo')
     localStorage.removeItem('permissions')
     void clearCatalogCaches()
+    resetOutletOptionsCache()
   }
 
   return {

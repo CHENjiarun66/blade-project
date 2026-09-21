@@ -291,6 +291,7 @@ public class OrderDraftService {
         summary.setSourceOrderNo(draft.getSourceOrderNo());
         summary.setSourceOutletId(draft.getSourceOutletId());
         summary.setSourceOutletCode(outletCodes.get(draft.getSourceOutletId()));
+        summary.setSourceShop(draft.getSourceShop());
         List<Long> sourceFileIds = sourceFileIds(draft);
         summary.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));
         summary.setSourceFileCount(sourceFileIds.size());

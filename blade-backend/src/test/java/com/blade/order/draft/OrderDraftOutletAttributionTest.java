@@ -433,6 +433,7 @@ class OrderDraftOutletAttributionTest {
         OrderDraftDTO.View view = draftService.get(draftId);
         assertEquals(outlet.getId(), view.getSourceOutletId());
         assertEquals(outlet.getOutletCode(), view.getSourceOutletCode());
+        assertEquals("列表档口", view.getSourceShop());
 
         com.blade.common.result.PageResult<OrderDraftDTO.Summary> page =
                 draftService.page(1, 20, "EDITING", null, null, null, false, null, null, null, null);
@@ -442,6 +443,7 @@ class OrderDraftOutletAttributionTest {
                 .orElseThrow();
         assertEquals(outlet.getId(), summary.getSourceOutletId());
         assertEquals(outlet.getOutletCode(), summary.getSourceOutletCode());
+        assertEquals("列表档口", summary.getSourceShop(), "Summary 必须返回服务端权威名称快照");
     }
 
     // ==================== 历史空档口 Agent 草稿 ====================

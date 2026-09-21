@@ -3,6 +3,7 @@ import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { clearCatalogCaches } from '@/utils/catalogCache'
+import { resetOutletOptionsCache } from '@/utils/outletOptionsCache'
 
 interface RetryRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean
@@ -69,6 +70,7 @@ function clearAuthState() {
   localStorage.removeItem('userInfo')
   localStorage.removeItem('permissions')
   void clearCatalogCaches()
+  resetOutletOptionsCache()
 }
 
 function redirectToLogin() {
