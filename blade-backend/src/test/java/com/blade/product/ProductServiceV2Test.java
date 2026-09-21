@@ -1,7 +1,10 @@
 package com.blade.product;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.config.GlobalConfig;
+import com.baomidou.mybatisplus.core.toolkit.GlobalConfigUtils;
 import com.blade.common.tenant.TenantContext;
 import com.blade.file.entity.FileBusinessBind;
 import com.blade.file.entity.FileStorage;
@@ -53,9 +56,13 @@ class ProductServiceV2Test {
 
     @BeforeAll
     static void initMybatisPlus() {
-        org.apache.ibatis.session.Configuration config = new org.apache.ibatis.session.Configuration();
+        // 必须用 MybatisConfiguration + GlobalConfig：普通 Configuration 会把 mapUnderscoreToCamelCase
+        // 视为 false，将 tenant_id 错误映射为 tenantId 并污染全局 TableInfo 缓存，导致后续真实 DB 用例坏 SQL。
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        GlobalConfig globalConfig = GlobalConfigUtils.defaults();
+        GlobalConfigUtils.setGlobalConfig(configuration, globalConfig);
         org.apache.ibatis.builder.MapperBuilderAssistant assistant =
-                new org.apache.ibatis.builder.MapperBuilderAssistant(config, "");
+                new org.apache.ibatis.builder.MapperBuilderAssistant(configuration, "");
         assistant.setCurrentNamespace("test");
         com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(assistant, Product.class);
         com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(assistant, ProductSku.class);
