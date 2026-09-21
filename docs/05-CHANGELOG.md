@@ -8,6 +8,16 @@
 
 ## 2026-09-21 变更记录
 
+### [功能开发] - 档口 Series E3：Agent Key 档口范围、capabilities/outlets 与全出口反泄露
+
+- BE-OUTLET-010 后端：`AgentKeyManagementDTO` create/rotate/view/credential 新增 `outletScopeType`/`outletIds`/`defaultOutletId` 与档口摘要 `outlets`；create 默认 `null` 安全解释为 NONE；create/rotate 单事务写 Key + `agent_key_outlet`，rotate 字段为 null 分别继承旧 Key、显式传入按新配置、先建新 Key 再停旧 Key，失败整体回滚旧 Key 仍 ACTIVE；严格校验同租户未删除、ASSIGNED 至少一个且默认在集合内且启用、ALL 不保存冗余绑定、NONE 禁止绑定/默认、去重稳定排序。
+- 新增 `GET /api/system/agent-keys/outlets`（`agent-key:manage`）返回本租户全部档口含禁用，不受管理账号自身 ASSIGNED 范围限制；新增可授权 scope `outlets:read`（authority `agent:outlets:read`）。
+- Agent API：`GET /api/agent/capabilities` 返回 `outletScopeType`/`defaultOutletCode`/`readableOutlets`/`usableOutlets`（仅 code/name/status，无内部 id）；新增 `GET /api/agent/outlets`（`@PreAuthorize agent:outlets:read`）只返回可用启用档口，NONE 为空，缺 scope 403、Key 无效 401；每请求实时重读 Key 与绑定，无缓存，停用/禁用/轮换下一请求即生效。
+- B3 复核：Agent 订单/草稿/分析统一走 `OutletAccessPolicy`/`OrderReadScope`；显式 `sourceOutletCode` 越权/禁用/跨租户 403，显式内部 `sourceOutletId` 400；未归档 NULL 对 Agent 恒拒绝。
+- BA-OUTLET-006 前端：Key Manager 新建/调整弹窗新增档口范围编辑器（全部/指定/不开放）、禁用档口仅历史绑定可见、默认档口限已选启用；列表展示档口范围与默认档口；rotate 预载旧范围；订单/分析权限 + NONE 非阻塞警告；凭证弹窗“先 capabilities 再 outlets”说明与 curl 片段。
+- 测试：新增/扩展 26 例（`AgentKeyManagementServiceTest` 15、`AgentOutletScopeIntegrationTest` 8、`AgentDataAccessIntegrationTest` 1、`AgentDataAccessContractTest` 1、`OutletScopeMatrixTest` 1）；全量后端 **734/734**；`npm run build` 通过；Playwright 16 passed（新增 2 + 回归 14）；`git diff --check` 无输出。
+- 未做（保持 TODO）：Series F 历史档口回填与发布、Series G 旧权限下线与收口；未 push/部署/NAS/生产。
+
 ### [整改] - 档口 Series E2 第二轮 Codex 终审：文件包租户/用户回退收口
 
 - 新增 `FileRequestContext`（`requireTenantId`/`requireOperatorId`）：缺 `TenantContext` 或无法解析可靠 `User` principal 一律 403，绝不回退 tenant=1 / user=1；文档明确 `/api/files`、`/api/file-folders` 为 JWT 用户路径，不接受 Agent。

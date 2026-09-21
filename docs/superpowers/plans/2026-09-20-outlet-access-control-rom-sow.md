@@ -1,6 +1,6 @@
 # ROM/SOW：档口主数据、用户多档口与数据权限边界
 
-> 状态：Series A–D 已完成；Series E1（统计/仪表盘/导出 + 统计筛选）与 E2（文件中心/图片档口闭环）完成（DeepSeek，2026-09-21）；E3、F、G 待开发
+> 状态：Series A–D 已完成；Series E1（统计/仪表盘/导出 + 统计筛选）、E2（文件中心/图片档口闭环）与 E3（Agent Key 档口范围/capabilities/outlets + 全出口反泄露）完成（DeepSeek，2026-09-21）；F、G 待开发
 >
 > 基线：`master` / `8918b7c` 及其后续修复提交
 >
@@ -96,10 +96,10 @@
 |---|---|---|---|
 | BE-OUTLET-008 | 看板与分析范围接入 | ✅ 完成（DeepSeek，2026-09-21） | 汇总、趋势、排行、商品详情、待处理/周月同期统一档口 × 人员范围；未归档默认排除；无缓存并加范围指纹 |
 | BE-OUTLET-009 | 导出与文件权限接入 | ✅ 完成（DeepSeek，2026-09-21） | 订单导出统一读范围；文件中心/订单/草稿图片全出口 `FileBusinessAccessPolicy`、PUBLIC/previewToken 业务校验、多绑定 ALL、SQL 预分页 |
-| BE-OUTLET-010 | Agent Key 档口范围 | ⏳ TODO | Key 签发/轮换、capabilities、档口查询和草稿/订单接口校验（E3） |
+| BE-OUTLET-010 | Agent Key 档口范围 | ✅ 完成（DeepSeek，2026-09-21） | Key 签发/轮换支持 ALL/ASSIGNED/NONE + 默认档口；单事务写 `agent_key_outlet`；capabilities/outlets 实时反映绑定与禁用；`outlets:read` scope |
 | BA-OUTLET-005 | 统计档口筛选 | ✅ 完成（DeepSeek，2026-09-21） | 分析页/仪表盘档口多选与对比；选项仅授权集合；待归档独立开关 |
-| BA-OUTLET-006 | Agent Key 档口配置 | ⏳ TODO | 全部/指定档口、默认档口和服务器能力同步展示（E3） |
-| TEST-OUTLET-003 | 全出口防泄漏回归 | 🚧 文件出口完成（DeepSeek，2026-09-21） | 文件全出口 + previewToken 已覆盖；Agent/缓存跨角色回归留 E3 |
+| BA-OUTLET-006 | Agent Key 档口配置 | ✅ 完成（DeepSeek，2026-09-21） | Key Manager 全部/指定/不开放档口编辑器、默认档口、禁用档口仅历史绑定、rotate 回显与 capabilities→outlets 接入说明 |
+| TEST-OUTLET-003 | 全出口防泄漏回归 | ✅ 完成（DeepSeek，2026-09-21） | 文件全出口 + previewToken（E2）与 Agent orders/draft/capabilities/outlets（E3）反例；734/734 + Playwright 16 passed |
 
 验收门禁：销售员不能通过统计总数、导出、图片地址或 Agent 接口推断其他档口数据。
 

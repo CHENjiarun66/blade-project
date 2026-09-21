@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-09-21 档口 Series E3：Agent Key 档口范围与全出口反泄露完成
+
+- BE-OUTLET-010：Key create/rotate/view/credential 支持 `outletScopeType`(ALL/ASSIGNED/NONE)/`outletIds`/`defaultOutletId`；create 默认 NONE；rotate 字段 null 分别继承、显式传入按新配置，单事务先建新 Key 再停旧 Key；严格校验同租户未删除、ASSIGNED 默认在集合内且启用、ALL 无冗余绑定、NONE 禁止绑定/默认。
+- 新增 `GET /api/system/agent-keys/outlets`（含禁用档口，不受管理账号自身范围限制）与 scope `outlets:read`（`agent:outlets:read`）。
+- Agent API：`GET /api/agent/capabilities` 返回档口范围/默认编码/只读与可用档口摘要；新增 `GET /api/agent/outlets`（缺 scope 403、Key 无效 401、NONE 为空）；每请求实时重读 Key 与绑定，无缓存，停用/禁用/轮换下一请求即生效。
+- BA-OUTLET-006：Key Manager 档口范围编辑器（全部/指定/不开放）、列表展示、rotate 回显完整配置、订单/分析权限 + NONE 非阻塞警告、凭证弹窗 capabilities→outlets 接入说明（只用 outletCode）。
+- commit `be2ed13`（后端）、`1e1fef9`（Agent NULL 反例）、`65f38e1`（前端）；全量后端 **734/734**，`npm run build` 通过，Playwright 16 passed（新增 2 + 回归 14），`git diff --check` 无输出。交付报告见 [2026-09-21-outlet-series-e3-delivery.md](./superpowers/plans/2026-09-21-outlet-series-e3-delivery.md)。
+- 未做（保持 TODO）：Series F 历史档口回填与发布、Series G 旧权限下线与收口。
+
 ## 2026-09-21 档口 Series E2：文件中心/图片档口闭环完成
 
 - 新增 `FileBusinessAccessPolicy`：order/draft 复用统一订单/草稿策略；多敏感绑定 ALL；legacy 兜底；未绑定仅创建者或 viewAll；缺 tenant/actor fail closed。

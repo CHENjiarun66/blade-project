@@ -1115,13 +1115,14 @@ X-Agent-Key: {agent_key}
 
 | Method | Path | 鉴权 | 说明 |
 |--------|------|------|------|
-| GET | `/api/system/agent-keys` | JWT / `agent-key:manage` | 查询当前租户 Key；只返回前缀和生命周期信息，不返回哈希或完整密钥 |
-| GET | `/api/system/agent-keys/scopes` | JWT / `agent-key:manage` | 返回当前允许签发的 scope 白名单 |
-| POST | `/api/system/agent-keys` | JWT / `agent-key:manage` | 签发 Key；完整明文仅在本次响应返回一次 |
-| POST | `/api/system/agent-keys/{id}/rotate` | JWT / `agent-key:manage` | 原子签发替代 Key 并立即停用旧 Key |
+| GET | `/api/system/agent-keys` | JWT / `agent-key:manage` | 查询当前租户 Key；只返回前缀、生命周期与档口范围摘要（`outletScopeType`/`defaultOutletId`/`outlets`），不返回哈希或完整密钥 |
+| GET | `/api/system/agent-keys/scopes` | JWT / `agent-key:manage` | 返回当前允许签发的 scope 白名单（含 `outlets:read`） |
+| GET | `/api/system/agent-keys/outlets` | JWT / `agent-key:manage` | 返回本租户全部未删除档口（含禁用）供配置；不受当前管理账号自身档口范围限制 |
+| POST | `/api/system/agent-keys` | JWT / `agent-key:manage` | 签发 Key（可带 `outletScopeType`/`outletIds`/`defaultOutletId`）；完整明文仅在本次响应返回一次；省略档口范围安全解释为 NONE |
+| POST | `/api/system/agent-keys/{id}/rotate` | JWT / `agent-key:manage` | 单事务签发替代 Key 并停用旧 Key；档口字段为 null 时分别继承旧 Key，显式传入按新配置 |
 | POST | `/api/system/agent-keys/{id}/disable` | JWT / `agent-key:manage` | 不可逆停用 Key；需要恢复接入时签发新 Key |
 
-V58 默认仅向 `ROLE_OWNER` 授予 `agent-key:manage`。接口不接受 `tenantId`，目标租户由登录用户上下文确定；可签发 scope 受服务端白名单限制。数据库仅保存 BCrypt 哈希、前缀、签发用户、有效期、停用时间和轮换来源。
+V58 默认仅向 `ROLE_OWNER` 授予 `agent-key:manage`。接口不接受 `tenantId`，目标租户由登录用户上下文确定；可签发 scope 受服务端白名单限制。数据库仅保存 BCrypt 哈希、前缀、签发用户、有效期、停用时间和轮换来源。档口范围：`ALL` 不保存逐档口冗余绑定（仅可选存一条默认档口标记）；`ASSIGNED` 至少一个同租户未删除档口且默认须在集合内并启用；`NONE` 禁止 `outletIds`/`defaultOutletId`。
 
 Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通过 [本机 Agent Key 管理器与授权代理](../16-AGENT_LOCAL_KEY_MANAGER.md) 保存到 macOS 钥匙串，并让 Agent 使用白名单 MCP 工具；纸单批量字段和操作顺序见 [Agent 订单草稿操作手册](../17-AGENT_ORDER_DRAFT_RUNBOOK.md)。
 
@@ -1129,7 +1130,8 @@ Mac 用户不应把完整 Key 直接配置进模型或网页聊天。推荐通�
 
 | Method | Path | 鉴权 / scope | 说明 |
 |--------|------|--------------|------|
-| GET | `/api/agent/capabilities` | 有效 `X-Agent-Key`，无需额外业务 scope | 返回当前 Key 的公开前缀、名称、真实 scope、到期时间和服务器时间；不返回租户 ID、Key ID、哈希或密钥原文 |
+| GET | `/api/agent/capabilities` | 有效 `X-Agent-Key`，无需额外业务 scope | 返回当前 Key 的公开前缀、名称、真实 scope、到期时间、服务器时间、`outletScopeType`、`defaultOutletCode` 以及 `readableOutlets`/`usableOutlets`（仅 code/name/status）；每请求实时重读 Key 与绑定，不返回租户 ID、Key ID、哈希或密钥原文 |
+| GET | `/api/agent/outlets` | `X-Agent-Key` / `agent:outlets:read` | 返回当前 Key 可用于新建的启用档口（code/name/default），NONE 返回空；缺少该 scope 返回 403，Key 无效返回 401 |
 | GET | `/api/agent/catalog/skus?keyword=...&limit=...` | `X-Agent-Key` / `agent:catalog:read` | 返回 SKU 候选与系统参考价，不返回成本价 |
 | POST | `/api/agent/order-drafts/source-files` | `X-Agent-Key` / `agent:orders:write` | 上传纸单原图并返回 `fileId`；原图不是纯 Excel 草稿的前置条件 |
 | POST | `/api/agent/order-drafts/batch` | `X-Agent-Key` / `agent:orders:write` | 批量创建草稿；按租户 + externalRefNo 幂等，每单返回 CREATED、CREATED_WITH_WARNINGS、DUPLICATE 或 ERROR |

@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 13:42:42　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 13:59:42　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -81,10 +81,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">104 完成 · 0 进行中 · 5 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">107 完成 · 0 进行中 · 3 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:95%"></div></div>
-        <div class="bar-label">95% 完成（活跃 110 项，暂缓 2 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:97%"></div></div>
+        <div class="bar-label">97% 完成（活跃 110 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -110,7 +110,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">36</span></h2>
+      <h2>🟡 还没做 <span class="count">34</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -265,20 +265,6 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-010</td>
-        <td class="td-name">Agent Key 档口范围</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">Key 签发/轮换、capabilities、档口查询和草稿/订单写入校验；越权档口返回 403 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-OUTLET-006</td>
-        <td class="td-name">Agent Key 档口配置</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">全部/指定档口、默认档口和服务器 capability 同步展示 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">TEST-OUTLET-001</td>
@@ -447,7 +433,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 316 项） <span class="count">316</span></h2>
+      <h2>✅ 已完成（共 319 项） <span class="count">319</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-001</td>
@@ -2242,6 +2228,13 @@
         <td class="td-remark">订单导出 + 文件中心/订单/草稿图片全出口：`FileBusinessAccessPolicy`、PUBLIC/previewToken 业务校验、多绑定 ALL、SQL 预分页、no-store；第二轮 Codex 整改新增 `FileRequestContext` 去掉 tenant=1/user=1 回退、afterCommit 用文件租户、清理任务多租户遍历（708/708）；Agent 出口留 E3 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-OUTLET-010</td>
+        <td class="td-name">Agent Key 档口范围</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">Key 签发/轮换支持 ALL/ASSIGNED/NONE + 默认档口；create/rotate 单事务写 agent_key_outlet，字段 null 分别继承；新增可配置档口 options 与 `outlets:read` scope；capabilities/outlets 实时反映绑定与禁用（734/734） |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BA-OUTLET-001</td>
         <td class="td-name">档口管理页面</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -2277,11 +2270,25 @@
         <td class="td-remark">分析页/仪表盘档口多选（选项仅授权集合）；空=当前完整可见范围；仪表盘待归档开关（需 unassigned）与计数；多选参数逐项后端校验 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BA-OUTLET-006</td>
+        <td class="td-name">Agent Key 档口配置</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">Key Manager 全部/指定/不开放档口编辑器、默认档口、禁用档口仅历史绑定、列表展示与 rotate 回显；凭证弹窗 capabilities→outlets 接入说明；Playwright 2 passed |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">TEST-OUTLET-002</td>
         <td class="td-name">订单与草稿 E2E</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
         <td class="td-remark">后端 17 例 + Playwright 5 例：快速录单、手工/Agent 草稿、草稿确认、正式订单、列表筛选、待归档和伪造档口 403 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">TEST-OUTLET-003</td>
+        <td class="td-name">全出口防泄漏回归</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">文件出口（E2）+ Agent 出口（E3）：Agent A 档口无法通过 orders list/detail、草稿 code/内部 ID、capabilities、outlets 推断 B 数据；NONE 为空、缺 `outlets:read` 403、Key 无效 401；Agent 不访问未归档 NULL；三种主体沿用 E1/E2 矩阵（734/734 + Playwright 16 passed） |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-803</td>

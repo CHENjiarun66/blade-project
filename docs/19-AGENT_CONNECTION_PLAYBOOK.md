@@ -79,6 +79,8 @@ Agent 不能自行签发或读取 Key。用户按以下步骤准备凭证：
 | `blade_style_trends` | `analytics:read` | 查询款式趋势事实 |
 | `blade_sku_mix` | `analytics:read` | 查询颜色尺码结构事实 |
 
+> Series E3：Key 可配置档口范围（`ALL` 全部档口 / `ASSIGNED` 指定档口 / `NONE` 不开放档口数据）。需要查询可用档口的 Key 授予 `outlets:read` 后调用 `GET /api/agent/outlets`（仅返回启用且授权的 code/name/default，NONE 为空；缺少该 scope 返回 403）；`GET /api/agent/capabilities` 无需额外业务 scope，返回 `outletScopeType`/`defaultOutletCode` 与只读/可用档口摘要。Agent 新建草稿或查询订单必须落在 Key 档口范围内，并一律使用 `outletCode`，不使用内部档口 ID。
+
 页面中显示的 scope 不带 `agent:` 前缀。本机管理器使用 `products:read`，后端权限表达式使用 `agent:products:read`，两者代表同一权限。
 
 ## 五、完成第一次连接验证

@@ -165,6 +165,8 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
 
 档口必须在每张草稿创建时确定。若 Key 有多个可用档口且未配置默认档口，未传 `sourceOutletCode` 会返回 `ERROR`（提示传稳定编码）；此时应先向运营方确认该单据对应的 `sourceOutletCode`，不要用相同请求反复重试。草稿详情/列表会返回 `sourceOutletId`、`sourceOutletCode` 和 `sourceShop` 供人工核对。
 
+Series E3 起 Key 的档口范围由 Key Manager 显式配置：`ALL`（全部启用档口）/`ASSIGNED`（指定档口）/`NONE`（不开放）。`NONE` 的 Key 新建草稿必然 `ERROR`；`ASSIGNED` 只接受绑定集合内且启用的 `sourceOutletCode`。运营方可通过 `GET /api/agent/capabilities` 确认当前 Key 的 `outletScopeType`/`usableOutlets`；授予 `outlets:read` 后可调用 `GET /api/agent/outlets` 列出可用编码。Agent 始终使用 `outletCode`，不得缓存或猜测内部 `outletId`。
+
 当前幂等实现对相同 `externalRefNo` 返回 `DUPLICATE`，不会覆盖已有草稿。若源数据发生变化，应由用户在草稿工作台修改，或明确删除/作废原草稿后使用新的受控流程，Agent 不得自行更换编号绕过幂等。
 
 ## 七、交付给用户的结果摘要
