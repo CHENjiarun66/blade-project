@@ -109,12 +109,13 @@
 ### 档口权限 Series C 统一访问策略（2026-09-21，DeepSeek）
 
 > 仅后端统一数据访问策略（BE-OUTLET-004/005/006）+ V65 迁移，不进入 Series D UI。交付报告见 [2026-09-21-outlet-series-c-delivery.md](./superpowers/plans/2026-09-21-outlet-series-c-delivery.md)。
+> 第二轮 Codex 终审整改（commit `c8551b0`）：补齐草稿“新建/更新”档口归属（Agent 只认 `sourceOutletCode`、手工显式 ID/默认/unassigned 规则）、`View`/`Summary` 暴露 `sourceOutletId`/`sourceOutletCode`；新增 `OrderDraftOutletAttributionTest` 16 例，全量后端 633/633。
 
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
 | BE-OUTLET-004 | 统一 `OutletAccessPolicy` | ✅ 完成 | 用户/Agent 范围快照、读写分离、默认优先级、结构化 options 契约 |
 | BE-OUTLET-005 | `OrderAccessPolicy` 二维重构 | ✅ 完成 | 档口×人员 SQL 谓词、`btn:order:viewAll` 兼容不绕过、Agent scope |
-| BE-OUTLET-006 | 草稿档口权限接入 | ✅ 完成 | page/batches/detail/update/confirm 统一范围；TOCTOU 复核；空档口确认阻断 |
+| BE-OUTLET-006 | 草稿档口权限接入 | ✅ 完成 | page/batches/detail/update/confirm 统一范围；TOCTOU 复核；空档口确认阻断；create/update 服务端权威归属（第二轮整改） |
 
 ---
 

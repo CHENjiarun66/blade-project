@@ -15,6 +15,7 @@
 5. 一张纸单对应一个稳定 `externalRefNo`。重试必须复用同一个值，不能通过改编号制造重复草稿。
 6. 纸单图片存在时，必须先通过本机授权工具逐张上传，并把返回的 `fileId` 按页序写入该草稿的 `sourceFileIds`。纯 Excel 来源或原图确实缺失时仍允许创建草稿，但必须写入 `SOURCE_IMAGE_MISSING` warning，不能用备注中的文件名冒充已上传原图。
 7. 默认不提交 `costPrice` 和 `freightCost`，由系统在人工确认正式订单时按商品/SKU 主档成本取值。只有来源数据确有明确成本、且 Key 同时拥有 `orders:cost:write` 时才能写入；不得把销售价、纸单金额或猜测值当作成本。
+8. 每张草稿必须归属到 Key 可用的档口：优先使用运营方提供的稳定 `sourceOutletCode`；Key 已配置默认档口且来源不区分档口时可省略。禁止传内部 `sourceOutletId`，服务端会拒绝并要求改用 `sourceOutletCode`。
 
 ## 二、执行顺序
 
@@ -66,6 +67,7 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
       "externalRefNo": "paper-batch-33-0000471",
       "sourceBatchNo": "33",
       "sourceOrderNo": "0000471",
+      "sourceOutletCode": "YL",
       "sourceFileIds": [9001, 9002],
       "rawCustomerName": "纸单原客户名",
       "rawCustomerPhone": "纸单原电话",
@@ -112,6 +114,7 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
 | `externalRefNo` | 必填；建议 `paper-batch-{批次}-{纸单号}`，同一来源永不变化 |
 | `sourceBatchNo` | 必填；原册/批次号，最多 20 位。不要与纸单号拼成一个字段 |
 | `sourceOrderNo` | 必填；纸单号，最多 29 位；不要用 Excel 行号替代已有纸单号 |
+| `sourceOutletCode` | 可选；档口稳定编码。传入则草稿归属该档口，越权/禁用/不存在返回 `ERROR`；省略时使用 Key 的默认档口，无默认档口返回 `ERROR`。禁止传内部 `sourceOutletId`（返回 `ERROR`） |
 | `sourceFileIds` | 纸单原图上传返回的 fileId 数组，按页序排列；最多 10 张。兼容字段 `sourceFileId` 只表示第一张主图，新接入统一使用数组 |
 | `raw*` | 保存识别到的原始文本，即使无法解析也不丢失 |
 | `orderDate` | 只有日期可靠时填写；原文本始终放 `rawOrderDate` |
@@ -159,6 +162,8 @@ Agent 不应把“创建草稿成功”表述成“订单已完成录入”。�
 | `ERROR` | 该单失败 | 记录错误，修正后只重试失败单 |
 
 网络超时或 5xx 时允许有限次数退避重试。认证失败、scope 不足、参数错误不自动重试；401 应提示用户检查 Key 是否过期、停用或录入错误。
+
+档口必须在每张草稿创建时确定。若 Key 有多个可用档口且未配置默认档口，未传 `sourceOutletCode` 会返回 `ERROR`（提示传稳定编码）；此时应先向运营方确认该单据对应的 `sourceOutletCode`，不要用相同请求反复重试。草稿详情/列表会返回 `sourceOutletId`、`sourceOutletCode` 和 `sourceShop` 供人工核对。
 
 当前幂等实现对相同 `externalRefNo` 返回 `DUPLICATE`，不会覆盖已有草稿。若源数据发生变化，应由用户在草稿工作台修改，或明确删除/作废原草稿后使用新的受控流程，Agent 不得自行更换编号绕过幂等。
 

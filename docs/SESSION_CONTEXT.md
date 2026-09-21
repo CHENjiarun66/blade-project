@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-09-21 档口 Series C 第二轮 Codex 终审整改完成
+
+- 补漏 P0：草稿“新建”统一接入档口范围（`OrderDraftWriter.create/update`）。Agent 只认 `sourceOutletCode`，传 `sourceOutletId` 返回 400；未传 code 时用默认档口，无默认 403，绝不写空。手工显式 ID → 默认 → 无默认时仅 `data:outlet:unassigned` 可写空，否则 400。
+- `View`/`Summary` 返回 `sourceOutletId`/`sourceOutletCode`（编码由主数据派生）；同主体同 `externalRefNo` 重试幂等返回 `DUPLICATE` 同一 `draftId`；历史 Agent 空档口草稿重试不升级、错误信息不泄漏内部 ID。
+- 整改 commit `c8551b0`；新增 `OrderDraftOutletAttributionTest`（16 例），全量后端 633/633。交付报告见 [2026-09-21-outlet-series-c-delivery.md](./superpowers/plans/2026-09-21-outlet-series-c-delivery.md)。
+
 ## 2026-09-21 档口 Series C Codex 终审整改完成
 
 - 修复 P0：NULL 档口列表/详情一致性、严格租户隔离（含 tenant=0 不绕过）、草稿确认档口贯通与禁用档口阻断、重复 externalRefNo IDOR；P1：默认优先级/绑定交集/NONE 保留范围位、真实矩阵测试。
@@ -14,7 +20,7 @@
 
 - `OutletAccessPolicy`（用户/Agent 二维范围快照、读写分离、默认优先级、结构化 options）、`OrderAccessPolicy` 二维重构、草稿访问收口、V65 迁移（`data:outlet:unassigned` + `order_draft.created_by_user_id`）已完成。
 - 交付报告见 [2026-09-21-outlet-series-c-delivery.md](./superpowers/plans/2026-09-21-outlet-series-c-delivery.md)；全量后端 591/591 通过，前端构建与 e2e-outlet 通过。
-- 临时限制：Series D 前手工草稿仍为空档口（确认被阻断，待档口选择器）；Series E 统计/导出/文件/Agent 出口与缓存键仍待接入。
+- 临时限制：手工草稿后端已按档口范围归属（显式 ID → 默认档口 → 仅 `data:outlet:unassigned` 可写空）；PC 快速录单页尚未提供档口选择器，未显式选择时依赖默认档口，无默认且无 unassigned 会 400（Series D 接入选择器）。Series E 统计/导出/文件/Agent 出口与缓存键仍待接入。
 
 ## 2026-09-21 档口 Series B2 前端完成
 

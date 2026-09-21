@@ -8,6 +8,13 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口 Series C 第二轮 Codex 终审：草稿新建档口归属补齐
+
+- P0（BE-OUTLET-006）：`OrderDraftWriter.create` 之前不解析/校验档口，手工恒为 NULL、Agent NONE 可写 NULL、Agent 重试第二次 403 破坏幂等。现由服务端权威归属：`SaveRequest` 增加 `sourceOutletId`（JWT/PC）与 `sourceOutletCode`（Agent）；Agent 只认 code 且传 ID 返回 400，未传 code 用默认档口、无默认 403、绝不写空；手工显式 ID → 默认 → 无默认时仅 `data:outlet:unassigned` 可写空，否则 400；`update` 省略保留、传入则校验可用且授权并刷新 `sourceShop`。
+- `View`/`Summary` 返回 `sourceOutletId`/`sourceOutletCode`（编码由 `SalesOutlet` 主数据派生，不冗余落库）；`OrderServiceImpl.create` 复用 `OutletAccessPolicy.requireUsableOutlet`，移除对 `SalesOutletMapper` 的直接依赖。
+- 测试：新增 `OrderDraftOutletAttributionTest`（16 例：Agent NONE/单档口默认/重试幂等/显式 code/未知·禁用·越权 code/传 ID 拒绝、手工显式·默认·无默认拒绝·unassigned 写空、更新保留·改档刷新·越权拒绝、View+Summary、历史空档口不升级不泄漏）；全量后端 633/633。
+- 影响范围：仅后端草稿归属与只读字段；未新增前端页面/档口选择器，未部署、未触碰 NAS/生产。
+
 ### [整改] - 档口 Series C 经 Codex 终审后的缺口补齐
 
 - P0-1：`OutletAccessScope.outletFilter()` 统一六种档口过滤形态，订单与草稿共用，列表与详情对 `source_outlet_id=NULL` 语义一致（ASSIGNED+unassigned=IN OR NULL；NONE+unassigned=IS NULL）。

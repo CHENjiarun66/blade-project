@@ -25,6 +25,19 @@
 
 ---
 
+## 0.1 第二轮 Codex 终审整改记录（2026-09-21）
+
+Codex 对 `098d12b`/`8b6335e` 复核后指出 P0 完整性缺口：BE-OUTLET-006 设计明确要求草稿“新建”也统一接入档口范围，而当前 `OrderDraftWriter.create` 完全不解析/校验档口（手工恒为 NULL；Agent NONE 可写 NULL；Agent 重试破坏幂等，第二次 403 而非 DUPLICATE）。独立整改 commit `c8551b0`：
+
+| 编号 | 问题 | 修复 | 测试 |
+|---|---|---|---|
+| P0-5 | 草稿新建未接入档口范围：归属缺失、可写 NULL、重试幂等被破坏 | `SaveRequest` 增加 `sourceOutletId`（JWT/PC）与 `sourceOutletCode`（Agent）；`OrderDraftWriter.create` 服务端权威归属：Agent 只认 code 且传 ID 直接 400，未传 code 用默认档口、无默认 403、绝不写空；手工显式 ID → 默认 → 无默认时仅 `data:outlet:unassigned` 可写空，否则 400；`update` 省略保留、传入则校验可用且授权并刷新 `sourceShop`；`OutletAccessPolicy` 新增 `requireUsableOutlet`/`requireUsableOutletByCode`/`findOutlet` 供 writer 与 `OrderServiceImpl.create` 复用 | `OrderDraftOutletAttributionTest`（16 例）：Agent NONE 拒绝不落库、ASSIGNED 单档口默认自动归属 + 同 Key 重试 DUPLICATE 同一 `draftId`、显式授权 code 成功、未知/禁用/越权 code 拒绝、传 ID 拒绝；手工显式/默认回填/无默认拒绝/unassigned 写空；更新保留/改档刷新/越权拒绝；View+Summary 字段；历史 Agent 空档口重试不升级且不泄漏内部 ID |
+| P0-6 | 草稿 View/Summary 未返回档口稳定标识 | `View`/`Summary` 返回 `sourceOutletId` + `sourceOutletCode`（编码由 `SalesOutlet` 主数据派生，不冗余落库）；`sourceShop` 仍为服务端名称快照 | `OrderDraftOutletAttributionTest.viewAndSummary_exposeOutletIdAndCode`、`manualExplicitAuthorizedId_succeedsWithMasterSnapshot` |
+
+验证（commit `c8551b0`）：`mvn test` **633/633**，Failures 0、Errors 0、Skipped 0；前端 `npm run build` 通过；Playwright `e2e-outlet.spec.ts` **3 passed**。本轮为后端整改，未新增前端页面或档口选择器 UI。
+
+---
+
 ## 1. 迁移
 
 **V65__outlet_access_policy.sql**（最高旧版本 V64）：
@@ -54,7 +67,9 @@
 
 - `OrderDraftService.page/batches` 在分页前应用 `applyDraftReadScope`（档口维度 + 人员维度；手工草稿 SELF 用 `created_by_user_id`，Agent 恒 ALL_USERS）。
 - `get`、`confirm`（`selectForUpdate` 后复核，防 TOCTOU）与 `OrderDraftWriter.update`（`selectForUpdate` 后复核）统一 `requireDraftAccess`。
-- `create`（手工）记录 `created_by_user_id`；Agent 草稿保留 `created_by_agent_key_id`。
+- `create` 归属由服务端唯一决定（第二轮整改补齐）：手工显式 `sourceOutletId` → 默认档口 → 无默认时仅 `data:outlet:unassigned` 可写空，否则 400；Agent 只认 `sourceOutletCode`（越权/禁用/不存在 403），未传时用默认档口、无默认 403，绝不写 NULL，传 `sourceOutletId` 直接 400。始终写主数据 `source_shop` 名称快照；手工记录 `created_by_user_id`，Agent 保留 `created_by_agent_key_id`。
+- `update`：`sourceOutletId`/`sourceOutletCode` 均省略则保留既有档口；传入则要求可用且授权并刷新 `source_shop` 快照。
+- `View`/`Summary` 返回 `sourceOutletId`/`sourceOutletCode`（编码派生自主数据，不冗余落库）。
 - 空档口草稿确认被阻断：`400 请先归档档口后再确认正式订单`，不会生成新的空档口正式订单。
 - 未猜测自由文本 `source_shop` 为档口。
 
@@ -75,7 +90,7 @@ npx playwright test e2e-outlet.spec.ts --reporter=line
 
 ## 6. 已知限制（临时）
 
-- Series D 之前手工快速录单仍产生 `source_outlet_id = NULL` 草稿；此类草稿按遗留/待归档处理，只有 `data:outlet:unassigned` 可读，且**确认被阻断**（`请先归档档口`）。Series D 接入档口选择器后写非空档口。
+- 手工快速录单后端已按档口范围归属（显式选择 → 默认档口 → 无默认时仅 `data:outlet:unassigned` 可写空）；PC 快速录单页尚未提供档口选择器，未显式选择时依赖默认档口，无默认且无 unassigned 会返回 400（Series D 接入选择器）。历史遗留空档口草稿仍按待归档处理，只有 `data:outlet:unassigned` 可读，且**确认被阻断**（`请先归档档口`）。
 - 未实现统计/导出/文件/Agent 全出口的档口范围（Series E）。
 - 缓存键尚未纳入档口范围摘要（Series E）。
-- 未建独立 `data:outlet:unassigned` 的跨租户/越权专项用例矩阵（已在 `OutletAccessPolicyTest` 覆盖 NONE/跨维度；Series E 全出口回归补齐）。
+- `data:outlet:unassigned` 专项用例已覆盖草稿新建/更新与 Agent 越权 code；订单/统计等全出口的跨租户回归仍在 Series E 补齐。
