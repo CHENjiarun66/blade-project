@@ -15,7 +15,7 @@
 - 上传带 businessId 在存储前授权；bind/sync/createBindings/deleteBinding/getBindings/detail/delete/batch-delete/batch-move/folder-delete-move 全部前置校验；失败事务回滚无副作用。
 - 文件中心 list 在 count/page 前用 SQL EXISTS 子查询过滤可见性（敏感全部可访问、非敏感绑定可见、未绑定仅本人/viewAll、NONE=1=0），禁止 Java 后过滤。
 - 草稿转订单保留 order_draft + order 双绑定且同范围可访问；前端补“订单草稿”筛选与 403 友好提示。
-- 验证：全量后端 674/674；`npm run build` 通过；文件/订单/草稿 e2e 14 passed。既有 `e2e-file-upload.spec.ts` 依赖本地缺失的 `super_admin` 租户（历史环境问题）。
+- 验证：全量后端 675/675；`npm run build` 通过；文件/订单/草稿 e2e 14 passed。既有 `e2e-file-upload.spec.ts` 依赖本地缺失的 `super_admin` 租户（历史环境问题）。
 
 ### [功能开发] - 档口 Series E1：统计/仪表盘/导出隔离与统计筛选（BE-OUTLET-008 / BE-OUTLET-009 导出 / BA-OUTLET-005）
 

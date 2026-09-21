@@ -13,6 +13,7 @@
 |---|---|
 | `5280817` | `fix(outlet): enforce outlet scope on file center and order/draft images [dsh]`（后端策略、全出口接入、14+1 例测试） |
 | `1fb76a5` | `feat(outlet): add order_draft file filter and 403 hint [dsh]`（前端筛选/提示、e2e） |
+| `4c8260f` | `refactor(outlet): treat temp-only bindings as unbound for file read/list [dsh]`（仅 temp/未知绑定的文件按创建者或 viewAll；product/sku 等保持权限映射） |
 | 本文档所在 commit | `docs(outlet): record Series E2 delivery [dsh]`（TASKS/CHANGELOG/SESSION_CONTEXT/API_SPEC/ROM-SOW/本报告/STATUS） |
 
 ## 1. 集中授权：FileBusinessAccessPolicy
@@ -67,7 +68,7 @@
 - 新增 `FileOutletAccessPolicyTest`（14 例）：A 读成功/B 403、多绑 A+B 拒绝、PUBLIC B 图片拒绝、legacy-only order/draft 受保护、临时文件 owner/other/viewAll、list 不含 B 且 count 一致、未绑定列表权限、伪造 bind/createBindings 无副作用、upload 带 B 业务 ID 写文件前拒绝、delete/unbind/batch-delete/batch-move 拒绝且无副作用、getBindings 隔离、缺 TenantContext fail closed、跨租户不可读。
 - 新增 `FilePreviewTokenAccessTest`（1 例）：真实 MVC + Spring Security 过滤器 + Redis 会话，`?previewToken=` 跨档口 PUBLIC 订单图片仍返回 403。
 - `FileControllerTest` 等现有 153 个文件测试适配策略替身后全部通过；`OrderDraftConfirmFinanceTest` 增加双绑定断言。
-- 全量后端 `mvn test`：**674/674**，Failures 0、Errors 0、Skipped 0。
+- 全量后端 `mvn test`：**675/675**，Failures 0、Errors 0、Skipped 0。
 
 前端：
 - `npm run build` 通过。
@@ -76,7 +77,7 @@
 
 命令：
 ```bash
-cd blade-backend && mvn test                                   # 674/674
+cd blade-backend && mvn test                                   # 675/675
 cd blade-admin && npm run build                                # 通过
 npx playwright test e2e-file-outlet-filter.spec.ts e2e-analytics-outlet.spec.ts \
   e2e-order-outlet.spec.ts e2e-outlet.spec.ts e2e-quick-order-draft.spec.ts \
@@ -85,7 +86,7 @@ npx playwright test e2e-file-outlet-filter.spec.ts e2e-analytics-outlet.spec.ts 
 
 ## 8. 已知问题与未完成边界
 
-- `e2e-file-upload.spec.ts` 依赖本地不存在的 `super_admin` 租户（既有环境问题，非本轮引入），本机无法运行；文件安全由后端 674/674 覆盖，未修改该 spec 的租户语义。
+- `e2e-file-upload.spec.ts` 依赖本地不存在的 `super_admin` 租户（既有环境问题，非本轮引入），本机无法运行；文件安全由后端 675/675 覆盖，未修改该 spec 的租户语义。
 - 未新增 Flyway：本轮无新表/列/权限，仅索引复用现有 `file_business_bind(file_id)` 与 `sale_order/order_draft` 主线索引；如后续大表需要可再评估。
 - Series E3 未做：`GET /api/agent/outlets`、capability 档口摘要、Agent Key 签发/轮换档口配置、Agent 全出口回归。
 - 本轮未在文件中心做前端权限过滤（按设计后端为事实源）；前端仅展示后端返回数据并提示 403。
