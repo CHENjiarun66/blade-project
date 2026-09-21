@@ -1,6 +1,6 @@
 # ROM/SOW：档口主数据、用户多档口与数据权限边界
 
-> 状态：Series A–D 已完成；Series E1（统计/仪表盘/导出 + 统计筛选）、E2（文件中心/图片档口闭环）与 E3（Agent Key 档口范围/capabilities/outlets + 全出口反泄露）完成（DeepSeek，2026-09-21）；F、G 待开发
+> 状态（当前权威）：Series A–E 已完成（E3 含 Codex 终审整改，HEAD 以 03-TASKS/SESSION_CONTEXT 为准）；Series F 仅完成本地可执行的发布准备（回填预演工具、初始授权建议包、TEST-OUTLET-004 本地矩阵/索引、文档 checklist），生产副本预演/备份/灰度/回滚与 G 收口仍待外部执行（DeepSeek，2026-09-21）
 >
 > 基线：`master` / `8918b7c` 及其后续修复提交
 >
@@ -60,11 +60,11 @@
 
 | 任务 ID | 任务 | 状态 | 交付物 |
 |---|---|---|---|
-| BE-OUTLET-001 | 档口主数据服务/API | ⏳ TODO | CRUD、启停、默认档口、引用保护、`/api/outlets/options` |
-| BE-OUTLET-002 | 用户多档口绑定 | ⏳ TODO | 用户创建/更新/详情增加 `outletIds/defaultOutletId`，角色和档口同事务保存 |
-| BE-OUTLET-003 | 权限编码与角色迁移 | ⏳ TODO | `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容 `btn:order:viewAll` |
-| BA-OUTLET-001 | 档口管理页面 | ⏳ TODO | 列表、搜索、新建/编辑、启停、租户默认档口和引用提示 |
-| BA-OUTLET-002 | 用户管理档口授权 | ⏳ TODO | 多选可访问档口、默认档口、权限摘要和销售员必选校验 |
+| BE-OUTLET-001 | 档口主数据服务/API | ✅ 完成（DeepSeek，2026-09-21） | CRUD、启停、默认档口、引用保护、`/api/outlets/options` |
+| BE-OUTLET-002 | 用户多档口绑定 | ✅ 完成（DeepSeek，2026-09-21） | 用户创建/更新/详情增加 `outletIds/defaultOutletId`，角色和档口同事务保存 |
+| BE-OUTLET-003 | 权限编码与角色迁移 | ✅ 完成（DeepSeek，2026-09-21） | V64 新增 `data:outlet:all`、`data:order:peopleAll`、档口管理按钮；兼容 `btn:order:viewAll`（不删除） |
+| BA-OUTLET-001 | 档口管理页面 | ✅ 完成（DeepSeek，2026-09-21） | 列表、搜索、新建/编辑、启停、租户默认档口和引用提示 |
+| BA-OUTLET-002 | 用户管理档口授权 | ✅ 完成（DeepSeek，2026-09-21） | 多选可访问档口、默认档口、权限摘要和销售员必选校验 |
 
 验收门禁：单档口、多档口、全部档口、无档口和跨租户五种用户均有后端测试；前端只能展示后端返回的授权选项。
 
@@ -72,10 +72,10 @@
 
 | 任务 ID | 任务 | 状态 | 交付物 |
 |---|---|---|---|
-| BE-OUTLET-004 | `OutletAccessPolicy` | ⏳ TODO | 用户/Agent 范围解析、默认档口、授权检查和统一选项服务 |
-| BE-OUTLET-005 | `OrderAccessPolicy` 二维范围重构 | ⏳ TODO | 档口范围 × 人员范围；列表、详情、动作、`allowedActions` 一致 |
-| BE-OUTLET-006 | 草稿权限接入 | ⏳ TODO | 草稿列表/详情/写入/删除/确认统一档口范围，确认时二次校验 |
-| TEST-OUTLET-001 | 后端越权矩阵 | ⏳ TODO | URL 直连、请求伪造、跨租户、禁用档口、无绑定、同档口他人订单测试 |
+| BE-OUTLET-004 | `OutletAccessPolicy` | ✅ 完成（DeepSeek，2026-09-21） | 用户/Agent 范围解析、默认档口、授权检查和统一选项服务 |
+| BE-OUTLET-005 | `OrderAccessPolicy` 二维范围重构 | ✅ 完成（DeepSeek，2026-09-21） | 档口范围 × 人员范围；列表、详情、动作、`allowedActions` 一致 |
+| BE-OUTLET-006 | 草稿权限接入 | ✅ 完成（DeepSeek，2026-09-21） | 草稿列表/详情/写入/删除/确认统一档口范围，确认时二次校验 |
+| TEST-OUTLET-001 | 后端越权矩阵 | ✅ 完成（DeepSeek，2026-09-21） | 单/多/全部/无/未归档、SELF/ALL_USERS、跨租户、禁用档口由 `OutletScopeMatrixTest`、`OutletScopeCrossResourceAuditTest`、`OrderOutletWriteRulesTest`、`AgentOutletScopeIntegrationTest` 覆盖 |
 
 验收门禁：禁止在 Controller 中以角色名散落判断；`btn:order:viewAll` 不得继续单独绕过新的档口范围。
 
@@ -107,10 +107,10 @@
 
 | 任务 ID | 任务 | 状态 | 交付物 |
 |---|---|---|---|
-| DATA-OUTLET-002 | 生产副本映射预演 | ⏳ TODO | 自动映射、待人工、冲突和抽样报告；正式订单/草稿逐项对账 |
-| DATA-OUTLET-003 | 用户档口初始授权清单 | ⏳ TODO | Owner/财务/负责人/销售员的初始范围，经用户确认后再迁移 |
-| TEST-OUTLET-004 | 全量回归与性能 | ⏳ TODO | 后端全量、PC 构建、关键 E2E；大列表 `IN`/EXISTS 查询计划和缓存隔离 |
-| DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | ⏳ TODO | 双份备份、迁移预演、先双读后切写、验收、观察和回滚证据 |
+| DATA-OUTLET-002 | 生产副本映射预演 | 🚧 本地工具完成（DeepSeek，2026-09-21） | 显式 CSV 映射工具 + dry-run/apply + 双表 + 对账 + 幂等 + 安全闸门（本地自动测试）；生产副本真实执行待外部 |
+| DATA-OUTLET-003 | 用户档口初始授权清单 | 🚧 建议包完成（DeepSeek，2026-09-21） | 只读建议 SQL + 确认 CSV 模板，decision 恒 NEEDS_REVIEW；绝不自动授权；人工确认/授权待外部 |
+| TEST-OUTLET-004 | 全量回归与性能 | 🚧 本地矩阵完成（DeepSeek，2026-09-21） | 全量后端 751+/PC 构建/关键 E2E；`OutletScopeCrossResourceAuditTest` 矩阵审计 + `OutletIndexCoverageTest` 索引核对 + `scripts/outlet-scope-explain.sql`；生产规模性能待验证 |
+| DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | ⏳ TODO | 双份备份、迁移预演、先双读后切写、验收、观察和回滚证据（只写 checklist，未执行） |
 
 生产门禁：待人工档口数量、处理人和处理结果必须明确；任何历史订单丢失、金额变化、图片解绑或跨档口泄漏都阻断发布。
 

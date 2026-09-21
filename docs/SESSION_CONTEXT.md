@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-09-21 档口 Series F：本地发布准备完成（生产执行待外部）
+
+- DATA-OUTLET-002 本地工具：新增 `com.blade.outlet.migration`（`OutletBackfillMapping` 显式 CSV 解析校验、`OutletBackfillService` dry-run/apply、`OutletBackfillSafetyGate` 四重闸门、`OutletBackfillCli`）。只更新 `sale_order`/`order_draft.source_outlet_id`，`source_shop` 原值保留；纯数字/批次疑似行不映射；冲突不覆盖；确认草稿跳过；前后对账（行数/金额/收款/状态/明细/文件绑定/source_shop）；幂等；apply 默认关闭且拒绝生产/NAS 特征连接。只在生产副本操作。
+- DATA-OUTLET-003 本地建议包：`scripts/outlet-user-outlet-authorization-suggestions.sql`（只读）+ `scripts/outlet-user-outlet-authorization-template.csv`；decision 恒 NEEDS_REVIEW，绝不自动授权；人工确认/授权待外部。
+- TEST-OUTLET-004 本地：`OutletScopeCrossResourceAuditTest`（档口×人员×user/agent×订单/草稿/统计读范围矩阵）+ `OutletIndexCoverageTest`（索引核对）+ `scripts/outlet-scope-explain.sql`（single/multi/all/none/unassigned EXPLAIN）。发现 `sale_order.salesman_id` 无独立索引，生产规模性能待评估；未改 schema。
+- 文档：新增 Series F 本地交付报告与生产副本/备份/灰度/回滚 checklist（只写不执行）；修正 ROM-SOW 中 B/C 已完成却仍 TODO 的行。
+- 未完成（待外部）：生产副本映射预演与对账、初始授权人工确认与写入、备份/灰度/回滚执行、生产规模性能、Series G 收口（btn:order:viewAll 下线评估、NOT NULL 评估）。
+- 未做（保持）：不删除 `btn:order:viewAll`，不加 `source_outlet_id NOT NULL`，不 push/部署/NAS/生产。
+
 ## 2026-09-21 档口 Series E3：Agent Key 档口范围与全出口反泄露完成
 
 - BE-OUTLET-010：Key create/rotate/view/credential 支持 `outletScopeType`(ALL/ASSIGNED/NONE)/`outletIds`/`defaultOutletId`；create 默认 NONE；rotate 字段 null 分别继承、显式传入按新配置，单事务先建新 Key 再停旧 Key；严格校验同租户未删除、ASSIGNED 默认在集合内且启用、ALL 无冗余绑定、NONE 禁止绑定/默认。

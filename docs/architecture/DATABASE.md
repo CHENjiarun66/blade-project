@@ -675,7 +675,7 @@
 
 ## 六、档口模块（Outlet）
 
-> 档口是订单归属和经营分析维度，不等同于库存仓库。本模块随 `V63__outlet_access_control.sql`（Series A 数据模型）落地；主数据 CRUD、权限策略与历史回填属 Series B-G，尚未实施。设计依据见 [20-OUTLET_ACCESS_CONTROL_DESIGN.md](../20-OUTLET_ACCESS_CONTROL_DESIGN.md)。
+> 档口是订单归属和经营分析维度，不等同于库存仓库。本模块随 `V63__outlet_access_control.sql` 落地（Series A），主数据/权限/Agent 范围与历史回填工具已随 Series B–F 完成；历史回填的真实生产副本执行、灰度与 NOT NULL 评估仍待外部。设计依据见 [20-OUTLET_ACCESS_CONTROL_DESIGN.md](../20-OUTLET_ACCESS_CONTROL_DESIGN.md)。
 
 ### 6.1 sales_outlet 档口主表
 
@@ -738,7 +738,7 @@
 
 **索引**：`uk_agent_key_outlet(tenant_id, agent_key_id, outlet_id)`, `idx_agent_key_outlet_key(tenant_id, agent_key_id, status)`
 
-**关联字段**：`agent_key.outlet_scope_type varchar(20) NOT NULL DEFAULT 'NONE'`（V63 新增，位于 `scopes` 之后）。合法取值 `ALL`（本租户全部启用档口，不依赖关联行，新档口自动可见）/ `ASSIGNED`（仅 `agent_key_outlet` 绑定的启用档口，必须至少一条有效关联）/ `NONE`（拒绝档口业务，默认值）。Key 轮换在同一事务内复制旧 Key 的 `outlet_scope_type` 与有效绑定；新建 Key 在管理 UI 接入前保持 `NONE`。
+**关联字段**：`agent_key.outlet_scope_type varchar(20) NOT NULL DEFAULT 'NONE'`（V63 新增，位于 `scopes` 之后）。合法取值 `ALL`（本租户全部启用档口，不依赖逐档口关联行，新档口自动可见）/ `ASSIGNED`（仅 `agent_key_outlet` 绑定的启用档口，必须至少一条有效关联）/ `NONE`（拒绝档口业务，默认值）。Series E3 轮换语义：`outletScopeType/outletIds/defaultOutletId` 为 null 时分别继承旧 Key，显式传入按新配置；单事务先建新 Key 再停旧 Key；ALL 不写逐档口冗余绑定，仅可存一条默认档口标记；`readOutletConfig` 对 ALL 的 `outletIds` 恒为空。
 
 ### 6.4 order_outlet_change_log 订单档口变更审计
 
@@ -763,9 +763,10 @@
 
 ### 6.5 订单与草稿档口字段
 
-- `sale_order.source_outlet_id`（bigint，可空，V63 新增）：档口主数据 ID，权限与统计依据。正式订单最终须非空，但历史回填（Series F）完成前保持可空，禁止直接加 NOT NULL。
-- `order_draft.source_outlet_id`（bigint，可空，V63 新增）：草稿允许为空（历史迁移 / Owner 待补资料），索引 `idx_order_draft_source_outlet(tenant_id, source_outlet_id)`。
+- `sale_order.source_outlet_id`（bigint，可空，V63 新增）：档口主数据 ID，权限与统计依据。正式订单最终须非空，但历史回填（Series F）完成前保持可空，禁止直接加 NOT NULL；本分支不新增 NOT NULL 迁移。
+- `order_draft.source_outlet_id`（bigint，可空，V63 新增）：草稿允许为空（历史迁移 / Owner 待补资料），索引 `idx_order_draft_source_outlet(tenant_id, source_outlet_id)`、`idx_order_draft_tenant_outlet(tenant_id, source_outlet_id, status)`、`idx_order_draft_tenant_creator(tenant_id, created_by_user_id, status)`。
 - `source_shop` 继续保留为档口名称快照，不再作为权限依据；不改写历史数据。
+- 历史回填工具（`com.blade.outlet.migration`，Series F 本地）：显式 CSV 映射，默认 dry-run，apply 只更新 `source_outlet_id`，冲突不覆盖、疑似批次跳过、前后对账、幂等；只在生产副本执行，apply 需显式安全闸门，未改 schema。已知 `sale_order.salesman_id` 无独立索引，生产规模计划评估留 Series G。
 
 ---
 

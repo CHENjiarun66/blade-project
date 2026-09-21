@@ -615,15 +615,15 @@
 | BA-OUTLET-005 | 统计档口筛选与对比 | ✅ 完成（DeepSeek，2026-09-21） | 分析页/仪表盘档口多选（选项仅授权集合）；空=当前完整可见范围；仪表盘待归档开关（需 unassigned）与计数；多选参数逐项后端校验 |
 | BA-OUTLET-006 | Agent Key 档口配置 | ✅ 完成（DeepSeek，2026-09-21） | Key Manager 全部/指定/不开放档口编辑器、默认档口、禁用档口仅历史绑定、列表展示与 rotate 回显；凭证弹窗 capabilities→outlets 接入说明；Playwright 2 passed |
 | DATA-OUTLET-001 | 历史档口只读审计工具 | ✅ 完成（DeepSeek，2026-09-20） | 统计 `source_shop` 分布并输出自动映射、疑似批次、空值和冲突清单；含可编辑名称映射 CTE，全程只读不写生产 |
-| DATA-OUTLET-002 | 生产副本映射预演 | ⏳ TODO | 回填订单/草稿并对账数量、金额、状态、明细和文件绑定，脚本可重复执行 |
-| DATA-OUTLET-003 | 用户初始档口授权清单 | ⏳ TODO | Owner/财务/负责人/销售员的初始档口和人员范围需人工确认后迁移 |
-| TEST-OUTLET-001 | 后端越权矩阵 | ⏳ TODO | 单/多/全部/无档口、SELF/ALL_USERS、跨租户和禁用档口 |
+| DATA-OUTLET-002 | 生产副本映射预演 | 🚧 本地工具完成（DeepSeek，2026-09-21） | 显式 CSV 回填工具（`OutletBackfillService` + CLI）：dry-run 默认、apply 四重安全闸门拒绝生产特征、只改 `source_outlet_id`、冲突不覆盖、疑似批次跳过、双表、对账、幂等、自动测试；生产副本真实预演待外部 |
+| DATA-OUTLET-003 | 用户初始档口授权清单 | 🚧 建议包完成（DeepSeek，2026-09-21） | 只读建议 SQL + 确认 CSV 模板（outletScope/peopleScope/默认/多档口），decision 恒 NEEDS_REVIEW，绝不自动授权；人工确认与授权待外部 |
+| TEST-OUTLET-001 | 后端越权矩阵 | ✅ 完成（DeepSeek，2026-09-21） | `OutletScopeMatrixTest` + `OutletScopeCrossResourceAuditTest` + `OrderOutletWriteRulesTest` + `AgentOutletScopeIntegrationTest` 覆盖单/多/全部/无/未归档、SELF/ALL_USERS、跨租户与禁用档口 |
 | TEST-OUTLET-002 | 订单与草稿 E2E | ✅ 完成（DeepSeek，2026-09-21） | 后端 17 例 + Playwright 5 例：快速录单、手工/Agent 草稿、草稿确认、正式订单、列表筛选、待归档和伪造档口 403 |
-| TEST-OUTLET-003 | 全出口防泄漏回归 | ✅ 完成（DeepSeek，2026-09-21） | 文件出口（E2）+ Agent 出口（E3）：Agent A 档口无法通过 orders list/detail、草稿 code/内部 ID、capabilities、outlets 推断 B 数据；NONE 为空、缺 `outlets:read` 403、Key 无效 401；Agent 不访问未归档 NULL；三种主体沿用 E1/E2 矩阵（751/751 + Playwright 16 passed） |
-| TEST-OUTLET-004 | 全量回归与性能 | ⏳ TODO | 后端全量、PC 构建、关键 E2E 和档口范围 SQL 查询计划 |
-| DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | ⏳ TODO | 双份备份、先双读后切写、生产副本预演、异常清单确认、发布验收和回滚证据 |
-| ARCH-OUTLET-002 | 兼容期复盘 | ⏳ TODO | 稳定一个发布周期后评估旧 `btn:order:viewAll`、空档口兼容和 ID 非空约束 |
-| DOC-OUTLET-001 | 文档与接入手册收口 | ⏳ TODO | 实现完成后同步 PRD、数据库、权限、API、Agent 手册和发布记录 |
+| TEST-OUTLET-003 | 全出口防泄漏回归 | ✅ 完成（DeepSeek，2026-09-21） | 文件出口（E2）+ Agent 出口（E3）：Agent A 档口无法通过 orders list/detail、草稿 code/内部 ID、capabilities、outlets 推断 B 数据；NONE 为空、缺 `outlets:read` 403、Key 无效 401；Agent 不访问未归档 NULL；三种主体沿用 E1/E2 矩阵 |
+| TEST-OUTLET-004 | 全量回归与性能 | 🚧 本地完成（DeepSeek，2026-09-21） | 全量后端 + PC 构建 + 关键 E2E；`OutletScopeCrossResourceAuditTest` 矩阵审计、`OutletIndexCoverageTest` 索引核对、`scripts/outlet-scope-explain.sql` 查询计划预演；生产规模性能待验证 |
+| DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | ⏳ TODO（待外部） | checklist 已写（`2026-09-21-outlet-production-release-checklist.md`），未执行任何备份/预演/灰度/回滚 |
+| ARCH-OUTLET-002 | 兼容期复盘 | ⏳ TODO（待外部） | 稳定一个发布周期后评估旧 `btn:order:viewAll`、空档口兼容和 ID 非空约束 |
+| DOC-OUTLET-001 | 文档与接入手册收口 | 🚧 本地文档完成（DeepSeek，2026-09-21） | PRD/DATABASE/API_SPEC/16/17/19/ROM-SOW/TASKS 已同步本地实现；生产发布记录与验收待外部 |
 
 ### Phase 8: 纸单草稿人工复核（P0）
 

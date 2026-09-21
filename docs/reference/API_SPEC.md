@@ -1164,6 +1164,7 @@ V59 起草稿响应增加 `entrySource`：`AGENT` 保持上述纸单语义，`MA
 - 响应：`View`/`Summary` 返回 `sourceOutletId`、`sourceOutletCode`（编码派生自主数据）；`sourceShop` 为服务端主数据名称快照，忽略客户端传入值。
 - 列表筛选（Series D）：`GET /api/order-drafts` 新增 `sourceOutletId`（仅当前 `readable` 集合，越权 403）与 `unassignedOnly`（仅 `data:outlet:unassigned`，与 `sourceOutletId` 互斥 400）；不传为“全部档口”，仍受统一档口 × 人员范围裁剪。
 - 幂等与失败语义：同创建主体（Agent Key ID / 手工 user ID）同 `externalRefNo` 重试返回 `DUPLICATE` 并携带原 `draftId`；不同主体返回 409 且不暴露已有 ID；被拒绝的首次请求不落库。历史 `source_outlet_id=NULL` 的 Agent 草稿重试不升级为可读，返回通用 `ERROR` 且不泄漏内部 ID。
+- Series E3/E3 整改：Agent 订单列表只接受 `sourceOutletCode`（传 `sourceOutletId` 返回 400）；Agent `style-trends`/`sku-mix` 只接受 `sourceOutletCodes`（传 `sourceOutletIds` 返回 400）；`AgentOrderDTO.OrderView` 返回 `sourceOutletCode`。历史 `source_shop` 回填与用户初始授权为运维/本地工具（见 [Series F 本地交付报告](../superpowers/plans/2026-09-21-outlet-series-f-local-delivery.md)），不暴露 HTTP API。
 
 SKU 候选补充规则：候选返回 `skuType` 和 `placeholder`。只按款号查询任何显式规格商品时，`PLACEHOLDER` 以 `matchScore=1.00` 优先返回，即使当前只有一个具体 `NORMAL` SKU；请求包含 `colorName` 或 `sizeCode` 时不返回占位 SKU。只有纯无规格 `DEFAULT` 商品按款号直接返回实际 SKU。英文 SKU 编码是接口稳定标识，前端应将 `DEFAULT/NA-NA` 显示为“无规格商品（实际 SKU）”，将 `PLACEHOLDER/UNSPEC-UNSPEC` 显示为“整款录入（颜色/尺码未指定）”。`GET /api/agent/analytics/sku-mix` 的款号总量包含占位销量，真实 `skus/colors/sizes` 排名排除占位量，并通过 `unspecified`、`historicalNoVariant`、`variantCoverageRate`、`variantDataQuality` 分别描述当前整款录入量、商品升级规格前的历史无规格量及规格覆盖质量。
 

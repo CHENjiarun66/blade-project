@@ -349,7 +349,7 @@ SKU 由商品 + 颜色 + 尺码生成，商品编码不允许在编辑时修改�
 | order_no | varchar | 订单编号 |
 | order_date | date | 订单日期（纸质单据日期） |
 | source_doc_no | varchar | 正式订单兼容纸质单据号；草稿中的独立批次与单号按 `批次_单号` 生成 |
-| source_outlet_id | bigint | 档口主数据 ID，作为权限、筛选和统计依据；方案已确认，待迁移落地 |
+| source_outlet_id | bigint | 档口主数据 ID，作为权限、筛选和统计依据；V63 已加列（可空），历史回填由生产副本显式人工映射执行，保持可空 |
 | source_shop | varchar | 订单来源档口名称快照，不等同于仓库；不再作为权限依据 |
 | order_type | varchar | 订单类型：SPOT现货/PREORDER订货 |
 | customer_id | bigint | 客户ID |
@@ -616,6 +616,8 @@ DELETE /api/orders/{id}        # 删除订单（仅待处理状态可删除）
 - 列表、详情、动作、草稿、统计、导出、订单图片和 Agent API 必须由后端统一应用同一数据范围；前端隐藏不构成权限控制。
 - Agent Key 的业务 scope 控制“能做什么”，Key 的档口关联控制“能在哪些档口做”。
 - 历史 `source_shop` 先生成映射和异常报告，再回填 `source_outlet_id`；疑似批次值不得自动创建为档口。
+- 历史回填只在生产副本以显式人工映射执行：默认 dry-run，apply 需显式批准映射/租户/副本安全闸门并拒绝生产特征；只改 `source_outlet_id`，保留 `source_shop` 原值；前后对账不一致即回滚；`source_outlet_id` 保持可空，不做 NOT NULL。
+- 初始用户-档口授权只产出建议与确认模板，无法判断一律 `NEEDS_REVIEW`，绝不自动授权。
 
 完整数据库、接口、角色矩阵、迁移和验收规则见 [20-OUTLET_ACCESS_CONTROL_DESIGN.md](./20-OUTLET_ACCESS_CONTROL_DESIGN.md)。
 

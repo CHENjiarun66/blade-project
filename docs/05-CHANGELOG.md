@@ -8,6 +8,14 @@
 
 ## 2026-09-21 变更记录
 
+### [功能开发] - 档口 Series F：本地发布准备（历史回填预演、初始授权建议包、本地回归/性能预演）
+
+- 新增 `com.blade.outlet.migration` 历史档口回填工具：显式 CSV（`tenant_id,legacy_source_shop,outlet_code,decision,reason`）解析与静态校验（纯数字拒绝自动映射、MAP 必须有启用且同租户未删除档口、SKIP/REVIEW 必须有 reason、同租户同值冲突报错）；`OutletBackfillService` 默认 dry-run，apply 单事务且只更新 `sale_order`/`order_draft.source_outlet_id`，`source_shop` 原值保留；冲突不覆盖、疑似批次/编号跳过、确认草稿跳过；前后对账行数/金额/收款/状态/明细/文件绑定/`source_shop`，不一致回滚；幂等；`OutletBackfillSafetyGate` 要求 apply + 映射文件 + 租户 + 副本确认，并拒绝生产/NAS 特征；`OutletBackfillCli` 仅在显式传入映射文件时运行。只允许在生产副本执行。
+- DATA-OUTLET-003 本地建议包：新增只读 `scripts/outlet-user-outlet-authorization-suggestions.sql`（输出 outletScope/peopleScope/默认/多档口建议，decision 恒 `NEEDS_REVIEW`）与 `scripts/outlet-user-outlet-authorization-template.csv`；绝不自动授权，人工确认与写入待外部。
+- TEST-OUTLET-004 本地：新增 `OutletScopeCrossResourceAuditTest`（档口×人员×user/agent×订单/草稿/统计读范围矩阵）、`OutletIndexCoverageTest`（档口范围索引核对）、`scripts/outlet-scope-explain.sql`（single/multi/all/none/unassigned 查询计划预演，只读、不做脆弱计划断言）；发现 `sale_order.salesman_id` 无独立索引，记录为 Series G 评估项，未改 schema；生产规模性能待验证。
+- 文档：新增 Series F 本地交付报告与生产副本/备份/灰度/回滚 checklist（只写不执行）；同步 PRD/DATABASE/API_SPEC/16/17/19/ROM-SOW/TASKS/STATUS；修正 ROM-SOW 中 B/C 已完成却仍 TODO 的状态；TEST-OUTLET-001 依据已有矩阵测试证据标完成。
+- 明确保持：DATA-OUTLET-002/003 真实生产副本执行、DEPLOY-OUTLET-001、ARCH-OUTLET-002、DB-OUTLET-004、Series G 均待外部；不删除 `btn:order:viewAll`，不加 `source_outlet_id NOT NULL`；未 push/部署/NAS/生产。
+
 ### [整改] - 档口 Series E3 经 Codex 终审后的缺口补齐
 
 - P0-1 ALL Key 带默认档口的继承轮换 bug：`readOutletConfig()` 曾把 ALL 的默认标记绑定读成 `outletIds`，导致 rotate 全缺省时 `normalizeOutletConfig(ALL, ids)` 被拒。现按范围区分：ALL 的 `outletIds` 恒为空、仅保留 `defaultOutletId`；ASSIGNED 返回全部绑定 ID；NONE 均空。`AgentKeyManagementServiceTest` 新增 4 例（全缺省/仅换 scopes/仅换有效期继承默认、失败旧 Key ACTIVE）。
