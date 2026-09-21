@@ -99,7 +99,7 @@
 | BE-OUTLET-010 | Agent Key 档口范围 | ✅ 完成（DeepSeek，2026-09-21） | Key 签发/轮换支持 ALL/ASSIGNED/NONE + 默认档口；单事务写 `agent_key_outlet`；capabilities/outlets 实时反映绑定与禁用；`outlets:read` scope |
 | BA-OUTLET-005 | 统计档口筛选 | ✅ 完成（DeepSeek，2026-09-21） | 分析页/仪表盘档口多选与对比；选项仅授权集合；待归档独立开关 |
 | BA-OUTLET-006 | Agent Key 档口配置 | ✅ 完成（DeepSeek，2026-09-21） | Key Manager 全部/指定/不开放档口编辑器、默认档口、禁用档口仅历史绑定、rotate 回显与 capabilities→outlets 接入说明 |
-| TEST-OUTLET-003 | 全出口防泄漏回归 | ✅ 完成（DeepSeek，2026-09-21） | 文件全出口 + previewToken（E2）与 Agent orders/draft/capabilities/outlets（E3）反例；734/734 + Playwright 16 passed |
+| TEST-OUTLET-003 | 全出口防泄漏回归 | ✅ 完成（DeepSeek，2026-09-21） | 文件全出口 + previewToken（E2）与 Agent orders/draft/capabilities/outlets（E3）反例；735/735 + Playwright 16 passed |
 
 验收门禁：销售员不能通过统计总数、导出、图片地址或 Agent 接口推断其他档口数据。
 

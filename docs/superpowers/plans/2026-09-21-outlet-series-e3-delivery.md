@@ -109,8 +109,8 @@
 - `AgentOutletScopeIntegrationTest`（8 例，真实 MVC + Redis 会话）：capabilities 返回档口摘要且不含内部 id、档口禁用下一请求即时反映、Key 停用 401、outlets 缺 scope 403/缺 Key 401、ALL 只含启用、NONE 为空、ASSIGNED 只含绑定启用且 default 正确。
 - `AgentDataAccessIntegrationTest`（10 例）：新增 `assignedOutletCannotReachOtherOutletThroughAnyAgentOutlet`，串联 orders list/detail、capabilities、outlets、draft create（code/内部 ID）反例，确认 A 档口 Key 无法推断 B 档口数据。
 - `AgentDataAccessContractTest`（4 例）：`AgentOutletsController` 必须 `hasAuthority('agent:outlets:read')`；capabilities/outlets DTO 不含内部 id。
-- `OutletScopeMatrixTest`（13 例）：新增 `agentNeverGetsUnassignedNullAccess`（ALL/ASSIGNED/NONE 均不可访问未归档 NULL）。
-- 全量后端 `mvn test`：**734/734**，Failures 0 / Errors 0 / Skipped 0（E3 基线 708，新增 26 例）。
+- `OutletScopeMatrixTest`（14 例）：新增 `agentNeverGetsUnassignedNullAccess`（ALL/ASSIGNED/NONE 均不可访问未归档 NULL）与 `agentAnalyticsReadScopeOnlyAllowsAssignedOutlets`（统计读范围只用 ASSIGNED 集合，越权/跨租户/待归档 403）。
+- 全量后端 `mvn test`：**735/735**，Failures 0 / Errors 0 / Skipped 0（E3 基线 708，新增 27 例）。
 
 前端：
 
@@ -121,7 +121,7 @@
   - Agent 业务出口（orders/draft/capabilities/outlets）由后端真实 MVC 集成测试覆盖（见 §7），无独立 Playwright。
 - 命令：
 ```bash
-cd blade-backend && mvn test                                   # 734/734
+cd blade-backend && mvn test                                   # 735/735
 cd blade-admin && npm run build                                # 通过
 npx playwright test e2e/e2e-agent-key-outlet-scope.spec.ts \
   e2e-outlet.spec.ts e2e-order-outlet.spec.ts e2e-analytics-outlet.spec.ts \
@@ -144,6 +144,7 @@ npx playwright test e2e/e2e-agent-key-outlet-scope.spec.ts \
 | Agent orders list/detail | `AgentDataAccessIntegrationTest.assignedOutletCannotReachOtherOutletThroughAnyAgentOutlet` |
 | Agent draft create（code/内部 ID） | 同上（`sourceOutletCode` B → ERROR；`sourceOutletId` → ERROR） |
 | Agent capabilities / outlets | `AgentOutletScopeIntegrationTest`（NONE 空、ASSIGNED 受限、ALL 只含启用、缺 scope 403、不泄露 id） |
+| Agent 统计/分析范围 | `OutletScopeMatrixTest.agentAnalyticsReadScopeOnlyAllowsAssignedOutlets`（越权/跨租户/待归档 403） |
 | Agent 未归档 NULL | `OutletScopeMatrixTest.agentNeverGetsUnassignedNullAccess` |
 | JWT 销售员/统计 | 沿用 E1 `OutletAnalyticsScopeTest`、E2 `FileOutletAccessPolicyTest`、`OrderOutletWriteRulesTest` 等 |
 | 缓存/轮换不串 scope | `AgentOutletScopeIntegrationTest`（停用/禁用即时 401/空）+ §4 无缓存结论 |

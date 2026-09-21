@@ -8,6 +8,7 @@ import com.blade.common.tenant.TenantContext;
 import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.entity.Order;
 import com.blade.order.service.OrderAccessPolicy;
+import com.blade.order.service.OrderReadScope;
 import com.blade.outlet.entity.SalesOutlet;
 import com.blade.outlet.mapper.AgentKeyOutletMapper;
 import com.blade.outlet.mapper.SalesOutletMapper;
@@ -268,6 +269,23 @@ class OutletScopeMatrixTest {
         assertTrue(none.isNone());
         assertFalse(none.unassignedAllowed());
         assertEquals(OutletAccessScope.OutletFilter.DENY, none.outletFilter());
+    }
+
+    @Test
+    void agentAnalyticsReadScopeOnlyAllowsAssignedOutlets() {
+        agentAuth(5L);
+        when(agentKeyMapper.selectById(5L)).thenReturn(activeKey(5L, "ASSIGNED"));
+        when(agentKeyOutletMapper.selectOutletIdsByKeyId(5L)).thenReturn(List.of(1L, 3L));
+
+        OrderReadScope scope = orderPolicy.resolveReadScope(null, null);
+        assertEquals(List.of(1L, 3L), scope.readableOutletIds());
+        assertEquals(OutletAccessScope.ASSIGNED, scope.outletScopeType());
+        assertFalse(scope.unassignedAllowed());
+
+        // 显式选择越权/跨租户档口 -> 403；待归档 -> 403
+        assertThrows(BusinessException.class, () -> orderPolicy.resolveReadScope(List.of(999L), null));
+        assertThrows(BusinessException.class, () -> orderPolicy.resolveReadScope(List.of(1L, 999L), null));
+        assertThrows(BusinessException.class, () -> orderPolicy.resolveReadScope(null, true));
     }
 
     // ---------- 6) 默认优先级 ----------

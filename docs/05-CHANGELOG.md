@@ -15,7 +15,7 @@
 - Agent API：`GET /api/agent/capabilities` 返回 `outletScopeType`/`defaultOutletCode`/`readableOutlets`/`usableOutlets`（仅 code/name/status，无内部 id）；新增 `GET /api/agent/outlets`（`@PreAuthorize agent:outlets:read`）只返回可用启用档口，NONE 为空，缺 scope 403、Key 无效 401；每请求实时重读 Key 与绑定，无缓存，停用/禁用/轮换下一请求即生效。
 - B3 复核：Agent 订单/草稿/分析统一走 `OutletAccessPolicy`/`OrderReadScope`；显式 `sourceOutletCode` 越权/禁用/跨租户 403，显式内部 `sourceOutletId` 400；未归档 NULL 对 Agent 恒拒绝。
 - BA-OUTLET-006 前端：Key Manager 新建/调整弹窗新增档口范围编辑器（全部/指定/不开放）、禁用档口仅历史绑定可见、默认档口限已选启用；列表展示档口范围与默认档口；rotate 预载旧范围；订单/分析权限 + NONE 非阻塞警告；凭证弹窗“先 capabilities 再 outlets”说明与 curl 片段。
-- 测试：新增/扩展 26 例（`AgentKeyManagementServiceTest` 15、`AgentOutletScopeIntegrationTest` 8、`AgentDataAccessIntegrationTest` 1、`AgentDataAccessContractTest` 1、`OutletScopeMatrixTest` 1）；全量后端 **734/734**；`npm run build` 通过；Playwright 16 passed（新增 2 + 回归 14）；`git diff --check` 无输出。
+- 测试：新增/扩展 27 例（`AgentKeyManagementServiceTest` 15、`AgentOutletScopeIntegrationTest` 8、`AgentDataAccessIntegrationTest` 1、`AgentDataAccessContractTest` 1、`OutletScopeMatrixTest` 2）；全量后端 **735/735**；`npm run build` 通过；Playwright 16 passed（新增 2 + 回归 14）；`git diff --check` 无输出。
 - 未做（保持 TODO）：Series F 历史档口回填与发布、Series G 旧权限下线与收口；未 push/部署/NAS/生产。
 
 ### [整改] - 档口 Series E2 第二轮 Codex 终审：文件包租户/用户回退收口
