@@ -419,6 +419,13 @@ GET    /api/outlets/options
 - 只有一个授权档口的 Key 可省略 `sourceOutletCode`，服务器使用 Key 默认档口；多个档口时必须显式传入。
 - Key 传入未授权档口时返回 403，并区分“缺少业务 scope”和“档口范围拒绝”。
 
+### 8.1 WhatsApp Analysis Worker 架构例外（显式、受限）
+
+- Worker 是**系统级服务凭证**，只允许 `whatsapp:analyze`，由 Owner/Admin 的管理入口签发，**不是**普通 Agent `orders`/`analytics` API；它**不能自行调用**订单查询接口（`/api/agent/orders*`、`/api/agent/analytics*`）。
+- 它由后端任务队列为「租户 + 客户」生成**脱敏订单事实汇总**，当前口径为**租户级**，**不使用交互用户的档口/人员范围**（即不经过 `OutletAccessPolicy`/`OrderReadScope`）；Worker 侧只消费任务队列给定的事实快照。
+- 这是**显式架构例外**，不得据此让其他 Agent 接口绕过 `OutletAccessPolicy`/`OrderReadScope`，也不得把 Worker 的租户级事实当作交互用户的可见数据。
+- 若未来销售员可直接触发或查看该分析结果，**必须先**增加档口范围与结果可见性隔离：按 `OrderReadScope` 生成事实、按调用者可见范围裁剪结果，并把触发权限从系统级服务凭证改为带档口范围的主体；否则维持“系统级、租户级、脱敏、不可交互查询”的边界。
+
 ---
 
 ## 九、历史数据迁移
