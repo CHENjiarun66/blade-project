@@ -312,6 +312,51 @@ class FileOutletAccessPolicyTest {
                 .anyMatch(r -> file == ((com.blade.file.dto.FileVO) r).getId()), "未绑定文件不应对他人可见");
     }
 
+    @Test
+    void peopleAll_keepsOwnUnboundFileVisible_butNotOthers_andOrderDraftScopeStillApplies() {
+        long outletA = seedOutlet(1L, "E2-PA-A");
+        long outletB = seedOutlet(1L, "E2-PB-B");
+        long salesA = seedUser(1L, "e2paa" + System.nanoTime() % 100000);
+        long salesB = seedUser(1L, "e2pab" + System.nanoTime() % 100000);
+        bindUser(salesA, outletA);
+        bindUser(salesB, outletB);
+
+        String prefix = "e2pa-" + System.nanoTime();
+        long ownUnbound = seedFile(1L, salesA, "PRIVATE", null, null, prefix + "-own.png");
+        long otherUnbound = seedFile(1L, salesB, "PRIVATE", null, null, prefix + "-other.png");
+        long orderB = seedOrder(1L, outletB, salesB);
+        long orderFileB = seedFile(1L, salesB, "PRIVATE", null, null, prefix + "-order.png");
+        bind(orderFileB, "order", orderB);
+        long draftB = seedDraft(1L, outletB, salesB);
+        long draftFileB = seedFile(1L, salesB, "PRIVATE", null, null, prefix + "-draft.png");
+        bind(draftFileB, "order_draft", draftB);
+
+        // A 有 data:order:peopleAll 但没有 btn:file:viewAll
+        auth(salesA, "menu:file", "data:order:peopleAll");
+        FilePageDTO dto = new FilePageDTO();
+        dto.setCurrent(1L);
+        dto.setSize(50L);
+        dto.setKeyword(prefix);
+        PageResult<?> page = fileService.pageList(dto);
+        List<Long> ids = page.getRecords().stream()
+                .map(r -> (Long) ((com.blade.file.dto.FileVO) r).getId())
+                .toList();
+
+        assertTrue(ids.contains(ownUnbound), "peopleAll 下本人未绑定文件必须在列表可见");
+        assertFalse(ids.contains(otherUnbound), "他人未绑定文件不可见");
+        assertFalse(ids.contains(orderFileB), "peopleAll 只放开人员维度，不得绕过 B 档口订单绑定");
+        assertFalse(ids.contains(draftFileB), "peopleAll 只放开人员维度，不得绕过 B 档口草稿绑定");
+        assertEquals(1L, page.getTotal(), "count 与列表使用同一可见性 SQL，必须一致");
+
+        assertDoesNotThrow(() -> policy.requireFileRead(fileById(ownUnbound)), "详情可读本人未绑定文件");
+        assertEquals(403, assertThrows(BusinessException.class,
+                () -> policy.requireFileRead(fileById(otherUnbound))).getCode(), "详情与列表一致：他人未绑定 403");
+        assertEquals(403, assertThrows(BusinessException.class,
+                () -> policy.requireFileRead(fileById(orderFileB))).getCode(), "订单绑定仍按档口范围约束");
+        assertEquals(403, assertThrows(BusinessException.class,
+                () -> policy.requireFileRead(fileById(draftFileB))).getCode(), "草稿绑定仍按档口范围约束");
+    }
+
     // ==================== 变更：伪造目标 / 不可访问文件 ====================
 
     @Test

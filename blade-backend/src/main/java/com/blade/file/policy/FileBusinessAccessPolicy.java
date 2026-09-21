@@ -199,7 +199,7 @@ public class FileBusinessAccessPolicy {
                     .map(id -> placeholder(params, id))
                     .collect(Collectors.joining(",", "(", ")"));
         }
-        String actorPh = peopleAll ? null : placeholder(params, actorId);
+        String actorPh = actorId != null ? placeholder(params, actorId) : null;
 
         boolean unassigned = scope.unassignedAllowed();
         String orderOutlet = outletPredicate("o", readableIn, unassigned);
