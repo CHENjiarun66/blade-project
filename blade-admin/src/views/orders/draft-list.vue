@@ -40,6 +40,19 @@
         </el-select>
       </label>
       <label class="field-block">
+        <span>档口</span>
+        <el-select v-model="outletFilter" clearable placeholder="全部档口" data-testid="draft-outlet-filter">
+          <el-option label="全部档口" :value="null" />
+          <el-option
+            v-for="outlet in outletFilterOptions"
+            :key="outlet.id"
+            :label="outletFilterLabel(outlet)"
+            :value="outlet.id"
+          />
+          <el-option v-if="canUseUnassigned" label="待归档档口" value="UNASSIGNED" />
+        </el-select>
+      </label>
+      <label class="field-block">
         <span>匹配情况</span>
         <el-select v-model="unresolvedOnly" clearable placeholder="全部草稿">
           <el-option label="仅看有待匹配商品" :value="true" />
@@ -86,6 +99,20 @@
         </el-table-column>
         <el-table-column label="客户" min-width="120">
           <template #default="{ row }"><span class="cell-primary">{{ row.customerName || '散客' }}</span></template>
+        </el-table-column>
+        <el-table-column label="档口" min-width="130">
+          <template #default="{ row }">
+            <el-tag
+              v-if="row.sourceOutletId == null"
+              size="small"
+              type="info"
+              effect="plain"
+              data-testid="draft-pending-outlet-tag"
+            >
+              待归档档口
+            </el-tag>
+            <span v-else class="cell-primary">{{ row.sourceShop || row.sourceOutletCode || '—' }}</span>
+          </template>
         </el-table-column>
         <el-table-column label="订单日期" width="110">
           <template #default="{ row }">{{ row.orderDate || '—' }}</template>
@@ -144,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -153,21 +180,41 @@ import {
   type OrderDraftBatchSummary,
   type OrderDraftSummary,
 } from '@/api/orderDraft'
+import type { OutletOptionVO } from '@/api/outlet'
 import { filePreviewUrl } from '@/api/file'
+import { useAuthStore } from '@/stores/auth'
+import { loadOutletOptions } from '@/utils/outletOptions'
 
 const UNBATCHED = '__UNBATCHED__'
 const router = useRouter()
+const authStore = useAuthStore()
 const drafts = ref<OrderDraftSummary[]>([])
 const batches = ref<OrderDraftBatchSummary[]>([])
 const keyword = ref('')
 const batchFilter = ref<string>()
 const entrySource = ref<'AGENT' | 'MANUAL'>()
 const unresolvedOnly = ref<boolean>()
+const outletFilter = ref<number | 'UNASSIGNED' | null>(null)
+const outletFilterOptions = ref<OutletOptionVO[]>([])
+const canUseUnassigned = computed(() => authStore.permissions.includes('data:outlet:unassigned'))
 const dateRange = ref<string[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const loading = ref(false)
+
+function outletFilterLabel(outlet: OutletOptionVO) {
+  return outlet.outletCode ? `${outlet.outletName}（${outlet.outletCode}）` : outlet.outletName
+}
+
+async function loadOutletFilterOptions() {
+  try {
+    const options = await loadOutletOptions()
+    outletFilterOptions.value = options.items || []
+  } catch {
+    outletFilterOptions.value = []
+  }
+}
 
 function batchKey(value?: string) {
   return value?.trim() || UNBATCHED
@@ -197,6 +244,8 @@ async function loadDrafts() {
       unresolvedOnly: unresolvedOnly.value,
       startDate: dateRange.value?.[0],
       endDate: dateRange.value?.[1],
+      sourceOutletId: typeof outletFilter.value === 'number' ? outletFilter.value : undefined,
+      unassignedOnly: outletFilter.value === 'UNASSIGNED' ? true : undefined,
     })
     drafts.value = response.data.records || []
     total.value = response.data.total || 0
@@ -217,6 +266,7 @@ function handleReset() {
   batchFilter.value = undefined
   entrySource.value = undefined
   unresolvedOnly.value = undefined
+  outletFilter.value = null
   dateRange.value = []
   currentPage.value = 1
   loadDrafts()
@@ -242,7 +292,7 @@ function formatDateTime(value?: string) {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadBatches(), loadDrafts()])
+    await Promise.all([loadBatches(), loadDrafts(), loadOutletFilterOptions()])
   } catch (error: any) {
     ElMessage.error(error.message || '加载草稿数据失败')
   }
@@ -289,7 +339,7 @@ onMounted(async () => {
 
 .filter-panel {
   display: grid;
-  grid-template-columns: minmax(240px, 1.5fr) repeat(3, minmax(150px, 0.75fr)) minmax(260px, 1.2fr) auto;
+  grid-template-columns: minmax(240px, 1.5fr) repeat(4, minmax(150px, 0.75fr)) minmax(260px, 1.2fr) auto;
   align-items: end;
   gap: 16px;
   margin-bottom: 20px;

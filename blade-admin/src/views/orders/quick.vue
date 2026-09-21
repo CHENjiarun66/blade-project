@@ -50,10 +50,10 @@
                 <span>订单类型</span>
                 <el-segmented v-model="form.orderType" :options="orderTypeOptions" class="quick-segmented" />
               </label>
-              <label class="field-block md:col-span-2">
-                <span>来源档口/店铺</span>
-                <el-input v-model="form.sourceShop" placeholder="如 杭州四季青A档、线上店铺" clearable />
-              </label>
+              <div class="field-block md:col-span-2">
+                <span>来源档口 <em class="required-mark">*</em></span>
+                <OutletSelect ref="outletSelectRef" v-model="form.sourceOutletId" test-id="quick-outlet" />
+              </div>
             </div>
           </section>
 
@@ -462,6 +462,8 @@ import { createCustomer, getCustomerPage, searchCustomerByPhone, type CustomerVO
 import { fileVariantUrl, parseImageSources, uploadFile } from '@/api/file'
 import { getProductFileBindings, getProductPage, type ProductVO, type ProductSku, type ProductFileBindingsVO } from '@/api/product'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
+import OutletSelect from '@/components/OutletSelect.vue'
+import { useAuthStore } from '@/stores/auth'
 import { hasFriendlySkuName, skuFriendlyName, skuSizeDisplay } from '@/utils/skuDisplay'
 
 interface QuickLine {
@@ -520,10 +522,12 @@ const SummaryRow = defineComponent({
 })
 
 const router = useRouter()
+const authStore = useAuthStore()
 const today = new Date().toISOString().slice(0, 10)
-const defaultSourceShop = '御龙'
 const walkInCustomerName = '散客用户'
 const walkInCustomerPhone = '88888888'
+const canUseUnassigned = computed(() => authStore.permissions.includes('data:outlet:unassigned'))
+const outletSelectRef = ref<InstanceType<typeof OutletSelect> | null>(null)
 const saving = ref(false)
 const draftSaving = ref(false)
 const savedDraftId = ref<number>()
@@ -647,7 +651,7 @@ const orderTypeOptions = [
 const form = reactive({
   sourceBatchNo: '',
   sourceOrderNo: '',
-  sourceShop: defaultSourceShop,
+  sourceOutletId: null as number | null,
   orderDate: today,
   orderType: 'SPOT',
   customerId: undefined as number | undefined,
@@ -757,6 +761,24 @@ function validateSourceDocument() {
   }
   if (composedSourceDocNo().length > 50) {
     ElMessage.warning('单据批次与单据号组合后不能超过 50 个字符')
+    return false
+  }
+  return true
+}
+
+/** 正式订单必须落到具体档口，服务端不接受空档口正式订单。 */
+function requireOutletForOrder() {
+  if (form.sourceOutletId == null) {
+    ElMessage.warning('请选择档口')
+    return false
+  }
+  return true
+}
+
+/** 草稿保存：仅拥有 data:outlet:unassigned 的账号允许暂存空档口待归档草稿。 */
+function requireOutletForDraft() {
+  if (form.sourceOutletId == null && !canUseUnassigned.value) {
+    ElMessage.warning('请选择档口')
     return false
   }
   return true
@@ -963,7 +985,7 @@ function toDraftRequest(): DraftSaveRequest {
     externalRefNo: manualDraftExternalRef(),
     sourceBatchNo: form.sourceBatchNo.trim(),
     sourceOrderNo: form.sourceOrderNo.trim(),
-    sourceShop: form.sourceShop || undefined,
+    sourceOutletId: form.sourceOutletId ?? undefined,
     orderType: form.orderType as 'SPOT' | 'PREORDER',
     sourceFileIds: imageFileIds.value.map(Number).filter(Number.isFinite),
     rawCustomerName: form.customerName || undefined,
@@ -988,6 +1010,7 @@ function toDraftRequest(): DraftSaveRequest {
 
 async function saveAsDraft() {
   if (!validateSourceDocument()) return
+  if (!requireOutletForDraft()) return
   draftSaving.value = true
   try {
     const request = toDraftRequest()
@@ -1039,6 +1062,7 @@ async function applyWalkInCustomerIfEmpty() {
 
 async function submit(next: boolean) {
   if (!validateSourceDocument()) return
+  if (!requireOutletForOrder()) return
   await applyWalkInCustomerIfEmpty()
 
   if (!form.customerName.trim()) {
@@ -1073,7 +1097,7 @@ async function submit(next: boolean) {
       customerId,
       orderDate: form.orderDate,
       sourceDocNo: composedSourceDocNo(),
-      sourceShop: form.sourceShop || undefined,
+      sourceOutletId: form.sourceOutletId ?? undefined,
       orderType: form.orderType,
       customerName: form.customerName,
       customerPhone: form.customerPhone ? form.customerPhone.replace(/[\s\-+]/g, '') : undefined,
@@ -1133,7 +1157,8 @@ function removeImage(index: number) {
 
 function resetForNext(previousSourceOrderNo = '') {
   form.sourceOrderNo = incrementSourceDocNo(previousSourceOrderNo)
-  form.sourceShop = defaultSourceShop
+  // 不写入假档口：沿用选项里的默认档口/唯一档口，否则清空等待人工选择
+  outletSelectRef.value?.selectDefault()
   form.customerId = undefined
   form.countryCode = '+86'
   form.customerPhone = ''

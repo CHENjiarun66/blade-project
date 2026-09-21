@@ -19,6 +19,7 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
     sourceBatchNo: '41',
     sourceOrderNo: 'QUICK-DRAFT-002',
     sourceShop: '御龙',
+    sourceOutletId: 1,
     orderType: 'SPOT',
     customerName: '手工草稿客户',
     customerPhone: '13800138000',
@@ -93,6 +94,16 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
       await route.fulfill({ json: ok({ records: [], total: 0, size: 10, current: 1, pages: 0 }) })
       return
     }
+    if (url.pathname === '/api/outlets/options') {
+      await route.fulfill({ json: ok({
+        scopeType: 'ASSIGNED',
+        peopleScope: 'ALL_USERS',
+        locked: true,
+        defaultOutletId: 1,
+        items: [{ id: 1, outletCode: 'YL', outletName: '御龙', status: 1 }],
+      }) })
+      return
+    }
     if (url.pathname === '/api/order-drafts/batches') {
       await route.fulfill({ json: ok(confirmed ? [] : [{ sourceBatchNo: '41', draftCount: 1, latestUpdateTime: draft.updateTime }]) })
       return
@@ -154,7 +165,6 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
   expect(savePayload).toMatchObject({
     sourceBatchNo: '41',
     sourceOrderNo: 'QUICK-DRAFT-002',
-    sourceShop: '御龙',
     orderType: 'SPOT',
     paidAmount: 40,
     freightAmount: 8,
@@ -162,6 +172,8 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
     needDelivery: 1,
     deliveryAddress: '送货地址',
   })
+  // 档口未变更时不重复提交，服务端保留原档口
+  expect(savePayload?.sourceOutletId).toBeUndefined()
   expect(savePayload?.items[0].costPrice).toBe(12)
   expect(confirmed).toBe(true)
 })

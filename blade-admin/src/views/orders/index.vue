@@ -91,6 +91,27 @@
         </el-select>
       </div>
 
+      <!-- 档口筛选 -->
+      <div class="flex-1 min-w-[180px]">
+        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2 ml-1">档口</label>
+        <el-select
+          v-model="outletFilter"
+          placeholder="全部档口"
+          class="order-select"
+          clearable
+          data-testid="order-outlet-filter"
+        >
+          <el-option label="全部档口" :value="null" />
+          <el-option
+            v-for="outlet in outletFilterOptions"
+            :key="outlet.id"
+            :label="outletFilterLabel(outlet)"
+            :value="outlet.id"
+          />
+          <el-option v-if="canUseUnassigned" label="待归档档口" value="UNASSIGNED" />
+        </el-select>
+      </div>
+
       <!-- 日期范围 -->
       <div class="w-[220px]">
         <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2 ml-1">日期范围</label>
@@ -130,7 +151,10 @@
               <span class="text-[#408aee] font-bold text-sm">{{ row.orderNo }}</span>
               <p class="text-[10px] text-gray-400 mt-0.5">{{ formatDate(row.orderDate || row.createTime) }}</p>
               <p v-if="row.sourceDocNo" class="text-[10px] text-gray-400 mt-0.5">纸单：{{ row.sourceDocNo }}</p>
-              <p v-if="row.sourceShop" class="text-[10px] text-gray-400 mt-0.5">来源：{{ row.sourceShop }}</p>
+              <p v-if="row.sourceOutletId == null" class="text-[10px] mt-0.5">
+                <el-tag size="small" type="info" effect="plain" data-testid="order-pending-outlet-tag">待归档档口</el-tag>
+              </p>
+              <p v-else-if="row.sourceShop" class="text-[10px] text-gray-400 mt-0.5">来源：{{ row.sourceShop }}</p>
             </template>
           </el-table-column>
 
@@ -334,7 +358,25 @@
         <el-input v-model="editForm.sourceDocNo" :disabled="!canEditBasicFields" placeholder="纸质单据号" />
       </el-form-item>
       <el-form-item label="来源档口">
-        <el-input v-model="editForm.sourceShop" :disabled="!canEditBasicFields" placeholder="来源档口/店铺" />
+        <div class="w-full">
+          <OutletSelect
+            v-model="editForm.sourceOutletId"
+            :pending="editingOutletPending"
+            :allow-pending="canUseUnassigned"
+            :disabled="!canChangeOutlet"
+            :fallback-label="editingOrder?.sourceShop"
+            test-id="order-edit-outlet"
+          />
+          <el-input
+            v-if="canChangeOutlet && outletChanged"
+            v-model="editForm.outletChangeReason"
+            type="textarea"
+            :rows="2"
+            class="mt-2"
+            data-testid="outlet-change-reason"
+            placeholder="档口变更原因（必填）"
+          />
+        </div>
       </el-form-item>
       <el-form-item label="订单日期">
         <el-date-picker v-model="editForm.orderDate" :disabled="!canEditBasicFields" value-format="YYYY-MM-DD" type="date" class="!w-full" />
@@ -417,10 +459,15 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrderPage, updateOrder, exportOrders, type OrderUpdateDTO, type OrderVO } from '@/api/order'
+import type { OutletOptionVO } from '@/api/outlet'
 import { parseImageSources, parseImageValues, parseImageVariantSources, uploadFile } from '@/api/file'
 import { ElImageViewer, ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import OutletSelect from '@/components/OutletSelect.vue'
+import { useAuthStore } from '@/stores/auth'
+import { loadOutletOptions } from '@/utils/outletOptions'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 // 筛选条件
 const searchQuery = ref('')
@@ -429,6 +476,23 @@ const paymentStatusFilter = ref<number | null>(null)
 const orderTypeFilter = ref<string | null>(null)
 const balanceFilter = ref<boolean | null>(null)
 const dateRange = ref<Date[]>([])
+const outletFilter = ref<number | 'UNASSIGNED' | null>(null)
+const outletFilterOptions = ref<OutletOptionVO[]>([])
+const canUseUnassigned = computed(() => authStore.permissions.includes('data:outlet:unassigned'))
+const canChangeOutlet = computed(() => authStore.permissions.includes('btn:order:changeOutlet'))
+
+function outletFilterLabel(outlet: OutletOptionVO) {
+  return outlet.outletCode ? `${outlet.outletName}（${outlet.outletCode}）` : outlet.outletName
+}
+
+async function loadOutletFilterOptions() {
+  try {
+    const options = await loadOutletOptions()
+    outletFilterOptions.value = options.items || []
+  } catch {
+    outletFilterOptions.value = []
+  }
+}
 
 // 分页
 const currentPage = ref(1)
@@ -458,6 +522,8 @@ function buildOrderQueryParams() {
     hasBalance: balanceFilter.value !== null ? balanceFilter.value : undefined,
     startDate: formatDateParam(dateRange.value?.[0]),
     endDate: formatDateParam(dateRange.value?.[1]),
+    sourceOutletId: typeof outletFilter.value === 'number' ? outletFilter.value : undefined,
+    unassignedOnly: outletFilter.value === 'UNASSIGNED' ? true : undefined,
   }
 }
 
@@ -485,6 +551,7 @@ function handleReset() {
   orderTypeFilter.value = null
   balanceFilter.value = null
   dateRange.value = []
+  outletFilter.value = null
   currentPage.value = 1
   loadData()
 }
@@ -514,6 +581,8 @@ const editSaving = ref(false)
 const editImageUploading = ref(false)
 const editFormRef = ref<FormInstance>()
 const editingOrder = ref<OrderVO | null>(null)
+const originalOutletId = ref<number | null>(null)
+const editingOutletPending = computed(() => editingOrder.value?.sourceOutletId == null)
 const editImageValues = ref<string[]>([])
 const editImageSources = computed(() => parseImageVariantSources(JSON.stringify(editImageValues.value), 'thumb'))
 const canEditBasicFields = computed(() => (editingOrder.value?.status ?? 0) < 4)
@@ -525,7 +594,8 @@ const editForm = reactive({
   customerName: '',
   orderDate: '',
   sourceDocNo: '',
-  sourceShop: '',
+  sourceOutletId: null as number | null,
+  outletChangeReason: '',
   orderType: 'SPOT',
   customerPhone: '',
   customerAddress: '',
@@ -539,13 +609,16 @@ const editForm = reactive({
 const editRules: FormRules = {
   customerName: [{ required: true, message: '客户名称不能为空', trigger: 'blur' }],
 }
+const outletChanged = computed(() => editForm.sourceOutletId !== originalOutletId.value)
 
 function handleEdit(row: OrderVO) {
   editingOrder.value = row
   editForm.customerName = row.customerName || ''
   editForm.orderDate = row.orderDate || ''
   editForm.sourceDocNo = row.sourceDocNo || ''
-  editForm.sourceShop = row.sourceShop || ''
+  editForm.sourceOutletId = row.sourceOutletId ?? null
+  editForm.outletChangeReason = ''
+  originalOutletId.value = row.sourceOutletId ?? null
   editForm.orderType = row.orderType || 'SPOT'
   editForm.customerPhone = row.customerPhone || ''
   editForm.customerAddress = row.customerAddress || ''
@@ -568,12 +641,23 @@ async function handleEditSave() {
       remark: editForm.remark,
       images: editForm.images,
     }
+    if (canChangeOutlet.value && outletChanged.value) {
+      if (editForm.sourceOutletId == null) {
+        ElMessage.warning('档口不能清空，请选择有效档口')
+        return
+      }
+      if (!editForm.outletChangeReason.trim()) {
+        ElMessage.warning('请填写档口变更原因')
+        return
+      }
+      payload.sourceOutletId = editForm.sourceOutletId
+      payload.outletChangeReason = editForm.outletChangeReason.trim()
+    }
     if (canEditBasicFields.value) {
       Object.assign(payload, {
         customerName: editForm.customerName,
         orderDate: editForm.orderDate,
         sourceDocNo: editForm.sourceDocNo,
-        sourceShop: editForm.sourceShop,
         orderType: editForm.orderType,
         customerPhone: editForm.customerPhone,
         customerAddress: editForm.customerAddress,
@@ -735,6 +819,7 @@ function getPaymentStatusDotClass(status: number): string {
 
 onMounted(() => {
   loadData()
+  loadOutletFilterOptions()
 })
 </script>
 

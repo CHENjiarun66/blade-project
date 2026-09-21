@@ -54,6 +54,16 @@ test('快速录单可将未完成内容暂存为同一张手工草稿且不跳�
       await route.fulfill({ json: ok({ records: [], total: 0, size: 10, current: 1, pages: 0 }) })
       return
     }
+    if (url.pathname === '/api/outlets/options') {
+      await route.fulfill({ json: ok({
+        scopeType: 'ALL',
+        peopleScope: 'ALL_USERS',
+        locked: false,
+        defaultOutletId: 1,
+        items: [{ id: 1, outletCode: 'YL', outletName: '御龙', status: 1 }],
+      }) })
+      return
+    }
     if (url.pathname === '/api/files/upload' && route.request().method() === 'POST') {
       await route.fulfill({ json: ok({
         id: 7001,
@@ -109,7 +119,7 @@ test('快速录单可将未完成内容暂存为同一张手工草稿且不跳�
   expect(createPayload).toMatchObject({
     sourceBatchNo: '41',
     sourceOrderNo: '0135',
-    sourceShop: '御龙',
+    sourceOutletId: 1,
     orderType: 'SPOT',
     customerName: '尚未建档客户',
     note: '先存草稿，商品稍后补',

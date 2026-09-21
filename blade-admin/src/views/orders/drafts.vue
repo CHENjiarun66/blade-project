@@ -165,10 +165,17 @@
                 <span>订单类型</span>
                 <el-segmented v-model="current.orderType" :options="orderTypeOptions" :disabled="readonly" class="!w-full" />
               </label>
-              <label class="field-block">
-                <span>来源档口/店铺</span>
-                <el-input v-model="current.sourceShop" :disabled="readonly" placeholder="如 御龙、档口或线上店铺" />
-              </label>
+              <div class="field-block">
+                <span>来源档口</span>
+                <OutletSelect
+                  v-model="current.sourceOutletId"
+                  :pending="current.sourceOutletId == null"
+                  :allow-pending="canUseUnassigned"
+                  :disabled="readonly"
+                  :fallback-label="current.sourceShop"
+                  test-id="draft-outlet"
+                />
+              </div>
             </div>
           </section>
 
@@ -533,6 +540,8 @@ import { getCustomerPage, type CustomerVO } from '@/api/customer'
 import { getProductPage, type ProductVO } from '@/api/product'
 import { hasFriendlySkuName, skuFriendlyName } from '@/utils/skuDisplay'
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue'
+import OutletSelect from '@/components/OutletSelect.vue'
+import { useAuthStore } from '@/stores/auth'
 import {
   confirmOrderDraft,
   getOrderDraft,
@@ -563,10 +572,14 @@ interface SkuOption {
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
+const canUseUnassigned = computed(() => authStore.permissions.includes('data:outlet:unassigned'))
 const UNBATCHED = '__UNBATCHED__'
 const drafts = ref<OrderDraftSummary[]>([])
 const batches = ref<OrderDraftBatchSummary[]>([])
 const current = ref<OrderDraftView | null>(null)
+// 服务端按“未传保留、传入则必须可用”处理草稿档口；记录载入值便于仅在变更时提交
+const loadedOutletId = ref<number | null>(null)
 const selectedId = ref<number>()
 const selectedBatchKey = ref<string>()
 const keyword = ref('')
@@ -819,6 +832,7 @@ async function loadDraftDetail(id: number) {
       ...normalized,
       needDelivery: response.data.needDelivery ?? 0,
     }
+    loadedOutletId.value = normalized.sourceOutletId ?? null
     const incomingBatchKey = batchKey(normalized.sourceBatchNo)
     const batchChanged = selectedBatchKey.value !== incomingBatchKey
     selectedBatchKey.value = incomingBatchKey
@@ -983,7 +997,10 @@ function toSaveRequest(draft: OrderDraftView): DraftSaveRequest {
     externalRefNo: draft.externalRefNo,
     sourceBatchNo: draft.sourceBatchNo,
     sourceOrderNo: draft.sourceOrderNo,
-    sourceShop: draft.sourceShop,
+    // 未变更不提交：避免把已禁用历史档口重新送服务端校验（未传=保留）
+    sourceOutletId: draft.sourceOutletId != null && draft.sourceOutletId !== loadedOutletId.value
+      ? draft.sourceOutletId
+      : undefined,
     orderType: draft.orderType,
     sourceFileId: draft.sourceFileId,
     sourceFileIds: draft.sourceFileIds,
@@ -1033,6 +1050,10 @@ async function saveDraft(showMessage = true) {
 async function confirmDraft() {
   if (!current.value) return
   if (!validateDocumentIdentity(current.value)) return
+  if (current.value.sourceOutletId == null) {
+    ElMessage.warning('该草稿待归档档口，请先选择档口再确认')
+    return
+  }
   const unresolved = current.value.items.filter(item => !item.skuId)
   if (unresolved.length) {
     ElMessage.warning(`还有 ${unresolved.length} 行没有选择 SKU`)

@@ -29,6 +29,8 @@ export interface OrderVO {
   orderDate?: string
   sourceDocNo?: string
   sourceShop?: string
+  sourceOutletId?: number | null
+  sourceOutletCode?: string | null
   orderType?: string
   orderTypeName?: string
   customerId: number
@@ -117,6 +119,8 @@ export interface OrderPageDTO {
   hasBalance?: boolean
   startDate?: string
   endDate?: string
+  sourceOutletId?: number
+  unassignedOnly?: boolean
 }
 
 export interface OrderPageResponse {
@@ -148,7 +152,7 @@ export interface OrderCreateDTO {
   customerId?: number
   orderDate?: string
   sourceDocNo?: string
-  sourceShop?: string
+  sourceOutletId?: number
   orderType?: string
   customerName: string
   customerPhone?: string
@@ -175,7 +179,8 @@ export interface OrderUpdateDTO {
   id?: number
   orderDate?: string
   sourceDocNo?: string
-  sourceShop?: string
+  sourceOutletId?: number
+  outletChangeReason?: string
   orderType?: string
   customerName?: string
   customerPhone?: string

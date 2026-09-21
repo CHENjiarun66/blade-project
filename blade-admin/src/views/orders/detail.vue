@@ -158,7 +158,11 @@
             </div>
             <div>
               <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">来源档口/店铺</p>
-              <p class="font-medium text-gray-700">{{ order.sourceShop || '-' }}</p>
+              <el-tag v-if="order.sourceOutletId == null" size="small" type="info" effect="plain">待归档档口</el-tag>
+              <template v-else>
+                <p class="font-medium text-gray-700">{{ order.sourceShop || '-' }}</p>
+                <p v-if="order.sourceOutletCode" class="text-[10px] text-gray-400 mt-0.5">{{ order.sourceOutletCode }}</p>
+              </template>
             </div>
             <div>
               <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">开单人员</p>

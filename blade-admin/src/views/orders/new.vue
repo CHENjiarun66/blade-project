@@ -23,6 +23,19 @@
     <div class="grid grid-cols-12 gap-8 items-start pb-24">
       <!-- 左侧内容 -->
       <div class="col-span-12 lg:col-span-8 space-y-6">
+        <!-- 订单信息 -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center gap-2 mb-6 border-l-4 border-[#408aee] pl-4">
+            <h3 class="text-lg font-bold text-gray-900">订单信息</h3>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">来源档口 <span class="text-red-500">*</span></label>
+              <OutletSelect v-model="form.sourceOutletId" test-id="new-order-outlet" />
+            </div>
+          </div>
+        </div>
+
         <!-- 客户信息 -->
         <div class="bg-white rounded-xl p-6 shadow-sm">
           <div class="flex items-center gap-2 mb-6 border-l-4 border-[#408aee] pl-4">
@@ -504,6 +517,7 @@ import { searchCustomerByPhone, type CustomerVO } from '@/api/customer'
 import { fileVariantUrl, uploadFile } from '@/api/file'
 import { getProductPage } from '@/api/product'
 import { getAllWarehouses, getInventoryByWarehouse, getInventoryPage } from '@/api/inventory'
+import OutletSelect from '@/components/OutletSelect.vue'
 
 const router = useRouter()
 
@@ -529,6 +543,7 @@ async function loadWarehouses() {
 
 // 表单数据
 const form = reactive({
+  sourceOutletId: null as number | null,
   customerId: undefined as number | undefined,
   customerName: '',
   customerPhone: '',
@@ -813,6 +828,7 @@ const balance = computed(() => {
 })
 
 const submitValidationMessage = computed(() => {
+  if (form.sourceOutletId == null) return '请选择档口'
   if (!form.customerName.trim()) return '请填写客户名称'
   if (form.items.length === 0) return '请至少添加一件商品'
   if (needDelivery.value && !form.deliveryAddress.trim()) return '需要送货时请填写送货地址'
@@ -931,6 +947,7 @@ async function handleSubmit() {
   try {
     // 新契约：提交不再携带最终收款状态数字；收款通过创建后的统一收款动作入账
     const data = {
+      sourceOutletId: form.sourceOutletId ?? undefined,
       customerId: form.customerId,
       customerName: form.customerName,
       customerPhone: cleanPhone,

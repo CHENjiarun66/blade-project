@@ -47,6 +47,8 @@ export interface OrderDraftView {
   sourceBatchNo?: string
   sourceOrderNo?: string
   sourceShop?: string
+  sourceOutletId?: number | null
+  sourceOutletCode?: string | null
   orderType?: 'SPOT' | 'PREORDER'
   sourceFileId?: number
   sourceFileIds?: number[]
@@ -84,6 +86,8 @@ export interface OrderDraftSummary {
   entrySource?: 'AGENT' | 'MANUAL'
   sourceBatchNo?: string
   sourceOrderNo?: string
+  sourceOutletId?: number | null
+  sourceOutletCode?: string | null
   sourceFileId?: number
   sourceFileCount?: number
   customerName: string
@@ -106,7 +110,7 @@ export interface DraftSaveRequest {
   externalRefNo: string
   sourceBatchNo?: string
   sourceOrderNo?: string
-  sourceShop?: string
+  sourceOutletId?: number
   orderType?: 'SPOT' | 'PREORDER'
   sourceFileId?: number
   sourceFileIds?: number[]
@@ -151,6 +155,8 @@ export function getOrderDraftPage(params: {
   unresolvedOnly?: boolean
   startDate?: string
   endDate?: string
+  sourceOutletId?: number
+  unassignedOnly?: boolean
 }) {
   return client.get('/order-drafts', { params }) as Promise<{
     code: number
