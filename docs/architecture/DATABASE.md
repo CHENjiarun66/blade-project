@@ -722,7 +722,7 @@
 | create_time | datetime | DEFAULT | 创建时间 |
 | update_time | datetime | DEFAULT | 更新时间 |
 
-**索引**：`uk_user_outlet_tenant(tenant_id, user_id, outlet_id)`, `idx_user_outlet_user(tenant_id, user_id, status, deleted)`, `idx_user_outlet_outlet(tenant_id, outlet_id, status, deleted)`, `uk_user_outlet_default(tenant_id, user_default_guard)`（V68，每用户最多一个有效默认；历史重复 fail-closed）
+**索引**：`uk_user_outlet_tenant(tenant_id, user_id, outlet_id)`, `idx_user_outlet_user(tenant_id, user_id, status, deleted)`, `idx_user_outlet_outlet(tenant_id, outlet_id, status, deleted)`, `uk_user_outlet_default(tenant_id, user_default_guard)`（V68，每用户最多一个有效默认；迁移在任何 ALTER 前统一检查两张表，重复时零 DDL fail-closed，清理后需 `flyway repair` 再重跑）
 
 ### 6.3 agent_key_outlet Agent Key 档口关联
 
@@ -739,7 +739,7 @@
 | agent_key_default_guard | bigint | GENERATED STORED | V68：status=1 且 is_default=1 时为 agent_key_id，否则 NULL |
 | create_time | datetime | DEFAULT | 创建时间 |
 
-**索引**：`uk_agent_key_outlet(tenant_id, agent_key_id, outlet_id)`, `idx_agent_key_outlet_key(tenant_id, agent_key_id, status)`, `uk_agent_key_outlet_default(tenant_id, agent_key_default_guard)`（V68，每 Key 最多一个有效默认；历史重复 fail-closed）
+**索引**：`uk_agent_key_outlet(tenant_id, agent_key_id, outlet_id)`, `idx_agent_key_outlet_key(tenant_id, agent_key_id, status)`, `uk_agent_key_outlet_default(tenant_id, agent_key_default_guard)`（V68，每 Key 最多一个有效默认；迁移在任何 ALTER 前统一检查两张表，重复时零 DDL fail-closed，清理后需 `flyway repair` 再重跑）
 
 **关联字段**：`agent_key.outlet_scope_type varchar(20) NOT NULL DEFAULT 'NONE'`（V63 新增，位于 `scopes` 之后）。合法取值 `ALL`（本租户全部启用档口，不依赖逐档口关联行，新档口自动可见）/ `ASSIGNED`（仅 `agent_key_outlet` 绑定的启用档口，必须至少一条有效关联）/ `NONE`（拒绝档口业务，默认值）。Series E3 轮换语义：`outletScopeType/outletIds/defaultOutletId` 为 null 时分别继承旧 Key，显式传入按新配置；单事务先建新 Key 再停旧 Key；ALL 不写逐档口冗余绑定，仅可存一条默认档口标记；`readOutletConfig` 对 ALL 的 `outletIds` 恒为空。
 

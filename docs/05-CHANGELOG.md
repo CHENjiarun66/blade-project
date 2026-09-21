@@ -8,6 +8,15 @@
 
 ## 2026-09-21 变更记录
 
+### [修复] - V68 统一前置检查，消除 MySQL 非事务 DDL 半迁移
+
+- 问题（Codex 终审）：V68 先 `ALTER sys_user_outlet` 再 `ALTER agent_key_outlet`；MySQL DDL 非事务，若仅 `agent_key_outlet` 有历史重复，第一张表已改成功、第二张失败，人工清理后重跑会因第一张表列/索引已存在而继续失败。
+- 修复：V68 在**任何 ALTER 之前**用 `SET @v68_user_dup/@v68_key_dup` + 派生表同时统计两张表重复默认；任一重复即 `PREPARE/EXECUTE` 一条引用不存在表 `outlet_default_unique_preflight_failed_v68_see_migration_comment` 的语句 fail-fast（错误名可定位），两张表**零 DDL**，不静默删/改；preflight 通过后才执行两段单表单 ALTER。
+- 测试：`FlywayFreshDatabaseMigrationTest` 用户重复、agent 重复两个反例均断言失败后两张表都没有 `user_default_guard`/`agent_key_default_guard` 与两个唯一索引；agent 重复清理 `is_default` 后 `flyway repair` + `migrate` 成功到 V68，验证无半迁移结构阻塞；`OutletV68DefaultUniquenessSchemaTest` 新增断言 preflight 语句位于两个 ALTER 之前、fail-fast 表名可定位。
+- 本地 checksum：仅对本机开发库 `blade_project` 执行 `Flyway.repair()` 对齐改写后的 V68 checksum（validate 通过，pending=0）；未接触生产/NAS。
+- 文档：生产 checklist §2.2 补“统一前置检查/零 DDL”“失败后 repair+migrate”“禁止跳过 repair 或手工补列”；DATABASE.md、20 设计文档同步。
+- 验证：V68 定向 15/15（静态 5、真实唯一键 6、空库/失败恢复 4）；后端全量 **850/850**（Failures 0 / Errors 0 / Skipped 0）。
+
 ### [整改] - 档口最终权限与数据一致性收口：客户 orderCount 范围、V68 默认唯一、移动端错误去重
 
 - 客户 orderCount 范围泄露修复：`CustomerServiceImpl.pageList/getById/getByPhone` 三处订单数统一改用 `OrderAccessPolicy.resolveReadScope(null,false)` 的 `OrderReadScope.applySalesPredicate`，与客户 stats/orders 同口径（档口 × 人员，默认排除 `source_outlet_id NULL`）。`pageList` 每请求只解析一次 scope，并按当前页 `customer_id` 一条 `GROUP BY` 批量计数（`OrderReadScope` 新增 `QueryWrapper` 字符串列重载），消除逐客户 selectCount 的 N+1；`getById`/`getByPhone` 复用同一 helper。新增真实 DB 集成测试覆盖分页/详情/按电话在 SELF/ALL_USERS、NONE/ASSIGNED/ALL 下的 records 与 orderCount。

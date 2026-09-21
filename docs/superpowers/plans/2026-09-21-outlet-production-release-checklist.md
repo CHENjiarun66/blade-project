@@ -74,9 +74,13 @@
    GROUP BY tenant_id, agent_key_id
   HAVING COUNT(*) > 1;
   ```
-- [ ] 结果必须为空。**V68 fail-closed**：存在重复时迁移会因 `uk_user_outlet_default` /
-      `uk_agent_key_outlet_default` 唯一键冲突中止，不静默删/改；由人工确认保留哪条，
-      显式 `UPDATE ... SET is_default = 0` 清理其余并留痕后重跑。
+- [ ] 结果必须为空。**V68 统一前置检查、零 DDL fail-closed**：迁移脚本在**任何 ALTER 之前**同时检查两张表；
+      任一表有重复即 fail-fast（故意执行引用不存在表 `outlet_default_unique_preflight_failed_v68_see_migration_comment`
+      的语句，错误名可定位），两张表都**不产生新增列/索引**，不静默删/改；由人工确认保留哪条，
+      显式 `UPDATE ... SET is_default = 0` 清理其余并留痕。
+- [ ] **失败恢复（MySQL DDL 非事务性）**：迁移失败后 Flyway 会记录 failed row；清理重复后必须
+      `flyway repair`（移除 failed row、对齐 checksum）再 `migrate`。因失败时零 DDL，重跑不会遇到
+      “列/索引已存在”的阻塞；禁止跳过 repair 直接重跑或手工补列/索引。
 - [ ] V68 成功后复核 `SHOW CREATE TABLE` 含 `user_default_guard`/`agent_key_default_guard`
       与两个唯一索引；记录 DDL 耗时/锁表影响。
 - [ ] **回滚边界**：V67/V68 为生成列+唯一索引的加法迁移，应用可回滚到旧镜像；数据库回滚需

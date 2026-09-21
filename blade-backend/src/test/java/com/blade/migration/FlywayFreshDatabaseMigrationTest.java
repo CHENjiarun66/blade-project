@@ -130,13 +130,22 @@ class FlywayFreshDatabaseMigrationTest {
                     .locations("classpath:db/migration").baselineOnMigrate(true).load();
             assertThrows(FlywayException.class, toV68::migrate,
                     "历史存在同用户重复默认绑定时 V68 必须 fail closed");
+
+            try (Connection conn = DriverManager.getConnection(freshUrl, user, password);
+                 Statement st = conn.createStatement()) {
+                // 统一前置检查保证：任一表重复时两张表都不得产生 V68 结构（零 DDL）
+                assertNoGeneratedColumn(st, db, "sys_user_outlet", "user_default_guard");
+                assertNoIndex(st, db, "sys_user_outlet", "uk_user_outlet_default");
+                assertNoGeneratedColumn(st, db, "agent_key_outlet", "agent_key_default_guard");
+                assertNoIndex(st, db, "agent_key_outlet", "uk_agent_key_outlet_default");
+            }
         } finally {
             dropDatabase(serverUrl, user, password, db);
         }
     }
 
     @Test
-    void failsClosedWhenHistoricalDuplicateAgentKeyDefaultsExist() throws Exception {
+    void agentDuplicateFailsClosedWithZeroDdlThenRepairAndRetrySucceeds() throws Exception {
         String db = freshDbName();
         String url = environment.getProperty("spring.datasource.url");
         String user = environment.getProperty("spring.datasource.username", "root");
@@ -155,12 +164,58 @@ class FlywayFreshDatabaseMigrationTest {
                         + "VALUES(1,88,1,1,1),(1,88,2,1,1)");
             }
 
-            Flyway toV68 = Flyway.configure().dataSource(freshUrl, user, password)
+            Flyway failed = Flyway.configure().dataSource(freshUrl, user, password)
                     .locations("classpath:db/migration").baselineOnMigrate(true).load();
-            assertThrows(FlywayException.class, toV68::migrate,
+            assertThrows(FlywayException.class, failed::migrate,
                     "历史存在同 Key 重复默认绑定时 V68 必须 fail closed");
+
+            try (Connection conn = DriverManager.getConnection(freshUrl, user, password);
+                 Statement st = conn.createStatement()) {
+                // 核心反例：agent 表重复也不得让任何一张表产生 V68 结构（零 DDL）
+                assertNoGeneratedColumn(st, db, "sys_user_outlet", "user_default_guard");
+                assertNoIndex(st, db, "sys_user_outlet", "uk_user_outlet_default");
+                assertNoGeneratedColumn(st, db, "agent_key_outlet", "agent_key_default_guard");
+                assertNoIndex(st, db, "agent_key_outlet", "uk_agent_key_outlet_default");
+
+                // 人工清理重复默认（保留 outlet_id=2），随后 repair + retry 必须成功
+                st.executeUpdate("UPDATE agent_key_outlet SET is_default=0 "
+                        + "WHERE tenant_id=1 AND agent_key_id=88 AND outlet_id=1");
+            }
+
+            Flyway retry = Flyway.configure().dataSource(freshUrl, user, password)
+                    .locations("classpath:db/migration").baselineOnMigrate(true).load();
+            retry.repair();
+            retry.migrate();
+
+            assertEquals("68", retry.info().current().getVersion().getVersion(),
+                    "清理重复并 repair 后必须能直接迁移到 V68");
+            try (Connection conn = DriverManager.getConnection(freshUrl, user, password);
+                 Statement st = conn.createStatement()) {
+                assertGeneratedColumn(st, db, "sys_user_outlet", "user_default_guard");
+                assertUniqueIndex(st, db, "sys_user_outlet", "uk_user_outlet_default", 2);
+                assertGeneratedColumn(st, db, "agent_key_outlet", "agent_key_default_guard");
+                assertUniqueIndex(st, db, "agent_key_outlet", "uk_agent_key_outlet_default", 2);
+            }
         } finally {
             dropDatabase(serverUrl, user, password, db);
+        }
+    }
+
+    private void assertNoGeneratedColumn(Statement st, String db, String table, String column) throws Exception {
+        try (ResultSet rs = st.executeQuery(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='" + db
+                        + "' AND TABLE_NAME='" + table + "' AND COLUMN_NAME='" + column + "'")) {
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1), "preflight 失败时 " + table + "." + column + " 不得存在（零 DDL）");
+        }
+    }
+
+    private void assertNoIndex(Statement st, String db, String table, String index) throws Exception {
+        try (ResultSet rs = st.executeQuery(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='" + db
+                        + "' AND TABLE_NAME='" + table + "' AND INDEX_NAME='" + index + "'")) {
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1), "preflight 失败时 " + table + "." + index + " 不得存在（零 DDL）");
         }
     }
 
@@ -183,7 +238,7 @@ class FlywayFreshDatabaseMigrationTest {
     }
 
     private String freshDbName() {
-        return "blade_v67_fresh_" + Long.toString(System.nanoTime()).substring(8);
+        return "blade_v68_fresh_" + Long.toString(System.nanoTime()).substring(8);
     }
 
     private String replaceDatabase(String url, String database) {

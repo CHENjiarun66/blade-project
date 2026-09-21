@@ -10,6 +10,7 @@
 - 基线 `2df981f`；小提交：CustomerServiceImpl（`f422f21`）、V68+测试+文档（`22441f1`）、移动端错误去重（`6fe2070`）。
 - 客户 orderCount：pageList/getById/getByPhone 统一 `OrderReadScope.applySalesPredicate`；pageList 每请求一次 scope + 一条 `GROUP BY customer_id` 批量计数（`OrderReadScope` 增 `QueryWrapper` 重载）；`CustomerOrderScopeIntegrationTest.orderCountIsScopedOnListDetailAndSearch` 真实 DB 覆盖 SELF/ALL_USERS/NONE/ASSIGNED/ALL 与分页/详情/搜索，NULL 不计。
 - V68：`sys_user_outlet.user_default_guard` + `uk_user_outlet_default`、`agent_key_outlet.agent_key_default_guard` + `uk_agent_key_outlet_default`，STORED 生成列 + 唯一索引，历史重复 fail-closed；写入顺序审计（用户绑定先删后插、Agent rotate 新 key）无瞬时冲突。测试：静态 3 + 真实唯一键 6 + 空库 V1→V68/重复 fail-closed 4。
+- V68 终审补强（Codex）：MySQL DDL 非事务，原先后 ALTER 会在仅 agent 表重复时留下半迁移。改为在任何 ALTER 前用 `SET` + 派生表同时检查两张表，任一重复即 `PREPARE/EXECUTE` 引用不存在表 `outlet_default_unique_preflight_failed_v68_see_migration_comment` 的语句 fail-fast，两张表零 DDL；失败后清理数据要 `flyway repair` 再 `migrate`。测试扩展为：user/agent 重复均断言两表无 guard/index；agent 重复清理后 repair+migrate 成功；静态断言 preflight 在两个 ALTER 之前（5 例）。本地 `blade_project` 仅用 `Flyway.repair()` 对齐改写后的 checksum（validate 通过、pending=0）。
 - 移动端：档口错误改为 `:error` 红框 + 单一 `role=alert` 文字，去重不退化。
 - 文档：DATABASE.md、设计 §3.2/§3.4、生产 checklist §2.2（V68 preflight/fail-closed/回滚边界）、03-TASKS `DB-OUTLET-001/003`。
 - 验证：后端全量 **848/848**（Failures 0 / Errors 0 / Skipped 0）；`blade-mobile` `vue-tsc -b` + `vite build` 通过；`git diff --check` 无输出。
