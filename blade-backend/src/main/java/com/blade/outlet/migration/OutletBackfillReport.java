@@ -22,11 +22,20 @@ public record OutletBackfillReport(
         int ordersSuspect,
         int draftsSuspect,
         int confirmedDraftsSkipped,
+        int ordersConcurrentSkipped,
+        int draftsConcurrentSkipped,
         Map<String, Object> before,
         Map<String, Object> after,
         boolean reconciliationConsistent,
+        List<ValueGroup> groups,
         List<String> warnings,
-        List<String> errors) {
+        List<String> errors,
+        String reportJsonPath,
+        String reportMarkdownPath) {
+
+    /** 结构化分类/样例；样例严格限定本租户，sampleRefs 为订单号或草稿 externalRefNo。 */
+    public record ValueGroup(String table, String bucket, String value, long count, List<String> sampleRefs) {
+    }
 
     public boolean applied() {
         return "APPLY".equals(mode);

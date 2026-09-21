@@ -6,19 +6,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.core.env.Environment;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Path;
 import java.util.List;
 
 /**
  * Series F 回填命令行入口：仅当显式传入 {@code --blade.outlet.backfill.mapping-file=...} 时激活。
  *
- * <p>默认 dry-run 并输出 JSON 报告；apply 需同时传
- * {@code --blade.outlet.backfill.apply=true --blade.outlet.backfill.tenant-id=N
- * --blade.outlet.backfill.copy-environment-ack=true}，并通过安全闸门的生产特征拒绝。
- * 只应在生产库副本上执行。</p>
+ * <p>默认 dry-run 并输出 JSON +（可选 report-dir 下的 JSON/Markdown）报告；apply 必须经
+ * {@link OutletBackfillSafetyGate} 的 fail-closed 正向副本身份验证后才可写入。建议一次性运行：
+ * {@code --spring.main.web-application-type=none}。只应在生产库副本上执行。</p>
  */
 @Component
 @ConditionalOnProperty(name = "blade.outlet.backfill.mapping-file")
@@ -26,10 +24,8 @@ import java.util.List;
 public class OutletBackfillCli implements ApplicationRunner {
 
     private final OutletBackfillProperties properties;
-    private final OutletBackfillService service;
     private final OutletBackfillSafetyGate safetyGate;
-    private final JdbcTemplate jdbc;
-    private final Environment environment;
+    private final OutletBackfillService service;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -45,16 +41,12 @@ public class OutletBackfillCli implements ApplicationRunner {
         List<OutletBackfillMappingRow> rows = OutletBackfillMapping.parseFile(mappingFile);
         OutletBackfillReport report;
         if (properties.isApply()) {
-            safetyGate.requireApplyAllowed(properties,
-                    environment.getProperty("spring.datasource.url"), currentDatabase());
-            report = service.apply(tenantId, rows);
+            report = service.apply(safetyGate.approve(properties), rows);
         } else {
-            report = service.preview(tenantId, rows);
+            Path reportDir = properties.getReportDir() == null || properties.getReportDir().isBlank()
+                    ? null : Path.of(properties.getReportDir());
+            report = service.preview(tenantId, reportDir, rows);
         }
         System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(report));
-    }
-
-    private String currentDatabase() {
-        return jdbc.queryForObject("SELECT DATABASE()", String.class);
     }
 }

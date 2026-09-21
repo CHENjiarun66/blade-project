@@ -5,6 +5,7 @@
 --       订单、草稿查询计划，以及档口相关索引是否存在。
 --
 -- 重要：脚本只输出 EXPLAIN / information_schema，不写库、不建索引、不改数据。
+--       所有 EXPLAIN 必须显式提供 :tenant_id；未提供/为 NULL 时 fail-closed（零行）。
 --       不把 EXPLAIN 结果写成脆弱断言（不同 MySQL 版本/统计信息会变化）；
 --       自动化断言只核对「索引存在」，生产规模性能结论保持 pending。
 --
