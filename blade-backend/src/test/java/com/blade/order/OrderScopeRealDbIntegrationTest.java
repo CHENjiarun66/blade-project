@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -117,6 +118,46 @@ class OrderScopeRealDbIntegrationTest {
         assertEquals(1, count("SELECT COUNT(*) FROM sale_order_item WHERE id=?", placeholderItemId));
     }
 
+    @Test
+    void realDb_financialActionChecksAccessBeforeIdempotencyShortCircuit() {
+        Long orderB = order("RDB-FIN-B-" + System.nanoTime(), outletB, userId, "CONFIRMED", 3, 0);
+        Long orderA = order("RDB-FIN-A-" + System.nanoTime(), outletA, userId, "CONFIRMED", 3, 0);
+        String ownKey = "ik-own-" + System.nanoTime();
+        String otherKey = "ik-other-" + System.nanoTime();
+        financialRecord(orderB, ownKey);
+        financialRecord(orderA, otherKey);
+        int recordsBefore = count("SELECT COUNT(*) FROM order_financial_record");
+
+        // 知道真实 orderId + 该订单自己的幂等键：修复前会走"静默成功"泄露存在性
+        BusinessException ex1 = assertThrows(BusinessException.class,
+                () -> orderActionService.recordPayment(orderB, new BigDecimal("10.00"), "CASH", ownKey, "TEST"));
+        assertEquals(403, ex1.getCode());
+
+        // 知道真实 orderId + 其他订单的幂等键：修复前会 400 泄露"键已被其他订单使用"
+        BusinessException ex2 = assertThrows(BusinessException.class,
+                () -> orderActionService.recordPayment(orderB, new BigDecimal("10.00"), "CASH", otherKey, "TEST"));
+        assertEquals(403, ex2.getCode());
+
+        assertEquals(recordsBefore, count("SELECT COUNT(*) FROM order_financial_record"), "越权请求不得产生任何写入");
+        assertEquals("UNPAID", jdbc.queryForObject(
+                "SELECT collection_status FROM sale_order WHERE id=?", String.class, orderB));
+    }
+
+    @Test
+    void realDb_authorizedFinancialRetryIsIdempotent() {
+        Long orderA = order("RDB-FIN-IDEM-" + System.nanoTime(), outletA, userId, "CONFIRMED", 3, 0);
+        String key = "ik-idem-" + System.nanoTime();
+
+        assertDoesNotThrow(() -> orderActionService.recordPayment(
+                orderA, new BigDecimal("10.00"), "CASH", key, "TEST"));
+        assertEquals(1, count("SELECT COUNT(*) FROM order_financial_record WHERE idempotency_key=?", key));
+
+        assertDoesNotThrow(() -> orderActionService.recordPayment(
+                orderA, new BigDecimal("10.00"), "CASH", key, "TEST"), "授权用户重复请求必须幂等成功");
+        assertEquals(1, count("SELECT COUNT(*) FROM order_financial_record WHERE idempotency_key=?", key),
+                "重复请求不得追加流水");
+    }
+
     // ==================== fixtures ====================
 
     private void authenticate(Long actorId) {
@@ -127,6 +168,7 @@ class OrderScopeRealDbIntegrationTest {
                 principal, null, List.of(
                         new SimpleGrantedAuthority("btn:order:deliver"),
                         new SimpleGrantedAuthority("btn:order:allocate"),
+                        new SimpleGrantedAuthority("btn:order:recordPayment"),
                         new SimpleGrantedAuthority("btn:order:view"))));
     }
 
@@ -163,6 +205,13 @@ class OrderScopeRealDbIntegrationTest {
                 + "price,quantity,subtotal) VALUES(1,?,1,'占位商品','未指定颜色','未指定尺码',10,2,20)", orderId);
         return jdbc.queryForObject("SELECT id FROM sale_order_item WHERE order_id=? ORDER BY id DESC LIMIT 1",
                 Long.class, orderId);
+    }
+
+    private void financialRecord(Long orderId, String idempotencyKey) {
+        jdbc.update("INSERT INTO order_financial_record(tenant_id,order_id,record_type,amount,occurred_at,"
+                        + "operator_id,source,idempotency_key,deleted) "
+                        + "VALUES(1,?,'RECEIPT',5.00,NOW(3),100,'TEST',?,0)",
+                orderId, idempotencyKey);
     }
 
     private int count(String sql, Object... args) {

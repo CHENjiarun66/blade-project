@@ -576,10 +576,21 @@ public class OrderActionService {
     // ==================== 内部工具 ====================
 
     /**
-     * 财务动作前置：幂等键命中返回 null（调用方静默成功），否则行锁订单。
+     * 财务动作前置：先加载并锁定订单、做档口/人员范围鉴权，再判断幂等键。
+     * 幂等键命中返回 null（调用方静默成功）。
+     *
+     * <p>鉴权必须先于幂等短路：否则越权用户只要猜到真实 orderId + 幂等键，
+     * 就能从"静默成功"或"幂等键已被其他订单使用"推断订单/幂等记录存在性。
+     * 先取行锁也让并发重试在同一订单锁上串行，后到事务能看到先到事务写入的幂等记录，
+     * 并发安全不退化。</p>
      */
     private Order lockForFinancialAction(Long orderId, String idempotencyKey) {
         Long tenantId = currentTenant();
+        Order order = orderMapper.selectByIdForUpdate(orderId, tenantId);
+        if (order == null) {
+            throw BusinessException.of(404, "订单不存在");
+        }
+        accessPolicy.requireAccess(order);
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             OrderFinancialRecord existing = recordMapper.selectOne(
                     new LambdaQueryWrapper<OrderFinancialRecord>()
@@ -593,11 +604,6 @@ public class OrderActionService {
                 return null;
             }
         }
-        Order order = orderMapper.selectByIdForUpdate(orderId, tenantId);
-        if (order == null) {
-            throw BusinessException.of(404, "订单不存在");
-        }
-        accessPolicy.requireAccess(order);
         return order;
     }
 
