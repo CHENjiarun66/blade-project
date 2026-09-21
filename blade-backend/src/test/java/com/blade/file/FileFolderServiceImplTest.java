@@ -8,6 +8,7 @@ import com.blade.file.entity.FileFolder;
 import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileFolderMapper;
 import com.blade.file.mapper.FileStorageMapper;
+import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.impl.FileFolderServiceImpl;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
@@ -35,7 +36,8 @@ class FileFolderServiceImplTest {
         initTableInfo(FileStorage.class);
         fileFolderMapper = mock(FileFolderMapper.class);
         fileStorageMapper = mock(FileStorageMapper.class);
-        service = new FileFolderServiceImpl(fileFolderMapper, fileStorageMapper);
+        service = new FileFolderServiceImpl(fileFolderMapper, fileStorageMapper,
+                mock(FileBusinessAccessPolicy.class));
     }
 
     @AfterEach

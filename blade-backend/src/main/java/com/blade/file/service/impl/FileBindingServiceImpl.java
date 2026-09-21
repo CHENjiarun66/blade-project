@@ -15,6 +15,7 @@ import com.blade.file.mapper.FileBusinessBindMapper;
 import com.blade.file.mapper.FileFolderMapper;
 import com.blade.file.mapper.FileOperationLogMapper;
 import com.blade.file.mapper.FileStorageMapper;
+import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.FileBindingService;
 import com.blade.system.user.entity.User;
 import org.springframework.security.core.Authentication;
@@ -32,15 +33,18 @@ public class FileBindingServiceImpl implements FileBindingService {
     private final FileBusinessBindMapper fileBusinessBindMapper;
     private final FileOperationLogMapper fileOperationLogMapper;
     private final FileFolderMapper fileFolderMapper;
+    private final FileBusinessAccessPolicy fileBusinessAccessPolicy;
 
     public FileBindingServiceImpl(FileStorageMapper fileStorageMapper,
                                   FileBusinessBindMapper fileBusinessBindMapper,
                                   FileOperationLogMapper fileOperationLogMapper,
-                                  FileFolderMapper fileFolderMapper) {
+                                  FileFolderMapper fileFolderMapper,
+                                  FileBusinessAccessPolicy fileBusinessAccessPolicy) {
         this.fileStorageMapper = fileStorageMapper;
         this.fileBusinessBindMapper = fileBusinessBindMapper;
         this.fileOperationLogMapper = fileOperationLogMapper;
         this.fileFolderMapper = fileFolderMapper;
+        this.fileBusinessAccessPolicy = fileBusinessAccessPolicy;
     }
 
     // ==================== GET /api/files/{id}/bindings ====================
@@ -48,6 +52,15 @@ public class FileBindingServiceImpl implements FileBindingService {
     @Override
     public List<FileBindingVO> getBindings(Long fileId) {
         Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        FileStorage file = fileStorageMapper.selectOne(new LambdaQueryWrapper<FileStorage>()
+                .eq(FileStorage::getId, fileId)
+                .eq(FileStorage::getTenantId, tenantId)
+                .eq(FileStorage::getStatus, 1));
+        if (file == null) {
+            throw new RuntimeException("文件不存在");
+        }
+        fileBusinessAccessPolicy.requireFileRead(file);
 
         LambdaQueryWrapper<FileBusinessBind> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileBusinessBind::getFileId, fileId);
@@ -83,6 +96,13 @@ public class FileBindingServiceImpl implements FileBindingService {
         if (fileCount != dto.getFileIds().size()) {
             throw new RuntimeException("文件不存在");
         }
+        // 变更前校验目标业务对象与文件权限
+        fileBusinessAccessPolicy.requireTargetAccess(dto.getBusinessType(), dto.getBusinessId());
+        List<FileStorage> files = fileStorageMapper.selectList(new LambdaQueryWrapper<FileStorage>()
+                .in(FileStorage::getId, dto.getFileIds())
+                .eq(FileStorage::getTenantId, tenantId)
+                .eq(FileStorage::getStatus, 1));
+        fileBusinessAccessPolicy.requireFilesRead(files);
 
         // 批量插入绑定
         int sort = 0;
@@ -123,6 +143,15 @@ public class FileBindingServiceImpl implements FileBindingService {
         if (bind == null) {
             throw new RuntimeException("绑定不存在");
         }
+        // 解绑前校验文件与目标业务对象权限
+        FileStorage file = fileStorageMapper.selectOne(new LambdaQueryWrapper<FileStorage>()
+                .eq(FileStorage::getId, bind.getFileId())
+                .eq(FileStorage::getTenantId, tenantId)
+                .eq(FileStorage::getStatus, 1));
+        if (file != null) {
+            fileBusinessAccessPolicy.requireFileRead(file);
+        }
+        fileBusinessAccessPolicy.requireTargetAccess(bind.getBusinessType(), bind.getBusinessId());
 
         // 软删除
         LambdaUpdateWrapper<FileBusinessBind> updateWrapper = new LambdaUpdateWrapper<>();
@@ -145,6 +174,12 @@ public class FileBindingServiceImpl implements FileBindingService {
         if (dto.getFileIds() == null || dto.getFileIds().isEmpty()) return;
 
         Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        List<FileStorage> files = fileStorageMapper.selectList(new LambdaQueryWrapper<FileStorage>()
+                .in(FileStorage::getId, dto.getFileIds())
+                .eq(FileStorage::getTenantId, tenantId)
+                .eq(FileStorage::getStatus, 1));
+        fileBusinessAccessPolicy.requireFilesRead(files);
 
         List<Long> boundFileIds = fileBusinessBindMapper.selectList(
                         new LambdaQueryWrapper<FileBusinessBind>()
@@ -181,6 +216,13 @@ public class FileBindingServiceImpl implements FileBindingService {
         if (dto.getFileIds() == null || dto.getFileIds().isEmpty()) return;
 
         Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+
+        // 变更前校验文件权限
+        List<FileStorage> files = fileStorageMapper.selectList(new LambdaQueryWrapper<FileStorage>()
+                .in(FileStorage::getId, dto.getFileIds())
+                .eq(FileStorage::getTenantId, tenantId)
+                .eq(FileStorage::getStatus, 1));
+        fileBusinessAccessPolicy.requireFilesRead(files);
 
         // 如果指定了文件夹，验证文件夹存在且属于当前租户且未删除
         if (dto.getFolderId() != null) {

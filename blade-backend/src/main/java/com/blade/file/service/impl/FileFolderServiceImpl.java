@@ -10,6 +10,7 @@ import com.blade.file.entity.FileFolder;
 import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileFolderMapper;
 import com.blade.file.mapper.FileStorageMapper;
+import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.FileFolderService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,11 +25,14 @@ public class FileFolderServiceImpl implements FileFolderService {
 
     private final FileFolderMapper fileFolderMapper;
     private final FileStorageMapper fileStorageMapper;
+    private final FileBusinessAccessPolicy fileBusinessAccessPolicy;
 
     public FileFolderServiceImpl(FileFolderMapper fileFolderMapper,
-                                 FileStorageMapper fileStorageMapper) {
+                                 FileStorageMapper fileStorageMapper,
+                                 FileBusinessAccessPolicy fileBusinessAccessPolicy) {
         this.fileFolderMapper = fileFolderMapper;
         this.fileStorageMapper = fileStorageMapper;
+        this.fileBusinessAccessPolicy = fileBusinessAccessPolicy;
     }
 
     @Override
@@ -143,6 +147,12 @@ public class FileFolderServiceImpl implements FileFolderService {
             if (!moveFilesToUnfiled) {
                 throw new RuntimeException("文件夹下存在文件");
             }
+            // Series E2：移动前校验受保护文件权限
+            List<FileStorage> foldedFiles = fileStorageMapper.selectList(new LambdaQueryWrapper<FileStorage>()
+                    .eq(FileStorage::getFolderId, id)
+                    .eq(FileStorage::getTenantId, tenantId)
+                    .eq(FileStorage::getStatus, 1));
+            fileBusinessAccessPolicy.requireFilesRead(foldedFiles);
             // 将文件移出文件夹（folder_id 置 null）
             LambdaUpdateWrapper<FileStorage> fileWrapper = new LambdaUpdateWrapper<>();
             fileWrapper.eq(FileStorage::getFolderId, id);

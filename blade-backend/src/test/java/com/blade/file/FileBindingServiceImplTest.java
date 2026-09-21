@@ -16,6 +16,7 @@ import com.blade.file.mapper.FileBusinessBindMapper;
 import com.blade.file.mapper.FileFolderMapper;
 import com.blade.file.mapper.FileOperationLogMapper;
 import com.blade.file.mapper.FileStorageMapper;
+import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.impl.FileBindingServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * FileBindingService 测试 — 使用 JDK Proxy mock mapper。
@@ -65,7 +67,8 @@ class FileBindingServiceImplTest {
         FileBusinessBindMapper bindMapper = proxyMapper(FileBusinessBindMapper.class, bindHandler);
         FileOperationLogMapper logMapper = proxyMapper(FileOperationLogMapper.class, logHandler);
         FileFolderMapper folderMapper = proxyMapper(FileFolderMapper.class, folderHandler);
-        service = new FileBindingServiceImpl(storageMapper, bindMapper, logMapper, folderMapper);
+        service = new FileBindingServiceImpl(storageMapper, bindMapper, logMapper, folderMapper,
+                mock(FileBusinessAccessPolicy.class));
     }
 
     @AfterEach
@@ -77,6 +80,11 @@ class FileBindingServiceImplTest {
 
     @Test
     void getBindings_returnsActiveBindings() {
+        FileStorage file = new FileStorage();
+        file.setId(100L);
+        file.setTenantId(1L);
+        file.setStatus(1);
+        storageHandler.thenSelectOne(file);
         FileBusinessBind b1 = new FileBusinessBind();
         b1.setId(1L);
         b1.setFileId(100L);
@@ -98,6 +106,11 @@ class FileBindingServiceImplTest {
 
     @Test
     void getBindings_returnsEmpty_whenNone() {
+        FileStorage file = new FileStorage();
+        file.setId(100L);
+        file.setTenantId(1L);
+        file.setStatus(1);
+        storageHandler.thenSelectOne(file);
         bindHandler.thenSelectList(List.of());
         assertTrue(service.getBindings(100L).isEmpty());
     }

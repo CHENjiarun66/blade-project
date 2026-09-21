@@ -13,6 +13,7 @@ import com.blade.file.entity.FileBusinessBind;
 import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileBusinessBindMapper;
 import com.blade.file.mapper.FileStorageMapper;
+import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.FileDerivativeService;
 import com.blade.file.service.FileService;
 import com.blade.file.storage.FileStorageService;
@@ -49,26 +50,36 @@ public class FileServiceImpl implements FileService {
     private final ObjectMapper objectMapper;
     private final FileBusinessBindMapper fileBusinessBindMapper;
     private final FileDerivativeService derivativeService;
+    private final FileBusinessAccessPolicy fileBusinessAccessPolicy;
 
     public FileServiceImpl(FileStorageMapper fileStorageMapper,
                            FileStorageService storageService,
                            FileStorageProperties properties,
                            ObjectMapper objectMapper,
                            FileBusinessBindMapper fileBusinessBindMapper,
-                           FileDerivativeService derivativeService) {
+                           FileDerivativeService derivativeService,
+                           FileBusinessAccessPolicy fileBusinessAccessPolicy) {
         this.fileStorageMapper = fileStorageMapper;
         this.storageService = storageService;
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.fileBusinessBindMapper = fileBusinessBindMapper;
         this.derivativeService = derivativeService;
+        this.fileBusinessAccessPolicy = fileBusinessAccessPolicy;
     }
 
     @Override
     @Transactional
     public FileUploadVO upload(MultipartFile file, String businessType, Long businessId, Long operatorId) {
         validateFile(file);
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw com.blade.common.exception.BusinessException.of(403, "缺少租户上下文");
+        }
+        // 带业务目标的上传必须在存储文件之前完成目标授权
+        if (businessId != null) {
+            fileBusinessAccessPolicy.requireTargetAccess(businessType, businessId);
+        }
         StoredFile storedFile = storageService.store(file, businessType);
 
         FileStorage entity = new FileStorage();
@@ -160,7 +171,7 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public FileStorage getActiveFile(Long id) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = requiredTenantId();
         LambdaQueryWrapper<FileStorage> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileStorage::getId, id);
         wrapper.eq(FileStorage::getTenantId, tenantId);
@@ -182,6 +193,7 @@ public class FileServiceImpl implements FileService {
     @Transactional
     public void delete(Long id) {
         FileStorage file = getActiveFile(id);
+        fileBusinessAccessPolicy.requireFileRead(file);
         file.setStatus(0);
         fileStorageMapper.updateById(file);
     }
@@ -192,7 +204,8 @@ public class FileServiceImpl implements FileService {
         if (businessType == null || businessType.isBlank() || businessId == null || fileIds == null || fileIds.isEmpty()) {
             return;
         }
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = requiredTenantId();
+        fileBusinessAccessPolicy.requireTargetAccess(businessType, businessId);
         List<Long> uniqueFileIds = new ArrayList<>(new LinkedHashSet<>(fileIds));
         Long activeCount = fileStorageMapper.selectCount(new LambdaQueryWrapper<FileStorage>()
                 .in(FileStorage::getId, uniqueFileIds)
@@ -201,6 +214,7 @@ public class FileServiceImpl implements FileService {
         if (activeCount != uniqueFileIds.size()) {
             throw new RuntimeException("文件不存在");
         }
+        fileBusinessAccessPolicy.requireFilesRead(loadActiveFiles(uniqueFileIds, tenantId));
 
         LambdaUpdateWrapper<FileStorage> wrapper = new LambdaUpdateWrapper<>();
         wrapper.in(FileStorage::getId, uniqueFileIds);
@@ -240,7 +254,8 @@ public class FileServiceImpl implements FileService {
         if (businessType == null || businessType.isBlank() || businessId == null) {
             throw new IllegalArgumentException("businessType和businessId不能为空");
         }
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = requiredTenantId();
+        fileBusinessAccessPolicy.requireTargetAccess(businessType, businessId);
         List<Long> targetFileIds = fileIds == null
                 ? List.of()
                 : new ArrayList<>(new LinkedHashSet<>(fileIds));
@@ -252,6 +267,7 @@ public class FileServiceImpl implements FileService {
             if (activeCount != targetFileIds.size()) {
                 throw new RuntimeException("文件不存在");
             }
+            fileBusinessAccessPolicy.requireFilesRead(loadActiveFiles(targetFileIds, tenantId));
         }
 
         List<FileBusinessBind> activeBindings = fileBusinessBindMapper.selectList(
@@ -262,6 +278,9 @@ public class FileServiceImpl implements FileService {
                         .eq(FileBusinessBind::getDeleted, 0)
                         .orderByAsc(FileBusinessBind::getSort)
                         .orderByAsc(FileBusinessBind::getId));
+        // 被移除的旧绑定文件也必须在操作前可读
+        fileBusinessAccessPolicy.requireFilesRead(loadActiveFiles(
+                activeBindings.stream().map(FileBusinessBind::getFileId).distinct().toList(), tenantId));
         Set<Long> targetSet = new LinkedHashSet<>(targetFileIds);
         Set<Long> retainedFileIds = new LinkedHashSet<>();
         Set<Long> removedFileIds = new LinkedHashSet<>();
@@ -343,7 +362,7 @@ public class FileServiceImpl implements FileService {
         if (businessType == null || businessType.isBlank() || businessId == null) {
             return List.of();
         }
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = requiredTenantId();
         List<Long> boundIds = fileBusinessBindMapper.selectList(
                         new LambdaQueryWrapper<FileBusinessBind>()
                                 .eq(FileBusinessBind::getBusinessType, businessType)
@@ -382,10 +401,12 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public PageResult<FileVO> pageList(FilePageDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = requiredTenantId();
 
         LambdaQueryWrapper<FileStorage> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileStorage::getTenantId, tenantId);
+        // Series E2：可见性在 count/page SQL 之前应用，禁止先分页后 Java 过滤
+        wrapper.apply(fileBusinessAccessPolicy.buildVisibilityCondition());
 
         // 关键字搜索
         if (dto.getKeyword() != null && !dto.getKeyword().isBlank()) {
@@ -462,7 +483,7 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public List<FileBusinessBind> getActiveBindings(Long fileId) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = requiredTenantId();
         LambdaQueryWrapper<FileBusinessBind> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileBusinessBind::getFileId, fileId);
         wrapper.eq(FileBusinessBind::getTenantId, tenantId);
@@ -472,7 +493,7 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public FileVO getDetail(Long id) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = requiredTenantId();
 
         LambdaQueryWrapper<FileStorage> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileStorage::getId, id);
@@ -482,6 +503,7 @@ public class FileServiceImpl implements FileService {
         if (entity == null) {
             throw new RuntimeException("文件不存在");
         }
+        fileBusinessAccessPolicy.requireFileRead(entity);
 
         FileVO vo = toFileVO(entity);
 
@@ -566,6 +588,24 @@ public class FileServiceImpl implements FileService {
                 .map(FileBusinessBind::getFileId)
                 .distinct()
                 .collect(Collectors.toList());
+    }
+
+    private Long requiredTenantId() {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw com.blade.common.exception.BusinessException.of(403, "缺少租户上下文");
+        }
+        return tenantId;
+    }
+
+    private List<FileStorage> loadActiveFiles(List<Long> ids, Long tenantId) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return fileStorageMapper.selectList(new LambdaQueryWrapper<FileStorage>()
+                .in(FileStorage::getId, ids)
+                .eq(FileStorage::getTenantId, tenantId)
+                .eq(FileStorage::getStatus, 1));
     }
 
     private void validateFile(MultipartFile file) {

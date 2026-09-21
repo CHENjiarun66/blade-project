@@ -66,6 +66,7 @@ class OrderDraftConfirmFinanceTest {
     @Autowired private ProductMapper productMapper;
     @Autowired private FileStorageMapper fileStorageMapper;
     @Autowired private FileService fileService;
+    @Autowired private com.blade.file.policy.FileBusinessAccessPolicy fileBusinessAccessPolicy;
     @Autowired private ObjectMapper objectMapper;
 
     private void bindContext() {
@@ -167,6 +168,7 @@ class OrderDraftConfirmFinanceTest {
         file.setFileType("IMAGE");
         file.setStatus(1);
         file.setTenantId(1L);
+        file.setCreateBy(1L);
         fileStorageMapper.insert(file);
         return file.getId();
     }
@@ -379,6 +381,13 @@ class OrderDraftConfirmFinanceTest {
             List<String> formalOrderImages = objectMapper.readValue(
                     orderMapper.selectById(orderId).getImages(), new TypeReference<>() {});
             assertEquals(fileIds.stream().map(String::valueOf).toList(), formalOrderImages);
+
+            // Series E2：草稿转订单后图片同时保留 order_draft 与 order 绑定，且同范围可访问
+            assertEquals(fileIds, fileService.getActiveFileIds("order_draft", draftId));
+            assertEquals(fileIds, fileService.getActiveFileIds("order", orderId));
+            assertDoesNotThrow(() -> fileBusinessAccessPolicy.requireFileRead(
+                    fileService.getActiveFile(fileIds.get(0))),
+                    "草稿转订单后图片仍须按统一范围可访问");
         } finally {
             TenantContext.clear();
             SecurityContextHolder.clearContext();

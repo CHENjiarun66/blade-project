@@ -1,11 +1,14 @@
 package com.blade.file;
 
+import com.blade.common.tenant.TenantContext;
 import com.blade.file.config.FileStorageProperties;
 import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileStorageMapper;
+import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.impl.FileServiceImpl;
 import com.blade.file.storage.FileStorageService;
 import com.blade.file.storage.StoredFile;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +18,7 @@ import java.lang.reflect.Proxy;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * BE-1010 基础视频文件支持 — FileServiceImpl.upload 分类测试
@@ -36,6 +40,7 @@ class FileVideoSupportTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         inserted.clear();
         properties = new FileStorageProperties();
         properties.setLocalBasePath("/tmp/test-uploads");
@@ -80,7 +85,13 @@ class FileVideoSupportTest {
                     public com.blade.file.service.FileDerivativeService.BackfillResult backfill(int limit) {
                         return new com.blade.file.service.FileDerivativeService.BackfillResult(0, 0, 0, 0);
                     }
-                });
+                },
+                mock(FileBusinessAccessPolicy.class));
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test
@@ -212,7 +223,8 @@ class FileVideoSupportTest {
             }
         };
         var svc = new FileServiceImpl(mapper, storageService, properties,
-                new com.fasterxml.jackson.databind.ObjectMapper(), null, throwService);
+                new com.fasterxml.jackson.databind.ObjectMapper(), null, throwService,
+                mock(FileBusinessAccessPolicy.class));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "photo.jpg", "image/jpeg", new byte[100]);

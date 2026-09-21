@@ -40,6 +40,7 @@ class FileOrderBindingRegressionTest {
     @Mock private FileBusinessBindMapper fileBusinessBindMapper;
     @Mock private FileStorageService storageService;
     @Mock private FileDerivativeService derivativeService;
+    @Mock private com.blade.file.policy.FileBusinessAccessPolicy fileBusinessAccessPolicy;
 
     private FileServiceImpl service;
 
@@ -64,7 +65,8 @@ class FileOrderBindingRegressionTest {
                 properties,
                 new ObjectMapper(),
                 fileBusinessBindMapper,
-                derivativeService);
+                derivativeService,
+                fileBusinessAccessPolicy);
     }
 
     @AfterEach

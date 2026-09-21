@@ -8,6 +8,7 @@ import com.blade.file.dto.FileUploadVO;
 import com.blade.file.dto.FileVO;
 import com.blade.file.entity.FileBusinessBind;
 import com.blade.file.entity.FileStorage;
+import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.FileDerivativeService;
 import com.blade.file.service.FileService;
 import org.junit.jupiter.api.AfterEach;
@@ -27,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -38,13 +40,16 @@ class FileControllerTest {
     private MockMvc mockMvc;
     private CapturingFileService fileService;
     private StubDerivativeService derivativeService;
+    private StubFileBusinessAccessPolicy fileBusinessAccessPolicy;
 
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
         fileService = new CapturingFileService();
         derivativeService = new StubDerivativeService();
-        mockMvc = MockMvcBuilders.standaloneSetup(new FileController(fileService, derivativeService))
+        fileBusinessAccessPolicy = new StubFileBusinessAccessPolicy();
+        mockMvc = MockMvcBuilders.standaloneSetup(new FileController(fileService, derivativeService,
+                        fileBusinessAccessPolicy))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -198,6 +203,7 @@ class FileControllerTest {
     void getDetail_returnsFileDetail() throws Exception {
         FileVO vo = fileVO(101L, "detail.jpg");
         fileService.nextDetail = vo;
+        fileService.nextActiveFile = fileStorage(101L, "PRIVATE", "image/jpeg");
 
         mockMvc.perform(get("/api/files/101"))
                 .andExpect(status().isOk())
@@ -288,6 +294,7 @@ class FileControllerTest {
 
         fileService.nextActiveFile = fileStorage(302L, "PRIVATE", "image/png");
         fileService.nextBindings = List.of(binding(302L, "order"));
+        fileBusinessAccessPolicy.deny(302L);
 
         mockMvc.perform(get("/api/files/302/preview"))
                 .andExpect(status().isOk())
@@ -321,6 +328,7 @@ class FileControllerTest {
 
         fileService.nextActiveFile = fileStorage(304L, "PRIVATE", "image/png");
         fileService.nextBindings = List.of(binding(304L, "product"));
+        fileBusinessAccessPolicy.deny(304L);
 
         mockMvc.perform(get("/api/files/304/preview"))
                 .andExpect(status().isOk())
@@ -393,6 +401,7 @@ class FileControllerTest {
 
         fileService.nextActiveFile = fileStorage(307L, "PRIVATE", "image/png");
         fileService.nextBindings = List.of(); // 无绑定
+        fileBusinessAccessPolicy.deny(307L);
 
         mockMvc.perform(get("/api/files/307/preview"))
                 .andExpect(status().isOk())
@@ -710,6 +719,46 @@ class FileControllerTest {
                 return List.of();
             }
             return nextBindings;
+        }
+    }
+
+    /**
+     * 控制器层契约测试替身：仅用 deny 集合模拟策略拒绝；真实范围逻辑由集成测试覆盖。
+     */
+    private static class StubFileBusinessAccessPolicy extends FileBusinessAccessPolicy {
+        private final java.util.Set<Long> denied = new java.util.HashSet<>();
+
+        StubFileBusinessAccessPolicy() {
+            super(null, null, null, null, null);
+        }
+
+        void deny(Long fileId) {
+            denied.add(fileId);
+        }
+
+        @Override
+        public boolean hasSensitiveTargets(FileStorage file) {
+            return file != null && denied.contains(file.getId());
+        }
+
+        @Override
+        public void requireFileRead(FileStorage file) {
+            if (file != null && denied.contains(file.getId())) {
+                throw com.blade.common.exception.BusinessException.of(403, "无权访问该文件");
+            }
+        }
+
+        @Override
+        public void requireTargetAccess(String businessType, Long businessId) {
+        }
+
+        @Override
+        public void requireFilesRead(List<FileStorage> files) {
+        }
+
+        @Override
+        public String buildVisibilityCondition() {
+            return "1=1";
         }
     }
 
