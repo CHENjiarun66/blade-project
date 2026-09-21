@@ -8,6 +8,15 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口最终权限与数据一致性收口：客户 orderCount 范围、V68 默认唯一、移动端错误去重
+
+- 客户 orderCount 范围泄露修复：`CustomerServiceImpl.pageList/getById/getByPhone` 三处订单数统一改用 `OrderAccessPolicy.resolveReadScope(null,false)` 的 `OrderReadScope.applySalesPredicate`，与客户 stats/orders 同口径（档口 × 人员，默认排除 `source_outlet_id NULL`）。`pageList` 每请求只解析一次 scope，并按当前页 `customer_id` 一条 `GROUP BY` 批量计数（`OrderReadScope` 新增 `QueryWrapper` 字符串列重载），消除逐客户 selectCount 的 N+1；`getById`/`getByPhone` 复用同一 helper。新增真实 DB 集成测试覆盖分页/详情/按电话在 SELF/ALL_USERS、NONE/ASSIGNED/ALL 下的 records 与 orderCount。
+- V68 数据库唯一约束：新增 `V68__outlet_subject_default_unique.sql`，为 `sys_user_outlet` 增加 STORED 生成列 `user_default_guard`（deleted=0 且 status=1 且 is_default=1 时=user_id）+ `uk_user_outlet_default`，为 `agent_key_outlet` 增加 `agent_key_default_guard`（status=1 且 is_default=1 时=agent_key_id）+ `uk_agent_key_outlet_default`；每表单条 ALTER 原子添加，历史重复 fail-closed。写入顺序审计结论：用户绑定为“先 `deleteByUserId` 清旧、再插入”，Agent Key rotate 为新 key id 新建行，均无瞬时双默认。
+- 测试：`OutletV68DefaultUniquenessSchemaTest`（3，静态契约）、`OutletSubjectDefaultUniquenessIntegrationTest`（6，真实唯一键：非默认可共存、第二条默认拒绝、软删/禁用后可设新默认、跨租户/跨主体不冲突）、`FlywayFreshDatabaseMigrationTest` 扩展到空库 V1→V68 并新增用户/Key 重复 fail-closed 反例（4）。
+- 移动端：`OrderCreate.vue` 档口选择由 `error-messages` + `role=alert` 双展示改为 `:error` 红框 + 单一 `role="alert"` 可见文字，去重且保持可访问性与提交阻断。
+- 文档：`docs/architecture/DATABASE.md` 补 V67/V68 生成列与唯一索引；`docs/20-...DESIGN.md` §3.2/§3.4 补 V68 默认唯一与写入顺序；生产 checklist 新增 §2.2 V68 前置重复 preflight、fail-closed 处理与回滚边界；`docs/03-TASKS.md` `DB-OUTLET-001/003` 补 V68。
+- 验证：后端全量 **848/848**（Failures 0 / Errors 0 / Skipped 0）；`blade-mobile` `vue-tsc -b` + `vite build` 通过；`git diff --check` 无输出。
+
 ### [整改] - 档口最后 P1 批次：Agent 批量授权语义、移动端档口选择、状态看板修复
 
 - Agent 批量草稿：`AgentOrderDraftService.createBatch` 在任何写入前对整批显式 `sourceOutletCode`（去重）与默认档口做可用性/Key 范围预校验；任一 `BusinessException 401/403` 请求级 fail-fast，整批返回**真实 HTTP 403 且零草稿写入**（混合批同样整批拒绝）；普通 400/404/409 保留 per-item `ERROR` 并继续；未知 RuntimeException/5xx 不再被 catch-all 吞掉。`GlobalExceptionHandler.handleBusinessException` 仅对 `/api/agent/**` 且 code=401/403 设置真实 HTTP 状态，PC/既有路径契约不变。新增 `AgentBatchAuthorizationSemanticsIntegrationTest`（4）并更新既有 Agent 403 断言；`docs/11-AGENT_ACCESS_GUIDE.md` 明确批量契约与 404/400/409 语义。

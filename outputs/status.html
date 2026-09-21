@@ -57,7 +57,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 17:28:15　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 17:41:16　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -2223,7 +2223,7 @@
         <td class="td-name">档口与用户关联表</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则 |</td>
+        <td class="td-remark">新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则；V68 增加 `user_default_guard` 生成列 + `uk_user_outlet_default`，数据库层保证每用户最多一个有效默认，历史重复 fail-closed |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">DB-OUTLET-002</td>
@@ -2237,7 +2237,7 @@
         <td class="td-name">Agent Key 档口关联</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">新增 `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）；轮换同事务复制范围与绑定 |</td>
+        <td class="td-remark">新增 `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）；轮换同事务复制范围与绑定；V68 增加 `agent_key_default_guard` 生成列 + `uk_agent_key_outlet_default`，每 Key 最多一个有效默认，历史重复 fail-closed |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-001</td>
