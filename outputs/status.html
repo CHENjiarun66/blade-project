@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 15:14:49　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 15:23:45　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -2176,7 +2176,7 @@
         <td class="td-name">`OrderAccessPolicy` 二维范围重构</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围；viewAll 不再独立绕过。完整性审计发现 `shipOrder`/占位拆分漏挂 `requireAccess`，已在第一批整改修复并补真实反例（`OrderShipScopeGuardTest`、`OrderPlaceholderSplitScopeGuardTest`、`CustomerOrderScopeIntegrationTest`） |</td>
+        <td class="td-remark">订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围；viewAll 不再独立绕过。完整性审计发现 `shipOrder`/占位拆分漏挂 `requireAccess`，已在第一批整改修复并补真实反例（`OrderShipScopeGuardTest`、`OrderPlaceholderSplitScopeGuardTest`、`CustomerOrderScopeIntegrationTest`）；Codex 终审再补真实 MySQL 反例 `OrderScopeRealDbIntegrationTest`（403 且订单状态/plan/inventory/transition/adjustment 副作用为零），并修正客户偏好缓存键为 `customer:preference:{customerId}:{scopeFingerprint}:{start}:{end}` 使前缀 evict 可命中 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-006</td>

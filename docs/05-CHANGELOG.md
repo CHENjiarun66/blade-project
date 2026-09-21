@@ -8,6 +8,14 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口完整性审计第一批 Codex 终审：缓存键可失效性与真实 DB/Redis 证据
+
+- P0-1 缓存键顺序修正：第一批 `customer:preference:{scopeFingerprint}:{customerId}:...` 与 `CustomerStatsCacheService.evictPreferenceCache(customerId)` 的前缀删除模式 `customer:preference:{customerId}:*` 不匹配，订单动作后偏好缓存永不失效。现改为 `customer:preference:{customerId}:{scopeFingerprint}:{start}:{end}`（客户 ID 紧邻前缀），一次失效该客户全部范围与时间窗、不误删他人；同步 `CustomerStatsCacheService` 注释明确该约束。
+- 真实 Redis 测试：新增 `CustomerPreferenceCacheEvictionTest`（2）——直接 evict 覆盖"同客户多时间窗/多范围键删除 + 他人键保留"；动作链路验证真实 `getPreference` 写键后经真实 `OrderActionService.cancelOrder`（`persist` → evict）键被清除。
+- P1 真实 MySQL 反例：新增 `OrderScopeRealDbIntegrationTest`（3）——仅绑 A 用户对 B 档口订单：READY_TO_SHIP 发货 403 且订单状态/配货计划/状态流转日志/库存日志不变；已 SHIPPED 幂等路径同样先鉴权 403；WAITING_ALLOCATION 占位拆分 403 且明细/调整日志不变、无目标 SKU 行。原 `OrderShipScopeGuardTest`/`OrderPlaceholderSplitScopeGuardTest` mock 单测保留（证明鉴权先于数据层调用），与真实 DB 用例分工互补。
+- 验证：targeted 5 例通过；后端全量 **796/796**（Failures 0 / Errors 0 / Skipped 0，791 + 5）；`git diff --check` 无输出。
+- 文档：完整性审计整改报告新增 §8/§9；`03-TASKS` 中 `BE-OUTLET-005` 与 `TEST-OUTLET-001` 补记；同步 `SESSION_CONTEXT`。
+
 ### [整改] - 档口完整性审计第一批：发货/拆分/客户统计范围旁路与角色变更必绑
 
 - P0-1 `OrderActionService.shipOrder`：改为先 `lockOrder`（租户 + `OrderAccessPolicy.requireAccess`）再做幂等返回、占位/配货/库存校验与状态变更；无范围主体对他人档口订单发货 403，订单状态/配货计划/库存/日志不变，授权路径仍出库。
