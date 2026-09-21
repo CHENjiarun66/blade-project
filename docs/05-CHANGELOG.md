@@ -14,8 +14,9 @@
 - `FileBindingServiceImpl`、`FileFolderServiceImpl`、`FileCleanupServiceImpl`、`FileDerivativeServiceImpl` 去掉全部 13 处 `: 1L` 兜底；绑定/文件夹/清理/派生图 mutations 在身份校验失败时不触达 mapper（事务无副作用）。
 - `FileDerivativeServiceImpl`：`afterCommit` 单文件生成与显式 `variant` 读取使用 `FileStorage` 自带 tenant（`loadVariantResource(fileId,type,tenantId)`），用户触发 `backfill` 使用校验后的请求租户，杜绝请求结束后 `TenantContext` 串租户。
 - `FileCleanupScheduler`：系统任务改为遍历存在文件的 tenant（`selectDistinctTenantIds`），每租户 try/finally 设置并清理 `TenantContext`，单租户失败不阻断其他租户；`cleanup.tenant-id` 默认 `null` 并从 `application.yml` 移除硬编码 `1`（仅显式配置时单租户）。
+- 控制器补强：`FileController` 删除重复 principal 解析，upload/backfill 统一 `FileRequestContext.requireOperatorId()`；`FileCleanupController` 软删除/标记清理前同样解析可靠 User，缺失 403 且不触达 service。
 - 复核：`com.blade.file` 无 `return 1L` / `TenantContext null -> 1L`；包内剩余 `TenantContext.getTenantId()` 均为显式 null → 403 的 fail closed。
-- 测试：新增 21 例反向/隔离测试（缺租户/缺用户无 mapper 副作用、afterCommit 跨租户、调度器多租户）；`FileBindingServiceImplTest`/`FileFolderControllerTest` 补可靠 User principal。全量后端 **705/705**，Failures 0/Errors 0/Skipped 0；`npm run build` 通过；`git diff --check ebc1390..HEAD` 无输出。
+- 测试：新增 24 例反向/隔离测试（缺租户/缺用户无 mapper 副作用、backfill/清理变更缺可靠 User、afterCommit 跨租户、调度器多租户）；`FileBindingServiceImplTest`/`FileFolderControllerTest` 补可靠 User principal。全量后端 **708/708**，Failures 0/Errors 0/Skipped 0；`npm run build` 通过；`git diff --check ebc1390..HEAD` 无输出。
 
 ### [整改] - 档口 Series E2 经 Codex 终审后的缺口补齐
 

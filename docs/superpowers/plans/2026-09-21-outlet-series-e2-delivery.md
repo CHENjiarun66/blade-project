@@ -16,6 +16,7 @@
 | `4c8260f` | `refactor(outlet): treat temp-only bindings as unbound for file read/list [dsh]`（仅 temp/未知绑定的文件按创建者或 viewAll；product/sku 等保持权限映射） |
 | `045495f` | `fix(outlet): close Series E2 file scope gaps (tenant SQL, permissions, public media) [dsh]`（Codex 第一轮终审 P0/P1 整改） |
 | `563b736` | `fix(outlet): fail closed on missing file tenant/operator context [dsh]`（Codex 第二轮终审整改：缺 TenantContext/可靠 User 一律 403，清理任务多租户遍历） |
+| `808612b` | `fix(outlet): require reliable user for file mutations and backfill [dsh]`（第二轮补强：upload/backfill/清理变更统一解析可靠 User，删除重复 helper） |
 | 本文档所在 commit | `docs(outlet): record Series E2 delivery [dsh]`（TASKS/CHANGELOG/SESSION_CONTEXT/API_SPEC/ROM-SOW/本报告/STATUS） |
 
 ## 0.1 Codex Series E2 终审整改记录
@@ -31,20 +32,20 @@
 
 验证（整改 commit `045495f`）：全量后端 **684/684**；`npm run build` 通过；`e2e-file-outlet-filter` 1 passed。
 
-## 0.2 Codex Series E2 第二轮终审整改记录（commit `563b736`）
+## 0.2 Codex Series E2 第二轮终审整改记录（commit `563b736` + `808612b`）
 
 第二轮审核指出：文件中心仍有多处“缺 `TenantContext` 回退 tenant=1 / 缺可靠 User 回退 user=1”的旁路，且清理定时任务实际只处理 tenant=1。本轮按“请求路径一律 fail closed、系统任务显式遍历租户”收口。
 
 | 编号 | 问题 | 修复 | 测试 |
 |---|---|---|---|
 | R2-1 | `FileBindingServiceImpl`/`FileFolderServiceImpl`/`FileCleanupServiceImpl`/`FileDerivativeServiceImpl` 共 13 处 `TenantContext.getTenantId() != null ? ... : 1L`，缺租户时静默落到 tenant=1 | 新增 `FileRequestContext.requireTenantId()`（缺租户 `403 缺少租户上下文`），替换全部 fallback；绑定/文件夹/清理/派生图服务不再出现 `: 1L` | `FileBindingServiceImplTest.missingTenant_*`（5 例）、`FileFolderServiceImplTest.missingTenant_*`（4 例）、`FileCleanupServiceImplTest.missingTenant_*`（3 例）、`FileDerivativeServiceImplTest.backfill_withoutTenant_isRejectedWithoutMapperAccess` |
-| R2-2 | `FileBindingServiceImpl.getCurrentUserId` 与 `FileFolderController.getCurrentUserId` 缺可靠 principal 时回退 user=1，绑定/日志可归属用户 1 | 新增 `FileRequestContext.requireOperatorId()`：仅接受非匿名 `User` principal 且 id 非空，否则 `403 无法解析当前用户`；身份校验先于任何 mapper 写操作 | `FileBindingServiceImplTest.missingReliableUser_createBindings_isRejectedWithoutMapperAccess`；既有 `FileControllerTest.uploadWithoutReliableUser_returns403AndNeverCallsService`、`FileOrderBindingRegressionTest.uploadWithoutOperatorId_isRejectedBeforeStorage` 保持通过 |
+| R2-2 | `FileBindingServiceImpl.getCurrentUserId` 与 `FileFolderController.getCurrentUserId` 缺可靠 principal 时回退 user=1，绑定/日志可归属用户 1；`FileController` 仍自带一份重复解析，且 backfill/清理变更仅校验“已认证” | 新增 `FileRequestContext.requireOperatorId()`：仅接受非匿名 `User` principal 且 id 非空，否则 `403 无法解析当前用户`；绑定/文件夹/上传/backfill/清理变更统一调用，身份校验先于任何 mapper 写操作；删除 `FileController` 重复 helper 与 `User` import | `FileBindingServiceImplTest.missingReliableUser_createBindings_isRejectedWithoutMapperAccess`、`FileControllerTest.backfill_withNonReliablePrincipal_isRejectedBeforeService`、`FileCleanupControllerTest.softDeleteUnbound_withoutReliableUser_isRejectedBeforeService`/`markPurged_withoutReliableUser_isRejectedBeforeService`；既有 `FileControllerTest.uploadWithoutReliableUser_returns403AndNeverCallsService`、`FileOrderBindingRegressionTest.uploadWithoutOperatorId_isRejectedBeforeStorage` 保持通过 |
 | R2-3 | 回退逻辑分散复制，缺少统一说明（`/api/files`、`/api/file-folders` 为 JWT 用户路径，不接受 Agent） | 抽取单一 `com.blade.file.service.FileRequestContext`；Javadoc 明确 JWT-user 语义与系统任务例外，控制器不再各自解析 principal | 上述全部反例测试；`FileFolderControllerTest` 使用可靠 User principal 建文件夹 |
 | R2-4 | `afterCommit` 单文件派生图生成与 `variant` 读取可能读取请求结束后的 `TenantContext`（可能为 null 或串租户） | `generate(FileStorage)` 全程使用 `file.getTenantId()`；`loadVariantResource(fileId,type,tenantId)` 新增显式租户重载，`FileController.variant` 传入 `authorizeMedia` 校验过的 `file.getTenantId()`；用户触发的 `backfill` 使用校验后的请求租户 | `FileDerivativeServiceImplTest.generate_afterCommit_usesFileTenantNotContextTenant`、`loadVariantResource_explicitTenant_isUsedInsteadOfContext`、`recordFailed_usesExplicitTenantId_notContext` |
 | R2-5 | `FileCleanupScheduler` 是系统任务却按单一 `tenant-id`（默认 1）执行，无法覆盖其他租户 | `cleanup.tenant-id` 默认改为 `null` 并从 `application.yml` 移除硬编码 `1`；未配置时用 `FileStorageMapper.selectDistinctTenantIds()`（`@InterceptorIgnore`）遍历有文件的 tenant，每租户 try/finally `setTenantId`/`clear`，单租户异常仅记日志不阻断后续；显式配置时只处理该租户 | 新增 `FileCleanupSchedulerTest`（5 例）：默认无隐式 tenant 1、多租户逐个设置上下文且结束清空、单租户失败不阻断、显式单租户不查 distinct、无租户不调用 service |
 | R2-6 | 需要确认文件包内不存在请求路径 `return 1L` / `TenantContext null -> 1L` | `rg`/`grep` 复核 `com.blade.file`：无 `1L` 回退；其余 `TenantContext.getTenantId()` 使用均为显式 null 检查后 403（`FileController.authorizeMedia`、`FileRequestContext`、`FileBusinessAccessPolicy.requiredTenantId`、`FileServiceImpl`） | 见 §9 复核命令与结果 |
 
-验证（整改 commit `563b736`）：全量后端 **705/705**（新增 21 例反向/隔离测试）；`npm run build` 通过；`git diff --check ebc1390..HEAD` 无输出。
+验证（整改 commit `563b736` + 控制器加固 `808612b`）：全量后端 **708/708**（新增 24 例反向/隔离测试）；`npm run build` 通过；`git diff --check ebc1390..HEAD` 无输出。
 
 
 ## 1. 集中授权：FileBusinessAccessPolicy
@@ -99,8 +100,8 @@
 - 新增/扩展 `FileOutletAccessPolicyTest`（20 例）：A 读成功/B 403、多绑 A+B 拒绝、PUBLIC B 图片拒绝、legacy-only order/draft 受保护、临时文件 owner/other/viewAll、list 不含 B 且 count 一致、未绑定列表权限、伪造 bind/createBindings 无副作用、upload 带 B 业务 ID 写文件前拒绝、delete/unbind/batch-delete/batch-move 拒绝且无副作用、getBindings 隔离、缺 TenantContext fail closed、跨租户不可读。
 - 新增/扩展 `FilePreviewTokenAccessTest`（3 例）：真实 MVC + Spring Security 过滤器 + Redis 会话，`?previewToken=` 跨档口 PUBLIC 订单图片仍返回 403。
 - `FileControllerTest` 等现有 153 个文件测试适配策略替身后全部通过；`OrderDraftConfirmFinanceTest` 增加双绑定断言。
-- 第二轮新增 21 例：`FileBindingServiceImplTest` 6 例缺租户/缺用户无副作用、`FileFolderServiceImplTest` 4 例缺租户无副作用、`FileCleanupServiceImplTest` 3 例缺租户无副作用、`FileDerivativeServiceImplTest` 3 例（backfill 缺租户、afterCommit 使用文件租户、显式变体租户）、`FileCleanupSchedulerTest` 5 例多租户遍历/隔离。
-- 全量后端 `mvn test`（整改 `563b736`）：**705/705**，Failures 0、Errors 0、Skipped 0。
+- 第二轮新增 24 例：`FileBindingServiceImplTest` 6 例缺租户/缺用户无副作用、`FileFolderServiceImplTest` 4 例缺租户无副作用、`FileCleanupServiceImplTest` 3 例缺租户无副作用、`FileDerivativeServiceImplTest` 3 例（backfill 缺租户、afterCommit 使用文件租户、显式变体租户）、`FileCleanupSchedulerTest` 5 例多租户遍历/隔离、`FileControllerTest` 1 例 backfill 非可靠 principal、`FileCleanupControllerTest` 2 例清理变更缺可靠 User。
+- 全量后端 `mvn test`（整改 `563b736` + `808612b`）：**708/708**，Failures 0、Errors 0、Skipped 0。
 
 前端：
 - `npm run build` 通过。
@@ -118,7 +119,7 @@ npx playwright test e2e-file-outlet-filter.spec.ts e2e-analytics-outlet.spec.ts 
 
 ## 8. 已知问题与未完成边界
 
-- `e2e-file-upload.spec.ts` 依赖本地不存在的 `super_admin` 租户（既有环境问题，非本轮引入），本机无法运行；文件安全由后端 705/705 覆盖，未修改该 spec 的租户语义。
+- `e2e-file-upload.spec.ts` 依赖本地不存在的 `super_admin` 租户（既有环境问题，非本轮引入），本机无法运行；文件安全由后端 708/708 覆盖，未修改该 spec 的租户语义。
 - 未新增 Flyway：本轮无新表/列/权限，仅索引复用现有 `file_business_bind(file_id)` 与 `sale_order/order_draft` 主线索引；如后续大表需要可再评估。
 - Series E3 未做：`GET /api/agent/outlets`、capability 档口摘要、Agent Key 签发/轮换档口配置、Agent 全出口回归。
 - 本轮未在文件中心做前端权限过滤（按设计后端为事实源）；前端仅展示后端返回数据并提示 403。
