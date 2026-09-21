@@ -115,6 +115,10 @@ export interface OrderCreateDTO {
   orderDate?: string
   sourceDocNo?: string
   sourceShop?: string
+  /** 档口主数据ID（服务端权威校验；移动端优先只传此字段） */
+  sourceOutletId?: number
+  /** 档口稳定编码（Agent/无法取 ID 时使用；与 sourceOutletId 二选一） */
+  sourceOutletCode?: string
   orderType?: 'SPOT' | 'PREORDER'
   customerName: string
   customerPhone: string
