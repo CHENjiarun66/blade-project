@@ -2,6 +2,7 @@ package com.blade.file.controller;
 
 import com.blade.common.result.R;
 import com.blade.file.service.FileCleanupService;
+import com.blade.file.service.FileRequestContext;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -40,6 +41,8 @@ public class FileCleanupController {
     @PostMapping("/soft-delete-unbound")
     public R<Map<String, Object>> softDeleteUnbound(
             @RequestParam(value = "days", defaultValue = "7") int days) {
+        // 清理属于变更/审计操作：先解析可靠 User 操作者，缺失 403 且不触达 service
+        FileRequestContext.requireOperatorId();
         long processed = fileCleanupService.softDeleteUnbound(days);
         Map<String, Object> result = new HashMap<>();
         result.put("processedCount", processed);
@@ -53,6 +56,7 @@ public class FileCleanupController {
     @PostMapping("/mark-purged")
     public R<Map<String, Object>> markPurged(
             @RequestParam(value = "days", defaultValue = "30") int days) {
+        FileRequestContext.requireOperatorId();
         long processed = fileCleanupService.markPurged(days);
         Map<String, Object> result = new HashMap<>();
         result.put("processedCount", processed);

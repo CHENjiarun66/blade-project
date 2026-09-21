@@ -10,8 +10,8 @@ import com.blade.file.dto.FileVO;
 import com.blade.file.entity.FileStorage;
 import com.blade.file.policy.FileBusinessAccessPolicy;
 import com.blade.file.service.FileDerivativeService;
+import com.blade.file.service.FileRequestContext;
 import com.blade.file.service.FileService;
-import com.blade.system.user.entity.User;
 import jakarta.validation.Valid;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
@@ -53,7 +53,8 @@ public class FileController {
         if (businessId != null) {
             fileBusinessAccessPolicy.requireTargetAccess(businessType, businessId);
         }
-        return R.ok(fileService.upload(file, businessType, businessId, getCurrentUserId()));
+        return R.ok(fileService.upload(file, businessType, businessId,
+                FileRequestContext.requireOperatorId()));
     }
 
     @GetMapping("/{id}/preview")
@@ -168,9 +169,8 @@ public class FileController {
     @PostMapping("/derivatives/backfill")
     public R<FileDerivativeService.BackfillResult> backfill(
             @RequestParam(defaultValue = "100") int limit) {
-        if (!isAuthenticated()) {
-            throw new AccessDeniedException("需要登录后操作");
-        }
+        // 变更/审计操作必须先解析可靠 User 操作者（缺失 403，不接受 Agent principal）
+        FileRequestContext.requireOperatorId();
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
         if (!hasAuthority(authorities, "btn:file:viewAll")
@@ -189,19 +189,5 @@ public class FileController {
 
     private boolean hasAuthority(Collection<? extends GrantedAuthority> authorities, String authority) {
         return authorities.stream().anyMatch(a -> authority.equals(a.getAuthority()));
-    }
-
-    /**
-     * 可靠操作者：仅接受 User principal；解析失败 403，绝不回退用户 1。
-     *（/api/files 为 JWT 路由，不支持 Agent principal。）
-     */
-    private Long getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()
-                && authentication.getPrincipal() instanceof User user
-                && user.getId() != null) {
-            return user.getId();
-        }
-        throw com.blade.common.exception.BusinessException.of(403, "无法解析当前用户");
     }
 }

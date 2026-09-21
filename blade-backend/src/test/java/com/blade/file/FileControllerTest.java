@@ -559,11 +559,30 @@ class FileControllerTest {
     }
 
     @Test
-    void backfill_requiresFileManagementPermission() throws Exception {
+    void backfill_withNonReliablePrincipal_isRejectedBeforeService() throws Exception {
+        // 仅认证不够：非可靠 User principal（即使有权限）必须 403 且不触达 service
         org.springframework.security.core.userdetails.User user =
-                new org.springframework.security.core.userdetails.User("admin", "n/a", List.of());
+                new org.springframework.security.core.userdetails.User("agent", "n/a", List.of());
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(user, null,
+                        List.of(new SimpleGrantedAuthority("btn:file:cleanup"))));
+        derivativeService.nextBackfillResult = new FileDerivativeService.BackfillResult(1, 1, 0, 0);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/files/derivatives/backfill")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403));
+
+        assertThat(derivativeService.backfillCalls).isZero();
+    }
+
+    @Test
+    void backfill_requiresFileManagementPermission() throws Exception {
+        com.blade.system.user.entity.User current = new com.blade.system.user.entity.User();
+        current.setId(1L);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(current, null,
                         List.of(new SimpleGrantedAuthority("menu:product"))));
 
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
@@ -575,10 +594,10 @@ class FileControllerTest {
 
     @Test
     void backfill_withCleanupPermission_succeeds() throws Exception {
-        org.springframework.security.core.userdetails.User user =
-                new org.springframework.security.core.userdetails.User("admin", "n/a", List.of());
+        com.blade.system.user.entity.User current = new com.blade.system.user.entity.User();
+        current.setId(1L);
         SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(user, null,
+                new UsernamePasswordAuthenticationToken(current, null,
                         List.of(new SimpleGrantedAuthority("btn:file:cleanup"))));
 
         derivativeService.nextBackfillResult = new FileDerivativeService.BackfillResult(5, 4, 1, 2);
@@ -596,10 +615,10 @@ class FileControllerTest {
 
     @Test
     void backfill_withViewAllPermission_succeeds() throws Exception {
-        org.springframework.security.core.userdetails.User user =
-                new org.springframework.security.core.userdetails.User("admin", "n/a", List.of());
+        com.blade.system.user.entity.User current = new com.blade.system.user.entity.User();
+        current.setId(1L);
         SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(user, null,
+                new UsernamePasswordAuthenticationToken(current, null,
                         List.of(new SimpleGrantedAuthority("btn:file:viewAll"))));
 
         derivativeService.nextBackfillResult = new FileDerivativeService.BackfillResult(0, 0, 0, 0);
@@ -814,6 +833,7 @@ class FileControllerTest {
         private Long capturedFileId;
         private String capturedVariantType;
         private BackfillResult nextBackfillResult;
+        private int backfillCalls;
 
         @Override
         public void generate(FileStorage file) {
@@ -829,6 +849,7 @@ class FileControllerTest {
 
         @Override
         public BackfillResult backfill(int limit) {
+            backfillCalls++;
             if (nextBackfillResult == null) {
                 throw new UnsupportedOperationException("nextBackfillResult not configured");
             }
