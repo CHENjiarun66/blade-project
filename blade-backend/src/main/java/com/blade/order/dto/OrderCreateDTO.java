@@ -35,6 +35,10 @@ public class OrderCreateDTO {
     @Schema(description = "档口主数据ID（服务端校验并生成 source_shop 快照）")
     private Long sourceOutletId;
 
+    @Size(max = 30, message = "档口编码最多30位")
+    @Schema(description = "档口稳定编码（可选；未传 ID 时按当前可用集合解析）")
+    private String sourceOutletCode;
+
     @Size(max = 20, message = "订单类型最多20位")
     @Schema(description = "订单类型：SPOT现货/PREORDER订货")
     private String orderType;
@@ -104,6 +108,8 @@ public class OrderCreateDTO {
     public void setSourceShop(String sourceShop) { this.sourceShop = sourceShop; }
     public Long getSourceOutletId() { return sourceOutletId; }
     public void setSourceOutletId(Long sourceOutletId) { this.sourceOutletId = sourceOutletId; }
+    public String getSourceOutletCode() { return sourceOutletCode; }
+    public void setSourceOutletCode(String sourceOutletCode) { this.sourceOutletCode = sourceOutletCode; }
     public String getOrderType() { return orderType; }
     public void setOrderType(String orderType) { this.orderType = orderType; }
     public String getCustomerPhone() { return customerPhone; }

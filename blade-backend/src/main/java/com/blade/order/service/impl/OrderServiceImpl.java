@@ -26,6 +26,8 @@ import com.blade.order.mapper.OrderDeliveryPlanMapper;
 import com.blade.order.mapper.OrderFinancialRecordMapper;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.outlet.entity.OrderOutletChangeLog;
+import com.blade.outlet.mapper.OrderOutletChangeLogMapper;
 import com.blade.customer.service.CustomerStatsCacheService;
 import com.blade.order.service.OrderAccessPolicy;
 import com.blade.order.service.OrderActionService;
@@ -82,6 +84,7 @@ public class OrderServiceImpl implements OrderService {
     private final CustomerStatsCacheService customerStatsCacheService;
     private final OrderAccessPolicy accessPolicy;
     private final com.blade.outlet.policy.OutletAccessPolicy outletAccessPolicy;
+    private final OrderOutletChangeLogMapper outletChangeLogMapper;
 
     private static final String ORDER_TYPE_SPOT = "SPOT";
     private static final String ORDER_TYPE_PREORDER = "PREORDER";
@@ -107,7 +110,8 @@ public class OrderServiceImpl implements OrderService {
                             OrderCompatAdapter compatAdapter,
                             CustomerStatsCacheService customerStatsCacheService,
                             OrderAccessPolicy accessPolicy,
-                            com.blade.outlet.policy.OutletAccessPolicy outletAccessPolicy) {
+                            com.blade.outlet.policy.OutletAccessPolicy outletAccessPolicy,
+                            OrderOutletChangeLogMapper outletChangeLogMapper) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.deliveryPlanMapper = deliveryPlanMapper;
@@ -126,6 +130,7 @@ public class OrderServiceImpl implements OrderService {
         this.customerStatsCacheService = customerStatsCacheService;
         this.accessPolicy = accessPolicy;
         this.outletAccessPolicy = outletAccessPolicy;
+        this.outletChangeLogMapper = outletChangeLogMapper;
     }
 
     @Override
@@ -136,13 +141,18 @@ public class OrderServiceImpl implements OrderService {
         wrapper.eq(Order::getDeleted, 0);
         // 数据范围：档口维度 × 人员维度（在分页前应用 SQL 谓词）
         accessPolicy.applyReadPredicate(wrapper);
+        // 显式档口筛选：仅当前可读集合；待归档仅 unassigned；越权 403
+        accessPolicy.applyExplicitOutletFilter(wrapper, dto.getSourceOutletId(), dto.getUnassignedOnly());
         applyOrderPageFilters(wrapper, dto);
 
         wrapper.orderByDesc(Order::getCreateTime);
 
         IPage<Order> result = orderMapper.selectPage(page, wrapper);
 
-        List<OrderVO> voList = result.getRecords().stream().map(this::convertToVO).collect(Collectors.toList());
+        java.util.Map<Long, String> outletCodes = resolveOutletCodes(result.getRecords());
+        List<OrderVO> voList = result.getRecords().stream()
+                .map(order -> convertToVO(order, outletCodes))
+                .collect(Collectors.toList());
 
         PageResult<OrderVO> pageResult = new PageResult<>();
         pageResult.setRecords(voList);
@@ -303,17 +313,11 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderNo(generateOrderNo());
         order.setOrderDate(dto.getOrderDate() != null ? dto.getOrderDate() : LocalDate.now());
         order.setSourceDocNo(dto.getSourceDocNo());
-        // 档口：由服务端按主数据校验并生成名称快照，禁止信任客户端自由文本
-        if (dto.getSourceOutletId() != null) {
-            // 统一复用 OutletAccessPolicy：租户 + 未删 + 启用 + 授权
-            com.blade.outlet.entity.SalesOutlet outletMaster =
-                    outletAccessPolicy.requireUsableOutlet(dto.getSourceOutletId());
-            order.setSourceOutletId(outletMaster.getId());
-            order.setSourceShop(outletMaster.getOutletName());
-        } else {
-            // 历史/内部调用允许为空；确认链路已阻断空档口草稿
-            order.setSourceShop(dto.getSourceShop());
-        }
+        // 档口：每张新正式订单必须有具体档口；服务端按主数据校验并生成名称快照，
+        // 忽略客户端 sourceShop；data:outlet:unassigned 不能新建空档口正式订单。
+        com.blade.outlet.entity.SalesOutlet outletMaster = resolveCreateOutlet(dto);
+        order.setSourceOutletId(outletMaster.getId());
+        order.setSourceShop(outletMaster.getOutletName());
         order.setOrderType(normalizeOrderType(dto.getOrderType()));
         order.setCustomerId(dto.getCustomerId());
         order.setCustomerName(dto.getCustomerName());
@@ -365,6 +369,59 @@ public class OrderServiceImpl implements OrderService {
 
         customerStatsCacheService.evictPreferenceCache(order.getCustomerId());
         return order.getId();
+    }
+
+    /**
+     * 新正式订单档口解析（服务端权威）：显式 ID → 稳定编码 → 统一默认优先级，
+     * 仍不能确定则 400；任何情况下都不返回 null（等待归档只允许历史空值读取）。
+     */
+    private com.blade.outlet.entity.SalesOutlet resolveCreateOutlet(OrderCreateDTO dto) {
+        if (dto.getSourceOutletId() != null) {
+            return outletAccessPolicy.requireUsableOutlet(dto.getSourceOutletId());
+        }
+        String code = trimToNull(dto.getSourceOutletCode());
+        if (code != null) {
+            return outletAccessPolicy.requireUsableOutletByCode(code);
+        }
+        Long defaultId = outletAccessPolicy.resolveDefaultOutletId();
+        if (defaultId == null) {
+            throw BusinessException.of(400, "请选择档口");
+        }
+        return outletAccessPolicy.requireUsableOutlet(defaultId);
+    }
+
+    /**
+     * 改档口（高权限例外）：仅显式传入且与原值不同才触发；历史 NULL 归档需 unassigned。
+     * 目标档口必须同租户、未删、启用且当前可写；原因非空；同一事务追加审计日志。
+     */
+    private void applyOutletChange(Order order, OrderUpdateDTO dto) {
+        Long requested = dto.getSourceOutletId();
+        if (requested == null || requested.equals(order.getSourceOutletId())) {
+            return;
+        }
+        accessPolicy.requireChangeOutletPermission();
+        if (order.getSourceOutletId() == null) {
+            accessPolicy.requireUnassignedAccess();
+        }
+        String reason = trimToNull(dto.getOutletChangeReason());
+        if (reason == null) {
+            throw BusinessException.of(400, "修改档口必须填写原因");
+        }
+        com.blade.outlet.entity.SalesOutlet target = outletAccessPolicy.requireUsableOutlet(requested);
+
+        OrderOutletChangeLog log = new OrderOutletChangeLog();
+        log.setTenantId(order.getTenantId());
+        log.setOrderId(order.getId());
+        log.setOldOutletId(order.getSourceOutletId());
+        log.setOldOutletName(order.getSourceShop());
+        log.setNewOutletId(target.getId());
+        log.setNewOutletName(target.getOutletName());
+        log.setReason(reason);
+        log.setOperatorId(getCurrentUserId());
+        outletChangeLogMapper.insert(log);
+
+        order.setSourceOutletId(target.getId());
+        order.setSourceShop(target.getOutletName());
     }
 
     private void insertReceipt(Order order, BigDecimal amount) {
@@ -545,8 +602,10 @@ public class OrderServiceImpl implements OrderService {
         boolean afterShipped = order.getFulfillmentStatus() != null
                 && (com.blade.order.enums.FulfillmentStatus.SHIPPED.name().equals(order.getFulfillmentStatus())
                     || com.blade.order.enums.FulfillmentStatus.COMPLETED.name().equals(order.getFulfillmentStatus()));
-        // 已发货（或已完成）后只允许补充备注/图片，金额结构和明细不再修改
+        // 已发货（或已完成）后只允许补充备注/图片，金额结构和明细不再修改；
+        // 显式改档口作为独立高权限例外，仍受权限/原因/审计约束。
         if (afterShipped) {
+            applyOutletChange(order, dto);
             if (dto.getRemark() != null) order.setRemark(dto.getRemark());
             if (dto.getImages() != null) order.setImages(dto.getImages());
             order.setUpdateTime(LocalDateTime.now());
@@ -568,7 +627,8 @@ public class OrderServiceImpl implements OrderService {
         }
         if (dto.getOrderDate() != null) order.setOrderDate(dto.getOrderDate());
         if (dto.getSourceDocNo() != null) order.setSourceDocNo(dto.getSourceDocNo());
-        if (dto.getSourceShop() != null) order.setSourceShop(dto.getSourceShop());
+        // 档口只能通过 sourceOutletId + 原因 + 审计修改；自由文本 sourceShop 不再生效
+        applyOutletChange(order, dto);
         if (dto.getOrderType() != null) order.setOrderType(normalizeOrderType(dto.getOrderType()));
         if (dto.getCustomerName() != null) order.setCustomerName(dto.getCustomerName());
         if (dto.getCustomerPhone() != null) order.setCustomerPhone(dto.getCustomerPhone());
@@ -632,9 +692,31 @@ public class OrderServiceImpl implements OrderService {
         orderMapper.deleteById(id);
     }
 
+    private java.util.Map<Long, String> resolveOutletCodes(List<Order> orders) {
+        java.util.Set<Long> ids = orders.stream()
+                .map(Order::getSourceOutletId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        java.util.Map<Long, String> codes = new java.util.HashMap<>();
+        for (Long id : ids) {
+            com.blade.outlet.entity.SalesOutlet outlet = outletAccessPolicy.findOutlet(id);
+            if (outlet != null) {
+                codes.put(id, outlet.getOutletCode());
+            }
+        }
+        return codes;
+    }
+
     private OrderVO convertToVO(Order order) {
+        return convertToVO(order, resolveOutletCodes(List.of(order)));
+    }
+
+    private OrderVO convertToVO(Order order, java.util.Map<Long, String> outletCodes) {
         OrderVO vo = new OrderVO();
         BeanUtils.copyProperties(order, vo);
+        vo.setSourceOutletId(order.getSourceOutletId());
+        // 编码派生自主数据，不冗余落订单表
+        vo.setSourceOutletCode(order.getSourceOutletId() == null ? null : outletCodes.get(order.getSourceOutletId()));
         // 新行展示新履约状态标签；历史行保持旧标签
         boolean migratedVo = order.getCollectionStatus() != null;
         vo.setStatusName(migratedVo ? fulfillmentStatusLabel(order.getFulfillmentStatus())

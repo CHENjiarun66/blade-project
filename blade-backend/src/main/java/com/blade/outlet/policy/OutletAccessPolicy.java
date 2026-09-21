@@ -143,6 +143,32 @@ public class OutletAccessPolicy {
         return outletId == null ? null : salesOutletMapper.selectById(outletId);
     }
 
+    /**
+     * 草稿列表显式档口筛选：只允许当前 readable 集合内；待归档仅 unassigned 可用。
+     * 伪造/越权 ID 直接 403，不静默返回空结果，便于识别越权探测。
+     */
+    public void applyExplicitDraftOutletFilter(LambdaQueryWrapper<OrderDraft> query,
+                                               Long sourceOutletId,
+                                               Boolean unassignedOnly) {
+        boolean pendingArchive = Boolean.TRUE.equals(unassignedOnly);
+        if (sourceOutletId != null && pendingArchive) {
+            throw BusinessException.of(400, "档口筛选与待归档筛选互斥");
+        }
+        OutletAccessScope scope = resolveCurrentScope();
+        if (sourceOutletId != null) {
+            if (!scope.canReadOutlet(sourceOutletId)) {
+                throw BusinessException.of(403, "无权按该档口筛选");
+            }
+            query.eq(OrderDraft::getSourceOutletId, sourceOutletId);
+        } else if (pendingArchive) {
+            if (!scope.unassignedAllowed()) {
+                throw BusinessException.of(403, "无权查看待归档档口数据");
+            }
+            query.isNull(OrderDraft::getSourceOutletId);
+        }
+    }
+
+
     /** 结构化选项契约。 */
     public OutletOptionsVO listAvailableOptions() {
         OutletAccessScope scope = resolveCurrentScope();

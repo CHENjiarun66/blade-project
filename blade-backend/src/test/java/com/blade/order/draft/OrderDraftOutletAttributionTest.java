@@ -435,7 +435,7 @@ class OrderDraftOutletAttributionTest {
         assertEquals(outlet.getOutletCode(), view.getSourceOutletCode());
 
         com.blade.common.result.PageResult<OrderDraftDTO.Summary> page =
-                draftService.page(1, 20, "EDITING", null, null, null, false, null, null);
+                draftService.page(1, 20, "EDITING", null, null, null, false, null, null, null, null);
         OrderDraftDTO.Summary summary = page.getRecords().stream()
                 .filter(record -> draftId.equals(record.getId()))
                 .findFirst()

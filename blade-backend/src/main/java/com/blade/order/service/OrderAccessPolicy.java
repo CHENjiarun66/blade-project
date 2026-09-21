@@ -24,6 +24,7 @@ public class OrderAccessPolicy {
 
     public static final String AUTH_AGENT_ORDERS_READ = "agent:orders:read";
     public static final String AUTH_VIEW_ALL_COMPAT = "btn:order:viewAll";
+    public static final String AUTH_ORDER_CHANGE_OUTLET = "btn:order:changeOutlet";
 
     private final UserMapper userMapper;
     private final OutletAccessPolicy outletAccessPolicy;
@@ -53,6 +54,45 @@ public class OrderAccessPolicy {
         if (!scope.isPeopleAll()) {
             Long actorId = scope.actorId();
             wrapper.eq(Order::getSalesmanId, actorId != null ? actorId : -1L);
+        }
+    }
+
+    /**
+     * 订单列表显式档口筛选：只允许当前 readable 集合内；待归档仅 unassigned 可用。
+     * 伪造/越权 ID 直接 403，不静默返回空结果，便于识别越权探测。
+     */
+    public void applyExplicitOutletFilter(LambdaQueryWrapper<Order> wrapper,
+                                          Long sourceOutletId,
+                                          Boolean unassignedOnly) {
+        boolean pendingArchive = Boolean.TRUE.equals(unassignedOnly);
+        if (sourceOutletId != null && pendingArchive) {
+            throw BusinessException.of(400, "档口筛选与待归档筛选互斥");
+        }
+        OutletAccessScope scope = outletAccessPolicy.resolveCurrentScope();
+        if (sourceOutletId != null) {
+            if (!scope.canReadOutlet(sourceOutletId)) {
+                throw BusinessException.of(403, "无权按该档口筛选");
+            }
+            wrapper.eq(Order::getSourceOutletId, sourceOutletId);
+        } else if (pendingArchive) {
+            if (!scope.unassignedAllowed()) {
+                throw BusinessException.of(403, "无权查看待归档档口数据");
+            }
+            wrapper.isNull(Order::getSourceOutletId);
+        }
+    }
+
+    /** 修改正式订单档口必须拥有独立高权限 btn:order:changeOutlet。 */
+    public void requireChangeOutletPermission() {
+        if (!currentAuthorities().contains(AUTH_ORDER_CHANGE_OUTLET)) {
+            throw BusinessException.of(403, "缺少修改订单档口权限");
+        }
+    }
+
+    /** 历史 NULL 档口归档需要 data:outlet:unassigned。 */
+    public void requireUnassignedAccess() {
+        if (!outletAccessPolicy.resolveCurrentScope().unassignedAllowed()) {
+            throw BusinessException.of(403, "无权归档待归档档口数据");
         }
     }
 

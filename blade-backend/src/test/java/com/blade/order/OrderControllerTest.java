@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -43,6 +44,9 @@ class OrderControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     private String adminToken;
 
     // 测试用仓库ID（需要数据库中有数据）
@@ -51,6 +55,8 @@ class OrderControllerTest {
     private Long testSkuId;
     // 动态获取的商品ID（测试前创建）
     private Long testProductId;
+    // Series D：正式订单必须有具体档口；显式传入测试档口
+    private Long testOutletId;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -76,6 +82,19 @@ class OrderControllerTest {
             // 创建测试库存（确保有库存可用于订单测试）
             createTestInventory();
         }
+        // Series D：确保存在一个本租户启用档口，供正式订单创建显式引用
+        if (testOutletId == null) {
+            jdbc.update("INSERT INTO sales_outlet(tenant_id,outlet_code,outlet_name,outlet_type,status,deleted,sort,is_tenant_default) "
+                    + "VALUES(1,'TEST-DEFAULT','接口测试档口','STORE',1,0,0,0) "
+                    + "ON DUPLICATE KEY UPDATE status=1,deleted=0");
+            testOutletId = jdbc.queryForObject(
+                    "SELECT id FROM sales_outlet WHERE tenant_id=1 AND outlet_code='TEST-DEFAULT'", Long.class);
+        }
+    }
+
+    /** 正式订单必须有具体档口：在创建 payload 中注入 sourceOutletId。 */
+    private String withOutlet(String json) {
+        return json.replaceFirst("\\{", "{\"sourceOutletId\":" + testOutletId + ",");
     }
 
     /**
@@ -249,7 +268,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(orderJson))
+                .content(withOutlet(orderJson)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isNumber());
@@ -277,7 +296,7 @@ class OrderControllerTest {
         MvcResult result = mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(orderJson))
+                .content(withOutlet(orderJson)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andReturn();
@@ -356,7 +375,7 @@ class OrderControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(orderJson))
+                .content(withOutlet(orderJson)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -404,7 +423,7 @@ class OrderControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(orderJson))
+                .content(withOutlet(orderJson)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -461,7 +480,7 @@ class OrderControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(createJson))
+                .content(withOutlet(createJson)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -566,7 +585,7 @@ class OrderControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(createJson))
+                .content(withOutlet(createJson)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -641,7 +660,7 @@ class OrderControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(createJson))
+                .content(withOutlet(createJson)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -769,7 +788,7 @@ class OrderControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(createJson))
+                .content(withOutlet(createJson)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -805,7 +824,7 @@ class OrderControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(createJson))
+                .content(withOutlet(createJson)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -854,7 +873,7 @@ class OrderControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/orders")
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(createJson))
+                .content(withOutlet(createJson)))
                 .andExpect(status().isOk())
                 .andReturn();
 

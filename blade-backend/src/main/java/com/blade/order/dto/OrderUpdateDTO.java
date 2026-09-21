@@ -20,8 +20,15 @@ public class OrderUpdateDTO {
     private String sourceDocNo;
 
     @Size(max = 100, message = "来源档口最多100位")
-    @Schema(description = "订单来源档口/店铺")
+    @Schema(description = "兼容字段：服务端忽略，不再允许自由文本修改来源档口")
     private String sourceShop;
+
+    @Schema(description = "改档口目标ID；不传=保持原值，传入且与当前不同=高权限改档口并写审计")
+    private Long sourceOutletId;
+
+    @Size(max = 500, message = "改档口原因最多500位")
+    @Schema(description = "改档口原因；传入 sourceOutletId 且发生变化时必填")
+    private String outletChangeReason;
 
     @Size(max = 20, message = "订单类型最多20位")
     @Schema(description = "订单类型：SPOT现货/PREORDER订货")
@@ -70,6 +77,10 @@ public class OrderUpdateDTO {
     public void setSourceDocNo(String sourceDocNo) { this.sourceDocNo = sourceDocNo; }
     public String getSourceShop() { return sourceShop; }
     public void setSourceShop(String sourceShop) { this.sourceShop = sourceShop; }
+    public Long getSourceOutletId() { return sourceOutletId; }
+    public void setSourceOutletId(Long sourceOutletId) { this.sourceOutletId = sourceOutletId; }
+    public String getOutletChangeReason() { return outletChangeReason; }
+    public void setOutletChangeReason(String outletChangeReason) { this.outletChangeReason = outletChangeReason; }
     public String getOrderType() { return orderType; }
     public void setOrderType(String orderType) { this.orderType = orderType; }
     public String getCustomerName() { return customerName; }

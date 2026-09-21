@@ -64,7 +64,9 @@ public class OrderDraftService {
                                                   String entrySource,
                                                   Boolean unresolvedOnly,
                                                   LocalDate startDate,
-                                                  LocalDate endDate) {
+                                                  LocalDate endDate,
+                                                  Long sourceOutletId,
+                                                  Boolean unassignedOnly) {
         Page<OrderDraft> page = new Page<>(Math.max(current, 1), Math.max(1, Math.min(size, 100)));
         LambdaQueryWrapper<OrderDraft> query = new LambdaQueryWrapper<OrderDraft>()
                 .eq(status != null && !status.isBlank(), OrderDraft::getStatus, status)
@@ -89,6 +91,8 @@ public class OrderDraftService {
         }
         // 档口 × 人员维度在分页前应用
         outletAccessPolicy.applyDraftReadScope(query);
+        // 显式档口筛选：仅当前可读集合；待归档仅 unassigned；越权 403
+        outletAccessPolicy.applyExplicitDraftOutletFilter(query, sourceOutletId, unassignedOnly);
         Page<OrderDraft> result = draftMapper.selectPage(page, query);
         Map<Long, String> codes = outletCodes(result.getRecords().stream()
                 .map(OrderDraft::getSourceOutletId).filter(Objects::nonNull).toList());

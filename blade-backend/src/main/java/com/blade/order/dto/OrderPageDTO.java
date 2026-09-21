@@ -41,6 +41,12 @@ public class OrderPageDTO {
     @Schema(description = "是否欠款：true=paid_amount < max(total_amount - refund_amount - write_off_amount, 0)")
     private Boolean hasBalance;
 
+    @Schema(description = "按来源档口筛选（仅允许当前用户可读集合，越权返回403）")
+    private Long sourceOutletId;
+
+    @Schema(description = "仅看待归档档口（source_outlet_id 为空）；需 data:outlet:unassigned，与 sourceOutletId 互斥")
+    private Boolean unassignedOnly;
+
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     @Schema(description = "订单日期开始，按 order_date 查询，旧数据为空时回退 create_time 日期")
     private LocalDate startDate;
@@ -69,6 +75,10 @@ public class OrderPageDTO {
     public void setOrderType(String orderType) { this.orderType = orderType; }
     public Boolean getHasBalance() { return hasBalance; }
     public void setHasBalance(Boolean hasBalance) { this.hasBalance = hasBalance; }
+    public Long getSourceOutletId() { return sourceOutletId; }
+    public void setSourceOutletId(Long sourceOutletId) { this.sourceOutletId = sourceOutletId; }
+    public Boolean getUnassignedOnly() { return unassignedOnly; }
+    public void setUnassignedOnly(Boolean unassignedOnly) { this.unassignedOnly = unassignedOnly; }
     public LocalDate getStartDate() { return startDate; }
     public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
     public LocalDate getEndDate() { return endDate; }

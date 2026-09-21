@@ -14,6 +14,8 @@ public class OrderVO {
     private LocalDate orderDate;
     private String sourceDocNo;
     private String sourceShop;
+    private Long sourceOutletId;
+    private String sourceOutletCode;
     private String orderType;
     private String orderTypeName;
     private Long customerId;
@@ -149,6 +151,10 @@ public class OrderVO {
     public void setSourceDocNo(String sourceDocNo) { this.sourceDocNo = sourceDocNo; }
     public String getSourceShop() { return sourceShop; }
     public void setSourceShop(String sourceShop) { this.sourceShop = sourceShop; }
+    public Long getSourceOutletId() { return sourceOutletId; }
+    public void setSourceOutletId(Long sourceOutletId) { this.sourceOutletId = sourceOutletId; }
+    public String getSourceOutletCode() { return sourceOutletCode; }
+    public void setSourceOutletCode(String sourceOutletCode) { this.sourceOutletCode = sourceOutletCode; }
     public String getOrderType() { return orderType; }
     public void setOrderType(String orderType) { this.orderType = orderType; }
     public String getOrderTypeName() { return orderTypeName; }

@@ -237,13 +237,13 @@ class OrderDraftConfirmFinanceTest {
             draftService.confirm(batch39Second, confirm);
 
             PageResult<OrderDraftDTO.Summary> page = draftService.page(
-                    1, 20, "EDITING", null, "39", null, false, null, null);
+                    1, 20, "EDITING", null, "39", null, false, null, null, null, null);
             assertEquals(1, page.getTotal());
             assertEquals(batch39First, page.getRecords().get(0).getId());
             assertEquals("39", page.getRecords().get(0).getSourceBatchNo());
 
             PageResult<OrderDraftDTO.Summary> unresolvedPage = draftService.page(
-                    1, 20, "EDITING", null, null, null, true, null, null);
+                    1, 20, "EDITING", null, null, null, true, null, null, null, null);
             assertTrue(unresolvedPage.getRecords().stream().anyMatch(summary -> batch40.equals(summary.getId())));
             assertTrue(unresolvedPage.getRecords().stream().allMatch(summary -> summary.getUnresolvedCount() > 0));
 

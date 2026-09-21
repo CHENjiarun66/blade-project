@@ -41,9 +41,11 @@ public class OrderDraftController {
             @RequestParam(required = false) String entrySource,
             @RequestParam(required = false) Boolean unresolvedOnly,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Long sourceOutletId,
+            @RequestParam(required = false) Boolean unassignedOnly) {
         return R.ok(service.page(current, size, status, keyword, sourceBatchNo,
-                entrySource, unresolvedOnly, startDate, endDate));
+                entrySource, unresolvedOnly, startDate, endDate, sourceOutletId, unassignedOnly));
     }
 
     @GetMapping("/batches")
