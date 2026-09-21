@@ -8,6 +8,16 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口完整性审计第一批：发货/拆分/客户统计范围旁路与角色变更必绑
+
+- P0-1 `OrderActionService.shipOrder`：改为先 `lockOrder`（租户 + `OrderAccessPolicy.requireAccess`）再做幂等返回、占位/配货/库存校验与状态变更；无范围主体对他人档口订单发货 403，订单状态/配货计划/库存/日志不变，授权路径仍出库。
+- P0-2 `OrderPlaceholderSplitService`：注入 `OrderAccessPolicy`，锁单后、读取/删除/插入明细前 `requireAccess`；越权拆分 403 且原明细/目标明细/调整日志不变。
+- P0-3 客户订单出口：`CustomerServiceImpl.getStats/getCustomerOrders/getPreference` 一次 `resolveReadScope(null,false)` + `applySalesPredicate` 预分页（默认排除历史 NULL）；`getPreference` 缓存键加入 `OrderReadScope.cacheFingerprint()`；`CustomerController` 三出口加 `@PreAuthorize("hasAuthority('btn:customer:viewOrders')")`，不动客户主档列表/详情/新增。
+- P1 `UserServiceImpl.update`：`roleIds` 变更时即使 `outletIds=null` 也按最终角色 + 保留后的有效启用绑定校验 SALES 必绑（失败整体回滚）；兼容语义仍为保留绑定；`outletIds` 去重避免唯一键 500。
+- V64 兼容核对：WAREHOUSE 经 V55 `btn:order:viewAll` 迁移获得 `data:outlet:all`+`data:order:peopleAll`；代码未给角色名特权，无范围主体仍 403。
+- 测试：新增 `OrderShipScopeGuardTest`（3）、`OrderPlaceholderSplitScopeGuardTest`（1）、`CustomerOrderScopeIntegrationTest`（6，真实 JWT/DB/Redis）、`UserRoleChangeOutletBindingIntegrationTest`（4，真实 DB 回滚）；更新 `OrderPlaceholderSplitTest` 与 `OrderFactConsistencyTest` 适配范围语义。
+- 文档：新建完整性审计整改报告；`03-TASKS` 中 `BE-OUTLET-005` 补记整改、`TEST-OUTLET-001` 降级为"第一批整改完成"（剩余 P1/P2 见报告）；同步 SESSION_CONTEXT。
+
 ### [整改] - 档口 Series F 经 Codex 终审后的缺口补齐
 
 - P0-1 副本安全闸门改为 fail-closed 正向身份验证：apply 必须显式 `expected-database-name` 且与实际 `SELECT DATABASE()` 完全一致、实际库名匹配 `*_copy/_rehearsal/_staging/_test`、显式可写 `report-dir`；生产常用名 `blade` 直接拒绝；`prod/production/nas` 黑名单保留为第二层；`OutletBackfillApproval` 构造器包内可见，仅 `OutletBackfillSafetyGate.approve` 可签发，写入入口 `apply(approval, rows)` 限制可见性且 `@Transactional` 保持生效。反例：`jdbc:mysql://mysql:3306/blade`+库名 `blade`+ack=true 必须拒绝。

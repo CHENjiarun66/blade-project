@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 14:44:12　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 15:14:49　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -81,10 +81,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">108 完成 · 0 进行中 · 0 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">107 完成 · 0 进行中 · 0 待办 · 0 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:98%"></div></div>
-        <div class="bar-label">98% 完成（活跃 110 项，暂缓 2 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:97%"></div></div>
+        <div class="bar-label">97% 完成（活跃 110 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -412,7 +412,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 320 项） <span class="count">320</span></h2>
+      <h2>✅ 已完成（共 319 项） <span class="count">319</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-001</td>
@@ -2176,7 +2176,7 @@
         <td class="td-name">`OrderAccessPolicy` 二维范围重构</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围；viewAll 不再独立绕过 |</td>
+        <td class="td-remark">订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围；viewAll 不再独立绕过。完整性审计发现 `shipOrder`/占位拆分漏挂 `requireAccess`，已在第一批整改修复并补真实反例（`OrderShipScopeGuardTest`、`OrderPlaceholderSplitScopeGuardTest`、`CustomerOrderScopeIntegrationTest`） |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-006</td>
@@ -2254,13 +2254,6 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
         <td class="td-remark">Key Manager 全部/指定/不开放档口编辑器、默认档口、禁用档口仅历史绑定、列表展示与 rotate 回显；凭证弹窗 capabilities→outlets 接入说明；Playwright 2 passed |</td>
-      </tr>
-      <tr data-status="done">
-        <td class="td-id">TEST-OUTLET-001</td>
-        <td class="td-name">后端越权矩阵</td>
-        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">`OutletScopeMatrixTest` + `OutletScopeCrossResourceAuditTest` + `OrderOutletWriteRulesTest` + `AgentOutletScopeIntegrationTest` 覆盖单/多/全部/无/未归档、SELF/ALL_USERS、跨租户与禁用档口 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">TEST-OUTLET-002</td>

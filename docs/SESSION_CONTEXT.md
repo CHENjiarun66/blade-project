@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-09-21 档口完整性审计第一批整改（P0 旁路 + P1 必绑）
+
+- 初次只读审计发现：`OrderActionService.shipOrder` 与 `OrderPlaceholderSplitService.splitPlaceholderItem` 未挂 `requireAccess`（跨档口发货/拆分写旁路）；`CustomerServiceImpl` 订单/统计/偏好未接 `OrderReadScope` 且缓存键无范围指纹、Controller 无鉴权。
+- P0-1：`shipOrder` 改为先 `lockOrder`（租户 + `requireAccess`）再幂等/占位/配货/库存/状态；`OrderShipScopeGuardTest` 验证 NONE 403、幂等也先鉴权、授权路径仍出库。
+- P0-2：`OrderPlaceholderSplitService` 注入 `OrderAccessPolicy`，锁单后先鉴权再读写明细；`OrderPlaceholderSplitScopeGuardTest` 验证 403 且无明细/审计写入。
+- P0-3：`CustomerServiceImpl` 三出口一次 `resolveReadScope(null,false)` + `applySalesPredicate` 预分页；`getPreference` 缓存键加入 `cacheFingerprint()`；`CustomerController` stats/orders/preference 加 `btn:customer:viewOrders`；`CustomerOrderScopeIntegrationTest`（真实 JWT+DB+Redis）覆盖 SELF/负责人 ALL_USERS/ALL+NONE、NULL 默认排除、分页 total 一致、缓存不串、缺权限 403。
+- P1：`UserServiceImpl.update` 角色变更（即使 `outletIds=null`）按最终角色 + 有效启用绑定校验 SALES 必绑，事务回滚；`outletIds` 去重；`UserRoleChangeOutletBindingIntegrationTest` 真实 DB 覆盖 400/回滚/保留/禁用绑定/重复 ID。
+- V64 兼容：WAREHOUSE 由 `btn:order:viewAll`（V55）迁移获得 `data:outlet:all`+`data:order:peopleAll`；未在代码中给角色名特权，无范围主体仍 403。
+- 文档：新建 `docs/superpowers/plans/2026-09-21-outlet-integrity-audit-remediation-1.md`；`BE-OUTLET-005` 补记整改，`TEST-OUTLET-001` 降级为"第一批整改完成"，剩余 P1/P2 见报告。
+
 ## 2026-09-21 档口 Series F：本地发布准备完成（生产执行待外部）
 
 - DATA-OUTLET-002 本地工具：新增 `com.blade.outlet.migration`（`OutletBackfillMapping` 显式 CSV 解析校验、`OutletBackfillService` dry-run/apply、`OutletBackfillSafetyGate` 四重闸门、`OutletBackfillCli`）。只更新 `sale_order`/`order_draft.source_outlet_id`，`source_shop` 原值保留；纯数字/批次疑似行不映射；冲突不覆盖；确认草稿跳过；前后对账（行数/金额/收款/状态/明细/文件绑定/source_shop）；幂等；apply 默认关闭且拒绝生产/NAS 特征连接。只在生产副本操作。
