@@ -10,7 +10,9 @@ import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.draft.entity.OrderDraftItem;
 import com.blade.order.draft.mapper.OrderDraftItemMapper;
 import com.blade.order.draft.mapper.OrderDraftMapper;
+import com.blade.outlet.entity.SalesOutlet;
 import com.blade.outlet.policy.OutletAccessPolicy;
+import com.blade.outlet.policy.OutletAccessScope;
 import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.ProductSkuMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -86,6 +88,7 @@ public class OrderDraftWriter {
         }
         Set<String> warnings = collectWarnings(request);
         applyHeader(draft, request, warnings);
+        applyUpdateOutletAttribution(draft, request);
         draftMapper.updateById(draft);
         // MyBatis-Plus 默认忽略 null 字段，显式同步兼容首图字段，确保清空全部图片时不会回显旧值。
         draftMapper.update(null, Wrappers.<OrderDraft>lambdaUpdate()
@@ -115,7 +118,66 @@ public class OrderDraftWriter {
         }
         draft.setWarningAcknowledged(0);
         applyHeader(draft, request, warnings);
+        applyCreateOutletAttribution(draft, request, agentKeyId);
         return draft;
+    }
+
+    /**
+     * 新建草稿归属（服务端唯一真相）：Agent 用 code/默认；JWT 用 ID/默认；
+     * 无默认时仅 data:outlet:unassigned 可写 NULL 待归档。始终写主数据名称快照。
+     */
+    private void applyCreateOutletAttribution(OrderDraft draft,
+                                              OrderDraftDTO.SaveRequest request,
+                                              Long agentKeyId) {
+        OutletAccessScope scope = outletAccessPolicy.resolveCurrentScope();
+        if (agentKeyId != null) {
+            if (request.getSourceOutletId() != null) {
+                throw BusinessException.of(400, "Agent 草稿请使用 sourceOutletCode");
+            }
+            String code = trim(request.getSourceOutletCode());
+            SalesOutlet outlet;
+            if (code != null) {
+                outlet = outletAccessPolicy.requireUsableOutletByCode(code);
+            } else {
+                Long def = scope.defaultOutletId();
+                if (def == null) {
+                    throw BusinessException.of(403, "Agent 无可用的默认档口，请传 sourceOutletCode");
+                }
+                outlet = outletAccessPolicy.requireUsableOutlet(def);
+            }
+            draft.setSourceOutletId(outlet.getId());
+            draft.setSourceShop(outlet.getOutletName());
+            return;
+        }
+        Long outletId = request.getSourceOutletId() != null
+                ? request.getSourceOutletId() : scope.defaultOutletId();
+        if (outletId != null) {
+            SalesOutlet outlet = outletAccessPolicy.requireUsableOutlet(outletId);
+            draft.setSourceOutletId(outlet.getId());
+            draft.setSourceShop(outlet.getOutletName());
+        } else {
+            if (!scope.unassignedAllowed()) {
+                throw BusinessException.of(400, "请选择档口；无默认档口时仅 data:outlet:unassigned 可写待归档草稿");
+            }
+            draft.setSourceOutletId(null);
+            draft.setSourceShop(null);
+        }
+    }
+
+    /**
+     * 更新草稿归属：未传稳定字段保留既有档口（避免旧客户端清空）；
+     * 传入则按同一规则改到当前可用且授权的档口并刷新名称快照。
+     */
+    private void applyUpdateOutletAttribution(OrderDraft draft, OrderDraftDTO.SaveRequest request) {
+        if (request.getSourceOutletId() == null && trim(request.getSourceOutletCode()) == null) {
+            return;
+        }
+        if (request.getSourceOutletId() == null) {
+            throw BusinessException.of(400, "更新草稿请使用 sourceOutletId 选择档口");
+        }
+        SalesOutlet outlet = outletAccessPolicy.requireUsableOutlet(request.getSourceOutletId());
+        draft.setSourceOutletId(outlet.getId());
+        draft.setSourceShop(outlet.getOutletName());
     }
 
     private void applyHeader(OrderDraft draft,
@@ -123,7 +185,6 @@ public class OrderDraftWriter {
                              Set<String> warnings) {
         draft.setSourceBatchNo(trim(request.getSourceBatchNo()));
         draft.setSourceOrderNo(trim(request.getSourceOrderNo()));
-        draft.setSourceShop(trim(request.getSourceShop()));
         draft.setOrderType(trim(request.getOrderType()));
         List<Long> sourceFileIds = normalizedSourceFileIds(request);
         draft.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -40,6 +41,11 @@ public final class OrderDraftDTO {
         private String sourceOrderNo;
         @Size(max = 100)
         private String sourceShop;
+        @Schema(description = "档口主数据ID（JWT/PC 使用；Agent 请用 sourceOutletCode）")
+        private Long sourceOutletId;
+        @Size(max = 30, message = "档口编码最多30位")
+        @Schema(description = "档口稳定编码（Agent 使用；服务端按当前 Key 可用档口解析）")
+        private String sourceOutletCode;
         @Pattern(regexp = "SPOT|PREORDER", message = "orderType只支持SPOT或PREORDER")
         private String orderType;
         private Long sourceFileId;
@@ -125,6 +131,8 @@ public final class OrderDraftDTO {
         private String sourceBatchNo;
         private String sourceOrderNo;
         private String sourceShop;
+        private Long sourceOutletId;
+        private String sourceOutletCode;
         private String orderType;
         private Long sourceFileId;
         private List<Long> sourceFileIds;
@@ -163,6 +171,8 @@ public final class OrderDraftDTO {
         private String entrySource;
         private String sourceBatchNo;
         private String sourceOrderNo;
+        private Long sourceOutletId;
+        private String sourceOutletCode;
         private Long sourceFileId;
         private Integer sourceFileCount;
         private String customerName;

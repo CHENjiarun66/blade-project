@@ -81,7 +81,6 @@ public class OrderServiceImpl implements OrderService {
     private final OrderCompatAdapter compatAdapter;
     private final CustomerStatsCacheService customerStatsCacheService;
     private final OrderAccessPolicy accessPolicy;
-    private final com.blade.outlet.mapper.SalesOutletMapper salesOutletMapper;
     private final com.blade.outlet.policy.OutletAccessPolicy outletAccessPolicy;
 
     private static final String ORDER_TYPE_SPOT = "SPOT";
@@ -108,7 +107,6 @@ public class OrderServiceImpl implements OrderService {
                             OrderCompatAdapter compatAdapter,
                             CustomerStatsCacheService customerStatsCacheService,
                             OrderAccessPolicy accessPolicy,
-                            com.blade.outlet.mapper.SalesOutletMapper salesOutletMapper,
                             com.blade.outlet.policy.OutletAccessPolicy outletAccessPolicy) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
@@ -127,7 +125,6 @@ public class OrderServiceImpl implements OrderService {
         this.compatAdapter = compatAdapter;
         this.customerStatsCacheService = customerStatsCacheService;
         this.accessPolicy = accessPolicy;
-        this.salesOutletMapper = salesOutletMapper;
         this.outletAccessPolicy = outletAccessPolicy;
     }
 
@@ -308,15 +305,13 @@ public class OrderServiceImpl implements OrderService {
         order.setSourceDocNo(dto.getSourceDocNo());
         // 档口：由服务端按主数据校验并生成名称快照，禁止信任客户端自由文本
         if (dto.getSourceOutletId() != null) {
-            outletAccessPolicy.requireUseOutlet(dto.getSourceOutletId());
-            com.blade.outlet.entity.SalesOutlet outletMaster = salesOutletMapper.selectById(dto.getSourceOutletId());
-            if (outletMaster == null || !Integer.valueOf(1).equals(outletMaster.getStatus())) {
-                throw BusinessException.of(400, "档口不存在或未启用");
-            }
+            // 统一复用 OutletAccessPolicy：租户 + 未删 + 启用 + 授权
+            com.blade.outlet.entity.SalesOutlet outletMaster =
+                    outletAccessPolicy.requireUsableOutlet(dto.getSourceOutletId());
             order.setSourceOutletId(outletMaster.getId());
             order.setSourceShop(outletMaster.getOutletName());
         } else {
-            // Series D 前遗留/内部调用允许为空；确认链路已阻断空档口草稿
+            // 历史/内部调用允许为空；确认链路已阻断空档口草稿
             order.setSourceShop(dto.getSourceShop());
         }
         order.setOrderType(normalizeOrderType(dto.getOrderType()));

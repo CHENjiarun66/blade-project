@@ -38,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -89,8 +90,10 @@ public class OrderDraftService {
         // 档口 × 人员维度在分页前应用
         outletAccessPolicy.applyDraftReadScope(query);
         Page<OrderDraft> result = draftMapper.selectPage(page, query);
+        Map<Long, String> codes = outletCodes(result.getRecords().stream()
+                .map(OrderDraft::getSourceOutletId).filter(Objects::nonNull).toList());
         List<OrderDraftDTO.Summary> records = result.getRecords().stream()
-                .map(this::toSummary)
+                .map(draft -> toSummary(draft, codes))
                 .toList();
         return PageResult.of(records, result.getTotal(), result.getSize(), result.getCurrent());
     }
@@ -265,7 +268,16 @@ public class OrderDraftService {
         return draft.getExternalRefNo();
     }
 
-    private OrderDraftDTO.Summary toSummary(OrderDraft draft) {
+    private Map<Long, String> outletCodes(List<Long> outletIds) {
+        Map<Long, String> codes = new LinkedHashMap<>();
+        for (Long id : new LinkedHashSet<>(outletIds)) {
+            com.blade.outlet.entity.SalesOutlet outlet = outletAccessPolicy.findOutlet(id);
+            if (outlet != null) codes.put(id, outlet.getOutletCode());
+        }
+        return codes;
+    }
+
+    private OrderDraftDTO.Summary toSummary(OrderDraft draft, Map<Long, String> outletCodes) {
         List<OrderDraftItem> items = items(draft.getId());
         OrderDraftDTO.Summary summary = new OrderDraftDTO.Summary();
         summary.setId(draft.getId());
@@ -273,6 +285,8 @@ public class OrderDraftService {
         summary.setEntrySource(draft.getEntrySource());
         summary.setSourceBatchNo(draft.getSourceBatchNo());
         summary.setSourceOrderNo(draft.getSourceOrderNo());
+        summary.setSourceOutletId(draft.getSourceOutletId());
+        summary.setSourceOutletCode(outletCodes.get(draft.getSourceOutletId()));
         List<Long> sourceFileIds = sourceFileIds(draft);
         summary.setSourceFileId(sourceFileIds.isEmpty() ? null : sourceFileIds.get(0));
         summary.setSourceFileCount(sourceFileIds.size());
@@ -294,6 +308,9 @@ public class OrderDraftService {
         view.setEntrySource(draft.getEntrySource());
         view.setSourceBatchNo(draft.getSourceBatchNo());
         view.setSourceOrderNo(draft.getSourceOrderNo());
+        view.setSourceOutletId(draft.getSourceOutletId());
+        com.blade.outlet.entity.SalesOutlet viewOutlet = outletAccessPolicy.findOutlet(draft.getSourceOutletId());
+        view.setSourceOutletCode(viewOutlet == null ? null : viewOutlet.getOutletCode());
         view.setSourceShop(draft.getSourceShop());
         view.setOrderType(draft.getOrderType());
         List<Long> sourceFileIds = sourceFileIds(draft);

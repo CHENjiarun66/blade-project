@@ -452,12 +452,18 @@ class OrderDraftConfirmFinanceTest {
             request.setDeliveryAddress("待补充详细门牌");
             request.setItems(List.of(new OrderDraftDTO.Item()));
 
+            Long outletId = seedOutlet();
+            request.setSourceOutletId(outletId);
             OrderDraftDTO.BatchResult result = draftService.create(request);
             OrderDraftDTO.View view = draftService.get(result.getDraftId());
 
             assertEquals("MANUAL", view.getEntrySource());
             assertEquals("手工单-半成品", view.getSourceOrderNo());
-            assertEquals("御龙", view.getSourceShop());
+            // 来源档口由主数据生成，忽略客户端自由文本
+            com.blade.outlet.entity.SalesOutlet master = salesOutletMapper.selectById(outletId);
+            assertEquals(outletId, view.getSourceOutletId());
+            assertEquals(master.getOutletCode(), view.getSourceOutletCode());
+            assertEquals(master.getOutletName(), view.getSourceShop());
             assertEquals("SPOT", view.getOrderType());
             assertEquals("+86", view.getCustomerCountryCode());
             assertEquals(0, view.getPaidAmount().compareTo(new BigDecimal("30.00")));

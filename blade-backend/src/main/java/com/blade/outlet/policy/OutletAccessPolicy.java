@@ -97,6 +97,52 @@ public class OutletAccessPolicy {
         return resolveCurrentScope().defaultOutletId();
     }
 
+    /**
+     * 解析并校验“可用于新写”的档口主数据（按 ID）：
+     * 当前范围 canUseOutlet + 本租户 + 未删除 + 启用。writer/OrderService 统一复用。
+     */
+    public com.blade.outlet.entity.SalesOutlet requireUsableOutlet(Long outletId) {
+        OutletAccessScope scope = resolveCurrentScope();
+        if (outletId == null || !scope.canUseOutlet(outletId)) {
+            throw BusinessException.of(403, "无权使用该档口");
+        }
+        com.blade.outlet.entity.SalesOutlet outlet = salesOutletMapper.selectById(outletId);
+        if (outlet == null || !Integer.valueOf(0).equals(outlet.getDeleted())
+                || !Integer.valueOf(1).equals(outlet.getStatus())
+                || scope.tenantId() == null || !scope.tenantId().equals(outlet.getTenantId())) {
+            throw BusinessException.of(400, "档口不存在或未启用");
+        }
+        return outlet;
+    }
+
+    /**
+     * 解析并校验“可用于新写”的档口主数据（按稳定编码，Agent）：
+     * 仅当前可用集合内按编码解析，越权/禁用/不存在一律 403。
+     */
+    public com.blade.outlet.entity.SalesOutlet requireUsableOutletByCode(String outletCode) {
+        OutletAccessScope scope = resolveCurrentScope();
+        String code = outletCode == null ? null : outletCode.trim();
+        if (code == null || code.isEmpty() || scope.usableOutletIds().isEmpty() || scope.tenantId() == null) {
+            throw BusinessException.of(403, "无权使用该档口");
+        }
+        com.blade.outlet.entity.SalesOutlet outlet = salesOutletMapper.selectOne(
+                new LambdaQueryWrapper<com.blade.outlet.entity.SalesOutlet>()
+                        .eq(com.blade.outlet.entity.SalesOutlet::getOutletCode, code)
+                        .eq(com.blade.outlet.entity.SalesOutlet::getTenantId, scope.tenantId())
+                        .in(com.blade.outlet.entity.SalesOutlet::getId, scope.usableOutletIds())
+                        .eq(com.blade.outlet.entity.SalesOutlet::getDeleted, 0)
+                        .eq(com.blade.outlet.entity.SalesOutlet::getStatus, 1)
+                        .last("LIMIT 1"));
+        if (outlet == null) {
+            throw BusinessException.of(403, "无权使用该档口");
+        }
+        return outlet;
+    }
+
+    public com.blade.outlet.entity.SalesOutlet findOutlet(Long outletId) {
+        return outletId == null ? null : salesOutletMapper.selectById(outletId);
+    }
+
     /** 结构化选项契约。 */
     public OutletOptionsVO listAvailableOptions() {
         OutletAccessScope scope = resolveCurrentScope();
