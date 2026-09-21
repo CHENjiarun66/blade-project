@@ -248,6 +248,28 @@ class OutletScopeMatrixTest {
         assertEquals(List.of(1L), assigned.usableOutletIds());
     }
 
+    @Test
+    void agentNeverGetsUnassignedNullAccess() {
+        agentAuth(5L);
+
+        when(agentKeyMapper.selectById(5L)).thenReturn(activeKey(5L, "ALL"));
+        OutletAccessScope all = policy.resolveCurrentScope();
+        assertFalse(all.unassignedAllowed());
+        assertEquals(OutletAccessScope.OutletFilter.NOT_NULL, all.outletFilter());
+
+        when(agentKeyMapper.selectById(5L)).thenReturn(activeKey(5L, "ASSIGNED"));
+        when(agentKeyOutletMapper.selectOutletIdsByKeyId(5L)).thenReturn(List.of(1L));
+        OutletAccessScope assigned = policy.resolveCurrentScope();
+        assertFalse(assigned.unassignedAllowed());
+        assertEquals(OutletAccessScope.OutletFilter.IN, assigned.outletFilter());
+
+        when(agentKeyMapper.selectById(5L)).thenReturn(activeKey(5L, "NONE"));
+        OutletAccessScope none = policy.resolveCurrentScope();
+        assertTrue(none.isNone());
+        assertFalse(none.unassignedAllowed());
+        assertEquals(OutletAccessScope.OutletFilter.DENY, none.outletFilter());
+    }
+
     // ---------- 6) 默认优先级 ----------
 
     @Test
