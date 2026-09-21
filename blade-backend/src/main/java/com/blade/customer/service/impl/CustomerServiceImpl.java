@@ -513,12 +513,14 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerPreferenceVO getPreference(Long customerId, CustomerPreferenceQueryDTO dto) {
-        // 缓存键必须包含档口 × 人员范围指纹，避免不同租户/档口/人员/绑定复用同一结果。
+        // 缓存键：customer:preference:{customerId}:{scopeFingerprint}:{start}:{end}
+        // customerId 必须在前缀段，以便 CustomerStatsCacheService.evictPreferenceCache(customerId)
+        // 一次失效该客户所有范围/所有时间窗结果；rangeFingerprint 保证不同租户/档口/人员/绑定不串。
         OrderReadScope scope = orderAccessPolicy.resolveReadScope(null, false);
         String startDate = (dto != null && dto.getStartDate() != null) ? dto.getStartDate() : "all";
         String endDate = (dto != null && dto.getEndDate() != null) ? dto.getEndDate() : "all";
-        String cacheKey = "customer:preference:" + scope.cacheFingerprint()
-                + ":" + customerId + ":" + startDate + ":" + endDate;
+        String cacheKey = CustomerStatsCacheService.PREFERENCE_KEY_PREFIX + customerId + ":"
+                + scope.cacheFingerprint() + ":" + startDate + ":" + endDate;
 
         // 尝试从缓存获取
         Object cached = redisTemplate.opsForValue().get(cacheKey);
