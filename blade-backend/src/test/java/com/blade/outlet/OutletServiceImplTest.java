@@ -60,6 +60,8 @@ class OutletServiceImplTest {
         });
         when(orderMapper.selectCount(any())).thenReturn(0L);
         when(orderDraftMapper.selectCount(any())).thenReturn(0L);
+        // 默认标记更新返回 1，模拟目标档口启用且未删除
+        when(outletMapper.markTenantDefault(any(), any())).thenReturn(1);
     }
 
     @AfterEach
@@ -112,8 +114,10 @@ class OutletServiceImplTest {
 
         service.create(dto);
 
-        // 批量清除其它默认（不再 selectOne 单条）
-        verify(outletMapper).clearOtherTenantDefaults(101L);
+        // 安全顺序：租户锁 → 清其它默认 → 标记目标
+        verify(outletMapper).lockTenantRow(7L);
+        verify(outletMapper).clearOtherTenantDefaults(7L, 101L);
+        verify(outletMapper).markTenantDefault(7L, 101L);
     }
 
     @Test
@@ -127,7 +131,8 @@ class OutletServiceImplTest {
 
         assertEquals(0, outlet.getStatus());
         assertEquals(0, outlet.getIsTenantDefault());
-        verify(outletMapper).updateById(outlet);
+        // 显式 tenant_id + deleted 的启停 SQL，同时清除默认标记
+        verify(outletMapper).updateStatusAndDefault(7L, 9L, 0, 0, 23L);
     }
 
     @Test

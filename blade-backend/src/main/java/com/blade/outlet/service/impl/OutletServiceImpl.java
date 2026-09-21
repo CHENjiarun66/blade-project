@@ -1,6 +1,7 @@
 package com.blade.outlet.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blade.common.exception.BusinessException;
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class OutletServiceImpl implements OutletService {
@@ -69,13 +71,15 @@ public class OutletServiceImpl implements OutletService {
         wrapper.orderByAsc(SalesOutlet::getSort).orderByDesc(SalesOutlet::getId);
 
         IPage<SalesOutlet> result = outletMapper.selectPage(page, wrapper);
-        List<OutletVO> voList = result.getRecords().stream().map(this::toVO).toList();
+        OutletCounts counts = loadCounts(result.getRecords().stream().map(SalesOutlet::getId).toList());
+        List<OutletVO> voList = result.getRecords().stream().map(o -> toVO(o, counts)).toList();
         return new PageResult<>(voList, result.getTotal(), result.getSize(), result.getCurrent());
     }
 
     @Override
     public OutletVO getById(Long id) {
-        return toVO(requiredOutlet(id));
+        SalesOutlet outlet = requiredOutlet(id);
+        return toVO(outlet, loadCounts(List.of(outlet.getId())));
     }
 
     @Override
@@ -91,15 +95,16 @@ public class OutletServiceImpl implements OutletService {
         applyFields(outlet, code, dto.getOutletName(), dto.getOutletType(), dto.getContactName(),
                 dto.getPhone(), dto.getAddress(), dto.getSort(), dto.getRemark());
         outlet.setStatus(1);
-        outlet.setIsTenantDefault(dto.getIsTenantDefault() != null && dto.getIsTenantDefault() == 1 ? 1 : 0);
+        // 先以非默认写入，避免瞬时双默认触发 uk_outlet_tenant_default；需要默认时再走锁+清除+标记
+        outlet.setIsTenantDefault(0);
         outlet.setTenantId(requiredTenantId());
         outlet.setCreateBy(currentUserIdOrNull());
         outlet.setDeleted(0);
 
         outletMapper.insert(outlet);
 
-        if (Integer.valueOf(1).equals(outlet.getIsTenantDefault())) {
-            makeExclusiveTenantDefault(outlet.getId());
+        if (dto.getIsTenantDefault() != null && dto.getIsTenantDefault() == 1) {
+            setTenantDefault(outlet);
         }
         return outlet.getId();
     }
@@ -113,22 +118,34 @@ public class OutletServiceImpl implements OutletService {
             throw BusinessException.of(400, "档口编码创建后不可修改");
         }
 
-        applyFields(outlet, code, dto.getOutletName(), dto.getOutletType(), dto.getContactName(),
-                dto.getPhone(), dto.getAddress(), dto.getSort(), dto.getRemark());
-
-        // isTenantDefault 为 null 时保留原值；显式设置才校验并更新。
+        boolean wasDefault = Integer.valueOf(1).equals(outlet.getIsTenantDefault());
+        boolean wantDefault;
         if (dto.getIsTenantDefault() != null) {
             int isDefault = dto.getIsTenantDefault() == 1 ? 1 : 0;
             if (isDefault == 1 && !Integer.valueOf(1).equals(outlet.getStatus())) {
                 throw BusinessException.of(400, "默认档口必须启用");
             }
-            outlet.setIsTenantDefault(isDefault);
+            wantDefault = isDefault == 1;
+        } else {
+            // dto null：保留既有默认语义；但默认档口必须启用，禁用态不得保留默认
+            wantDefault = wasDefault && Integer.valueOf(1).equals(outlet.getStatus());
         }
+
+        applyFields(outlet, code, dto.getOutletName(), dto.getOutletType(), dto.getContactName(),
+                dto.getPhone(), dto.getAddress(), dto.getSort(), dto.getRemark());
+        // 先在租户级串行锁下再改任何本表行，避免并发线程各自持有不同行锁后互相等待清默认造成死锁；
+        // 仍保证任何默认标记写入之前目标先是非默认、其它默认已清除。
+        Long tenantId = null;
+        if (wantDefault) {
+            tenantId = requiredTenantId();
+            outletMapper.lockTenantRow(tenantId);
+        }
+        outlet.setIsTenantDefault(0);
         outlet.setUpdateBy(currentUserIdOrNull());
         outletMapper.updateById(outlet);
 
-        if (Integer.valueOf(1).equals(outlet.getIsTenantDefault())) {
-            makeExclusiveTenantDefault(outlet.getId());
+        if (wantDefault) {
+            applyTenantDefault(tenantId, outlet);
         }
     }
 
@@ -139,12 +156,15 @@ public class OutletServiceImpl implements OutletService {
             throw BusinessException.of(400, "状态只能为 1(启用) 或 0(禁用)");
         }
         SalesOutlet outlet = requiredOutlet(id);
-        outlet.setStatus(status);
-        if (Integer.valueOf(0).equals(status) && Integer.valueOf(1).equals(outlet.getIsTenantDefault())) {
-            outlet.setIsTenantDefault(0);
+        int isDefault = Integer.valueOf(1).equals(outlet.getIsTenantDefault()) ? 1 : 0;
+        // 默认档口必须启用：禁用默认档口时同步清除默认标记（显式 tenant_id + deleted SQL）
+        if (status == 0) {
+            isDefault = 0;
         }
+        outlet.setStatus(status);
+        outlet.setIsTenantDefault(isDefault);
         outlet.setUpdateBy(currentUserIdOrNull());
-        outletMapper.updateById(outlet);
+        outletMapper.updateStatusAndDefault(requiredTenantId(), id, status, isDefault, outlet.getUpdateBy());
     }
 
     @Override
@@ -164,9 +184,26 @@ public class OutletServiceImpl implements OutletService {
         outlet.setRemark(remark);
     }
 
-    /** 批量清除除 self 外的全部默认标记（租户由拦截器约束），处理异常多默认。 */
-    private void makeExclusiveTenantDefault(Long selfId) {
-        outletMapper.clearOtherTenantDefaults(selfId);
+    /**
+     * create 场景：新行插入后取租户级串行锁，再清其它默认并标记目标。
+     */
+    private void setTenantDefault(SalesOutlet outlet) {
+        Long tenantId = requiredTenantId();
+        outletMapper.lockTenantRow(tenantId);
+        applyTenantDefault(tenantId, outlet);
+    }
+
+    /**
+     * 租户锁已持有的前提下：清除同租户其它默认，再标记目标为默认。
+     * 两条 UPDATE 均显式带 tenant_id，跨租户互不影响；唯一索引兜底任意时刻每租户最多一个默认。
+     */
+    private void applyTenantDefault(Long tenantId, SalesOutlet outlet) {
+        outletMapper.clearOtherTenantDefaults(tenantId, outlet.getId());
+        int marked = outletMapper.markTenantDefault(tenantId, outlet.getId());
+        if (marked == 0) {
+            throw BusinessException.of(400, "默认档口必须启用且未删除");
+        }
+        outlet.setIsTenantDefault(1);
     }
 
     private SalesOutlet requiredOutlet(Long id) {
@@ -180,7 +217,7 @@ public class OutletServiceImpl implements OutletService {
         return outlet;
     }
 
-    private OutletVO toVO(SalesOutlet o) {
+    private OutletVO toVO(SalesOutlet o, OutletCounts counts) {
         OutletVO vo = new OutletVO();
         vo.setId(o.getId());
         vo.setOutletCode(o.getOutletCode());
@@ -195,30 +232,71 @@ public class OutletServiceImpl implements OutletService {
         vo.setRemark(o.getRemark());
         vo.setCreateTime(o.getCreateTime());
         vo.setUpdateTime(o.getUpdateTime());
-        vo.setBoundUserCount(countBoundUsers(o.getId()));
-        vo.setOrderCount(countOrders(o.getId()));
-        vo.setDraftCount(countDrafts(o.getId()));
+        vo.setBoundUserCount(counts.boundUsers(o.getId()));
+        vo.setOrderCount(counts.orders(o.getId()));
+        vo.setDraftCount(counts.drafts(o.getId()));
         return vo;
     }
 
-    private long countBoundUsers(Long outletId) {
-        Long c = sysUserOutletMapper.selectCount(
-                new LambdaQueryWrapper<SysUserOutlet>()
-                        .eq(SysUserOutlet::getOutletId, outletId)
-                        .eq(SysUserOutlet::getStatus, 1));
-        return c == null ? 0L : c;
+    /**
+     * 按当前页 outletIds 一次性 GROUP BY 统计三张关联表，查询数固定为 3，不随页大小增长。
+     * 缺失计数为 0；显式带 tenant_id，不只依赖拦截器。
+     */
+    private OutletCounts loadCounts(List<Long> outletIds) {
+        if (outletIds == null || outletIds.isEmpty()) {
+            return OutletCounts.empty();
+        }
+        Long tenantId = requiredTenantId();
+        List<Map<String, Object>> boundRows = sysUserOutletMapper.selectMaps(new QueryWrapper<SysUserOutlet>()
+                .select("outlet_id AS outletId", "COUNT(*) AS cnt")
+                .eq("tenant_id", tenantId).eq("status", 1).eq("deleted", 0)
+                .in("outlet_id", outletIds)
+                .groupBy("outlet_id"));
+        List<Map<String, Object>> orderRows = orderMapper.selectMaps(new QueryWrapper<Order>()
+                .select("source_outlet_id AS outletId", "COUNT(*) AS cnt")
+                .eq("tenant_id", tenantId).eq("deleted", 0)
+                .in("source_outlet_id", outletIds)
+                .groupBy("source_outlet_id"));
+        List<Map<String, Object>> draftRows = orderDraftMapper.selectMaps(new QueryWrapper<OrderDraft>()
+                .select("source_outlet_id AS outletId", "COUNT(*) AS cnt")
+                .eq("tenant_id", tenantId).eq("deleted", 0)
+                .in("source_outlet_id", outletIds)
+                .groupBy("source_outlet_id"));
+        return new OutletCounts(toCountMap(boundRows), toCountMap(orderRows), toCountMap(draftRows));
     }
 
-    private long countOrders(Long outletId) {
-        Long c = orderMapper.selectCount(
-                new LambdaQueryWrapper<Order>().eq(Order::getSourceOutletId, outletId));
-        return c == null ? 0L : c;
+    private static Map<Long, Long> toCountMap(List<Map<String, Object>> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Long> counts = new java.util.HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Object id = valueIgnoreCase(row, "outletId");
+            if (id instanceof Number number) {
+                Object cnt = valueIgnoreCase(row, "cnt");
+                counts.put(number.longValue(), cnt instanceof Number c ? c.longValue() : 0L);
+            }
+        }
+        return counts;
     }
 
-    private long countDrafts(Long outletId) {
-        Long c = orderDraftMapper.selectCount(
-                new LambdaQueryWrapper<OrderDraft>().eq(OrderDraft::getSourceOutletId, outletId));
-        return c == null ? 0L : c;
+    private static Object valueIgnoreCase(Map<String, Object> row, String key) {
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private record OutletCounts(Map<Long, Long> boundUsers, Map<Long, Long> orders, Map<Long, Long> drafts) {
+        static OutletCounts empty() {
+            return new OutletCounts(Map.of(), Map.of(), Map.of());
+        }
+
+        long boundUsers(Long outletId) { return boundUsers.getOrDefault(outletId, 0L); }
+        long orders(Long outletId) { return orders.getOrDefault(outletId, 0L); }
+        long drafts(Long outletId) { return drafts.getOrDefault(outletId, 0L); }
     }
 
     private String normalizeCode(String code) {
