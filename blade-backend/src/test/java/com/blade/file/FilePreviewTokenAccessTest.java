@@ -2,6 +2,7 @@ package com.blade.file;
 
 import com.blade.auth.service.JwtTokenProvider;
 import com.blade.common.tenant.TenantContext;
+import com.blade.file.config.FileStorageProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -36,6 +39,7 @@ class FilePreviewTokenAccessTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private JwtTokenProvider jwtTokenProvider;
     @Autowired private RedisTemplate<String, Object> redisTemplate;
+    @Autowired private FileStorageProperties properties;
 
     @AfterEach
     void tearDown() {
@@ -72,14 +76,50 @@ class FilePreviewTokenAccessTest {
     }
 
     private long seedPublicOrderFile(long tenantId, Long createBy, long orderId) {
-        String key = "e2t/" + System.nanoTime() + ".png";
-        jdbc.update("INSERT INTO file_storage(file_key,original_name,file_name,storage_type,storage_path,status,tenant_id,"
-                        + "create_by,visibility,file_type) VALUES(?,?,?,'local',?,1,?,?, 'PUBLIC','IMAGE')",
-                key, "e2t.png", "e2t.png", key, tenantId, createBy);
-        long fileId = jdbc.queryForObject("SELECT id FROM file_storage WHERE file_key=?", Long.class, key);
+        long fileId = seedFileOnDisk(tenantId, createBy, "PUBLIC");
         jdbc.update("INSERT INTO file_business_bind(file_id,business_type,business_id,sort,is_primary,tenant_id,deleted) "
                 + "VALUES(?,'order',?,0,1,1,0)", fileId, orderId);
         return fileId;
+    }
+
+    /** 在配置的本地存储根下写真实文件，使匿名 PUBLIC 预览可以成功加载。 */
+    private long seedFileOnDisk(long tenantId, Long createBy, String visibility) {
+        String relative = "e2t/" + System.nanoTime() + ".png";
+        String absolutePath;
+        try {
+            Path base = Path.of(properties.getLocalBasePath()).toAbsolutePath().normalize();
+            Path target = base.resolve(relative).normalize();
+            Files.createDirectories(target.getParent());
+            Files.write(target, new byte[]{1, 2, 3});
+            absolutePath = target.toString();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        jdbc.update("INSERT INTO file_storage(file_key,original_name,file_name,storage_type,storage_path,status,tenant_id,"
+                        + "create_by,visibility,file_type) VALUES(?,?,?,'local',?,1,?,?,?, 'IMAGE')",
+                relative, "e2t.png", "e2t.png", absolutePath, tenantId, createBy, visibility);
+        return jdbc.queryForObject("SELECT id FROM file_storage WHERE file_key=?", Long.class, relative);
+    }
+
+    @Test
+    void anonymousPublicNonSensitiveFile_succeedsWithoutTenantContext() throws Exception {
+        long anonymousFile = seedFileOnDisk(1L, 999L, "PUBLIC");
+        mockMvc.perform(get("/api/files/" + anonymousFile + "/preview"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .content().bytes(new byte[]{1, 2, 3}));
+    }
+
+    @Test
+    void anonymousPublicOrderFile_rejected() throws Exception {
+        long outletB = seedOutlet(1L, "E2T-ANON");
+        long salesB = seedUser(1L, "e2anon" + System.nanoTime() % 100000);
+        long orderB = seedOrder(1L, outletB, salesB);
+        long fileB = seedPublicOrderFile(1L, salesB, orderB);
+
+        mockMvc.perform(get("/api/files/" + fileB + "/preview"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403));
     }
 
     @Test

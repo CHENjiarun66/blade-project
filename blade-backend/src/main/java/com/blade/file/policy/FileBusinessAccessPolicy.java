@@ -19,9 +19,11 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 文件业务访问策略（Series E2）：文件中心所有出口的唯一授权入口。
@@ -30,12 +32,14 @@ import java.util.Objects;
  * <ul>
  *   <li>order / order_draft 敏感绑定：分别复用 {@link OrderAccessPolicy#requireAccess} 与
  *       {@link OutletAccessPolicy#requireDraftAccess}，并强制同租户。</li>
- *   <li>多敏感绑定采用 ALL 规则：任一绑定不可访问即拒绝，避免命中一个可访问绑定就放行。</li>
+ *   <li>多敏感绑定采用 ALL 规则：任一绑定不可访问即拒绝。</li>
  *   <li>权威来源 {@code file_business_bind}；当权威绑定为空且 legacy {@code file_storage.business_*}
  *       为 order/order_draft 时仍按 legacy 目标校验。</li>
- *   <li>未绑定临时文件仅可靠创建者本人或 {@code btn:file:viewAll} 可读/管理。</li>
- *   <li>无法解析 tenant/actor 时 fail closed，不 fallback tenant=1。</li>
- *   <li>{@code btn:file:viewAll} 不绕过 order/order_draft 的业务档口范围。</li>
+ *   <li>非敏感映射（product/sku/inventory_log/ocr_document/whatsapp_message）按当前 authorities
+ *       判定；直接读取与列表 SQL 使用同一“任一映射权限满足”语义。</li>
+ *   <li>未绑定 / 仅 temp 等未知绑定：仅可靠创建者本人或 {@code btn:file:viewAll}。</li>
+ *   <li>无法解析 tenant/actor 时 fail closed，不 fallback tenant=1；{@code btn:file:viewAll}
+ *       不绕过 order/order_draft 的业务档口范围。</li>
  * </ul>
  */
 @Service
@@ -72,6 +76,10 @@ public class FileBusinessAccessPolicy {
     private record SensitiveTarget(String type, Long id) {
     }
 
+    /** 预分页可见性：参数化 SQL 模板 + 绑定参数，供 wrapper.apply(sql, params)。 */
+    public record VisibilityCondition(String sql, Object[] params) {
+    }
+
     // ==================== 读 ====================
 
     /** 文件读取授权：敏感绑定按业务范围，非敏感/未绑定按权限与创建者。 */
@@ -99,7 +107,6 @@ public class FileBusinessAccessPolicy {
                 .filter(Objects::nonNull)
                 .anyMatch(BUSINESS_PERMISSION_MAP::containsKey);
         if (hasMappedBinding) {
-            // 非敏感业务绑定：沿用既有权限映射（product/sku 等）
             requireMappedBindingPermission(binds);
             return;
         }
@@ -115,7 +122,7 @@ public class FileBusinessAccessPolicy {
         throw BusinessException.of(403, "无权访问该文件");
     }
 
-    /** 文件是否存在 order/order_draft 敏感绑定（含 legacy-only）。用于 PUBLIC 强制业务校验。 */
+    /** 文件是否存在 order/order_draft 敏感绑定（含 legacy-only）。仅用文件自带 tenant，不依赖 TenantContext。 */
     public boolean hasSensitiveTargets(FileStorage file) {
         if (file == null || file.getTenantId() == null) {
             return false;
@@ -154,7 +161,7 @@ public class FileBusinessAccessPolicy {
         requireMappedTypePermission(businessType);
     }
 
-    /** 校验一批文件都可读；任一不可读整体拒绝（用于 bind/delete/move 等变更前）。 */
+    /** 校验一批文件都可读；任一不可读整体拒绝。 */
     public void requireFilesRead(List<FileStorage> files) {
         if (files == null) {
             return;
@@ -164,15 +171,15 @@ public class FileBusinessAccessPolicy {
         }
     }
 
-    // ==================== 列表可见性（SQL 预分页） ====================
+    // ==================== 列表可见性（SQL 预分页，参数化） ====================
 
     /**
-     * 文件中心分页可见性 SQL（作用于 {@code file_storage} 外层查询，分页/计数之前）。
+     * 文件中心分页可见性条件（作用于 {@code file_storage} 外层查询，分页/计数之前）。
      *
-     * <p>敏感文件 = 所有 order/order_draft 绑定均可访问；非敏感绑定可见；未绑定仅创建者或
-     * viewAll。NONE 档口范围为 {@code 1=0}。</p>
+     * <p>所有子查询严格 {@code b.tenant_id = ?} 且与直接读取权限一致：非敏感映射只在调用者
+     * 拥有对应权限时可见；temp/未绑定仅创建者或 viewAll；NONE 档口范围为 {@code 1=0}。</p>
      */
-    public String buildVisibilityCondition() {
+    public VisibilityCondition buildVisibilityCondition() {
         Long tenantId = requiredTenantId();
         OutletAccessScope scope = outletAccessPolicy.resolveCurrentScope();
         Long actorId = scope.actorId();
@@ -180,73 +187,115 @@ public class FileBusinessAccessPolicy {
         boolean viewAll = hasViewAll();
 
         if (!peopleAll && actorId == null) {
-            return "1 = 0";
+            return new VisibilityCondition("1 = 0", new Object[0]);
         }
 
-        String readable = scope.readableOutletIds().isEmpty() ? null
-                : scope.readableOutletIds().stream()
-                        .filter(Objects::nonNull)
-                        .map(String::valueOf)
-                        .collect(java.util.stream.Collectors.joining(","));
-        boolean unassigned = scope.unassignedAllowed();
+        List<Object> params = new ArrayList<>();
+        String tenantPh = placeholder(params, tenantId);
+        String readableIn = null;
+        if (!scope.readableOutletIds().isEmpty()) {
+            readableIn = scope.readableOutletIds().stream()
+                    .filter(Objects::nonNull)
+                    .map(id -> placeholder(params, id))
+                    .collect(Collectors.joining(",", "(", ")"));
+        }
+        String actorPh = peopleAll ? null : placeholder(params, actorId);
 
-        String orderOutlet = outletPredicate("o", readable, unassigned);
-        String draftOutlet = outletPredicate("d", readable, unassigned);
-        String orderPeople = peopleAll ? "1=1" : ("o.salesman_id = " + actorId);
-        String draftPeople = peopleAll ? "1=1" : ("d.created_by_user_id = " + actorId);
+        boolean unassigned = scope.unassignedAllowed();
+        String orderOutlet = outletPredicate("o", readableIn, unassigned);
+        String draftOutlet = outletPredicate("d", readableIn, unassigned);
+        String orderPeople = peopleAll ? "1=1" : ("o.salesman_id = " + actorPh);
+        String draftPeople = peopleAll ? "1=1" : ("d.created_by_user_id = " + actorPh);
 
         String orderAccessible = "EXISTS (SELECT 1 FROM sale_order o"
-                + " WHERE o.id = b.business_id AND o.tenant_id = file_storage.tenant_id AND o.deleted = 0"
+                + " WHERE o.id = b.business_id AND o.tenant_id = " + tenantPh + " AND o.deleted = 0"
                 + " AND " + orderOutlet + " AND " + orderPeople + ")";
         String draftAccessible = "EXISTS (SELECT 1 FROM order_draft d"
-                + " WHERE d.id = b.business_id AND d.tenant_id = file_storage.tenant_id AND d.deleted = 0"
+                + " WHERE d.id = b.business_id AND d.tenant_id = " + tenantPh + " AND d.deleted = 0"
                 + " AND " + draftOutlet + " AND " + draftPeople + ")";
         String accessibleForB = "((b.business_type = 'order' AND " + orderAccessible + ")"
                 + " OR (b.business_type = 'order_draft' AND " + draftAccessible + "))";
 
         String legacyOrderAccessible = "EXISTS (SELECT 1 FROM sale_order o"
-                + " WHERE o.id = file_storage.business_id AND o.tenant_id = file_storage.tenant_id AND o.deleted = 0"
+                + " WHERE o.id = file_storage.business_id AND o.tenant_id = " + tenantPh + " AND o.deleted = 0"
                 + " AND " + orderOutlet + " AND " + orderPeople + ")";
         String legacyDraftAccessible = "EXISTS (SELECT 1 FROM order_draft d"
-                + " WHERE d.id = file_storage.business_id AND d.tenant_id = file_storage.tenant_id AND d.deleted = 0"
+                + " WHERE d.id = file_storage.business_id AND d.tenant_id = " + tenantPh + " AND d.deleted = 0"
                 + " AND " + draftOutlet + " AND " + draftPeople + ")";
 
+        String bindTenant = "b.tenant_id = " + tenantPh;
         String hasSensitive = "EXISTS (SELECT 1 FROM file_business_bind b WHERE b.file_id = file_storage.id"
-                + " AND b.deleted = 0 AND b.business_type IN ('order','order_draft'))";
-        String hasMappedNonSensitive = "EXISTS (SELECT 1 FROM file_business_bind b WHERE b.file_id = file_storage.id"
-                + " AND b.deleted = 0 AND b.business_type IN ('product','sku','inventory_log','ocr_document','whatsapp_message'))";
+                + " AND " + bindTenant + " AND b.deleted = 0 AND b.business_type IN ('order','order_draft'))";
         String allSensitiveAccessible = "NOT EXISTS (SELECT 1 FROM file_business_bind b"
-                + " WHERE b.file_id = file_storage.id AND b.deleted = 0"
+                + " WHERE b.file_id = file_storage.id AND " + bindTenant + " AND b.deleted = 0"
                 + " AND b.business_type IN ('order','order_draft') AND NOT " + accessibleForB + ")";
 
-        String unboundVisible = viewAll ? "1=1"
-                : (actorId != null ? "file_storage.create_by = " + actorId : "1=0");
+        List<String> permittedTypes = permittedNonSensitiveTypes(viewAll);
+        String hasPermittedNonSensitive = permittedTypes.isEmpty()
+                ? "1=0"
+                : "EXISTS (SELECT 1 FROM file_business_bind b WHERE b.file_id = file_storage.id"
+                    + " AND " + bindTenant + " AND b.deleted = 0"
+                    + " AND b.business_type IN (" + literalList(permittedTypes) + "))";
+        // 任意映射类型（不看调用者权限）：存在时不得回落“未绑定”创建者规则
+        String hasAnyMappedNonSensitive = "EXISTS (SELECT 1 FROM file_business_bind b WHERE b.file_id = file_storage.id"
+                + " AND " + bindTenant + " AND b.deleted = 0"
+                + " AND b.business_type IN (" + literalList(allMappedTypes()) + "))";
 
-        return "("
+        String unboundVisible = viewAll ? "1=1"
+                : (actorId != null ? "file_storage.create_by = " + actorPh : "1=0");
+
+        String sql = "("
                 + "(" + hasSensitive + " AND " + allSensitiveAccessible + ")"
-                + " OR (NOT " + hasSensitive + " AND " + hasMappedNonSensitive + ")"
-                + " OR (NOT " + hasSensitive + " AND NOT " + hasMappedNonSensitive + " AND ("
+                + " OR (NOT " + hasSensitive + " AND " + hasPermittedNonSensitive + ")"
+                + " OR (NOT " + hasSensitive + " AND NOT " + hasAnyMappedNonSensitive + " AND ("
                 +     "(file_storage.business_type = 'order' AND " + legacyOrderAccessible + ")"
                 +     " OR (file_storage.business_type = 'order_draft' AND " + legacyDraftAccessible + ")"
                 +     " OR ((file_storage.business_type IS NULL"
                 +          " OR file_storage.business_type NOT IN ('order','order_draft')) AND " + unboundVisible + ")"
                 + "))"
                 + ")";
+        return new VisibilityCondition(sql, params.toArray());
     }
 
     // ==================== 内部 ====================
 
-    private String outletPredicate(String alias, String readable, boolean unassigned) {
+    private static String placeholder(List<Object> params, Object value) {
+        params.add(value);
+        return "{" + (params.size() - 1) + "}";
+    }
+
+    private String outletPredicate(String alias, String readableIn, boolean unassigned) {
         StringBuilder sb = new StringBuilder("(");
-        if (readable == null) {
+        if (readableIn == null) {
             sb.append("1=0");
         } else {
-            sb.append(alias).append(".source_outlet_id IN (").append(readable).append(")");
+            sb.append(alias).append(".source_outlet_id IN ").append(readableIn);
         }
         if (unassigned) {
             sb.append(" OR ").append(alias).append(".source_outlet_id IS NULL");
         }
         return sb.append(")").toString();
+    }
+
+    private static String literalList(List<String> values) {
+        return values.stream()
+                .map(value -> "'" + value.replace("'", "''") + "'")
+                .collect(Collectors.joining(","));
+    }
+
+    private List<String> permittedNonSensitiveTypes(boolean viewAll) {
+        if (viewAll) {
+            return allMappedTypes();
+        }
+        return BUSINESS_PERMISSION_MAP.entrySet().stream()
+                .filter(entry -> hasAuthority(entry.getValue()))
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
+    }
+
+    private static List<String> allMappedTypes() {
+        return BUSINESS_PERMISSION_MAP.keySet().stream().sorted().toList();
     }
 
     private List<FileBusinessBind> activeBindings(Long fileId, Long tenantId) {
@@ -279,14 +328,6 @@ public class FileBusinessAccessPolicy {
     private void requireMappedBindingPermission(List<FileBusinessBind> binds) {
         if (hasViewAll()) {
             return;
-        }
-        boolean anyMapped = binds.stream()
-                .map(FileBusinessBind::getBusinessType)
-                .filter(Objects::nonNull)
-                .anyMatch(type -> BUSINESS_PERMISSION_MAP.containsKey(type));
-        if (!anyMapped) {
-            // 未知/其他非敏感绑定：按文件中心权限处理，viewAll 已在上面放行
-            throw BusinessException.of(403, "无权访问该业务文件");
         }
         for (FileBusinessBind bind : binds) {
             String permission = BUSINESS_PERMISSION_MAP.get(bind.getBusinessType());

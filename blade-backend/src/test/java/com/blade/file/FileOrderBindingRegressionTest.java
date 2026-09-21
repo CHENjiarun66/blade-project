@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -67,6 +68,8 @@ class FileOrderBindingRegressionTest {
                 fileBusinessBindMapper,
                 derivativeService,
                 fileBusinessAccessPolicy);
+        lenient().when(fileBusinessAccessPolicy.buildVisibilityCondition())
+                .thenReturn(new com.blade.file.policy.FileBusinessAccessPolicy.VisibilityCondition("1=1", new Object[0]));
     }
 
     @AfterEach
@@ -149,5 +152,13 @@ class FileOrderBindingRegressionTest {
                 .contains("'order_draft'")
                 .contains("existing.`id` IS NULL")
                 .doesNotContain("DELETE FROM", "TRUNCATE", "DROP TABLE", "DROP COLUMN");
+    }
+
+    @Test
+    void uploadWithoutOperatorId_isRejectedBeforeStorage() {
+        MockMultipartFile file = new MockMultipartFile("file", "x.png", "image/png", new byte[]{1});
+        assertThrows(com.blade.common.exception.BusinessException.class,
+                () -> service.upload(file, "product", null, null));
+        verify(storageService, never()).store(any(), any());
     }
 }

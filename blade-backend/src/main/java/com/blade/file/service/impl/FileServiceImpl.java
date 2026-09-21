@@ -71,6 +71,9 @@ public class FileServiceImpl implements FileService {
     @Override
     @Transactional
     public FileUploadVO upload(MultipartFile file, String businessType, Long businessId, Long operatorId) {
+        if (operatorId == null) {
+            throw com.blade.common.exception.BusinessException.of(403, "无法解析当前用户");
+        }
         validateFile(file);
         Long tenantId = TenantContext.getTenantId();
         if (tenantId == null) {
@@ -184,8 +187,28 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
+    public FileStorage getActiveFileGlobal(Long id) {
+        if (id == null) {
+            throw new RuntimeException("文件不存在");
+        }
+        FileStorage file = fileStorageMapper.selectActiveByIdGlobal(id);
+        if (file == null) {
+            throw new RuntimeException("文件不存在");
+        }
+        return file;
+    }
+
+    @Override
     public Resource loadResource(Long id) {
         FileStorage file = getActiveFile(id);
+        return storageService.load(file.getStoragePath());
+    }
+
+    @Override
+    public Resource loadResourceForMedia(FileStorage file) {
+        if (file == null) {
+            throw new RuntimeException("文件不存在");
+        }
         return storageService.load(file.getStoragePath());
     }
 
@@ -405,8 +428,9 @@ public class FileServiceImpl implements FileService {
 
         LambdaQueryWrapper<FileStorage> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileStorage::getTenantId, tenantId);
-        // Series E2：可见性在 count/page SQL 之前应用，禁止先分页后 Java 过滤
-        wrapper.apply(fileBusinessAccessPolicy.buildVisibilityCondition());
+        // Series E2：可见性在 count/page SQL 之前应用，参数化模板避免拼接 ID/actor
+        FileBusinessAccessPolicy.VisibilityCondition visibility = fileBusinessAccessPolicy.buildVisibilityCondition();
+        wrapper.apply(visibility.sql(), visibility.params());
 
         // 关键字搜索
         if (dto.getKeyword() != null && !dto.getKeyword().isBlank()) {

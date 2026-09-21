@@ -17,7 +17,16 @@ public interface FileService {
 
     FileStorage getActiveFile(Long id);
 
+    /**
+     * 按全局唯一 id + status 读取文件（不要求 TenantContext），仅供匿名 PUBLIC 媒体加载路径；
+     * 调用方随后必须用 FileBusinessAccessPolicy 判定业务范围。
+     */
+    FileStorage getActiveFileGlobal(Long id);
+
     Resource loadResource(Long id);
+
+    /** 加载已定位文件的资源（媒体路径，不再做租户查询）。 */
+    Resource loadResourceForMedia(FileStorage file);
 
     void delete(Long id);
 

@@ -2,6 +2,7 @@ package com.blade.file.controller;
 
 import com.blade.common.result.PageResult;
 import com.blade.common.result.R;
+import com.blade.common.tenant.TenantContext;
 import com.blade.file.dto.FileBindDTO;
 import com.blade.file.dto.FilePageDTO;
 import com.blade.file.dto.FileUploadVO;
@@ -57,9 +58,8 @@ public class FileController {
 
     @GetMapping("/{id}/preview")
     public ResponseEntity<Resource> preview(@PathVariable Long id) {
-        FileStorage file = fileService.getActiveFile(id);
-        authorizeMedia(file);
-        return resourceResponse(file, id, CacheControl.maxAge(Duration.ofHours(1)));
+        FileStorage file = authorizeMedia(id);
+        return resourceResponse(file, CacheControl.maxAge(Duration.ofHours(1)));
     }
 
     /**
@@ -71,8 +71,7 @@ public class FileController {
         if (!"thumb".equals(type) && !"card".equals(type)) {
             throw new IllegalArgumentException("不支持的派生类型: " + type + " (仅支持 thumb / card)");
         }
-        FileStorage file = fileService.getActiveFile(id);
-        authorizeMedia(file);
+        FileStorage file = authorizeMedia(id);
 
         Resource resource = derivativeService.loadVariantResource(id, type);
         CacheControl cache;
@@ -82,7 +81,7 @@ public class FileController {
             cache = CacheControl.maxAge(Duration.ofDays(7));
             mediaType = MediaType.IMAGE_JPEG;
         } else {
-            resource = fileService.loadResource(id);
+            resource = fileService.loadResourceForMedia(file);
             cache = CacheControl.maxAge(Duration.ofHours(1));
             mediaType = file.getContentType() != null
                     ? MediaType.parseMediaType(file.getContentType())
@@ -129,24 +128,32 @@ public class FileController {
     }
 
     /**
-     * 受保护 order/order_draft 文件即使 visibility=PUBLIC 也必须按业务范围授权；
-     * PUBLIC 的非敏感文件保持匿名可读；previewToken 只建立身份，不绕过业务授权。
+     * 媒体加载授权（preview/variant permitAll）：
+     * 先按全局唯一 id + status 定位文件（不用 tenant fallback）；敏感文件无论 visibility 都按业务范围；
+     * 非敏感且 PUBLIC 允许匿名；否则必须认证且同租户并做文件读取授权。
      */
-    private void authorizeMedia(FileStorage file) {
+    private FileStorage authorizeMedia(Long id) {
+        FileStorage file = fileService.getActiveFileGlobal(id);
         if (fileBusinessAccessPolicy.hasSensitiveTargets(file)) {
             fileBusinessAccessPolicy.requireFileRead(file);
-            return;
+            return file;
         }
-        if (!"PUBLIC".equals(file.getVisibility())) {
-            if (!isAuthenticated()) {
-                throw new AccessDeniedException("文件未公开，需要登录后访问");
-            }
-            fileBusinessAccessPolicy.requireFileRead(file);
+        if ("PUBLIC".equals(file.getVisibility())) {
+            return file;
         }
+        if (!isAuthenticated()) {
+            throw new AccessDeniedException("文件未公开，需要登录后访问");
+        }
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null || file.getTenantId() == null || !tenantId.equals(file.getTenantId())) {
+            throw com.blade.common.exception.BusinessException.of(403, "无权访问该文件");
+        }
+        fileBusinessAccessPolicy.requireFileRead(file);
+        return file;
     }
 
-    private ResponseEntity<Resource> resourceResponse(FileStorage file, Long id, CacheControl defaultCache) {
-        Resource resource = fileService.loadResource(id);
+    private ResponseEntity<Resource> resourceResponse(FileStorage file, CacheControl defaultCache) {
+        Resource resource = fileService.loadResourceForMedia(file);
         MediaType mediaType = file.getContentType() != null
                 ? MediaType.parseMediaType(file.getContentType())
                 : MediaType.APPLICATION_OCTET_STREAM;
@@ -184,11 +191,17 @@ public class FileController {
         return authorities.stream().anyMatch(a -> authority.equals(a.getAuthority()));
     }
 
+    /**
+     * 可靠操作者：仅接受 User principal；解析失败 403，绝不回退用户 1。
+     *（/api/files 为 JWT 路由，不支持 Agent principal。）
+     */
     private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
+        if (authentication != null && authentication.isAuthenticated()
+                && authentication.getPrincipal() instanceof User user
+                && user.getId() != null) {
             return user.getId();
         }
-        return 1L;
+        throw com.blade.common.exception.BusinessException.of(403, "无法解析当前用户");
     }
 }

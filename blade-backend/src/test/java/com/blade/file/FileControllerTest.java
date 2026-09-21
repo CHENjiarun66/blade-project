@@ -45,6 +45,7 @@ class FileControllerTest {
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
+        com.blade.common.tenant.TenantContext.setTenantId(1L);
         fileService = new CapturingFileService();
         derivativeService = new StubDerivativeService();
         fileBusinessAccessPolicy = new StubFileBusinessAccessPolicy();
@@ -54,15 +55,26 @@ class FileControllerTest {
                 .build();
     }
 
+    /** upload 需要可靠 User principal（不再 fallback 1L）。 */
+    private void authenticateUser() {
+        com.blade.system.user.entity.User current = new com.blade.system.user.entity.User();
+        current.setId(1L);
+        current.setUsername("admin");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(current, null, List.of()));
+    }
+
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        com.blade.common.tenant.TenantContext.clear();
     }
 
     // === 原有上传测试 ===
 
     @Test
     void uploadReturnsFileIdAndPreviewUrl() throws Exception {
+        authenticateUser();
         fileService.nextUpload = uploadVO(101L, "order.png", "image/png", 4L);
 
         MockMultipartFile file = new MockMultipartFile(
@@ -90,6 +102,7 @@ class FileControllerTest {
 
     @Test
     void uploadVideoReturnsFileTypeAndFileExt() throws Exception {
+        authenticateUser();
         fileService.nextUpload = uploadVO(103L, "demo.mp4", "video/mp4", 8L, "VIDEO", "mp4");
 
         MockMultipartFile file = new MockMultipartFile(
@@ -117,6 +130,7 @@ class FileControllerTest {
 
     @Test
     void uploadPassesBusinessIdWhenProvided() throws Exception {
+        authenticateUser();
         fileService.nextUpload = uploadVO(102L, "product.jpg", "image/jpeg", 3L);
 
         MockMultipartFile file = new MockMultipartFile(
@@ -137,6 +151,21 @@ class FileControllerTest {
         assertThat(fileService.capturedBusinessType).isEqualTo("product");
         assertThat(fileService.capturedBusinessId).isEqualTo(88L);
         assertThat(fileService.capturedOperatorId).isEqualTo(1L);
+    }
+
+    @Test
+    void uploadWithoutReliableUser_returns403AndNeverCallsService() throws Exception {
+        // principal 不是自定义 User（无可靠 ID）→ 403，且不进入 FileService.upload
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("not-a-user", null, List.of()));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "x.png", "image/png", new byte[]{1});
+        mockMvc.perform(multipart("/api/files/upload")
+                        .file(file)
+                        .param("businessType", "product"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403));
+        assertThat(fileService.capturedFile).isNull();
     }
 
     // === BE-1002 新测试：分页列表 ===
@@ -587,6 +616,7 @@ class FileControllerTest {
     private FileStorage fileStorage(Long id, String visibility, String contentType) {
         FileStorage fs = new FileStorage();
         fs.setId(id);
+        fs.setTenantId(1L);
         fs.setVisibility(visibility);
         fs.setContentType(contentType);
         return fs;
@@ -678,7 +708,24 @@ class FileControllerTest {
         }
 
         @Override
+        public FileStorage getActiveFileGlobal(Long id) {
+            capturedPreviewId = id;
+            if (nextActiveFile == null) {
+                throw new UnsupportedOperationException("nextActiveFile not configured in test");
+            }
+            return nextActiveFile;
+        }
+
+        @Override
         public Resource loadResource(Long id) {
+            if (nextResource == null) {
+                throw new UnsupportedOperationException("nextResource not configured in test");
+            }
+            return nextResource;
+        }
+
+        @Override
+        public Resource loadResourceForMedia(FileStorage file) {
             if (nextResource == null) {
                 throw new UnsupportedOperationException("nextResource not configured in test");
             }
@@ -757,8 +804,8 @@ class FileControllerTest {
         }
 
         @Override
-        public String buildVisibilityCondition() {
-            return "1=1";
+        public VisibilityCondition buildVisibilityCondition() {
+            return new VisibilityCondition("1=1", new Object[0]);
         }
     }
 
