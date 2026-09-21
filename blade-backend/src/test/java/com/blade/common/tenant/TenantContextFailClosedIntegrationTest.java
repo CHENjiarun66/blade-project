@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.blade.auth.dto.LoginRequest;
 import com.blade.auth.dto.LoginResponse;
 import com.blade.common.exception.BusinessException;
+import com.blade.common.exception.GlobalExceptionHandler;
+import com.blade.common.result.R;
 import com.blade.customer.dto.CustomerCreateDTO;
 import com.blade.customer.service.CustomerService;
 import com.blade.outlet.dto.OutletCreateDTO;
@@ -23,6 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mybatis.spring.MyBatisSystemException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -65,6 +68,7 @@ class TenantContextFailClosedIntegrationTest {
     @Autowired private CustomerService customerService;
     @Autowired private OutletService outletService;
     @Autowired private ProductMapper productMapper;
+    @Autowired private GlobalExceptionHandler globalExceptionHandler;
 
     private static final String PASSWORD = "tenant-ctx-123";
 
@@ -116,12 +120,19 @@ class TenantContextFailClosedIntegrationTest {
     }
 
     @Test
-    void realMyBatisQueryWithoutTenantFailsClosed() {
+    void realMyBatisQueryWithoutTenantMapsTo403ThroughHandler() {
         TenantContext.clear();
 
         // 真实 MyBatis 查询：拦截器必须 fail closed，不得隐式 tenant_id=1
-        assertThrows(RuntimeException.class,
+        RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> productMapper.selectCount(new LambdaQueryWrapper<Product>()));
+        // 记录真实类型：MyBatisSystemException -> PersistenceException -> BusinessException(403)
+        assertTrue(ex instanceof MyBatisSystemException,
+                "真实抛出的应为 MyBatisSystemException，实际 " + ex.getClass().getName());
+
+        R<?> result = globalExceptionHandler.handleRuntimeException(ex);
+        assertEquals(403, result.getCode(), "包装的租户 fail-closed 必须仍返回业务 403");
+        assertEquals("缺少租户上下文", result.getMessage());
     }
 
     @Test
