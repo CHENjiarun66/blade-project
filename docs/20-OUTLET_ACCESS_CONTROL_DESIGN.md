@@ -117,12 +117,24 @@ CREATE TABLE sales_outlet (
 );
 ```
 
+V67 追加的数据库不变量（第二批B）：
+
+```sql
+-- 生成的守卫列：未删除且是默认时为 1，否则 NULL；MySQL 唯一索引忽略 NULL
+ALTER TABLE sales_outlet
+  ADD COLUMN tenant_default_guard TINYINT GENERATED ALWAYS AS (
+    CASE WHEN deleted = 0 AND is_tenant_default = 1 THEN 1 ELSE NULL END
+  ) STORED,
+  ADD UNIQUE KEY uk_outlet_tenant_default (tenant_id, tenant_default_guard);
+```
+
 规则：
 
 - `outlet_code` 是 API、导入和 Agent 使用的稳定标识，档口改名不改编码。
 - 档口发生历史引用后不能物理删除，只允许禁用。
-- 一个租户最多一个有效租户默认档口，由服务层事务保证。
-- 禁用档口不再出现在新建订单选项中，但历史订单仍可显示其名称快照。
+- **一个租户最多一个有效租户默认档口，由数据库唯一索引 `uk_outlet_tenant_default` 兜底**；服务层在设置默认时先取租户级串行锁（`SELECT id FROM sys_tenant WHERE id=? FOR UPDATE`），再清同租户其它默认、最后标记目标，所有默认相关 SQL 显式带 `tenant_id` + `deleted`。
+- **V67 是 fail-closed 迁移**：若历史已存在同租户多条未删除默认档口，单一 `ALTER TABLE` 会因唯一键冲突失败，不会自动保留或清理任何一条。部署前必须执行下方重复检查；发现重复必须由人工确认保留哪一条、将其余显式置 0 后重跑迁移。
+- 禁用档口不再出现在新建订单选项中，但历史订单仍可显示其名称快照；禁用租户默认档口会同步清除其默认标记。
 
 ### 3.2 `sys_user_outlet` 用户档口关联
 

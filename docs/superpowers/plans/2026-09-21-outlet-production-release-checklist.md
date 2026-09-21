@@ -8,7 +8,7 @@
 
 - [ ] 已获得业务负责人 + 技术负责人对「回填范围、租户、处理人、验收人」的书面批准。
 - [ ] 目标为生产库的**隔离副本**，不是生产库本身；连接串、库名不含生产/NAS 特征。
-- [ ] 副本副本已确认与生产同一迁移版本（Flyway `V63`–`V66` 已应用，`source_outlet_id` 全部可空）。
+- [ ] 副本副本已确认与生产同一迁移版本（Flyway `V63`–`V67` 已应用，`source_outlet_id` 全部可空）。
 - [ ] 已产出并人工确认 `source_shop` 映射决策 CSV（`MAP`/`SKIP`/`REVIEW` 全部有 reason）。
 - [ ] 已确认本次不删除 `btn:order:viewAll`、不加 `source_outlet_id NOT NULL`。
 - [ ] 变更窗口、回滚窗口、负责人和联系链已明确。
@@ -28,6 +28,24 @@
 - [ ] 运行 `scripts/outlet-user-outlet-authorization-suggestions.sql`，导出用户授权建议报告。
 - [ ] 运行 `scripts/outlet-scope-explain.sql`（显式 `:tenant_id`），记录 single/multi/all/none/unassigned 的 EXPLAIN 与索引清单。
 - [ ] 人工复核疑似批次/纯数字清单，确认不进入映射。
+
+### 2.1 租户默认档口唯一性检查（V67 前置，fail-closed）
+
+- [ ] 在应用 V67 之前对目标库执行（只读）：
+  ```sql
+  SELECT tenant_id, COUNT(*) AS default_cnt
+    FROM sales_outlet
+   WHERE deleted = 0 AND is_tenant_default = 1
+   GROUP BY tenant_id
+  HAVING COUNT(*) > 1;
+  ```
+- [ ] 结果必须为空。**V67 不会自动选择或清理重复默认**：若存在重复，迁移会因
+      `uk_outlet_tenant_default` 唯一键冲突而中止。
+- [ ] 若存在重复，由业务负责人人工确认每个 tenant 保留哪一条；`UPDATE sales_outlet
+      SET is_tenant_default = 0 WHERE tenant_id = ? AND id <> ?` 显式清理其余行并留痕，
+      复核检查 SQL 归零后再重新迁移。禁止由迁移脚本"拍脑袋"决定。
+- [ ] V67 成功后复核：`SHOW CREATE TABLE sales_outlet` 含生成列 `tenant_default_guard`
+      与唯一索引 `uk_outlet_tenant_default`。
 
 ## 3. 回填预演（dry-run，副本）
 
@@ -57,10 +75,11 @@
     --blade.outlet.backfill.report-dir=/secure/reports \
     --blade.outlet.backfill.apply=true \
     --blade.outlet.backfill.expected-database-name=blade_rehearsal \
+    --blade.outlet.backfill.operator=<执行人> \
     --blade.outlet.backfill.copy-environment-ack=true
   ```
-- [ ] 确认安全闸门拒绝：`expected-database-name` 不匹配、非 copy 命名（如 `blade`）、生产/NAS 特征（命中即 403）。
-- [ ] 核对 apply 报告 `reconciliationConsistent=true`（含 `orderIdShopDigest`/`draftIdShopDigest`）；否则事务已回滚，立即停止。
+- [ ] 确认安全闸门拒绝：`expected-database-name` 不匹配、非 copy 命名（如 `blade`）、生产/NAS 特征（命中即 403）、缺少 `operator`（即 400）。
+- [ ] 核对 apply 报告 `reconciliationConsistent=true`（含 `orderIdShopDigest`/`draftIdShopDigest` 与前后 `orderIdOutletDigest`/`draftIdOutletDigest`）；否则事务已回滚，立即停止。
 - [ ] 再次执行 dry-run，确认 `ordersUpdated=0/draftsUpdated=0`、`alreadyApplied` 增加（幂等）。
 
 ## 5. 对账与验收

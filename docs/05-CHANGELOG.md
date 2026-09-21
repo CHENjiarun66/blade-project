@@ -8,6 +8,16 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口第二批B：租户默认档口数据库不变量、pageList N+1、改档口审计操作人
+
+- V67 迁移 `V67__outlet_tenant_default_unique.sql`：单条 `ALTER TABLE sales_outlet` 增加 STORED 生成列 `tenant_default_guard`（deleted=0 且 is_tenant_default=1 时为 1，否则 NULL）与 `UNIQUE KEY uk_outlet_tenant_default (tenant_id, tenant_default_guard)`，数据库层保证每租户最多一个未删除默认；历史重复时唯一键冲突 fail-closed，不自动选择/清理，文档给出上线前重复检查 SQL 与人工处理要求。`FlywayFreshDatabaseMigrationTest` 真实空库 V1→V67 成功，并断言存在历史重复时迁移失败。
+- `OutletServiceImpl` 默认档口安全顺序：`SELECT id FROM sys_tenant WHERE id=? FOR UPDATE` 租户级串行锁（显式 tenantId）→ 清同租户其它默认 → 标记目标；默认相关 SQL 显式 `tenant_id`+`deleted`；先写非默认避免瞬时双默认；默认必须启用、禁用默认同步清除；`isTenantDefault=null` 保留语义。`SalesOutletTenantDefaultIntegrationTest`（6）覆盖唯一索引拒绝、跨租户各自默认、连续/并发每租户恰好一个、禁用清除、禁用不得设默认。
+- `OutletServiceImpl.pageList` 消除 N+1：按页内 outletIds 对用户绑定/正式订单/草稿各一次 GROUP BY 批量计数，缺失为 0；`OutletPageCountBatchTest` 用 mock 证明每张关联表最多一次批量查询且无逐行 `selectCount`。
+- 改档口审计可靠操作人：`applyOutletChange` 在任何 order/log 写入前 `requireCurrentUserId()`，无可靠 User 抛 401 fail-closed，不伪造 1L、不依赖 `order_outlet_change_log.operator_id NOT NULL` 数据库异常兜底。`OrderOutletChangeOperatorIntegrationTest`（3）验证列 NOT NULL、无可靠用户零写入、正常用户 operator_id 正确。
+- 文档：`docs/20-OUTLET_ACCESS_CONTROL_DESIGN.md` 更新默认档口 DB 不变量与 V67 fail-closed；发布 checklist 新增 V67 前置重复默认检查与人工处理、apply `operator` 参数。
+- 验证：后端全量 **818/818**（Failures 0 / Errors 0 / Skipped 0）；本批无前端改动，未运行前端构建；`git diff --check` 无输出。
+- 未处理（按指示）：`TenantLineHandler` tenant=1 全局兜底、Agent batch 403 HTTP 语义、移动端档口选择、软删除。
+
 ### [整改] - 档口第二批A：文件列表一致性、财务先鉴权、看板/分析入口权限、回填审计与跨租户真实反例
 
 - 文件中心一致性：`FileBusinessAccessPolicy.buildVisibilityCondition` 在 `data:order:peopleAll` 且无 `btn:file:viewAll` 时，不再把 `actorId` 占位设为 null；本人未绑定文件在列表/计数与直接读取中一致可见，他人未绑定文件不可见，订单/草稿绑定仍受档口范围约束。新增真实 DB 用例 `FileOutletAccessPolicyTest.peopleAll_keepsOwnUnboundFileVisible_butNotOthers_andOrderDraftScopeStillApplies`（修复前失败）。

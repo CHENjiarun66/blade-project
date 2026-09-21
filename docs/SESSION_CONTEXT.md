@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-09-21 档口第二批B 整改（默认档口不变量/N+1/改档口审计）
+
+- 基线 `269a41b`；本批按目标拆小提交：V67 默认档口唯一性 + 服务层安全顺序、pageList 批量计数、改档口 operator fail-closed，另含文档与测试。
+- 默认档口：新增 `V67__outlet_tenant_default_unique.sql`，单条 `ALTER TABLE sales_outlet` 增加 STORED 生成列 `tenant_default_guard`（未删除且默认=1 时为 1，否则 NULL）与 `UNIQUE KEY uk_outlet_tenant_default (tenant_id, tenant_default_guard)`，数据库层保证每租户最多一个未删除默认；历史重复时迁移唯一键冲突 fail-closed，不自动清理。`FlywayFreshDatabaseMigrationTest` 真实空库 V1→V67 通过，并在存在重复时断言迁移失败。
+- 服务层：`OutletServiceImpl` 设置默认改为“取租户级串行锁（`sys_tenant` id FOR UPDATE，显式 tenantId）→ 清同租户其它默认 → 标记目标”；默认相关 SQL 全部显式 `tenant_id`+`deleted`；先写非默认避免瞬时双默认；默认必须启用，禁用默认清除标记，`isTenantDefault=null` 语义保留。`SalesOutletTenantDefaultIntegrationTest`（6，真实 DB 非事务）覆盖唯一索引拒绝同租户两个默认、跨租户各自默认、连续/并发设置每租户恰好一个、禁用清除、禁用不得设默认。
+- N+1：`OutletServiceImpl.pageList` 改为按页内 outletIds 对 `sys_user_outlet`/`sale_order`/`order_draft` 各一次 GROUP BY 批量计数，缺失为 0；`getById` 复用同一批量方法。`OutletPageCountBatchTest` 用 mock 调用次数证明每张关联表最多一次 `selectMaps`、无 `selectCount`。
+- 改档口审计：`applyOutletChange` 在任何 order/log 写入前调用 `requireCurrentUserId()`，无可靠 User 抛 401 fail-closed，不再落库触发 `order_outlet_change_log.operator_id NOT NULL` 异常，也不伪造 1L。`OrderOutletChangeOperatorIntegrationTest`（3，真实 DB）验证列 NOT NULL、无可靠用户 401 且订单/审计零变化、正常用户 operator_id 正确。
+- 验证：后端全量 **818/818**，Failures 0 / Errors 0 / Skipped 0；Flyway 空库 V1→V67 证据通过；本批无前端改动，未运行前端构建；`git diff --check` 无输出；`git status` 干净。
+- 文档：设计文档 `20-OUTLET_ACCESS_CONTROL_DESIGN.md` 更新默认档口 DB 不变量与 V67 fail-closed；发布 checklist 增加“V67 前置重复默认检查 SQL + 人工处理”与 operator 参数。
+- 未处理（按指示）：`TenantLineHandler` tenant=1 全局兜底、Agent batch 403 HTTP 语义、移动端档口选择、软删除。
+
 ## 2026-09-21 档口第二批A 整改（文件一致性/财务鉴权/入口权限/回填审计/跨租户）
 
 - 基线 `2070ee0`；本批小提交（按项拆分）：文件一致性修复、财务先鉴权后幂等、看板/分析入口 `@PreAuthorize`、回填报告审计证据、跨租户真实反例，另含一处 MyBatis 测试元数据修复。

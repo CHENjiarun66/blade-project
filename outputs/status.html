@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 15:45:02　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 16:03:46　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -2148,7 +2148,7 @@
         <td class="td-name">档口主数据服务与 API</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">CRUD、启停、默认档口、引用统计和 `/api/outlets/options` |</td>
+        <td class="td-remark">CRUD、启停、默认档口、引用统计和 `/api/outlets/options`。第二批B：V67 用 generated nullable guard + `uk_outlet_tenant_default` 在数据库层保证每租户最多一个未删除默认且遇历史重复 fail-closed；设置默认按“租户级串行锁（`sys_tenant` FOR UPDATE）→清同租户其它默认→标记目标”，SQL 显式 `tenant_id`+`deleted`，默认必须启用、禁用清除默认；`pageList` 改为按页内 outletIds 一次 GROUP BY 批量计数，消除逐行 3 次 count 的 N+1 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-002</td>
@@ -2190,7 +2190,7 @@
         <td class="td-name">订单/草稿 DTO 与名称快照</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">正式订单必须有具体档口；`sourceOutletId/code/name` 返回；服务端主数据名称快照；改档口高权限 + 原因 + 审计（V66）；列表结构化筛选 |</td>
+        <td class="td-remark">正式订单必须有具体档口；`sourceOutletId/code/name` 返回；服务端主数据名称快照；改档口高权限 + 原因 + 审计（V66）；列表结构化筛选。第二批B：`applyOutletChange` 在任何 order/log 写入前取得可靠 User，无可靠 principal 一律 401 fail-closed，不伪造 1L、不依赖 `order_outlet_change_log.operator_id NOT NULL` 数据库异常兜底 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-008</td>
