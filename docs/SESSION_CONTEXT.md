@@ -11,7 +11,8 @@
 - `preview`/`variant` 的 PUBLIC 订单/草稿图片仍按业务范围校验；`previewToken` 仅建立身份；受保护响应 no-store。
 - 上传/绑定/解绑/删除/批量删除/移动/详情/列表/getBindings 全部前置授权；文件中心 list 在 count/page 前 SQL 过滤。
 - 草稿转订单双绑定同范围可访问；前端补 order_draft 筛选与 403 提示。
-- commit `5280817`（后端）、`1fb76a5`（前端）、`4c8260f`（temp 绑定收口）、`045495f`（Codex 终审 P0/P1 整改）；全量后端 684/684，`npm run build` 通过，文件/订单/草稿 e2e 14 passed。交付报告见 [2026-09-21-outlet-series-e2-delivery.md](./superpowers/plans/2026-09-21-outlet-series-e2-delivery.md)。
+- commit `5280817`（后端）、`1fb76a5`（前端）、`4c8260f`（temp 绑定收口）、`045495f`（Codex 第一轮终审 P0/P1 整改）、`563b736`（第二轮终审：文件包租户/用户回退收口）。
+- 第二轮整改：新增 `FileRequestContext`，绑定/文件夹/清理/派生图去掉全部 tenant=1 / user=1 回退，缺上下文 403 fail closed；`afterCommit` 派生图与变体读取用文件自带 tenant；`FileCleanupScheduler` 遍历存在文件的租户并逐租户 try/finally 隔离，`cleanup.tenant-id` 默认 `null`。新增 21 例反向测试，全量后端 **705/705**，`npm run build` 通过，`git diff --check ebc1390..HEAD` 无输出。交付报告见 [2026-09-21-outlet-series-e2-delivery.md](./superpowers/plans/2026-09-21-outlet-series-e2-delivery.md)。
 - 未做（保持 TODO）：Series E3 Agent 档口出口与 capability、Series F 历史迁移与发布、Series G 收口。
 
 ## 2026-09-21 档口 Series E1：统计/仪表盘/导出隔离完成
