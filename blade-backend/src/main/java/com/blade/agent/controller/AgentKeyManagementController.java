@@ -37,6 +37,12 @@ public class AgentKeyManagementController {
         return R.ok(service.allowedScopes());
     }
 
+    @GetMapping("/outlets")
+    @Operation(summary = "查询本租户可配置档口（含禁用，不受当前账号档口范围限制）")
+    public R<List<AgentKeyManagementDTO.AdminOutletOption>> outlets() {
+        return R.ok(service.listConfigurableOutlets());
+    }
+
     @PostMapping
     @Operation(summary = "签发Agent Key，明文只返回一次")
     public R<AgentKeyManagementDTO.Credential> create(

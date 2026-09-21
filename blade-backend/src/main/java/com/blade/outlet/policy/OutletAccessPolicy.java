@@ -170,8 +170,7 @@ public class OutletAccessPolicy {
 
 
     /** 结构化选项契约。 */
-    public OutletOptionsVO listAvailableOptions() {
-        OutletAccessScope scope = resolveCurrentScope();
+    public OutletOptionsVO listAvailableOptions() {        OutletAccessScope scope = resolveCurrentScope();
         List<OutletOptionVO> items = new ArrayList<>();
         if (!scope.usableOutletIds().isEmpty()) {
             List<SalesOutlet> outlets = salesOutletMapper.selectList(
@@ -186,6 +185,25 @@ public class OutletAccessPolicy {
         }
         return new OutletOptionsVO(scope.outletScopeType(), scope.peopleScopeType(),
                 scope.locked(), scope.defaultOutletId(), items);
+    }
+
+    /**
+     * 按给定 ID 加载档口主数据（稳定排序）。
+     * {@code onlyEnabled=true} 时仅返回启用档口，用于 Agent 选项/新建集合；
+     * false 时含禁用档口，用于 capabilities 只读摘要。
+     */
+    public List<SalesOutlet> loadOutlets(List<Long> outletIds, boolean onlyEnabled) {
+        if (outletIds == null || outletIds.isEmpty()) {
+            return List.of();
+        }
+        LambdaQueryWrapper<SalesOutlet> wrapper = new LambdaQueryWrapper<SalesOutlet>()
+                .in(SalesOutlet::getId, outletIds)
+                .orderByAsc(SalesOutlet::getSort)
+                .orderByAsc(SalesOutlet::getId);
+        if (onlyEnabled) {
+            wrapper.eq(SalesOutlet::getStatus, 1);
+        }
+        return salesOutletMapper.selectList(wrapper);
     }
 
     // ==================== 用户 ====================

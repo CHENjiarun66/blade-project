@@ -12,6 +12,8 @@ import com.blade.customer.mapper.CustomerOperationLogMapper;
 import com.blade.customer.mapper.CustomerPhoneMapper;
 import com.blade.order.entity.Order;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.outlet.entity.AgentKeyOutlet;
+import com.blade.outlet.mapper.AgentKeyOutletMapper;
 import com.blade.product.entity.Product;
 import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.ProductMapper;
@@ -60,11 +62,17 @@ class AgentDataAccessIntegrationTest {
     private String customerReadOnlyRawKey;
     private String customerCreateOnlyRawKey;
     private String productCreateOnlyRawKey;
+    private String assignedOtherOutletRawKey;
     private Long fullAccessKeyId;
     private String seededProductCode;
     private String seededOrderNo;
+    private Long seededOrderId;
     private Long seededOutletId;
+    private String seededOutletCode;
+    private Long otherOutletId;
+    private String otherOutletCode;
     @Autowired private com.blade.outlet.mapper.SalesOutletMapper salesOutletMapper;
+    @Autowired private AgentKeyOutletMapper agentKeyOutletMapper;
     private Long seededCustomerId;
     private String seededCustomerName;
     private String seededCustomerPhone;
@@ -123,6 +131,13 @@ class AgentDataAccessIntegrationTest {
         order.setTenantId(1L);
         order.setDeleted(0);
         orderMapper.insert(order);
+        seededOrderId = order.getId();
+
+        // E3：绑定到另一个档口的 Agent，用于验证不能通过订单/草稿/能力/选项出口推断种子档口数据
+        otherOutletCode = "AG-OTHER-" + Long.toString(System.nanoTime()).substring(10);
+        otherOutletId = insertOutlet(otherOutletCode, "Agent 其他档口");
+        assignedOtherOutletRawKey = issueAssignedKey("agk_e3_assigned_" + suffix,
+                "orders:read,orders:write,outlets:read", otherOutletId);
 
         seededCustomerPhone = "139" + suffix.substring(Math.max(0, suffix.length() - 8));
         seededCustomerName = "Agent客户-" + suffix;
@@ -165,17 +180,45 @@ class AgentDataAccessIntegrationTest {
 
     private Long seedAgentOutlet() {
         if (seededOutletId != null) return seededOutletId;
+        seededOutletCode = "AG-OUT-" + Long.toString(System.nanoTime()).substring(10);
+        seededOutletId = insertOutlet(seededOutletCode, "Agent 测试档口");
+        return seededOutletId;
+    }
+
+    private Long insertOutlet(String code, String name) {
         com.blade.outlet.entity.SalesOutlet outlet = new com.blade.outlet.entity.SalesOutlet();
         outlet.setTenantId(1L);
-        outlet.setOutletCode("AG-OUT-" + Long.toString(System.nanoTime()).substring(10));
-        outlet.setOutletName("Agent 测试档口");
+        outlet.setOutletCode(code);
+        outlet.setOutletName(name);
         outlet.setOutletType("STORE");
         outlet.setStatus(1);
         outlet.setSort(0);
         outlet.setDeleted(0);
         salesOutletMapper.insert(outlet);
-        seededOutletId = outlet.getId();
-        return seededOutletId;
+        return outlet.getId();
+    }
+
+    /** 签发 ASSIGNED 档口范围的 Key，并写入绑定。 */
+    private String issueAssignedKey(String prefix, String scopes, Long boundOutletId) {
+        String secret = "secret-" + prefix;
+        AgentKey key = new AgentKey();
+        key.setTenantId(1L);
+        key.setName("Agent assigned outlet test");
+        key.setKeyPrefix(prefix);
+        key.setKeyHash(passwordEncoder.encode(secret));
+        key.setScopes(scopes);
+        key.setOutletScopeType("ASSIGNED");
+        key.setStatus(AgentKey.STATUS_ACTIVE);
+        key.setExpiresTime(LocalDateTime.now().plusDays(1));
+        keyMapper.insert(key);
+        AgentKeyOutlet binding = new AgentKeyOutlet();
+        binding.setTenantId(1L);
+        binding.setAgentKeyId(key.getId());
+        binding.setOutletId(boundOutletId);
+        binding.setIsDefault(1);
+        binding.setStatus(1);
+        agentKeyOutletMapper.insert(binding);
+        return prefix + "." + secret;
     }
 
     @AfterEach
@@ -352,5 +395,55 @@ class AgentDataAccessIntegrationTest {
                 .andExpect(jsonPath("$.data.result").value("DUPLICATE"))
                 .andExpect(jsonPath("$.data.customerId").value(nullValue()))
                 .andExpect(jsonPath("$.data.name").value(nullValue()));
+    }
+
+    /** TEST-OUTLET-003：Agent A 档口无法通过 orders / draft / capabilities / outlets 任一出口推断 B 档口数据。 */
+    @Test
+    void assignedOutletCannotReachOtherOutletThroughAnyAgentOutlet() throws Exception {
+        // 订单列表不含 B 档口订单
+        mockMvc.perform(get("/api/agent/orders").param("orderNo", seededOrderNo)
+                        .header("X-Agent-Key", assignedOtherOutletRawKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records.length()").value(0))
+                .andExpect(jsonPath("$.data.total").value(0));
+
+        // 订单详情按 ID 直接访问 B 档口订单 -> 业务码 403
+        mockMvc.perform(get("/api/agent/orders/{id}", seededOrderId)
+                        .header("X-Agent-Key", assignedOtherOutletRawKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403));
+
+        // capabilities 不泄露 B 档口 code
+        mockMvc.perform(get("/api/agent/capabilities").header("X-Agent-Key", assignedOtherOutletRawKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.outletScopeType").value("ASSIGNED"))
+                .andExpect(jsonPath("$.data.usableOutlets[?(@.code == '" + seededOutletCode + "')]").isEmpty())
+                .andExpect(jsonPath("$.data.readableOutlets[?(@.code == '" + seededOutletCode + "')]").isEmpty());
+
+        // outlets 只返回绑定的其他档口
+        mockMvc.perform(get("/api/agent/outlets").header("X-Agent-Key", assignedOtherOutletRawKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].code").value(otherOutletCode));
+
+        // 草稿使用 B 档口 code -> 单条 ERROR，不创建
+        String codeBody = "{\"orders\":[{\"externalRefNo\":\"E3-B-" + System.nanoTime()
+                + "\",\"sourceBatchNo\":\"E3B\",\"sourceOrderNo\":\"E3B-1\",\"sourceOutletCode\":\""
+                + seededOutletCode + "\",\"items\":[{\"sourceRowNo\":1,\"rawDescription\":\"x\",\"quantity\":1,"
+                + "\"salePrice\":10}]}]}";
+        mockMvc.perform(post("/api/agent/order-drafts/batch").header("X-Agent-Key", assignedOtherOutletRawKey)
+                        .contentType(MediaType.APPLICATION_JSON).content(codeBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].status").value("ERROR"));
+
+        // 草稿显式内部 ID -> 单条 ERROR，不创建
+        String idBody = "{\"orders\":[{\"externalRefNo\":\"E3-ID-" + System.nanoTime()
+                + "\",\"sourceBatchNo\":\"E3I\",\"sourceOrderNo\":\"E3I-1\",\"sourceOutletId\":" + seededOutletId
+                + ",\"items\":[{\"sourceRowNo\":1,\"rawDescription\":\"x\",\"quantity\":1,"
+                + "\"salePrice\":10}]}]}";
+        mockMvc.perform(post("/api/agent/order-drafts/batch").header("X-Agent-Key", assignedOtherOutletRawKey)
+                        .contentType(MediaType.APPLICATION_JSON).content(idBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].status").value("ERROR"));
     }
 }

@@ -3,9 +3,12 @@ package com.blade.agent;
 import com.blade.agent.auth.AgentPrincipal;
 import com.blade.agent.controller.AgentCustomerController;
 import com.blade.agent.controller.AgentOrderQueryController;
+import com.blade.agent.controller.AgentOutletsController;
 import com.blade.agent.controller.AgentProductController;
+import com.blade.agent.dto.AgentCapabilitiesDTO;
 import com.blade.agent.dto.AgentCustomerDTO;
 import com.blade.agent.dto.AgentOrderDTO;
+import com.blade.agent.dto.AgentOutletsDTO;
 import com.blade.agent.dto.AgentProductDTO;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,6 +38,22 @@ class AgentDataAccessContractTest {
         assertEquals("hasAuthority('agent:customers:create')",
                 annotation(AgentCustomerController.class, "create",
                         AgentCustomerDTO.CreateRequest.class, AgentPrincipal.class).value());
+        assertEquals("hasAuthority('agent:outlets:read')",
+                annotation(AgentOutletsController.class, "outlets").value());
+    }
+
+    @Test
+    void agentOutletViewsExposeStableCodesWithoutInternalIds() {
+        Set<String> capabilities = componentNames(AgentCapabilitiesDTO.View.class);
+        assertTrue(capabilities.containsAll(Set.of(
+                "outletScopeType", "defaultOutletCode", "readableOutlets", "usableOutlets")));
+        assertEquals(Set.of("code", "name", "status"), componentNames(AgentCapabilitiesDTO.OutletBrief.class));
+
+        Set<String> outlets = componentNames(AgentOutletsDTO.View.class);
+        assertTrue(outlets.containsAll(Set.of("outletScopeType", "defaultOutletCode", "items")));
+        assertEquals(Set.of("code", "name", "defaultOutlet"), componentNames(AgentOutletsDTO.OutletItem.class));
+        assertFalse(componentNames(AgentOutletsDTO.OutletItem.class).contains("id"));
+        assertFalse(componentNames(AgentCapabilitiesDTO.OutletBrief.class).contains("id"));
     }
 
     @Test
