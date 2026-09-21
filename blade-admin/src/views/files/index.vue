@@ -180,6 +180,7 @@
                 <el-option label="商品" value="product" />
                 <el-option label="SKU" value="sku" />
                 <el-option label="订单" value="order" />
+                <el-option label="订单草稿" value="order_draft" />
                 <el-option label="入库" value="inventory_log" />
               </el-select>
             </div>
@@ -847,7 +848,13 @@ async function loadFiles() {
     files.value = res.data.records
     total.value = res.data.total
   } catch (error: any) {
-    ElMessage.error(error.message || '加载文件列表失败')
+    // 后端已按当前档口/人员范围过滤；越权或范围不可解析时给出友好提示
+    const message = String(error?.message || '')
+    if (message.includes('无权') || message.includes('403')) {
+      ElMessage.error('无权查看该范围的文件，仅显示你有权限的档口数据')
+    } else {
+      ElMessage.error(error.message || '加载文件列表失败')
+    }
     files.value = []
     total.value = 0
   } finally {

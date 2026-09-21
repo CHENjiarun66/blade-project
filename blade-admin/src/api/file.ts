@@ -266,6 +266,7 @@ export function getBusinessTypeLabel(businessType: string | null | undefined): s
     case 'product': return '商品'
     case 'sku': return 'SKU'
     case 'order': return '订单'
+    case 'order_draft': return '订单草稿'
     case 'inventory_log': return '入库'
     case 'ocr_document': return 'OCR'
     default: return businessType || '-'
