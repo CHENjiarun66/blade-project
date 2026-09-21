@@ -3,6 +3,7 @@ package com.blade.outlet.migration;
 import com.blade.common.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -10,6 +11,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,8 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Series F 历史档口回填本地集成验证（真实隔离库，事务回滚）。
  *
- * <p>使用独立合成租户，覆盖：dry-run 报告、只更新 source_outlet_id、source_shop/金额/状态/明细不变、
- * 冲突不覆盖、确认草稿跳过、疑似批次跳过、跨租户隔离、幂等、非法档口拒绝。</p>
+ * <p>覆盖：dry-run 报告（分类/样例）、只更新 source_outlet_id、source_shop/金额/状态/明细不变、
+ * 冲突不覆盖、确认草稿跳过、疑似批次跳过、跨租户隔离、幂等、非法档口拒绝、JSON/Markdown 输出。</p>
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -34,29 +38,35 @@ class OutletBackfillServiceIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private OutletBackfillService service;
 
+    @TempDir Path tempDir;
+
     private long enabledA;
     private long enabledB;
-    private long disabledOutlet;
     private long o1;
     private long o3Conflict;
+    private long o4;
     private long o5Other;
     private long d1;
     private long d2Confirmed;
     private long d3Conflict;
+    private String o1No;
 
     @BeforeEach
     void setUp() {
         enabledA = insertOutlet(TENANT, "E3F-A", 1, 0);
         enabledB = insertOutlet(TENANT, "E3F-B", 1, 0);
-        disabledOutlet = insertOutlet(TENANT, "E3F-D", 0, 0);
+        insertOutlet(TENANT, "E3F-D", 0, 0);
         insertOutlet(TENANT, "E3F-X", 1, 1);
         insertOutlet(OTHER_TENANT, "E3F-C", 1, 0);
 
-        o1 = insertOrder(TENANT, "F-ORD-1", "御龙", null, "TB1_1", "100.00", 0);
+        o1No = "F-ORD-1";
+        o1 = insertOrder(TENANT, o1No, "御龙", null, "TB1_1", "100.00", 0);
         o3Conflict = insertOrder(TENANT, "F-ORD-3", "御龙", enabledB, null, "50.00", 1);
-        insertOrder(TENANT, "F-ORD-4", "总店", null, null, "30.00", 2);
+        o4 = insertOrder(TENANT, "F-ORD-4", "总店", null, null, "30.00", 2);
         o5Other = insertOrder(OTHER_TENANT, "F-ORD-5", "御龙", null, null, "70.00", 0);
         insertOrder(TENANT, "F-ORD-S", "TB1", null, "TB1_9", "20.00", 0);
+        insertOrder(TENANT, "F-ORD-BLANK", null, null, null, "10.00", 0);
+        insertOrder(TENANT, "F-ORD-UNMAPPED", "OTHER-SHOP", null, null, "11.00", 0);
         insertOrderItem(o1, TENANT, "10.00");
 
         d1 = insertDraft(TENANT, "F-D-1", "御龙", null, null);
@@ -65,9 +75,13 @@ class OutletBackfillServiceIntegrationTest {
         insertDraftItem(d1, TENANT);
     }
 
+    private OutletBackfillApproval approval() {
+        return new OutletBackfillApproval(TENANT, tempDir, "blade_rehearsal", "/tmp/mapping.csv", Instant.now());
+    }
+
     @Test
-    void previewReportsCandidatesWithoutWriting() {
-        OutletBackfillReport report = service.preview(TENANT, List.of(
+    void previewReportsCandidatesGroupsAndSamplesWithoutWriting() throws Exception {
+        OutletBackfillReport report = service.preview(TENANT, tempDir, List.of(
                 map("御龙", "E3F-A"), map("总店", "E3F-B"),
                 skip("TB1", "疑似批次"), review("未知店")));
 
@@ -77,20 +91,38 @@ class OutletBackfillServiceIntegrationTest {
         assertEquals(1, report.ordersConflict());
         assertEquals(1, report.draftsConflict());
         assertEquals(1, report.confirmedDraftsSkipped());
+        assertGroup(report, "sale_order", OutletBackfillService.BUCKET_BLANK_NULL, 1);
+        assertGroup(report, "sale_order", OutletBackfillService.BUCKET_UNMAPPED, 1);
+        assertBucketTotal(report, "sale_order", OutletBackfillService.BUCKET_MAP_CANDIDATE, 2);
+        assertGroup(report, "order_draft", OutletBackfillService.BUCKET_CONFIRMED_DRAFT_SKIPPED, 1);
+        assertGroup(report, "sale_order", OutletBackfillService.BUCKET_SKIP, 1);
+        // MAP candidate 样例包含订单号，且限本租户
+        OutletBackfillReport.ValueGroup candidate = group(report, "sale_order", OutletBackfillService.BUCKET_MAP_CANDIDATE);
+        assertNotNull(candidate);
+        assertTrue(candidate.sampleRefs().contains(o1No));
         assertNullOutlet(o1, "sale_order");
         assertNullOutlet(d1, "order_draft");
+        // dry-run 也按显式 report-dir 输出 JSON + Markdown
+        assertNotNull(report.reportJsonPath());
+        assertNotNull(report.reportMarkdownPath());
+        assertTrue(Files.exists(Path.of(report.reportMarkdownPath())));
+        assertTrue(Files.readString(Path.of(report.reportMarkdownPath())).contains("Outlet Backfill Report"));
     }
 
     @Test
-    void applyUpdatesOnlySourceOutletIdAndIsIdempotent() {
-        OutletBackfillReport first = service.apply(TENANT, List.of(
+    void applyUpdatesOnlySourceOutletIdWritesReportsAndIsIdempotent() throws Exception {
+        OutletBackfillReport first = service.apply(approval(), List.of(
                 map("御龙", "E3F-A"), map("总店", "E3F-B")));
 
         assertEquals("APPLY", first.mode());
         assertEquals(2, first.ordersUpdated());
         assertEquals(1, first.draftsUpdated());
         assertTrue(first.reconciliationConsistent());
+        assertNotNull(first.reportJsonPath());
+        assertNotNull(first.reportMarkdownPath());
+        assertTrue(Files.size(Path.of(first.reportJsonPath())) > 0);
         assertEquals(enabledA, outletId(o1, "sale_order"));
+        assertEquals(enabledB, outletId(o4, "sale_order"));
         assertEquals(enabledA, outletId(d1, "order_draft"));
         assertNullOutlet(o5Other, "sale_order"); // 其他租户不受影响
         assertEquals(enabledB, outletId(o3Conflict, "sale_order")); // 冲突不覆盖
@@ -98,7 +130,7 @@ class OutletBackfillServiceIntegrationTest {
         assertNotNull(jdbc.queryForObject("SELECT confirmed_order_id FROM order_draft WHERE id=?", Long.class, d2Confirmed));
         assertEquals("御龙", jdbc.queryForObject("SELECT source_shop FROM sale_order WHERE id=?", String.class, o1));
 
-        OutletBackfillReport second = service.apply(TENANT, List.of(
+        OutletBackfillReport second = service.apply(approval(), List.of(
                 map("御龙", "E3F-A"), map("总店", "E3F-B")));
         assertEquals(0, second.ordersUpdated());
         assertEquals(0, second.draftsUpdated());
@@ -109,35 +141,62 @@ class OutletBackfillServiceIntegrationTest {
 
     @Test
     void rejectsUnknownDisabledDeletedAndCrossTenantOutletsWithoutWriting() {
-        assertThrows(BusinessException.class,
-                () -> service.apply(TENANT, List.of(map("御龙", "NO-SUCH"))));
-        assertThrows(BusinessException.class,
-                () -> service.apply(TENANT, List.of(map("御龙", "E3F-D"))));
-        assertThrows(BusinessException.class,
-                () -> service.apply(TENANT, List.of(map("御龙", "E3F-X"))));
-        assertThrows(BusinessException.class,
-                () -> service.apply(TENANT, List.of(map("御龙", "E3F-C"))));
+        assertThrows(BusinessException.class, () -> service.apply(approval(), List.of(map("御龙", "NO-SUCH"))));
+        assertThrows(BusinessException.class, () -> service.apply(approval(), List.of(map("御龙", "E3F-D"))));
+        assertThrows(BusinessException.class, () -> service.apply(approval(), List.of(map("御龙", "E3F-X"))));
+        assertThrows(BusinessException.class, () -> service.apply(approval(), List.of(map("御龙", "E3F-C"))));
         assertNullOutlet(o1, "sale_order");
         assertNullOutlet(d1, "order_draft");
     }
 
     @Test
     void marksBatchSuspectRowsAsSkipped() {
-        OutletBackfillReport report = service.preview(TENANT, List.of(map("TB1", "E3F-A")));
+        OutletBackfillReport report = service.preview(TENANT, null, List.of(map("TB1", "E3F-A")));
 
         assertEquals(1, report.ordersSuspect());
         assertEquals(0, report.ordersCandidates());
         assertTrue(report.warnings().stream().anyMatch(w -> w.contains("疑似批次")));
+        assertGroup(report, "sale_order", OutletBackfillService.BUCKET_SUSPECT, 1);
+    }
+
+    @Test
+    void updateHelperEnforcesTenantAndNullPredicate() {
+        // 传入一个未填 ID 与一个已填（并发/冲突）ID：只有未填且同租户的行被更新
+        int updated = service.updateSourceOutletId("sale_order", List.of(o1, o3Conflict), enabledA, TENANT);
+
+        assertEquals(1, updated);
+        assertEquals(enabledA, outletId(o1, "sale_order"));
+        assertEquals(enabledB, outletId(o3Conflict, "sale_order"));
     }
 
     @Test
     void rejectsWholeBatchBeforeWritingWhenAnyMappingInvalid() {
         List<OutletBackfillMappingRow> rows = List.of(map("御龙", "E3F-A"), map("总店", "E3F-D"));
-        assertThrows(BusinessException.class, () -> service.apply(TENANT, rows));
+        assertThrows(BusinessException.class, () -> service.apply(approval(), rows));
         assertNullOutlet(o1, "sale_order");
     }
 
     // ==================== helpers ====================
+
+    private void assertGroup(OutletBackfillReport report, String table, String bucket, long expected) {
+        OutletBackfillReport.ValueGroup found = group(report, table, bucket);
+        long actual = found == null ? 0 : found.count();
+        assertEquals(expected, actual, table + "/" + bucket);
+    }
+
+    private void assertBucketTotal(OutletBackfillReport report, String table, String bucket, long expected) {
+        long total = report.groups().stream()
+                .filter(g -> g.table().equals(table) && g.bucket().equals(bucket))
+                .mapToLong(OutletBackfillReport.ValueGroup::count)
+                .sum();
+        assertEquals(expected, total, table + "/" + bucket + " total");
+    }
+
+    private OutletBackfillReport.ValueGroup group(OutletBackfillReport report, String table, String bucket) {
+        return report.groups().stream()
+                .filter(g -> g.table().equals(table) && g.bucket().equals(bucket))
+                .findFirst().orElse(null);
+    }
 
     private OutletBackfillMappingRow map(String shop, String code) {
         return new OutletBackfillMappingRow(TENANT, shop, code, OutletBackfillMapping.DECISION_MAP, "");
