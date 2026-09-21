@@ -56,7 +56,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 11:37:39　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 11:56:20　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -81,10 +81,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">101 完成 · 0 进行中 · 9 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">103 完成 · 0 进行中 · 6 待办 · 1 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:92%"></div></div>
-        <div class="bar-label">92% 完成（活跃 110 项，暂缓 2 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:94%"></div></div>
+        <div class="bar-label">94% 完成（活跃 110 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -110,7 +110,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">40</span></h2>
+      <h2>🟡 还没做 <span class="count">37</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -267,32 +267,11 @@
         <td class="td-remark">V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-008</td>
-        <td class="td-name">看板与分析范围接入</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">汇总、趋势、排行和客户贡献先裁剪档口/人员范围再聚合；缓存键包含范围摘要 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-OUTLET-009</td>
-        <td class="td-name">导出与文件权限接入</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">**现存安全缺口**：`OrderServiceImpl.exportOrders` 未接 `applyReadPredicate`/显式档口筛选，Series E 必须先修复；修复前 feature 分支不得部署。订单导出、订单/草稿图片绑定与预览需同列表/详情范围一致 |</td>
-      </tr>
-      <tr data-status="todo">
         <td class="td-id">BE-OUTLET-010</td>
         <td class="td-name">Agent Key 档口范围</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
         <td class="td-remark">Key 签发/轮换、capabilities、档口查询和草稿/订单写入校验；越权档口返回 403 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BA-OUTLET-005</td>
-        <td class="td-name">统计档口筛选与对比</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">“全部档口”仅汇总当前授权集合；Owner 支持单/多档口对比 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BA-OUTLET-006</td>
@@ -395,8 +374,15 @@
     </section>
 
     <section class="section partial">
-      <h2>🔵 部分完成 <span class="count">0</span></h2>
-      <p class="empty">（无）</p>
+      <h2>🔵 部分完成 <span class="count">1</span></h2>
+      <table class="task-table">
+      <tr data-status="partial">
+        <td class="td-id">BE-OUTLET-009</td>
+        <td class="td-name">导出与文件权限接入</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">**订单导出已接入** `applyReadPredicate` + 显式档口/待归档校验（count/select 前）；订单/草稿图片绑定与预览范围留 Series E2 |</td>
+      </tr></table>
     </section>
 
     <section class="section deferred">
@@ -475,7 +461,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 313 项） <span class="count">313</span></h2>
+      <h2>✅ 已完成（共 315 项） <span class="count">315</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-OUTLET-001</td>
@@ -2256,6 +2242,13 @@
         <td class="td-remark">正式订单必须有具体档口；`sourceOutletId/code/name` 返回；服务端主数据名称快照；改档口高权限 + 原因 + 审计（V66）；列表结构化筛选 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BE-OUTLET-008</td>
+        <td class="td-name">看板与分析范围接入</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">Dashboard/Analytics 所有订单型指标统一 `OrderReadScope`（档口 × 人员），未归档默认排除；当前无缓存，新增范围指纹防未来错误缓存；Agent 公共路径同样按 Key 范围裁剪 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BA-OUTLET-001</td>
         <td class="td-name">档口管理页面</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -2282,6 +2275,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
         <td class="td-remark">列表按档口筛选，待归档仅授权可见；历史空值标签与详情名称展示 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-OUTLET-005</td>
+        <td class="td-name">统计档口筛选与对比</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">分析页/仪表盘档口多选（选项仅授权集合）；空=当前完整可见范围；仪表盘待归档开关（需 unassigned）与计数；多选参数逐项后端校验 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">TEST-OUTLET-002</td>

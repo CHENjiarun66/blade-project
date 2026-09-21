@@ -167,6 +167,8 @@ GET /api/orders
 | sourceOutletId | long | 否 | 按来源档口筛选；只允许当前用户 `readable` 集合，伪造/越权返回 403（不静默空结果） |
 | unassignedOnly | boolean | 否 | 仅看“待归档档口”（`source_outlet_id IS NULL`）；需 `data:outlet:unassigned`，与 `sourceOutletId` 互斥（400）。不传表示全部（仍由统一档口 × 人员范围裁剪） |
 
+> `GET /api/orders/export` 与列表使用完全相同的筛选与数据范围：在 count/select 之前应用统一档口 × 人员谓词与 `sourceOutletId`/`unassignedOnly` 校验（越权 403），禁止事后内存过滤；导出可见集合与同参数列表一致（Series E1）。
+
 **请求示例**：
 ```
 GET /api/orders?current=1&size=20&status=0&keyword=张三
@@ -860,7 +862,16 @@ GET /api/inventory/alerts
 GET /api/dashboard/stats?periodType=WEEK
 ```
 
-**订单统计口径**：按 `order_date` 统计，旧数据回退 `create_time`；只统计已产生收款订单（`paid_amount > 0` 或 `payment_status in (1,2)`）；销售额为 `max(total_amount - refund_amount, 0)`；销量按订单明细 `quantity` 汇总。
+**数据范围（Series E1）**：所有 Dashboard/Analytics 订单型指标先应用当前 actor 的档口 × 人员范围，再聚合；销售员只统计绑定档口本人订单，未归档 `source_outlet_id IS NULL` 默认排除。无法解析租户/用户或显式档口越权时返回 403，不会回落全租户。
+
+**档口筛选参数（dashboard 与 analytics 通用）**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| sourceOutletIds | long[] | 否 | 可多选；逗号分隔（`sourceOutletIds=1,2`）。仅允许当前用户可访问档口，逐个校验，越权整体 403；不传/空=当前完整可见范围 |
+| pendingArchive | boolean | 否 | 仅统计待归档档口（`source_outlet_id IS NULL`）；需 `data:outlet:unassigned`，与 `sourceOutletIds` 互斥，仅授权者可见 `pendingArchiveCount`，不混入销售 |
+
+**订单统计口径**：按 `order_date` 统计，旧数据回退 `create_time`；只统计已产生收款订单（`gross_received_amount > 0` 或 `collection_status=SETTLED`）；净销售额 `max(total_amount - sales_return_amount - write_off_amount, 0)`；销量按订单明细 `quantity` 汇总。本轮不改财务口径。
 
 **成功响应**：
 ```json
@@ -872,6 +883,7 @@ GET /api/dashboard/stats?periodType=WEEK
     "periodGrossProfit": 4200.00,
     "periodSalesQuantity": 96,
     "pendingOrders": 8,
+    "pendingArchiveCount": 0,
     "lowStockAlerts": 3,
     "weekOrders": 25,
     "weekSales": 15800.00,
@@ -880,6 +892,8 @@ GET /api/dashboard/stats?periodType=WEEK
   }
 }
 ```
+
+> `totalProducts`、`lowStockAlerts`、库存总量等属于租户级商品/库存事实，不是档口订单指标，继续按租户返回；档口对比只针对订单型指标。
 
 ---
 
@@ -948,7 +962,7 @@ GET /api/dashboard/top-products
 GET /api/analytics/summary?periodType=WEEK
 ```
 
-**统计口径**：与仪表盘订单口径一致；毛利字段受 `data:analytics:profit` 权限控制，无权限时返回为空。
+**统计口径**：与仪表盘订单口径一致；毛利字段受 `data:analytics:profit` 权限控制，无权限时返回为空。数据范围同样先应用当前 actor 的档口 × 人员范围；支持 `sourceOutletIds`（逗号分隔，多选对比，越权 403）与 `pendingArchive`（需 unassigned，与档口选择互斥，仅用于待归档视图）。
 
 **成功响应**：
 ```json

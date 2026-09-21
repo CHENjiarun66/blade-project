@@ -605,14 +605,14 @@
 | BE-OUTLET-005 | `OrderAccessPolicy` 二维范围重构 | ✅ 完成（DeepSeek，2026-09-21） | 订单列表、详情、动作、allowedActions 统一应用档口范围与人员范围；viewAll 不再独立绕过 |
 | BE-OUTLET-006 | 草稿档口权限接入 | ✅ 完成（DeepSeek，2026-09-21） | 草稿列表/批次/详情/更新/确认统一范围；selectForUpdate 后复核；空档口确认阻断 |
 | BE-OUTLET-007 | 订单/草稿 DTO 与名称快照 | ✅ 完成（DeepSeek，2026-09-21） | 正式订单必须有具体档口；`sourceOutletId/code/name` 返回；服务端主数据名称快照；改档口高权限 + 原因 + 审计（V66）；列表结构化筛选 |
-| BE-OUTLET-008 | 看板与分析范围接入 | ⏳ TODO | 汇总、趋势、排行和客户贡献先裁剪档口/人员范围再聚合；缓存键包含范围摘要 |
-| BE-OUTLET-009 | 导出与文件权限接入 | ⏳ TODO（Series E P0） | **现存安全缺口**：`OrderServiceImpl.exportOrders` 未接 `applyReadPredicate`/显式档口筛选，Series E 必须先修复；修复前 feature 分支不得部署。订单导出、订单/草稿图片绑定与预览需同列表/详情范围一致 |
+| BE-OUTLET-008 | 看板与分析范围接入 | ✅ 完成（DeepSeek，2026-09-21） | Dashboard/Analytics 所有订单型指标统一 `OrderReadScope`（档口 × 人员），未归档默认排除；当前无缓存，新增范围指纹防未来错误缓存；Agent 公共路径同样按 Key 范围裁剪 |
+| BE-OUTLET-009 | 导出与文件权限接入 | 🚧 部分完成（DeepSeek，2026-09-21） | **订单导出已接入** `applyReadPredicate` + 显式档口/待归档校验（count/select 前）；订单/草稿图片绑定与预览范围留 Series E2 |
 | BE-OUTLET-010 | Agent Key 档口范围 | ⏳ TODO | Key 签发/轮换、capabilities、档口查询和草稿/订单写入校验；越权档口返回 403 |
 | BA-OUTLET-001 | 档口管理页面 | ✅ 完成（DeepSeek，2026-09-21） | 列表、搜索、新建/编辑、启停、默认档口和历史引用提示 |
 | BA-OUTLET-002 | 用户管理档口授权 | ✅ 完成（DeepSeek，2026-09-21） | 可访问档口多选、默认档口、权限摘要和销售员必选校验 |
 | BA-OUTLET-003 | 订单与草稿档口选择器 | ✅ 完成（DeepSeek，2026-09-21） | 单档口锁定、多档口只显示授权集合、Owner 显示全部启用档口；快速录单/新建/草稿详情/编辑弹窗接入，改档口需原因 |
 | BA-OUTLET-004 | 订单/草稿档口筛选 | ✅ 完成（DeepSeek，2026-09-21） | 列表按档口筛选，待归档仅授权可见；历史空值标签与详情名称展示 |
-| BA-OUTLET-005 | 统计档口筛选与对比 | ⏳ TODO | “全部档口”仅汇总当前授权集合；Owner 支持单/多档口对比 |
+| BA-OUTLET-005 | 统计档口筛选与对比 | ✅ 完成（DeepSeek，2026-09-21） | 分析页/仪表盘档口多选（选项仅授权集合）；空=当前完整可见范围；仪表盘待归档开关（需 unassigned）与计数；多选参数逐项后端校验 |
 | BA-OUTLET-006 | Agent Key 档口配置 | ⏳ TODO | 全部/指定档口、默认档口和服务器 capability 同步展示 |
 | DATA-OUTLET-001 | 历史档口只读审计工具 | ✅ 完成（DeepSeek，2026-09-20） | 统计 `source_shop` 分布并输出自动映射、疑似批次、空值和冲突清单；含可编辑名称映射 CTE，全程只读不写生产 |
 | DATA-OUTLET-002 | 生产副本映射预演 | ⏳ TODO | 回填订单/草稿并对账数量、金额、状态、明细和文件绑定，脚本可重复执行 |

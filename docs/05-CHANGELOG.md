@@ -8,6 +8,16 @@
 
 ## 2026-09-21 变更记录
 
+### [功能开发] - 档口 Series E1：统计/仪表盘/导出隔离与统计筛选（BE-OUTLET-008 / BE-OUTLET-009 导出 / BA-OUTLET-005）
+
+- 新增不可变 `OrderReadScope`：由 `OrderAccessPolicy.resolveReadScope` 从 JWT 用户或 Agent Key 解析租户 + 档口 + 人员 + 显式选择 + pendingArchive；NONE 为空、越权档口/用户无法解析 403、待归档与显式档口互斥、稳定 `cacheFingerprint()`。
+- Dashboard/Analytics 所有订单型指标（summary、trend、ranking、product detail、pending、week/月同期、沉默客户、库存周转分子）统一应用该范围；未归档 `source_outlet_id IS NULL` 默认不纳入销售/排行/对比，仅授权者显式 `pendingArchive` 时单独返回 `pendingArchiveCount`。
+- 订单导出在 count/select 前应用与列表一致的读范围 + 显式档口/待归档校验，禁止事后内存过滤。
+- `DashboardQueryDTO` 新增 `sourceOutletIds`/`pendingArchive`（向后兼容）；前端分析页/仪表盘新增档口多选与待归档开关，多选序列化为 `sourceOutletIds=1,2`，选项仅授权集合，后端逐项复核。
+- 缓存：Dashboard/Analytics 当前无缓存，本轮不新增；新增范围指纹与测试，防止未来跨用户/跨范围复用。
+- 非订单型全局指标（商品总数、低库存、库存总量）保持租户全局语义，不伪装档口统计；Agent analytics 经公共范围裁剪，E3 独立出口未做。
+- 验证：全量后端 659/659；`npm run build` 通过；Playwright 13 passed（E1 2 例 + 回归 11 例）。
+
 ### [整改] - 档口 Series D 经 Codex 终审后的缺口补齐
 
 - P0/P1-1：前端档口 options 由“永久缓存已完成 Promise”改为“只对并发中的请求去重，不持久缓存已完成结果”（settle 后仅在仍指向本次 Promise 时清空；force 先清空，旧请求 finally 不误清新请求）；新增无业务依赖 `utils/outletOptionsCache.ts`，`client.clearAuthState` 与 `stores/auth.logout` 调用 `resetOutletOptionsCache`，避免换账号/档口增删停用后读到旧 scope。

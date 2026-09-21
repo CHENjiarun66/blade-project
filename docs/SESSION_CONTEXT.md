@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-09-21 档口 Series E1：统计/仪表盘/导出隔离完成
+
+- 新增 `OrderReadScope` + `OrderAccessPolicy.resolveReadScope`：Dashboard/Analytics 所有订单型指标（summary/trend/ranking/product detail/pending/周月同期/沉默客户/周转分子）统一档口 × 人员范围；未归档默认排除，仅 `data:outlet:unassigned` + `pendingArchive=true` 看独立 `pendingArchiveCount`。
+- 订单导出在 count/select 前应用与列表一致的读范围 + 显式档口/待归档校验；导出可见集合与列表一致。
+- `DashboardQueryDTO.sourceOutletIds/pendingArchive`（向后兼容）；分析页/仪表盘档口多选与待归档开关，前端仅展示后端授权数据。
+- 缓存结论：Dashboard/Analytics 当前无缓存，本轮不新增；新增 `cacheFingerprint` 与测试防未来跨用户复用。非订单型全局指标保持全局语义。
+- commit（本批）见 [2026-09-21-outlet-series-e1-delivery.md](./superpowers/plans/2026-09-21-outlet-series-e1-delivery.md)；全量后端 659/659，`npm run build` 通过，Playwright 13 passed。
+- 未做（保持 TODO）：Series E2 文件/图片绑定与预览、E3 Agent 档口出口与全出口回归、F 历史迁移与发布、G 收口。
+
 ## 2026-09-21 档口 Series D：订单与草稿档口交互完成
 
 - 正式订单创建必须有具体档口（显式 ID/编码 → 默认 → 400），`data:outlet:unassigned` 不能新建空档口订单；`source_shop` 只用主数据名称快照。订单/草稿列表新增 `sourceOutletId`/`unassignedOnly` 结构化筛选（越权 403、待归档仅授权、互斥）。
