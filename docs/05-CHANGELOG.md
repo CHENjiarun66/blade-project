@@ -16,6 +16,7 @@
 - 客户详情：订单列表接入后端分页并展示纸质单号、订单日期；偏好统计改为按明细 `quantity` 累计购买件数，缓存键升级为 `qty-v2` 以避开旧错误结果。
 - 生产只读审计：“散客”108 张订单可由 100+8 两页完整读取，API 无重复行、总件数与明细一致；确认“购买件数为 2”是旧行数统计口径。发现 Shakirah/Gracemi 各一组高度疑似真实重复订单，以及 JA 一组需人工判断的同纸质单号记录；本次不自动删除，详见 `docs/superpowers/plans/2026-09-22-order-entry-customer-fixes-production-release.md`。
 - 验证：后端全量 **856/856**（Failures 0 / Errors 0 / Skipped 0）；PC `npm run build` 通过；Playwright `e2e-order-content-edit` 与 `e2e-quick-order-draft` 2/2 通过；`git diff --check` 无输出。
+- 生产副本发布演练：在隔离 MySQL 恢复生产备份并完成 Flyway V61→V68；仅将 `御龙` 映射到默认档口 `YULONG`，将数字 `42` 保持人工复核；169 张正式订单回填后订单/金额/收款/状态/明细/文件绑定对账一致，重放为 0 更新、169 已处理。修复非 Web 模式下 `SecurityConfig` 强制装配 Servlet 安全链导致档口回填 CLI 无法启动的问题，CLI 现可按文档使用 `--spring.main.web-application-type=none` 独立运行。
 
 ## 2026-09-21 变更记录
 

@@ -9,13 +9,14 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -33,44 +34,53 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 @Configuration
-@EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http,
-                                          AgentAuthenticationFilter agentAuthFilter,
-                                          CollectorAuthenticationFilter collectorAuthFilter,
-                                          JwtAuthenticationFilter jwtAuthFilter,
-                                          AuthenticationProvider authenticationProvider) throws Exception {
-        http
-            .csrf(AbstractHttpConfigurer::disable)
-            .cors(cors -> {})
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/api/auth/login",
-                    "/api/auth/logout",
-                    "/api/auth/refresh",
-                    "/api/auth/register",
-                    "/api/user/info",
-                    "/api/auth/codes",
-                    "/api/files/*/preview",
-                    "/api/files/*/variant",
-                    "/oauth2/**",
-                    "/api-docs/**",
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
-                    "/v3/api-docs/**"
-                ).permitAll()
-                .anyRequest().authenticated()
-            )
-            .authenticationProvider(authenticationProvider)
-            .addFilterBefore(collectorAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+    /**
+     * Web 安全链只在 Servlet 应用中装配。历史档口回填等一次性 CLI 使用
+     * {@code spring.main.web-application-type=none}，不应强制创建 MVC matcher。
+     */
+    @Configuration
+    @EnableWebSecurity
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    public static class WebSecurityConfiguration {
 
-        return http.build();
+        @Bean
+        public SecurityFilterChain filterChain(HttpSecurity http,
+                                               AgentAuthenticationFilter agentAuthFilter,
+                                               CollectorAuthenticationFilter collectorAuthFilter,
+                                               JwtAuthenticationFilter jwtAuthFilter,
+                                               AuthenticationProvider authenticationProvider) throws Exception {
+            http
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> {})
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                    .requestMatchers(
+                        "/api/auth/login",
+                        "/api/auth/logout",
+                        "/api/auth/refresh",
+                        "/api/auth/register",
+                        "/api/user/info",
+                        "/api/auth/codes",
+                        "/api/files/*/preview",
+                        "/api/files/*/variant",
+                        "/oauth2/**",
+                        "/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**"
+                    ).permitAll()
+                    .anyRequest().authenticated()
+                )
+                .authenticationProvider(authenticationProvider)
+                .addFilterBefore(collectorAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+            return http.build();
+        }
     }
 
     @Bean
@@ -83,8 +93,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(AuthenticationProvider authenticationProvider) {
+        return new ProviderManager(authenticationProvider);
     }
 
     @Bean
