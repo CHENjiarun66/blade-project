@@ -8,6 +8,14 @@
 
 ## 2026-09-21 变更记录
 
+### [整改] - 档口最后 P1 批次：Agent 批量授权语义、移动端档口选择、状态看板修复
+
+- Agent 批量草稿：`AgentOrderDraftService.createBatch` 在任何写入前对整批显式 `sourceOutletCode`（去重）与默认档口做可用性/Key 范围预校验；任一 `BusinessException 401/403` 请求级 fail-fast，整批返回**真实 HTTP 403 且零草稿写入**（混合批同样整批拒绝）；普通 400/404/409 保留 per-item `ERROR` 并继续；未知 RuntimeException/5xx 不再被 catch-all 吞掉。`GlobalExceptionHandler.handleBusinessException` 仅对 `/api/agent/**` 且 code=401/403 设置真实 HTTP 状态，PC/既有路径契约不变。新增 `AgentBatchAuthorizationSemanticsIntegrationTest`（4）并更新既有 Agent 403 断言；`docs/11-AGENT_ACCESS_GUIDE.md` 明确批量契约与 404/400/409 语义。
+- 移动端正式订单档口：`blade-mobile/src/views/order/OrderCreate.vue` 增加 `GET /api/outlets/options`；单档口/默认只读自动带出、多档口可触控选择、`defaultOutletId` 预选、无默认必须选择、options 加载失败阻断提交并可重试；提交只传 `sourceOutletId`，后端继续权威校验。共享 `@blade/types` 增加 `OrderCreateDTO.sourceOutletId/sourceOutletCode` 与 `OutletOptionsVO/OutletOptionVO`，新增 `blade-mobile/src/api/outlet.ts`；满足 label、触控 ≥44px、相邻 ≥8px、加载/提交禁用、可见 `role=alert/aria-live` 错误、无 emoji、保持现有布局。
+- 状态看板：`scripts/gen-status.mjs` 支持 `DB/DATA/DEPLOY/ARCH/ERP/OPS/PRICE` 前缀、识别 🚧 为 partial、渲染 other、同 ID 去重；清理 `docs/03-TASKS.md` 重复档口行与矛盾状态、新增 `DB-OUTLET-004`、修正 `TEST-OUTLET-002` Playwright 为 6 例；`docs/20-OUTLET_ACCESS_CONTROL_DESIGN.md` 头部改为“本地开发完成/待生产发布”；ROM-SOW 与 03-TASKS 对齐；`docs/reference/API_SPEC.md` 补 `/api/outlets` 并声明第一期无 DELETE；生产 checklist 增加 V67 DDL 锁表实测、个人/Key 默认重复审计、移动端与 Agent batch 冒烟。
+- 验证：后端全量 **836/836**（Failures 0 / Errors 0 / Skipped 0）；`blade-mobile` `vue-tsc -b` 类型检查 + `vite build` 通过（移动端无测试框架，用类型检查/构建验证）；blade-admin 不依赖 `@blade/types`，未重复构建；`git diff --check` 无输出。
+- 残留 P2（未在本批处理）：`sys_user_outlet`/`agent_key_outlet` 的“每主体一个默认”仍无 DB 唯一索引；Agent Key rotate 在旧默认档口被禁用时会 400；禁用档口未对 SALES 用户告警；`CustomerVO.orderCount` 仍为租户全量（上一轮审计发现的 P1，本批未列入，需单列修复）；WhatsApp 分析订单事实口径待产品确认。
+
 ### [整改] - 档口第四批：租户上下文 fail-closed（破坏性安全收紧）
 
 - 统一入口：新增 `TenantContext.requireTenantId()`，缺失时业务 403“缺少租户上下文”；`TenantLineHandler.getTenantId()` 调用它并彻底移除默认 `tenant=1`。业务写入口在方法首行主动 require，保证稳定 403；`OutletServiceImpl.requiredTenantId()` 由 401 统一为 403。

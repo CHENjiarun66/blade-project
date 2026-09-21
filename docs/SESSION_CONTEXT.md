@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-09-21 档口最后 P1 批次：Agent 批量授权语义 + 移动端档口选择 + 看板修复
+
+- 基线 `03f810d`；小提交：Agent 批量授权（`e761209`）、状态看板/文档（`2caaab5`）、Agent 预检去重（`bf76029`）、移动端后端类型与 UI（见最新 commit）。
+- Agent 批量草稿：`AgentOrderDraftService.createBatch` 写入前整批预校验显式 `sourceOutletCode`（去重）与默认档口；任一 401/403 整批真实 HTTP 403、零写入（混合批也拒绝）；400/404/409 仍 per-item `ERROR` 继续；未知异常不吞。`GlobalExceptionHandler` 仅对 `/api/agent/**` 且 401/403 设真实状态；`docs/11-AGENT_ACCESS_GUIDE.md` 已更新契约；`AgentBatchAuthorizationSemanticsIntegrationTest`（4）覆盖混合/全越权/全合法/合法+普通错误。
+- 移动端：`OrderCreate.vue` 接入 `/api/outlets/options`；单档口只读自动带出、多档口可选、默认预选、无默认必选、options 失败阻断并可重试；提交 `sourceOutletId`，后端权威校验。共享类型补 `sourceOutletId/sourceOutletCode` 与 `OutletOptionsVO`；新增 `api/outlet.ts`。满足 44px/8px/label/role=alert/aria-live/无 emoji。
+- 看板/文档：`gen-status.mjs` 支持 DB/DATA/DEPLOY/ARCH/ERP/OPS/PRICE 与 🚧 partial/other/去重；03-TASKS 去重、补 `DB-OUTLET-004`、修 Playwright 6 例；设计文档头部、ROM-SOW、API_SPEC（`/api/outlets`，第一期无 DELETE）、生产 checklist（V67 锁表实测、默认重复审计、移动端/Agent 冒烟）同步。
+- 验证：后端全量 **836/836**；`blade-mobile` `vue-tsc -b` + `vite build` 通过（无测试框架，用构建验证）；blade-admin 不依赖 `@blade/types`，未重复构建；`git diff --check` 干净。
+- 残留 P2/P1：`CustomerVO.orderCount` 仍租户全量（上一轮审计 P1，本批未列入）；`sys_user_outlet`/`agent_key_outlet` 单默认无 DB 唯一索引；Agent Key rotate 旧默认禁用时 400；禁用档口未告警 SALES；WhatsApp 分析事实口径待定。
+
 ## 2026-09-21 档口第四批：租户上下文 fail-closed（安全破坏性收紧）
 
 - 基线 `cb00050`；本批小提交：租户上下文 fail-closed 主逻辑、测试与文档。
