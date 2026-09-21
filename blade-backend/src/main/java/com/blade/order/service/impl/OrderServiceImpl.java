@@ -1003,6 +1003,10 @@ public class OrderServiceImpl implements OrderService {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getTenantId, tenantId);
         wrapper.eq(Order::getDeleted, 0);
+        // 与订单列表完全一致的数据范围：档口 × 人员 + 显式档口/待归档校验
+        // （必须在 count/select 之前应用，禁止事后内存过滤）
+        accessPolicy.applyReadPredicate(wrapper);
+        accessPolicy.applyExplicitOutletFilter(wrapper, dto.getSourceOutletId(), dto.getUnassignedOnly());
         applyOrderPageFilters(wrapper, dto);
 
         wrapper.orderByDesc(Order::getCreateTime);

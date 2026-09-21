@@ -2,7 +2,9 @@ package com.blade.dashboard.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.blade.common.tenant.TenantContext;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.order.service.OrderFactsService;
+import com.blade.order.service.OrderReadScope;
 import com.blade.dashboard.dto.*;
 import com.blade.dashboard.enums.PeriodType;
 import com.blade.dashboard.service.DashboardService;
@@ -44,6 +46,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final InventoryMapper inventoryMapper;
     private final WarehouseMapper warehouseMapper;
     private final OrderFactsService orderFactsService;
+    private final OrderAccessPolicy orderAccessPolicy;
 
     @Autowired
     public DashboardServiceImpl(OrderMapper orderMapper,
@@ -52,7 +55,8 @@ public class DashboardServiceImpl implements DashboardService {
                                ProductSkuMapper productSkuMapper,
                                InventoryMapper inventoryMapper,
                                WarehouseMapper warehouseMapper,
-                               OrderFactsService orderFactsService) {
+                               OrderFactsService orderFactsService,
+                               OrderAccessPolicy orderAccessPolicy) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.productMapper = productMapper;
@@ -60,11 +64,14 @@ public class DashboardServiceImpl implements DashboardService {
         this.inventoryMapper = inventoryMapper;
         this.warehouseMapper = warehouseMapper;
         this.orderFactsService = orderFactsService;
+        this.orderAccessPolicy = orderAccessPolicy;
     }
 
     @Override
     public DashboardStatsDTO getStats(DashboardQueryDTO query) {
-        Long tenantId = TenantContext.getTenantId();
+        // 一次请求解析一次范围；所有订单型指标共用同一档口 × 人员谓词
+        OrderReadScope scope = resolveScope(query);
+        Long tenantId = scope.tenantId();
         LocalDate today = LocalDate.now();
 
         // 根据周期类型计算日期范围
@@ -72,14 +79,14 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate[] previousPeriod = getPreviousPeriod(query, currentPeriod);
 
         // 当前周期已产生收款的订单数与应收净额
-        List<Order> paidOrders = selectPaidOrdersInPeriod(tenantId, currentPeriod[0], currentPeriod[1]);
+        List<Order> paidOrders = selectPaidOrdersInPeriod(scope, currentPeriod[0], currentPeriod[1]);
         long periodOrders = paidOrders.size();
         BigDecimal periodSales = sumNetSales(paidOrders);
         BigDecimal periodGrossProfit = sumNetGrossProfit(paidOrders);
         long periodSalesQuantity = sumSalesQuantity(paidOrders);
 
         // 上周期已产生收款的订单数与应收净额（用于计算趋势）
-        List<Order> prevPaidOrders = selectPaidOrdersInPeriod(tenantId, previousPeriod[0], previousPeriod[1]);
+        List<Order> prevPaidOrders = selectPaidOrdersInPeriod(scope, previousPeriod[0], previousPeriod[1]);
         long previousOrders = prevPaidOrders.size();
         BigDecimal previousSales = sumNetSales(prevPaidOrders);
         BigDecimal previousGrossProfit = sumNetGrossProfit(prevPaidOrders);
@@ -95,11 +102,13 @@ public class DashboardServiceImpl implements DashboardService {
                 .eq(Product::getDeleted, 0);
         long totalProducts = productMapper.selectCount(productWrapper);
 
-        // 待处理订单数（统一口径：已确认尚未履约的订单）
-        long pendingOrders = countPendingOrders(tenantId, null);
+        // 待处理订单数（统一口径：已确认尚未履约的订单；排除未归档）
+        long pendingOrders = countPendingOrders(scope, null);
         // 待处理订单趋势（与昨天对比）
-        long yesterdayPendingOrders = countPendingOrders(tenantId, LocalDate.now().minusDays(1));
+        long yesterdayPendingOrders = countPendingOrders(scope, LocalDate.now().minusDays(1));
         long pendingOrdersTrend = calculateTrend(pendingOrders, yesterdayPendingOrders);
+        // 待归档数量：仅显式 pendingArchive + data:outlet:unassigned，单独字段，不混入销售
+        long pendingArchiveCount = countPendingArchive(scope);
 
         // 低库存预警数
         LambdaQueryWrapper<Inventory> lowStockWrapper = new LambdaQueryWrapper<>();
@@ -109,13 +118,13 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 本周订单数（周一至今）- 固定统计，不受筛选影响
         LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        List<Order> weekPaidOrders = selectPaidOrdersInPeriod(tenantId, weekStart, today);
+        List<Order> weekPaidOrders = selectPaidOrdersInPeriod(scope, weekStart, today);
         long weekOrders = weekPaidOrders.size();
 
         // 上周同期订单数
         LocalDate lastWeekStart = weekStart.minusDays(7);
         LocalDate lastWeekEnd = today.minusDays(7);
-        List<Order> lastWeekPaidOrders = selectPaidOrdersInPeriod(tenantId, lastWeekStart, lastWeekEnd);
+        List<Order> lastWeekPaidOrders = selectPaidOrdersInPeriod(scope, lastWeekStart, lastWeekEnd);
         long lastWeekOrders = lastWeekPaidOrders.size();
         long weekOrdersTrend = calculateTrend(weekOrders, lastWeekOrders);
 
@@ -155,13 +164,14 @@ public class DashboardServiceImpl implements DashboardService {
         stats.setWeekGrossProfit(weekGrossProfit);
         stats.setWeekGrossProfitTrend(weekGrossProfitTrend);
         stats.setAvgOrderValue(avgOrderValue);
+        stats.setPendingArchiveCount(pendingArchiveCount);
 
         return stats;
     }
 
     @Override
     public OrderTrendDTO getOrderTrend(DashboardQueryDTO query) {
-        Long tenantId = TenantContext.getTenantId();
+        OrderReadScope scope = resolveScope(query);
         LocalDate today = LocalDate.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
 
@@ -179,8 +189,8 @@ public class DashboardServiceImpl implements DashboardService {
 
             dates.add(date.format(formatter));
 
-            // 当日订单数
-            List<Order> orders = selectPaidOrdersInPeriod(tenantId, date, date);
+            // 当日订单数（复用同一 scope，避免逐日重复解析范围）
+            List<Order> orders = selectPaidOrdersInPeriod(scope, date, date);
             orderCounts.add((long) orders.size());
             salesAmounts.add(sumNetSales(orders));
         }
@@ -194,13 +204,13 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<TopProductDTO> getTopProducts(DashboardQueryDTO query) {
-        Long tenantId = TenantContext.getTenantId();
+        OrderReadScope scope = resolveScope(query);
         LocalDate today = LocalDate.now();
 
         // 计算当前周期
         LocalDate[] currentPeriod = getCurrentPeriod(today, query);
-        // 获取当前周期内已产生收款的订单IDs
-        List<Order> paidOrders = selectPaidOrdersInPeriod(tenantId, currentPeriod[0], currentPeriod[1]);
+        // 获取当前周期内已产生收款的订单IDs（档口 × 人员范围）
+        List<Order> paidOrders = selectPaidOrdersInPeriod(scope, currentPeriod[0], currentPeriod[1]);
 
         if (paidOrders.isEmpty()) {
             return new ArrayList<>();
@@ -239,7 +249,7 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<OrderStatusDTO> getOrderStatusDistribution(DashboardQueryDTO query) {
-        Long tenantId = TenantContext.getTenantId();
+        OrderReadScope scope = resolveScope(query);
         LocalDate today = LocalDate.now();
 
         // 计算当前周期
@@ -259,7 +269,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 系列 E：一次取数 + 按统一口径的状态映射分组，避免复制状态条件
         Map<Integer, Long> counts = new java.util.HashMap<>();
-        for (Order order : orderFactsService.ordersByOrderDate(tenantId, currentPeriod[0], currentPeriod[1])) {
+        for (Order order : orderFactsService.ordersByOrderDate(scope, currentPeriod[0], currentPeriod[1])) {
             Integer legacy = legacyStatusOf(order);
             if (legacy != null) {
                 counts.merge(legacy, 1L, Long::sum);
@@ -295,17 +305,45 @@ public class DashboardServiceImpl implements DashboardService {
         return order.getStatus();
     }
 
-    private long countPendingOrders(Long tenantId, LocalDate onDate) {
-        return orderMapper.selectCount(new LambdaQueryWrapper<Order>()
-                .eq(Order::getTenantId, tenantId)
-                .eq(Order::getDeleted, 0)
-                .and(w -> w.eq(Order::getFulfillmentStatus, "CONFIRMED")
-                        .or(sub -> sub.isNull(Order::getFulfillmentStatus).eq(Order::getStatus, 0))));
+    /** 一次请求解析一次统计范围；范围非法（租户/用户/越权档口）由策略抛 403/400。 */
+    private OrderReadScope resolveScope(DashboardQueryDTO query) {
+        return orderAccessPolicy.resolveReadScope(
+                query != null ? query.getSourceOutletIds() : null,
+                query != null ? query.getPendingArchive() : null);
+    }
+
+    /**
+     * 待处理订单数（档口 × 人员范围，排除未归档 NULL）。
+     *
+     * @param onDate 保留参数以兼容既有调用；口径同为“已确认尚未履约”，不按日期回看。
+     */
+    private long countPendingOrders(OrderReadScope scope, LocalDate onDate) {
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getTenantId, scope.tenantId());
+        wrapper.eq(Order::getDeleted, 0);
+        scope.applySalesPredicate(wrapper);
+        wrapper.and(w -> w.eq(Order::getFulfillmentStatus, "CONFIRMED")
+                .or(sub -> sub.isNull(Order::getFulfillmentStatus).eq(Order::getStatus, 0)));
+        return orderMapper.selectCount(wrapper);
+    }
+
+    /** 待归档待处理数量：仅 pendingArchive=true 时 > 0，未请求返回 0 且不查库。 */
+    private long countPendingArchive(OrderReadScope scope) {
+        if (!scope.pendingArchive()) {
+            return 0L;
+        }
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getTenantId, scope.tenantId());
+        wrapper.eq(Order::getDeleted, 0);
+        scope.applyPendingArchivePredicate(wrapper);
+        wrapper.and(w -> w.eq(Order::getFulfillmentStatus, "CONFIRMED")
+                .or(sub -> sub.isNull(Order::getFulfillmentStatus).eq(Order::getStatus, 0)));
+        return orderMapper.selectCount(wrapper);
     }
 
     // 系列 E：订单口径与金额公式统一走 OrderFactsService，禁止消费者复制公式
-    private List<Order> selectPaidOrdersInPeriod(Long tenantId, LocalDate startDate, LocalDate endDate) {
-        return orderFactsService.paidBusinessOrdersByOrderDate(tenantId, startDate, endDate);
+    private List<Order> selectPaidOrdersInPeriod(OrderReadScope scope, LocalDate startDate, LocalDate endDate) {
+        return orderFactsService.paidBusinessOrdersByOrderDate(scope, startDate, endDate);
     }
 
     private BigDecimal sumNetSales(List<Order> orders) {
@@ -410,16 +448,15 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public SilentCustomerResultDTO getSilentCustomers(Integer days) {
-        Long tenantId = TenantContext.getTenantId();
+        OrderReadScope scope = orderAccessPolicy.resolveReadScope(null, null);
+        Long tenantId = scope.tenantId();
         int silentDays = days != null ? days : 90;
         LocalDate cutoffDate = LocalDate.now().minusDays(silentDays);
 
         // 找出有已完成订单但最后订单距今 > silentDays 的客户
         // 首先获取有已完成订单的客户及其最后订单日期
         // 统一口径：已发货或已完成（含仅记录完成的订单），不再用 status>=4 数字范围
-        List<Order> allTenantOrders = orderMapper.selectList(new LambdaQueryWrapper<Order>()
-                .eq(Order::getTenantId, tenantId)
-                .eq(Order::getDeleted, 0));
+        List<Order> allTenantOrders = orderFactsService.ordersForScope(scope);
         List<Order> completedOrders = allTenantOrders.stream()
                 .filter(orderFactsService::isShippedOrBeyond)
                 .toList();
@@ -456,11 +493,13 @@ public class DashboardServiceImpl implements DashboardService {
         // 简化处理：直接从customer表查询（假设有customer表）
         List<SilentCustomerDTO> silentCustomers = new ArrayList<>();
         for (Long customerId : silentCustomerIds) {
-            // 获取客户信息
+            // 获取客户信息（仍受同一范围约束，避免用范围外订单推断最后下单日）
             LambdaQueryWrapper<Order> customerOrderWrapper = new LambdaQueryWrapper<>();
             customerOrderWrapper.eq(Order::getTenantId, tenantId)
                     .eq(Order::getCustomerId, customerId)
-                    .orderByDesc(Order::getCreateTime)
+                    .eq(Order::getDeleted, 0);
+            scope.applySalesPredicate(customerOrderWrapper);
+            customerOrderWrapper.orderByDesc(Order::getCreateTime)
                     .last("LIMIT 1");
             Order lastOrder = orderMapper.selectOne(customerOrderWrapper);
 
@@ -481,7 +520,8 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public InventoryStatsVO getInventoryStats() {
-        Long tenantId = TenantContext.getTenantId();
+        OrderReadScope scope = orderAccessPolicy.resolveReadScope(null, null);
+        Long tenantId = scope.tenantId();
 
         // 1. 当前库存总量
         LambdaQueryWrapper<Inventory> totalWrapper = new LambdaQueryWrapper<>();
@@ -514,10 +554,12 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDateTime endDate = today.atTime(LocalTime.MAX);
 
         // 过去90天已发货/已完成（统一口径），RECORD_ONLY 完成订单计入销售但不计库存周转
-        List<Order> shippedCandidates = orderMapper.selectList(new LambdaQueryWrapper<Order>()
-                .eq(Order::getTenantId, tenantId)
+        LambdaQueryWrapper<Order> shippedWrapper = new LambdaQueryWrapper<>();
+        shippedWrapper.eq(Order::getTenantId, tenantId)
                 .between(Order::getCreateTime, startDate, endDate)
-                .eq(Order::getDeleted, 0));
+                .eq(Order::getDeleted, 0);
+        scope.applySalesPredicate(shippedWrapper);
+        List<Order> shippedCandidates = orderMapper.selectList(shippedWrapper);
         List<Order> shippedOrders = shippedCandidates.stream()
                 .filter(orderFactsService::isShippedOrBeyond)
                 .filter(o -> !"RECORD_ONLY".equals(o.getFulfillmentMode()))

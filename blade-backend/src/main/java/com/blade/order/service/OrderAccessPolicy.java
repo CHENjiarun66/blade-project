@@ -11,6 +11,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -80,6 +82,45 @@ public class OrderAccessPolicy {
             }
             wrapper.isNull(Order::getSourceOutletId);
         }
+    }
+
+    /**
+     * 统计读取范围（Dashboard/Analytics/导出共用）：一次请求解析一次，趋势等按日复用。
+     *
+     * <ul>
+     *   <li>租户/用户无法解析：403，禁止回落 tenant=1 或全租户。</li>
+     *   <li>NONE 范围：返回空范围（谓词 1=0），不报错也不泄漏。</li>
+     *   <li>{@code pendingArchive=true} 需 {@code data:outlet:unassigned}，且与显式档口互斥。</li>
+     *   <li>每个显式档口必须落在当前 readable 集合内，否则 403（不静默忽略）。</li>
+     * </ul>
+     */
+    public OrderReadScope resolveReadScope(List<Long> selectedOutletIds, Boolean pendingArchive) {
+        OutletAccessScope scope = outletAccessPolicy.resolveCurrentScope();
+        if (scope.tenantId() == null) {
+            throw BusinessException.of(403, "缺少租户上下文");
+        }
+        if (scope.actorType() == OutletAccessScope.ActorType.USER && scope.actorId() == null) {
+            throw BusinessException.of(403, "无法解析当前用户");
+        }
+        boolean pending = Boolean.TRUE.equals(pendingArchive);
+        if (pending && !scope.unassignedAllowed()) {
+            throw BusinessException.of(403, "无权查看待归档档口数据");
+        }
+        List<Long> selected = selectedOutletIds == null ? List.of()
+                : selectedOutletIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (!selected.isEmpty()) {
+            if (pending) {
+                throw BusinessException.of(400, "档口筛选与待归档筛选互斥");
+            }
+            for (Long outletId : selected) {
+                if (!scope.canReadOutlet(outletId)) {
+                    throw BusinessException.of(403, "无权按该档口统计");
+                }
+            }
+        }
+        return new OrderReadScope(scope.tenantId(), scope.actorId(), scope.outletScopeType(),
+                scope.peopleAll(), scope.unassignedAllowed(), scope.readableOutletIds(),
+                selected.isEmpty() ? null : selected, pending);
     }
 
     /** 修改正式订单档口必须拥有独立高权限 btn:order:changeOutlet。 */

@@ -8,8 +8,9 @@ import com.blade.analytics.dto.AnalyticsTrendDTO;
 import com.blade.analytics.enums.AnalyticsDimension;
 import com.blade.analytics.enums.AnalyticsSortBy;
 import com.blade.analytics.service.AnalyticsService;
-import com.blade.common.tenant.TenantContext;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.order.service.OrderFactsService;
+import com.blade.order.service.OrderReadScope;
 import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.ProductSkuMapper;
 import com.blade.product.service.ProductSkuSemantics;
@@ -50,20 +51,31 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final OrderItemMapper orderItemMapper;
     private final OrderFactsService orderFactsService;
     private final ProductSkuMapper productSkuMapper;
+    private final OrderAccessPolicy orderAccessPolicy;
 
     public AnalyticsServiceImpl(OrderMapper orderMapper, OrderItemMapper orderItemMapper,
-                                OrderFactsService orderFactsService, ProductSkuMapper productSkuMapper) {
+                                OrderFactsService orderFactsService, ProductSkuMapper productSkuMapper,
+                                OrderAccessPolicy orderAccessPolicy) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.orderFactsService = orderFactsService;
         this.productSkuMapper = productSkuMapper;
+        this.orderAccessPolicy = orderAccessPolicy;
+    }
+
+    /** 一次请求解析一次统计范围；趋势等按日复用，避免逐日重复解析。 */
+    private OrderReadScope resolveScope(DashboardQueryDTO query) {
+        return orderAccessPolicy.resolveReadScope(
+                query != null ? query.getSourceOutletIds() : null,
+                query != null ? query.getPendingArchive() : null);
     }
 
     @Override
     public AnalyticsSummaryDTO getSummary(DashboardQueryDTO query) {
         boolean profitVisible = hasProfitPermission();
-        List<Order> orders = selectPaidOrdersInCurrentPeriod(query);
-        List<OrderItem> items = selectItems(orders);
+        OrderReadScope scope = resolveScope(query);
+        List<Order> orders = selectPaidOrdersInCurrentPeriod(scope, query);
+        List<OrderItem> items = selectItems(orders, scope);
 
         long orderCount = orders.size();
         long salesQuantity = sumQuantity(items);
@@ -95,6 +107,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public AnalyticsTrendDTO getTrend(DashboardQueryDTO query) {
         boolean profitVisible = hasProfitPermission();
+        OrderReadScope scope = resolveScope(query);
         LocalDate[] period = getCurrentPeriod(LocalDate.now(), query);
         long days = java.time.temporal.ChronoUnit.DAYS.between(period[0], period[1]) + 1;
         int daysToShow = (int) Math.min(Math.max(days, 1), 365);
@@ -109,8 +122,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
         for (int i = 0; i < daysToShow; i++) {
             LocalDate date = firstDate.plusDays(i);
-            List<Order> orders = selectPaidOrdersInPeriod(TenantContext.getTenantId(), date, date);
-            List<OrderItem> items = selectItems(orders);
+            List<Order> orders = selectPaidOrdersInPeriod(scope, date, date);
+            List<OrderItem> items = selectItems(orders, scope);
             dates.add(date.format(formatter));
             orderCounts.add((long) orders.size());
             salesAmounts.add(sumNetSales(orders));
@@ -136,8 +149,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                                                        AnalyticsSortBy sortBy,
                                                        Integer limit) {
         boolean profitVisible = hasProfitPermission();
-        List<Order> orders = selectPaidOrdersInCurrentPeriod(query);
-        List<OrderItem> items = selectItems(orders);
+        OrderReadScope scope = resolveScope(query);
+        List<Order> orders = selectPaidOrdersInCurrentPeriod(scope, query);
+        List<OrderItem> items = selectItems(orders, scope);
         List<OrderItem> rankingItems = dimension == AnalyticsDimension.PRODUCT
                 ? items
                 : partitionVariantItems(items).specified();
@@ -147,8 +161,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public AnalyticsProductDetailDTO getProductDetail(DashboardQueryDTO query, String productName) {
         boolean profitVisible = hasProfitPermission();
-        List<Order> orders = selectPaidOrdersInCurrentPeriod(query);
-        List<OrderItem> items = selectItems(orders).stream()
+        OrderReadScope scope = resolveScope(query);
+        List<Order> orders = selectPaidOrdersInCurrentPeriod(scope, query);
+        List<OrderItem> items = selectItems(orders, scope).stream()
                 .filter(item -> Objects.equals(safeText(item.getProductName(), "未知商品"), productName))
                 .collect(Collectors.toList());
         VariantPartition partition = partitionVariantItems(items);
@@ -306,17 +321,17 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         };
     }
 
-    private List<Order> selectPaidOrdersInCurrentPeriod(DashboardQueryDTO query) {
+    private List<Order> selectPaidOrdersInCurrentPeriod(OrderReadScope scope, DashboardQueryDTO query) {
         LocalDate[] period = getCurrentPeriod(LocalDate.now(), query);
-        return selectPaidOrdersInPeriod(TenantContext.getTenantId(), period[0], period[1]);
+        return selectPaidOrdersInPeriod(scope, period[0], period[1]);
     }
 
-    private List<Order> selectPaidOrdersInPeriod(Long tenantId, LocalDate startDate, LocalDate endDate) {
-        // 系列 E：统一走版本化订单事实服务，不再复制已收款口径
-        return orderFactsService.paidBusinessOrdersByOrderDate(tenantId, startDate, endDate);
+    private List<Order> selectPaidOrdersInPeriod(OrderReadScope scope, LocalDate startDate, LocalDate endDate) {
+        // 系列 E：统一走版本化订单事实服务 + 当前 actor 的档口 × 人员范围
+        return orderFactsService.paidBusinessOrdersByOrderDate(scope, startDate, endDate);
     }
 
-    private List<OrderItem> selectItems(List<Order> orders) {
+    private List<OrderItem> selectItems(List<Order> orders, OrderReadScope scope) {
         if (orders == null || orders.isEmpty()) {
             return List.of();
         }
@@ -329,9 +344,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
         LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
         wrapper.in(OrderItem::getOrderId, orderIds);
-        Long tenantId = TenantContext.getTenantId();
-        if (tenantId != null) {
-            wrapper.eq(OrderItem::getTenantId, tenantId);
+        if (scope.tenantId() != null) {
+            wrapper.eq(OrderItem::getTenantId, scope.tenantId());
         }
         return orderItemMapper.selectList(wrapper);
     }

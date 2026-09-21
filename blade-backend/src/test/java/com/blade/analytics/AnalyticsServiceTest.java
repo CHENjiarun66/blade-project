@@ -13,7 +13,9 @@ import com.blade.order.entity.Order;
 import com.blade.order.entity.OrderItem;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.order.service.OrderFactsService;
+import com.blade.order.service.OrderReadScope;
 import com.blade.product.entity.ProductSku;
 import com.blade.product.mapper.ProductSkuMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +34,9 @@ import java.util.Queue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class AnalyticsServiceTest {
 
@@ -49,8 +54,11 @@ class AnalyticsServiceTest {
         OrderMapper orderMapper = fakeMapper(OrderMapper.class, orderHandler);
         OrderItemMapper orderItemMapper = fakeMapper(OrderItemMapper.class, itemHandler);
         ProductSkuMapper productSkuMapper = fakeMapper(ProductSkuMapper.class, skuHandler);
+        OrderAccessPolicy accessPolicy = mock(OrderAccessPolicy.class);
+        when(accessPolicy.resolveReadScope(any(), any())).thenReturn(
+                new OrderReadScope(1L, 1L, "ALL", true, true, List.of(), null, false));
         service = new AnalyticsServiceImpl(orderMapper, orderItemMapper,
-                new OrderFactsService(orderMapper), productSkuMapper);
+                new OrderFactsService(orderMapper), productSkuMapper, accessPolicy);
     }
 
     @AfterEach

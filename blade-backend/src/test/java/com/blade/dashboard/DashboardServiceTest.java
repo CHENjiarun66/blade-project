@@ -13,7 +13,9 @@ import com.blade.order.entity.Order;
 import com.blade.order.entity.OrderItem;
 import com.blade.order.mapper.OrderItemMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.order.service.OrderFactsService;
+import com.blade.order.service.OrderReadScope;
 import com.blade.product.mapper.ProductMapper;
 import com.blade.product.mapper.ProductSkuMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -28,6 +30,9 @@ import java.util.Queue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class DashboardServiceTest {
 
@@ -59,6 +64,9 @@ class DashboardServiceTest {
         productSkuMapper = fakeMapper(ProductSkuMapper.class, new FakeMapperHandler());
         inventoryMapper = fakeMapper(InventoryMapper.class, inventoryHandler);
         warehouseMapper = fakeMapper(WarehouseMapper.class, new FakeMapperHandler());
+        OrderAccessPolicy accessPolicy = mock(OrderAccessPolicy.class);
+        when(accessPolicy.resolveReadScope(any(), any())).thenReturn(
+                new OrderReadScope(TEST_TENANT_ID, 1L, "ALL", true, true, List.of(), null, false));
         dashboardService = new DashboardServiceImpl(
                 orderMapper,
                 orderItemMapper,
@@ -66,7 +74,8 @@ class DashboardServiceTest {
                 productSkuMapper,
                 inventoryMapper,
                 warehouseMapper,
-                new OrderFactsService(orderMapper)
+                new OrderFactsService(orderMapper),
+                accessPolicy
         );
     }
 

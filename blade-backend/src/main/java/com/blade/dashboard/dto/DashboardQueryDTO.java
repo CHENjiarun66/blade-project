@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
+import java.util.List;
 
 /**
  * 仪表盘查询参数
@@ -26,6 +27,12 @@ public class DashboardQueryDTO {
     @Parameter(description = "自定义结束日期 (yyyy-MM-dd)")
     @DateTimeFormat(pattern = "yyyy-MM-dd")
     private LocalDate endDate;
+
+    @Parameter(description = "档口筛选（可多选）；仅允许当前用户可访问档口，越权 403；不传/空表示当前完整可见范围")
+    private List<Long> sourceOutletIds;
+
+    @Parameter(description = "仅看待归档档口（source_outlet_id 为空）；需 data:outlet:unassigned，与 sourceOutletIds 互斥")
+    private Boolean pendingArchive;
 
     /**
      * 获取当前周期的开始时间

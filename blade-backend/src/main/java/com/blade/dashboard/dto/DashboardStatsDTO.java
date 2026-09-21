@@ -23,6 +23,8 @@ public class DashboardStatsDTO {
     private Long totalProducts;
     private Long pendingOrders;
     private Long pendingOrdersTrend;
+    /** 待归档档口订单数：仅 data:outlet:unassigned + pendingArchive=true 时非空，不混入销售统计 */
+    private Long pendingArchiveCount;
 
     // 新增字段
     private Long lowStockAlerts;

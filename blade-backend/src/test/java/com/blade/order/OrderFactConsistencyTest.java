@@ -14,11 +14,17 @@ import com.blade.order.enums.FulfillmentStatus;
 import com.blade.order.enums.FinancialRecordType;
 import com.blade.order.mapper.OrderFinancialRecordMapper;
 import com.blade.order.mapper.OrderMapper;
+import com.blade.order.service.OrderAccessPolicy;
 import com.blade.order.service.OrderFactsService;
+import com.blade.system.user.entity.User;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -43,6 +49,34 @@ class OrderFactConsistencyTest {
     @Autowired private DashboardService dashboardService;
     @Autowired private CustomerServiceImpl customerService;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private OrderAccessPolicy orderAccessPolicy;
+
+    /** Series E1：统计按档口范围；一致性用例把样本挂到本租户固定档口并授予 Owner 范围。 */
+    private Long seedOutletId;
+
+    private void ensureOwnerScopeAndOutlet() {
+        TenantContext.setTenantId(1L);
+        jdbc.update("INSERT INTO sales_outlet(tenant_id,outlet_code,outlet_name,outlet_type,status,deleted,sort,is_tenant_default) "
+                + "VALUES(1,'FCT-OUTLET','事实一致性档口','STORE',1,0,0,0) "
+                + "ON DUPLICATE KEY UPDATE status=1,deleted=0");
+        seedOutletId = jdbc.queryForObject(
+                "SELECT id FROM sales_outlet WHERE tenant_id=1 AND outlet_code='FCT-OUTLET'", Long.class);
+        User principal = new User();
+        principal.setId(1L);
+        principal.setUsername("admin");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, "n/a", List.of(
+                        new SimpleGrantedAuthority("data:outlet:all"),
+                        new SimpleGrantedAuthority("data:order:peopleAll"),
+                        new SimpleGrantedAuthority("data:outlet:unassigned"),
+                        new SimpleGrantedAuthority("ROLE_OWNER"))));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+        TenantContext.clear();
+    }
 
     private Order seed(String suffix, String fulfillment, Integer legacyStatus, String collection,
                        String total, String gross, String writeOff, String mode, Long customerId) {
@@ -75,6 +109,7 @@ class OrderFactConsistencyTest {
         o.setFulfillmentStatus(fulfillment);
         o.setCollectionStatus(collection);
         o.setFulfillmentMode(mode);
+        o.setSourceOutletId(seedOutletId);
         if (legacyStatus != null) {
             // 模拟历史未迁移行
             o.setFulfillmentStatus(null);
@@ -88,7 +123,7 @@ class OrderFactConsistencyTest {
 
     @Test
     void consumers_agreeOnSameFacts_withinSameFilterRange() {
-        TenantContext.setTenantId(1L);
+        ensureOwnerScopeAndOutlet();
         try {
             Long customerId = 1L;
             // 相对断言：隔离库可重复执行，以测试前基线为参照
@@ -140,7 +175,9 @@ class OrderFactConsistencyTest {
             query.setStartDate(LocalDate.now());
             query.setEndDate(LocalDate.now());
             DashboardStatsDTO stats = dashboardService.getStats(query);
-            List<Order> factsPaid = orderFactsService.paidBusinessOrdersByOrderDate(1L, LocalDate.now(), LocalDate.now());
+            // 仪表盘与新统计范围共用同一档口 × 人员谓词
+            List<Order> factsPaid = orderFactsService.paidBusinessOrdersByOrderDate(
+                    orderAccessPolicy.resolveReadScope(null, null), LocalDate.now(), LocalDate.now());
             assertEquals(factsPaid.size(), stats.getPeriodOrders(),
                     "仪表盘订单数必须与统一事实服务一致");
             assertTrue(stats.getPeriodOrders() >= 6, "本次种子至少贡献 6 笔已收款经营订单");

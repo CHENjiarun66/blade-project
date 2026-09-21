@@ -152,6 +152,49 @@ public class OrderFactsService {
         return orderMapper.selectList(wrapper);
     }
 
+    // ==================== 带统计读取范围的查询（Series E1） ====================
+
+    /** 经营/统计订单，按订单业务日期区间，应用档口 × 人员范围且排除未归档 NULL。 */
+    public List<Order> ordersByOrderDate(OrderReadScope scope, LocalDate start, LocalDate end) {
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getTenantId, scope.tenantId());
+        wrapper.eq(Order::getDeleted, 0);
+        wrapper.apply("COALESCE(order_date, DATE(create_time)) BETWEEN {0} AND {1}", start, end);
+        scope.applySalesPredicate(wrapper);
+        return orderMapper.selectList(wrapper);
+    }
+
+    /** 经营订单（非取消），按订单业务日期区间 + 统计范围。 */
+    public List<Order> businessOrdersByOrderDate(OrderReadScope scope, LocalDate start, LocalDate end) {
+        return ordersByOrderDate(scope, start, end).stream().filter(this::isBusinessOrder).toList();
+    }
+
+    /** 已产生收款的经营订单，按订单业务日期区间 + 统计范围。 */
+    public List<Order> paidBusinessOrdersByOrderDate(OrderReadScope scope, LocalDate start, LocalDate end) {
+        return businessOrdersByOrderDate(scope, start, end).stream()
+                .filter(this::hasReceivedMoney)
+                .toList();
+    }
+
+    /** 统计范围内的全部经营订单（不限日期，供沉默客户等按 createTime 的聚合使用）。 */
+    public List<Order> ordersForScope(OrderReadScope scope) {
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getTenantId, scope.tenantId());
+        wrapper.eq(Order::getDeleted, 0);
+        scope.applySalesPredicate(wrapper);
+        return orderMapper.selectList(wrapper);
+    }
+
+    /** 待归档订单数量/列表（仅 unassigned 权限 + 显式 pendingArchive 时调用）。 */
+    public List<Order> pendingArchiveOrders(OrderReadScope scope, LocalDate start, LocalDate end) {
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getTenantId, scope.tenantId());
+        wrapper.eq(Order::getDeleted, 0);
+        wrapper.apply("COALESCE(order_date, DATE(create_time)) BETWEEN {0} AND {1}", start, end);
+        scope.applyPendingArchivePredicate(wrapper);
+        return orderMapper.selectList(wrapper);
+    }
+
     /** 客户的经营订单（非取消）——WhatsApp orderFacts / 客户统计使用 */
     public List<Order> customerBusinessOrders(Long tenantId, Long customerId) {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
