@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -59,15 +61,23 @@ public class AgentOrderDraftService {
      */
     private void preValidateOutletScope(OrderDraftDTO.BatchRequest request) {
         OutletAccessScope scope = outletAccessPolicy.resolveCurrentScope();
+        Set<String> codes = new LinkedHashSet<>();
+        boolean needsDefault = false;
         for (OrderDraftDTO.SaveRequest order : request.getOrders()) {
             if (order.getSourceOutletId() != null) {
                 continue; // Agent 使用内部 ID 属普通输入错误，由 writer 逐项 400
             }
             String code = trimToNull(order.getSourceOutletCode());
             if (code != null) {
-                outletAccessPolicy.requireUsableOutletByCode(code);
-                continue;
+                codes.add(code);
+            } else {
+                needsDefault = true;
             }
+        }
+        for (String code : codes) {
+            outletAccessPolicy.requireUsableOutletByCode(code);
+        }
+        if (needsDefault) {
             Long defaultOutletId = scope.defaultOutletId();
             if (defaultOutletId == null) {
                 throw BusinessException.of(403, "Agent 无可用的默认档口，请传 sourceOutletCode");
