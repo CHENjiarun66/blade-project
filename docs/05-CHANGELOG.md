@@ -8,6 +8,15 @@
 
 ## 2026-09-21 变更记录
 
+### [功能开发] - 档口 Series E2：文件中心与订单/草稿图片档口闭环（BE-OUTLET-009 文件部分）
+
+- 新增集中 `FileBusinessAccessPolicy`：order/draft 分别复用 `OrderAccessPolicy.requireAccess` / `OutletAccessPolicy.requireDraftAccess`；多敏感绑定 ALL 规则；legacy `file_storage.business_*` 兜底；未绑定仅创建者或 `btn:file:viewAll`；缺 tenant/actor fail closed，`viewAll` 不绕过业务范围。
+- `preview`/`variant` 即使 `visibility=PUBLIC`，存在 order/order_draft 绑定仍按业务授权；`previewToken` 仅建立 JWT 身份，不绕过；受保护响应 `Cache-Control: no-store`。
+- 上传带 businessId 在存储前授权；bind/sync/createBindings/deleteBinding/getBindings/detail/delete/batch-delete/batch-move/folder-delete-move 全部前置校验；失败事务回滚无副作用。
+- 文件中心 list 在 count/page 前用 SQL EXISTS 子查询过滤可见性（敏感全部可访问、非敏感绑定可见、未绑定仅本人/viewAll、NONE=1=0），禁止 Java 后过滤。
+- 草稿转订单保留 order_draft + order 双绑定且同范围可访问；前端补“订单草稿”筛选与 403 友好提示。
+- 验证：全量后端 674/674；`npm run build` 通过；文件/订单/草稿 e2e 14 passed。既有 `e2e-file-upload.spec.ts` 依赖本地缺失的 `super_admin` 租户（历史环境问题）。
+
 ### [功能开发] - 档口 Series E1：统计/仪表盘/导出隔离与统计筛选（BE-OUTLET-008 / BE-OUTLET-009 导出 / BA-OUTLET-005）
 
 - 新增不可变 `OrderReadScope`：由 `OrderAccessPolicy.resolveReadScope` 从 JWT 用户或 Agent Key 解析租户 + 档口 + 人员 + 显式选择 + pendingArchive；NONE 为空、越权档口/用户无法解析 403、待归档与显式档口互斥、稳定 `cacheFingerprint()`。

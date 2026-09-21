@@ -606,7 +606,7 @@
 | BE-OUTLET-006 | 草稿档口权限接入 | ✅ 完成（DeepSeek，2026-09-21） | 草稿列表/批次/详情/更新/确认统一范围；selectForUpdate 后复核；空档口确认阻断 |
 | BE-OUTLET-007 | 订单/草稿 DTO 与名称快照 | ✅ 完成（DeepSeek，2026-09-21） | 正式订单必须有具体档口；`sourceOutletId/code/name` 返回；服务端主数据名称快照；改档口高权限 + 原因 + 审计（V66）；列表结构化筛选 |
 | BE-OUTLET-008 | 看板与分析范围接入 | ✅ 完成（DeepSeek，2026-09-21） | Dashboard/Analytics 所有订单型指标统一 `OrderReadScope`（档口 × 人员），未归档默认排除；当前无缓存，新增范围指纹防未来错误缓存；Agent 公共路径同样按 Key 范围裁剪 |
-| BE-OUTLET-009 | 导出与文件权限接入 | 🚧 部分完成（DeepSeek，2026-09-21） | **订单导出已接入** `applyReadPredicate` + 显式档口/待归档校验（count/select 前）；订单/草稿图片绑定与预览范围留 Series E2 |
+| BE-OUTLET-009 | 导出与文件权限接入 | ✅ 完成（DeepSeek，2026-09-21） | 订单导出 + 文件中心/订单/草稿图片全出口：`FileBusinessAccessPolicy`、PUBLIC/previewToken 业务校验、多绑定 ALL、SQL 预分页、no-store；Agent 出口留 E3 |
 | BE-OUTLET-010 | Agent Key 档口范围 | ⏳ TODO | Key 签发/轮换、capabilities、档口查询和草稿/订单写入校验；越权档口返回 403 |
 | BA-OUTLET-001 | 档口管理页面 | ✅ 完成（DeepSeek，2026-09-21） | 列表、搜索、新建/编辑、启停、默认档口和历史引用提示 |
 | BA-OUTLET-002 | 用户管理档口授权 | ✅ 完成（DeepSeek，2026-09-21） | 可访问档口多选、默认档口、权限摘要和销售员必选校验 |
@@ -619,7 +619,7 @@
 | DATA-OUTLET-003 | 用户初始档口授权清单 | ⏳ TODO | Owner/财务/负责人/销售员的初始档口和人员范围需人工确认后迁移 |
 | TEST-OUTLET-001 | 后端越权矩阵 | ⏳ TODO | 单/多/全部/无档口、SELF/ALL_USERS、跨租户和禁用档口 |
 | TEST-OUTLET-002 | 订单与草稿 E2E | ✅ 完成（DeepSeek，2026-09-21） | 后端 17 例 + Playwright 5 例：快速录单、手工/Agent 草稿、草稿确认、正式订单、列表筛选、待归档和伪造档口 403 |
-| TEST-OUTLET-003 | 全出口防泄漏回归 | ⏳ TODO | 列表、详情、统计、导出、文件、Agent 和缓存跨角色切换 |
+| TEST-OUTLET-003 | 全出口防泄漏回归 | 🚧 文件出口完成（DeepSeek，2026-09-21） | 文件 preview/variant/detail/list/getBindings/变更 + previewToken 真实链路已覆盖（674/674）；Agent/缓存跨角色回归留 E3 |
 | TEST-OUTLET-004 | 全量回归与性能 | ⏳ TODO | 后端全量、PC 构建、关键 E2E 和档口范围 SQL 查询计划 |
 | DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | ⏳ TODO | 双份备份、先双读后切写、生产副本预演、异常清单确认、发布验收和回滚证据 |
 | ARCH-OUTLET-002 | 兼容期复盘 | ⏳ TODO | 稳定一个发布周期后评估旧 `btn:order:viewAll`、空档口兼容和 ID 非空约束 |

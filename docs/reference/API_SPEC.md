@@ -1014,6 +1014,33 @@ GET /api/analytics/product-detail?periodType=WEEK&productName=624-1%23
 
 ---
 
+## 文件中心接口（Series E2 档口权限）
+
+| Method | Path | 说明 |
+|--------|------|------|
+| POST | `/api/files/upload` | 上传；带 `businessId` 时在存储前校验目标业务对象档口范围 |
+| GET | `/api/files` | 文件分页；`businessType` 支持 `product/sku/order/order_draft/inventory_log`；可见性在 count/page 前由 SQL 过滤 |
+| GET | `/api/files/{id}` | 文件详情；需文件读取授权 |
+| GET | `/api/files/{id}/preview` | 原图；`previewToken` 仅建立身份 |
+| GET | `/api/files/{id}/variant?type=thumb\|card` | 派生图；权限同 preview |
+| DELETE | `/api/files/{id}` | 软删除；需文件读取授权 |
+| PUT | `/api/files/bind` | 绑定到业务对象；先校验目标与文件 |
+| GET | `/api/files/{id}/bindings` | 绑定列表；需文件读取授权 |
+| POST | `/api/files/bindings` | 创建绑定；先校验目标与文件 |
+| DELETE | `/api/files/bindings/{id}` | 解绑；先校验文件与目标 |
+| POST | `/api/files/batch-delete` | 批量软删除；有有效绑定拒绝，逐文件校验 |
+| POST | `/api/files/batch-move` | 批量移动；逐文件校验 |
+
+**档口授权规则（Series E2）**：
+- `order` 绑定执行 `OrderAccessPolicy.requireAccess`，`order_draft` 执行 `OutletAccessPolicy.requireDraftAccess`；严格同租户。
+- 多敏感绑定 ALL：存在多个 order/order_draft 绑定时，任一不可访问即 403。
+- `visibility=PUBLIC` 不能绕过：只要存在有效 order/order_draft 绑定（含 legacy `file_storage.business_type/business_id`），preview/variant 仍执行业务范围校验。
+- 未绑定/临时文件仅可靠创建者本人或 `btn:file:viewAll`；`btn:file:viewAll` 不绕过 order/order_draft 业务范围。
+- 缺 tenant/actor fail closed（403）；跨租户不可读。
+- 受保护 order/order_draft 图片响应 `Cache-Control: no-store`；商品公开图保持原缓存。
+
+---
+
 ## Agent 对接接口
 
 > 首次连接见 [19-AGENT_CONNECTION_PLAYBOOK.md](../19-AGENT_CONNECTION_PLAYBOOK.md)，字段参考见 [11-AGENT_ACCESS_GUIDE.md](../11-AGENT_ACCESS_GUIDE.md)，需求边界见 [10-AGENT_INTEGRATION_DESIGN.md](../10-AGENT_INTEGRATION_DESIGN.md)。
