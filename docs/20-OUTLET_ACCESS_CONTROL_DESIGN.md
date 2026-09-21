@@ -311,6 +311,7 @@ Owner 的 `ALL` 范围可在 SQL 中省略 `IN`，但不能省略租户条件。
 - `ProductServiceImpl`、`CustomerServiceImpl`、`UserServiceImpl.create`、`RoleServiceImpl.create`、`PermissionServiceImpl.create/assignPermissions` 已移除全部 `?: 1L` 回退；客户实体 `tenant_id` 为空用专用校验 fail-closed。
 - 认证链必须在任何租户业务表查询前设置上下文：`AuthService.login/refresh`、JWT filter、Agent/Collector auth；`FileCleanupScheduler` 按租户循环 set/finally clear；回填 CLI 用 JdbcTemplate 显式 tenant。后台/定时/异步路径上线前必须逐一确认，禁止把租户业务表加入 ignore list 规避。
 - `SalesOutletMapper.lockTenantRow` 返回 null（`sys_tenant` 无对应行）时设置默认档口直接 403 并回滚，不得继续清/设默认。
+- `GlobalExceptionHandler` 对 `RuntimeException` 安全遍历 cause 链（防环、限深），若链中存在 `BusinessException` 则返回其 code/message：MyBatis 把拦截器的 403 包装为 `MyBatisSystemException → PersistenceException → BusinessException` 时，HTTP 业务响应仍是 403，不会误报 400；不存在 BusinessException 时保持原 RuntimeException 的 400，且不暴露非 BusinessException 的内部 cause 文本。
 - 这是**破坏性收紧**：依赖隐式 `tenant=1` 的调用会改为 403/异常。发布前必须验证所有认证链与后台任务均在调用前显式设置上下文，并确认无租户请求不再落到 tenant1。
 
 ---

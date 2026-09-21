@@ -14,9 +14,10 @@
 - 清除显式回退：`ProductServiceImpl` 11 处、`RoleServiceImpl.create`、`UserServiceImpl.create`、`PermissionServiceImpl.create/assignPermissions` 的 `TenantContext.getTenantId() != null ? ... : 1L` 全部替换为 `requireTenantId()`；`CustomerServiceImpl` 上下文写路径改 require，客户实体 `tenant_id` 为空用专用 helper fail-closed（不回退 1L）；未改 `InventoryService` 的 `current` 分页默认。
 - 默认档口锁 fail-closed：`lockTenantRow` 返回 null（`sys_tenant` 无对应行）时抛 403 并回滚，不再继续清/设默认。
 - 认证/后台审计结论：`AuthService.login/refresh`、JWT filter、`UserDetailsServiceImpl`、Agent/Collector auth 均在租户业务表查询前设置上下文；`FileCleanupScheduler` 用 `@InterceptorIgnore` 列租户后逐租户 set/finally clear；回填 CLI 用 JdbcTemplate 显式 tenant；未把租户业务表加入 ignore list。
-- 测试：新增 `TenantLineHandlerFailClosedTest`（2）与 `TenantContextFailClosedIntegrationTest`（3：user/role/permission/product/customer/outlet 缺上下文 403 且零写入、真实 MyBatis 无上下文 fail-closed、tenant1/tenant2 真实登录）；`SalesOutletTenantDefaultIntegrationTest` 新增无 `sys_tenant` 行反例；修复 `AgentOutletScopeIntegrationTest`/`AgentDataAccessIntegrationTest`/`OrderDraftOutletAttributionTest`/`OutletPermissionMigrationIntegrationTest` 4 个夹具显式设置 TenantContext。
-- 文档：设计文档新增 §5.5，发布 checklist 新增 0.1 上线前验证，明确无上下文不再落 tenant1、禁止 ignore 租户业务表。
-- 验证：后端全量 **824/824**（Failures 0 / Errors 0 / Skipped 0）；本批无前端改动，未运行前端构建；`git diff --check` 无输出。
+- 第四批终审补强：`GlobalExceptionHandler.handleRuntimeException` 安全遍历 cause 链（`IdentityHashMap` 防环 + 最大深度 8），链中存在 `BusinessException` 时返回其 code/message，使真实 `MyBatisSystemException → PersistenceException → BusinessException` 的 403 不再误报 400；不存在 BusinessException 时保持 400 且不泄露内部 cause 文本。
+- 测试：新增 `TenantLineHandlerFailClosedTest`（2）与 `TenantContextFailClosedIntegrationTest`（3：user/role/permission/product/customer/outlet 缺上下文 403 且零写入、真实 MyBatis 无上下文经 handler 映射 403、tenant1/tenant2 真实登录）；`GlobalExceptionHandlerCauseChainTest`（6：真实包装类型、普通 400、非业务 cause 不泄露、成环不死循环、深度受限、直接 BusinessException 不回归）；`SalesOutletTenantDefaultIntegrationTest` 新增无 `sys_tenant` 行反例；修复 `AgentOutletScopeIntegrationTest`/`AgentDataAccessIntegrationTest`/`OrderDraftOutletAttributionTest`/`OutletPermissionMigrationIntegrationTest` 4 个夹具显式设置 TenantContext。
+- 文档：设计文档新增 §5.5（含 handler cause-chain 语义），发布 checklist 新增 0.1 上线前验证，明确无上下文不再落 tenant1、禁止 ignore 租户业务表。
+- 验证：后端全量 **830/830**（Failures 0 / Errors 0 / Skipped 0）；本批无前端改动，未运行前端构建；`git diff --check` 无输出。
 - 兼容性：破坏性收紧；按指示未处理 Agent batch 403、移动端、软删除。
 
 ### [整改] - 档口第二批B：租户默认档口数据库不变量、pageList N+1、改档口审计操作人

@@ -12,10 +12,11 @@
 - 清除回退：`ProductServiceImpl`（11 处）、`RoleServiceImpl.create`、`UserServiceImpl.create`、`PermissionServiceImpl.create/assignPermissions` 去掉 `?: 1L`；`CustomerServiceImpl` 上下文写路径改 require，客户实体 `tenant_id` 为空用 `requireEntityTenantId` fail-closed；未改 `InventoryService` 分页 `current` 默认。
 - 兜底锁：`SalesOutletMapper.lockTenantRow` 返回 null（`sys_tenant` 无行）时 `lockTenantOrFail` 抛 403 并回滚，测试 `SalesOutletTenantDefaultIntegrationTest.missingSysTenantRowFailsClosedAndRollsBack` 验证档口不新增、默认不变化；原并发测试仍过。
 - 认证/后台审计：`AuthService.login/refresh`、JWT filter、`UserDetailsServiceImpl`、Agent/Collector auth 均在租户业务表查询前设置上下文；`FileCleanupScheduler` 先 `@InterceptorIgnore` 列租户再逐租户 set/finally clear；回填 CLI 用 JdbcTemplate 显式 tenant；未把租户业务表加入 ignore list。
-- 测试：新增 `TenantLineHandlerFailClosedTest`（2）、`TenantContextFailClosedIntegrationTest`（3：写路径 403 零写入、真实 MyBatis 无上下文 fail-closed、tenant1/tenant2 真实登录）；`SalesOutletTenantDefaultIntegrationTest` 加 1 例。修复 5 个此前依赖隐式 tenant1 的夹具（`AgentOutletScopeIntegrationTest`/`AgentDataAccessIntegrationTest`/`OrderDraftOutletAttributionTest`/`OutletPermissionMigrationIntegrationTest`）显式 set TenantContext。
-- 验证：后端全量 **824/824**，Failures 0 / Errors 0 / Skipped 0；本批无前端改动，未运行前端构建；`git diff --check` 无输出；`git status` 干净。
-- 文档：设计文档新增 §5.5 租户上下文 fail-closed；发布 checklist 新增 0.1 上线前 fail-closed 验证；03-TASKS/CHANGELOG 同步。
-- 兼容性/风险：破坏性收紧——任何未显式设置租户上下文的后台/异步/自定义调用会从“落 tenant1”变为 403/异常；`TenantLineHandler` 抛出可能被 MyBatis 包装为非 403 业务码，故业务入口必须主动 require。按指示未处理：Agent batch 403、移动端、软删除。
+- 测试：新增 `TenantLineHandlerFailClosedTest`（2）、`TenantContextFailClosedIntegrationTest`（3：写路径 403 零写入、真实 MyBatis 无上下文经 handler 映射 403、tenant1/tenant2 真实登录）、`GlobalExceptionHandlerCauseChainTest`（6：真实包装类型、普通 400、非业务 cause 不泄露、成环不死循环、深度受限、直接 BusinessException 不回归）；`SalesOutletTenantDefaultIntegrationTest` 加 1 例。修复 4 个此前依赖隐式 tenant1 的夹具（`AgentOutletScopeIntegrationTest`/`AgentDataAccessIntegrationTest`/`OrderDraftOutletAttributionTest`/`OutletPermissionMigrationIntegrationTest`）显式 set TenantContext。
+- 终审补强：真实 MyBatis 观察到的异常链是 `MyBatisSystemException(message=null) → PersistenceException → BusinessException(403 缺少租户上下文)`；`GlobalExceptionHandler.handleRuntimeException` 安全遍历 cause 链（`IdentityHashMap` 防环 + 最大深度 8）找回 BusinessException 的 code/message，语义闭环为稳定 403，普通 RuntimeException 仍 400，不泄露非 BusinessException 的 cause 文本。
+- 验证：后端全量 **830/830**，Failures 0 / Errors 0 / Skipped 0；本批无前端改动，未运行前端构建；`git diff --check` 无输出；`git status` 干净。
+- 文档：设计文档新增 §5.5 租户上下文 fail-closed（含 handler cause-chain 语义）；发布 checklist 新增 0.1 上线前 fail-closed 验证；03-TASKS/CHANGELOG 同步。
+- 兼容性/风险：破坏性收紧——任何未显式设置租户上下文的后台/异步/自定义调用会从“落 tenant1”变为 403/异常；业务入口主动 require + handler cause-chain 兜底保证稳定 403。按指示未处理：Agent batch 403、移动端、软删除。
 
 ## 2026-09-21 档口第二批B 整改（默认档口不变量/N+1/改档口审计）
 
