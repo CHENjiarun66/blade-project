@@ -15,6 +15,7 @@ public final class AgentOrderDTO {
             LocalDate orderDate,
             String sourceDocNo,
             String sourceShop,
+            String sourceOutletCode,
             String orderType,
             String orderTypeName,
             Long customerId,

@@ -145,23 +145,43 @@ public class AgentKeyManagementService {
         return normalizeOutletConfig(previousConfig.scopeType(), ids, defaultOutletId);
     }
 
+    /**
+     * 读取旧 Key 的档口配置用于轮换继承。
+     *
+     * <p>只有 ASSIGNED 才把所有有效绑定视为 {@code outletIds}；
+     * ALL 仅保留一条默认档口标记（{@code defaultOutletId}），其 {@code outletIds} 必须为空，
+     * 否则 {@code normalizeOutletConfig(ALL, ids, ...)} 会因“全部档口不需要绑定具体档口”而拒绝；
+     * NONE 的 {@code outletIds}/{@code defaultOutletId} 均为空。</p>
+     */
     private OutletConfig readOutletConfig(AgentKey key) {
         String scopeType = key.getOutletScopeType() != null
                 ? key.getOutletScopeType() : AgentKey.OUTLET_SCOPE_NONE;
         List<AgentKeyOutlet> bindings = activeBindings(key.getId());
-        List<Long> ids = bindings.stream()
-                .map(AgentKeyOutlet::getOutletId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .sorted()
-                .toList();
-        Long defaultOutletId = bindings.stream()
-                .filter(binding -> Integer.valueOf(1).equals(binding.getIsDefault()))
-                .map(AgentKeyOutlet::getOutletId)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
-        return new OutletConfig(scopeType, ids, defaultOutletId);
+        if (AgentKey.OUTLET_SCOPE_ASSIGNED.equals(scopeType)) {
+            List<Long> ids = bindings.stream()
+                    .map(AgentKeyOutlet::getOutletId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .sorted()
+                    .toList();
+            Long defaultOutletId = bindings.stream()
+                    .filter(binding -> Integer.valueOf(1).equals(binding.getIsDefault()))
+                    .map(AgentKeyOutlet::getOutletId)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+            return new OutletConfig(scopeType, ids, defaultOutletId);
+        }
+        if (AgentKey.OUTLET_SCOPE_ALL.equals(scopeType)) {
+            Long defaultOutletId = bindings.stream()
+                    .filter(binding -> Integer.valueOf(1).equals(binding.getIsDefault()))
+                    .map(AgentKeyOutlet::getOutletId)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+            return new OutletConfig(scopeType, List.of(), defaultOutletId);
+        }
+        return new OutletConfig(AgentKey.OUTLET_SCOPE_NONE, List.of(), null);
     }
 
     private List<AgentKeyOutlet> activeBindings(Long keyId) {

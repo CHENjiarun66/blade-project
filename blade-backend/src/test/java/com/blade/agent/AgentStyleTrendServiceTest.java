@@ -83,6 +83,22 @@ class AgentStyleTrendServiceTest {
         assertTrue(result.getRows().get(0).getReasons().contains("连续 3 个周期销量下降"));
     }
 
+    @Test
+    void getStyleTrends_copiesOutletFilterIntoEveryPeriodQuery() {
+        DashboardQueryDTO query = new DashboardQueryDTO();
+        query.setPeriodType(PeriodType.MONTH);
+        query.setSourceOutletIds(List.of(11L, 22L));
+        analyticsService.thenRankings(List.of(), List.of(), List.of());
+
+        service.getStyleTrends(query, 20, 3);
+
+        assertEquals(3, analyticsService.queries.size());
+        for (DashboardQueryDTO periodQuery : analyticsService.queries) {
+            // 每个周期都必须保留 Agent 的档口筛选，不能扩大到 Key 全范围
+            assertEquals(List.of(11L, 22L), periodQuery.getSourceOutletIds());
+        }
+    }
+
     private void assertQuery(DashboardQueryDTO query, LocalDate startDate, LocalDate endDate) {
         assertEquals(PeriodType.CUSTOM, query.getPeriodType());
         assertEquals(startDate, query.getStartDate());

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -25,9 +26,11 @@ public class AgentOrderQueryController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('agent:orders:read')")
-    @Operation(summary = "分页读取脱敏正式订单")
-    public R<PageResult<AgentOrderDTO.OrderView>> list(@Valid @ModelAttribute OrderPageDTO query) {
-        return R.ok(orderService.page(query));
+    @Operation(summary = "分页读取脱敏正式订单；档口筛选使用稳定 sourceOutletCode")
+    public R<PageResult<AgentOrderDTO.OrderView>> list(
+            @Valid @ModelAttribute OrderPageDTO query,
+            @RequestParam(value = "sourceOutletCode", required = false) String sourceOutletCode) {
+        return R.ok(orderService.page(query, sourceOutletCode));
     }
 
     @GetMapping("/{id}")

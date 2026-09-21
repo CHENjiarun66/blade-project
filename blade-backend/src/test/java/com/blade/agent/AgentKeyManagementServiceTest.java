@@ -392,6 +392,81 @@ class AgentKeyManagementServiceTest {
         verify(keyMapper, never()).updateById(previous);
     }
 
+    // ==================== rotate：ALL + default 继承（P0-1 回归） ====================
+
+    @Test
+    void rotateAllScopeWithDefaultInheritsWhenAllOutletFieldsNull() {
+        AgentKey previous = activeKey(90L, AgentKey.OUTLET_SCOPE_ALL);
+        previous.setScopes("orders:read");
+        when(keyMapper.selectById(90L)).thenReturn(previous);
+        when(outletMapper.selectList(any())).thenReturn(List.of(binding(15L, 1)));
+        stubTenantOutlets(outlet(12L, "A", "档口A", 1, false), outlet(15L, "B", "档口B", 1, false));
+
+        AgentKeyManagementDTO.Credential replacement = service.rotate(
+                90L, new AgentKeyManagementDTO.RotateRequest(null, 30, null, null, null));
+
+        assertEquals(AgentKey.OUTLET_SCOPE_ALL, replacement.outletScopeType());
+        assertEquals(15L, replacement.defaultOutletId());
+        // 旧 Key 的默认标记行不得被读成 outletIds 而触发 ALL 校验失败；新 Key 只写一条默认标记
+        ArgumentCaptor<AgentKeyOutlet> captor = ArgumentCaptor.forClass(AgentKeyOutlet.class);
+        verify(outletMapper).insert(captor.capture());
+        assertEquals(15L, captor.getValue().getOutletId());
+        assertEquals(1, captor.getValue().getIsDefault());
+        assertEquals(AgentKey.STATUS_DISABLED, previous.getStatus());
+        verify(keyMapper).updateById(previous);
+    }
+
+    @Test
+    void rotateAllScopeWithDefaultInheritsWhenOnlyScopesChanged() {
+        AgentKey previous = activeKey(91L, AgentKey.OUTLET_SCOPE_ALL);
+        when(keyMapper.selectById(91L)).thenReturn(previous);
+        when(outletMapper.selectList(any())).thenReturn(List.of(binding(15L, 1)));
+        stubTenantOutlets(outlet(15L, "B", "档口B", 1, false));
+
+        AgentKeyManagementDTO.Credential replacement = service.rotate(
+                91L, new AgentKeyManagementDTO.RotateRequest(
+                        List.of("orders:read", "outlets:read"), 30, null, null, null));
+
+        assertEquals(List.of("orders:read", "outlets:read"), replacement.scopes());
+        assertEquals(AgentKey.OUTLET_SCOPE_ALL, replacement.outletScopeType());
+        assertEquals(15L, replacement.defaultOutletId());
+        verify(outletMapper).insert(any(AgentKeyOutlet.class));
+    }
+
+    @Test
+    void rotateAllScopeWithDefaultInheritsWhenOnlyExpiryChanged() {
+        AgentKey previous = activeKey(92L, AgentKey.OUTLET_SCOPE_ALL);
+        previous.setScopes("orders:read");
+        when(keyMapper.selectById(92L)).thenReturn(previous);
+        when(outletMapper.selectList(any())).thenReturn(List.of(binding(15L, 1)));
+        stubTenantOutlets(outlet(15L, "B", "档口B", 1, false));
+
+        AgentKeyManagementDTO.Credential replacement = service.rotate(
+                92L, new AgentKeyManagementDTO.RotateRequest(null, 7, null, null, null));
+
+        assertEquals("orders:read", replacement.scopes().get(0));
+        assertEquals(AgentKey.OUTLET_SCOPE_ALL, replacement.outletScopeType());
+        assertEquals(15L, replacement.defaultOutletId());
+        // 不得产生逐档口冗余绑定
+        verify(outletMapper, times(1)).insert(any(AgentKeyOutlet.class));
+    }
+
+    @Test
+    void rotateAllScopeWithDefaultFailureKeepsPreviousKeyActive() {
+        AgentKey previous = activeKey(93L, AgentKey.OUTLET_SCOPE_ALL);
+        when(keyMapper.selectById(93L)).thenReturn(previous);
+        when(outletMapper.selectList(any())).thenReturn(List.of(binding(15L, 1)));
+        stubTenantOutlets(outlet(15L, "B", "档口B", 1, false));
+        doThrow(new RuntimeException("写入绑定失败")).when(outletMapper).insert(any(AgentKeyOutlet.class));
+
+        assertThrows(RuntimeException.class, () -> service.rotate(
+                93L, new AgentKeyManagementDTO.RotateRequest(null, 30, null, null, null)));
+
+        assertEquals(AgentKey.STATUS_ACTIVE, previous.getStatus());
+        assertNull(previous.getDisabledTime());
+        verify(keyMapper, never()).updateById(previous);
+    }
+
     // ==================== helpers ====================
 
     private void stubTenantOutlets(SalesOutlet... outlets) {

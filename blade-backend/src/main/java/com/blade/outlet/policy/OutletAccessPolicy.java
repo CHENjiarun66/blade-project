@@ -144,6 +144,78 @@ public class OutletAccessPolicy {
     }
 
     /**
+     * 解析并校验“可用于历史读取”的档口主数据（按稳定编码，Agent）：
+     * 同租户、未删除、当前 readable 集合内；与 {@link #requireUsableOutletByCode(String)} 区分，
+     * 历史查询允许已停用档口，新建仍只允许 usable。越权/禁用/不存在/跨租户一律 403。
+     */
+    public com.blade.outlet.entity.SalesOutlet requireReadableOutletByCode(String outletCode) {
+        OutletAccessScope scope = resolveCurrentScope();
+        String code = outletCode == null ? null : outletCode.trim();
+        if (code == null || code.isEmpty() || scope.readableOutletIds().isEmpty() || scope.tenantId() == null) {
+            throw BusinessException.of(403, "无权访问该档口数据");
+        }
+        com.blade.outlet.entity.SalesOutlet outlet = salesOutletMapper.selectOne(
+                new LambdaQueryWrapper<com.blade.outlet.entity.SalesOutlet>()
+                        .eq(com.blade.outlet.entity.SalesOutlet::getOutletCode, code)
+                        .eq(com.blade.outlet.entity.SalesOutlet::getTenantId, scope.tenantId())
+                        .in(com.blade.outlet.entity.SalesOutlet::getId, scope.readableOutletIds())
+                        .eq(com.blade.outlet.entity.SalesOutlet::getDeleted, 0)
+                        .last("LIMIT 1"));
+        if (outlet == null) {
+            throw BusinessException.of(403, "无权访问该档口数据");
+        }
+        return outlet;
+    }
+
+    /**
+     * 将 Agent 传入的稳定档口编码列表（允许逗号分隔/重复）解析为 readable 范围内的 ID 列表：
+     * 去重且按首次出现顺序稳定；任一编码不存在/停用/跨租户/越权统一 403。
+     */
+    public List<Long> resolveReadableOutletIdsByCodes(List<String> outletCodes) {
+        if (outletCodes == null || outletCodes.isEmpty()) {
+            return List.of();
+        }
+        OutletAccessScope scope = resolveCurrentScope();
+        if (scope.readableOutletIds().isEmpty() || scope.tenantId() == null) {
+            throw BusinessException.of(403, "无权访问该档口数据");
+        }
+        Set<String> distinctCodes = new LinkedHashSet<>();
+        for (String raw : outletCodes) {
+            if (raw == null) continue;
+            for (String part : raw.split(",")) {
+                String code = part.trim();
+                if (!code.isEmpty()) {
+                    distinctCodes.add(code);
+                }
+            }
+        }
+        if (distinctCodes.isEmpty()) {
+            return List.of();
+        }
+        List<com.blade.outlet.entity.SalesOutlet> outlets = salesOutletMapper.selectList(
+                new LambdaQueryWrapper<com.blade.outlet.entity.SalesOutlet>()
+                        .in(com.blade.outlet.entity.SalesOutlet::getOutletCode, distinctCodes)
+                        .eq(com.blade.outlet.entity.SalesOutlet::getTenantId, scope.tenantId())
+                        .in(com.blade.outlet.entity.SalesOutlet::getId, scope.readableOutletIds())
+                        .eq(com.blade.outlet.entity.SalesOutlet::getDeleted, 0));
+        java.util.Map<String, Long> idByCode = new java.util.LinkedHashMap<>();
+        for (com.blade.outlet.entity.SalesOutlet outlet : outlets) {
+            idByCode.putIfAbsent(outlet.getOutletCode(), outlet.getId());
+        }
+        List<Long> ids = new ArrayList<>();
+        for (String code : distinctCodes) {
+            Long id = idByCode.get(code);
+            if (id == null) {
+                throw BusinessException.of(403, "无权访问该档口数据");
+            }
+            if (!ids.contains(id)) {
+                ids.add(id);
+            }
+        }
+        return ids;
+    }
+
+    /**
      * 草稿列表显式档口筛选：只允许当前 readable 集合内；待归档仅 unassigned 可用。
      * 伪造/越权 ID 直接 403，不静默返回空结果，便于识别越权探测。
      */

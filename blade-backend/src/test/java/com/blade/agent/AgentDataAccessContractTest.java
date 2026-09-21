@@ -1,6 +1,7 @@
 package com.blade.agent;
 
 import com.blade.agent.auth.AgentPrincipal;
+import com.blade.agent.controller.AgentAnalyticsController;
 import com.blade.agent.controller.AgentCustomerController;
 import com.blade.agent.controller.AgentOrderQueryController;
 import com.blade.agent.controller.AgentOutletsController;
@@ -10,11 +11,13 @@ import com.blade.agent.dto.AgentCustomerDTO;
 import com.blade.agent.dto.AgentOrderDTO;
 import com.blade.agent.dto.AgentOutletsDTO;
 import com.blade.agent.dto.AgentProductDTO;
+import com.blade.dashboard.dto.DashboardQueryDTO;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,7 +35,8 @@ class AgentDataAccessContractTest {
                 annotation(AgentProductController.class, "create",
                         AgentProductDTO.CreateRequest.class, AgentPrincipal.class).value());
         assertEquals("hasAuthority('agent:orders:read')",
-                annotation(AgentOrderQueryController.class, "list", com.blade.order.dto.OrderPageDTO.class).value());
+                annotation(AgentOrderQueryController.class, "list",
+                        com.blade.order.dto.OrderPageDTO.class, String.class).value());
         assertEquals("hasAuthority('agent:customers:read')",
                 annotation(AgentCustomerController.class, "list", AgentCustomerDTO.PageRequest.class).value());
         assertEquals("hasAuthority('agent:customers:create')",
@@ -54,6 +58,27 @@ class AgentDataAccessContractTest {
         assertEquals(Set.of("code", "name", "defaultOutlet"), componentNames(AgentOutletsDTO.OutletItem.class));
         assertFalse(componentNames(AgentOutletsDTO.OutletItem.class).contains("id"));
         assertFalse(componentNames(AgentCapabilitiesDTO.OutletBrief.class).contains("id"));
+    }
+
+    @Test
+    void agentOrderViewExposesOutletCodeNotInternalId() {
+        Set<String> fields = componentNames(AgentOrderDTO.OrderView.class);
+        assertTrue(fields.contains("sourceOutletCode"));
+        assertTrue(fields.contains("sourceShop"));
+        assertFalse(fields.contains("sourceOutletId"));
+        assertFalse(fields.contains("tenantId"));
+    }
+
+    @Test
+    void agentAnalyticsEndpointsAcceptOutletCodeListParameter() throws Exception {
+        assertEquals("hasAuthority('agent:analytics:read')",
+                AgentAnalyticsController.class.getMethod(
+                        "getStyleTrends", DashboardQueryDTO.class, List.class, Integer.class, Integer.class)
+                        .getAnnotation(PreAuthorize.class).value());
+        assertEquals("hasAuthority('agent:analytics:read')",
+                AgentAnalyticsController.class.getMethod(
+                        "getSkuMix", DashboardQueryDTO.class, List.class, String.class, Integer.class)
+                        .getAnnotation(PreAuthorize.class).value());
     }
 
     @Test

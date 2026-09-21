@@ -71,7 +71,7 @@
           :value="option.id"
         />
       </el-select>
-      <p class="mt-1 text-xs text-slate-400">Agent 可访问当前租户全部档口，失败时回退到默认档口。</p>
+      <p class="mt-1 text-xs text-slate-400">Agent 可访问当前租户全部档口；未传 sourceOutletCode 时使用默认档口。</p>
     </div>
 
     <p v-else class="mt-3 text-xs text-slate-400">

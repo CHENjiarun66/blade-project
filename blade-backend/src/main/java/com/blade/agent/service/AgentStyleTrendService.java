@@ -53,7 +53,7 @@ public class AgentStyleTrendService {
         Map<String, RowBuilder> rowsByKey = new LinkedHashMap<>();
         for (PeriodWindow window : windows) {
             List<AnalyticsRankingDTO> rankings = analyticsService.getProductRanking(
-                    toCustomQuery(window), AnalyticsDimension.PRODUCT, AnalyticsSortBy.SALES, maxRows);
+                    toCustomQuery(effectiveQuery, window), AnalyticsDimension.PRODUCT, AnalyticsSortBy.SALES, maxRows);
             for (AnalyticsRankingDTO ranking : rankings) {
                 String key = ranking.getKey() != null ? ranking.getKey() : ranking.getProductName();
                 RowBuilder builder = rowsByKey.computeIfAbsent(key, ignored -> new RowBuilder(ranking));
@@ -144,11 +144,17 @@ public class AgentStyleTrendService {
         return new PeriodWindow(windowStart + "~" + windowEnd, windowStart, windowEnd);
     }
 
-    private DashboardQueryDTO toCustomQuery(PeriodWindow window) {
+    /**
+     * 构造单个周期的 CUSTOM 查询。必须复制原查询的档口/待归档等权限相关筛选，
+     * 否则跨周期会丢失 Agent 的 sourceOutletIds 而扩大到 Key 全范围。
+     */
+    private DashboardQueryDTO toCustomQuery(DashboardQueryDTO source, PeriodWindow window) {
         DashboardQueryDTO query = new DashboardQueryDTO();
         query.setPeriodType(PeriodType.CUSTOM);
         query.setStartDate(window.startDate());
         query.setEndDate(window.endDate());
+        query.setSourceOutletIds(source.getSourceOutletIds());
+        query.setPendingArchive(source.getPendingArchive());
         return query;
     }
 
