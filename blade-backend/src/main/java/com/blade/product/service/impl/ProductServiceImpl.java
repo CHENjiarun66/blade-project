@@ -139,6 +139,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public Long create(ProductCreateDTO dto) {
+        TenantContext.requireTenantId();
         LambdaQueryWrapper<Product> checkWrapper = new LambdaQueryWrapper<>();
         checkWrapper.eq(Product::getProductCode, dto.getProductCode());
         if (productMapper.selectCount(checkWrapper) > 0) {
@@ -158,7 +159,7 @@ public class ProductServiceImpl implements ProductService {
         product.setImageUrl(dto.getImageUrl());
         product.setRemark(dto.getRemark());
         product.setStatus(dto.getStatus() != null ? dto.getStatus() : 1);
-        product.setTenantId(TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L);
+        product.setTenantId(TenantContext.requireTenantId());
 
         productMapper.insert(product);
         fileService.bindFilesFromJson("product", product.getId(), product.getImageUrl());
@@ -180,6 +181,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void update(ProductUpdateDTO dto) {
+        TenantContext.requireTenantId();
         Product product = productMapper.selectById(dto.getId());
         if (product == null) {
             throw new RuntimeException("商品不存在");
@@ -246,7 +248,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void delete(Long id) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
 
         // tenant-aware + deleted=0 查找商品
         LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
@@ -341,7 +343,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Long createColor(ColorCreateDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
         ProductColor color = new ProductColor();
         color.setColorCode(dto.getColorCode());
         color.setColorName(dto.getColorName());
@@ -354,7 +356,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public void updateColor(ColorUpdateDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
         ProductColor color = colorMapper.selectById(dto.getId());
         if (color == null) {
             throw new RuntimeException("颜色不存在");
@@ -370,7 +372,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void deleteColor(Long id) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
 
         // 获取当前租户下所有未删除的商品 ID（ProductColorRel 无 tenantId，通过 Product 关联防跨租户）
         LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
@@ -412,7 +414,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Long createSize(SizeCreateDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
 
         // 使用原生 SQL 检查是否有软删除的同名尺码（绕过 MyBatis-Plus 逻辑删除过滤器）
         String checkSql = "SELECT id, size_code, sort, tenant_id, deleted, create_time FROM product_size WHERE size_code = ? AND tenant_id = ? AND deleted = 1";
@@ -447,7 +449,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public void updateSize(SizeUpdateDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
         ProductSize size = sizeMapper.selectById(dto.getId());
         if (size == null) {
             throw new RuntimeException("尺码不存在");
@@ -465,7 +467,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void deleteSize(Long id) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
 
         // 获取当前租户下所有未删除的商品 ID（ProductSizeRel 无 tenantId，通过 Product 关联防跨租户）
         LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
@@ -499,7 +501,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void bindFiles(Long productId, ProductFileBindingDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
 
         // 1. 验证商品存在且属于当前租户
         LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
@@ -590,7 +592,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductFileBindingsVO getFileBindings(Long productId) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
 
         // 验证商品存在且属于当前租户
         LambdaQueryWrapper<Product> productWrapper = new LambdaQueryWrapper<>();
@@ -732,7 +734,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void updateSku(SkuUpdateDTO dto) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
 
         // 查询 SKU，验证租户归属和未删除
         LambdaQueryWrapper<ProductSku> wrapper = new LambdaQueryWrapper<>();

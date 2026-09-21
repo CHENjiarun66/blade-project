@@ -83,6 +83,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public Long create(RoleCreateDTO dto) {
+        TenantContext.requireTenantId();
         // 检查编码唯一性
         LambdaQueryWrapper<Role> codeWrapper = new LambdaQueryWrapper<>();
         codeWrapper.eq(Role::getRoleCode, dto.getRoleCode())
@@ -96,7 +97,7 @@ public class RoleServiceImpl implements RoleService {
         role.setRoleCode(dto.getRoleCode());
         role.setDescription(dto.getDescription());
         role.setStatus(dto.getStatus() != null ? dto.getStatus() : 1);
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
         role.setTenantId(tenantId);
         role.setDeleted(0);
 

@@ -3,6 +3,7 @@ package com.blade.customer.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.blade.common.exception.BusinessException;
 import com.blade.common.result.PageResult;
 import com.blade.common.tenant.TenantContext;
 import com.blade.order.service.OrderFactsService;
@@ -219,7 +220,7 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     private Long createCustomerInternal(CustomerCreateDTO dto, Long currentUserId, Long agentKeyId) {
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
 
         // 0. 检查电话是否重复
         if (dto.getPhones() != null && !dto.getPhones().isEmpty()) {
@@ -282,7 +283,7 @@ public class CustomerServiceImpl implements CustomerService {
 
         // 更新电话列表：先检查重复，再删除旧的，最后插入新的
         // TenantLineInnerInterceptor 会自动添加 tenant_id 条件，不要手动添加
-        Long tenantId = customer.getTenantId() != null ? customer.getTenantId() : 1L;
+        Long tenantId = requireEntityTenantId(customer);
 
         // 0. 检查电话是否重复（排除当前客户的旧电话）
         if (dto.getPhones() != null && !dto.getPhones().isEmpty()) {
@@ -366,9 +367,19 @@ public class CustomerServiceImpl implements CustomerService {
 
         // 记录操作日志
         Long currentUserId = getCurrentUserId();
-        Long tenantId = customer.getTenantId() != null ? customer.getTenantId() : 1L;
+        Long tenantId = requireEntityTenantId(customer);
         logOperation(tenantId, id, currentUserId, null, "DELETE",
             "{\"name\":\"" + customer.getName() + "\"}");
+    }
+
+    /**
+     * 实体租户 fail closed：历史/异常数据 tenant_id 为空时不得回退 tenant=1。
+     */
+    private Long requireEntityTenantId(Customer customer) {
+        if (customer == null || customer.getTenantId() == null) {
+            throw BusinessException.of(403, "客户缺少租户信息");
+        }
+        return customer.getTenantId();
     }
 
     private CustomerVO convertToVO(Customer customer) {

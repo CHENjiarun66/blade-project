@@ -108,6 +108,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public Long create(UserCreateDTO dto) {
+        TenantContext.requireTenantId();
         LambdaQueryWrapper<User> checkWrapper = new LambdaQueryWrapper<>();
         checkWrapper.eq(User::getUsername, dto.getUsername());
         if (userMapper.selectCount(checkWrapper) > 0) {
@@ -125,7 +126,7 @@ public class UserServiceImpl implements UserService {
         user.setPhone(dto.getPhone());
         user.setAvatar(dto.getAvatar());
         user.setStatus(dto.getStatus() != null ? dto.getStatus() : 1);
-        user.setTenantId(TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L);
+        user.setTenantId(TenantContext.requireTenantId());
 
         userMapper.insert(user);
 

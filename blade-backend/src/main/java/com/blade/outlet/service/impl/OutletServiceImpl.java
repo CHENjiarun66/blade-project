@@ -85,6 +85,7 @@ public class OutletServiceImpl implements OutletService {
     @Override
     @Transactional
     public Long create(OutletCreateDTO dto) {
+        requiredTenantId();
         String code = normalizeCode(dto.getOutletCode());
         if (outletMapper.selectCount(
                 new LambdaQueryWrapper<SalesOutlet>().eq(SalesOutlet::getOutletCode, code)) > 0) {
@@ -112,6 +113,7 @@ public class OutletServiceImpl implements OutletService {
     @Override
     @Transactional
     public void update(OutletUpdateDTO dto) {
+        requiredTenantId();
         SalesOutlet outlet = requiredOutlet(dto.getId());
         String code = normalizeCode(dto.getOutletCode());
         if (!outlet.getOutletCode().equals(code)) {
@@ -138,7 +140,7 @@ public class OutletServiceImpl implements OutletService {
         Long tenantId = null;
         if (wantDefault) {
             tenantId = requiredTenantId();
-            outletMapper.lockTenantRow(tenantId);
+            lockTenantOrFail(tenantId);
         }
         outlet.setIsTenantDefault(0);
         outlet.setUpdateBy(currentUserIdOrNull());
@@ -152,6 +154,7 @@ public class OutletServiceImpl implements OutletService {
     @Override
     @Transactional
     public void updateStatus(Long id, Integer status) {
+        requiredTenantId();
         if (status == null || (status != 0 && status != 1)) {
             throw BusinessException.of(400, "状态只能为 1(启用) 或 0(禁用)");
         }
@@ -189,8 +192,17 @@ public class OutletServiceImpl implements OutletService {
      */
     private void setTenantDefault(SalesOutlet outlet) {
         Long tenantId = requiredTenantId();
-        outletMapper.lockTenantRow(tenantId);
+        lockTenantOrFail(tenantId);
         applyTenantDefault(tenantId, outlet);
+    }
+
+    /**
+     * 租户级串行锁 fail-closed：sys_tenant 无对应行时不得继续清/设默认，直接 403 并回滚。
+     */
+    private void lockTenantOrFail(Long tenantId) {
+        if (outletMapper.lockTenantRow(tenantId) == null) {
+            throw BusinessException.of(403, "租户不存在，无法设置默认档口");
+        }
     }
 
     /**
@@ -307,11 +319,8 @@ public class OutletServiceImpl implements OutletService {
     }
 
     private Long requiredTenantId() {
-        Long tenantId = TenantContext.getTenantId();
-        if (tenantId == null) {
-            throw BusinessException.of(401, "缺少租户上下文");
-        }
-        return tenantId;
+        // 统一 fail-closed 入口：缺上下文业务 403，稳定错误码
+        return TenantContext.requireTenantId();
     }
 
     private Long currentUserId() {

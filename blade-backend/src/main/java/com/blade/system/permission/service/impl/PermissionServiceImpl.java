@@ -80,6 +80,7 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     @Transactional
     public Long create(PermissionCreateDTO dto) {
+        TenantContext.requireTenantId();
         // 检查编码唯一性
         LambdaQueryWrapper<SysPermission> codeWrapper = new LambdaQueryWrapper<>();
         codeWrapper.eq(SysPermission::getCode, dto.getCode())
@@ -99,7 +100,7 @@ public class PermissionServiceImpl implements PermissionService {
         if (permission.getStatus() == null) {
             permission.setStatus(1);
         }
-        Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+        Long tenantId = TenantContext.requireTenantId();
         permission.setTenantId(tenantId);
         permission.setDeleted(0);
 
@@ -219,12 +220,13 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     @Transactional
     public void assignPermissions(RolePermissionDTO dto) {
+        TenantContext.requireTenantId();
         // 先删除该角色的所有权限关联
         rolePermissionMapper.deleteByRoleId(dto.getRoleId());
 
         // 插入新的权限关联
         if (dto.getPermissionIds() != null && !dto.getPermissionIds().isEmpty()) {
-            Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : 1L;
+            Long tenantId = TenantContext.requireTenantId();
             List<SysRolePermission> list = dto.getPermissionIds().stream()
                     .map(permissionId -> {
                         SysRolePermission rp = new SysRolePermission();

@@ -21,11 +21,8 @@ public class TenantLineHandler implements com.baomidou.mybatisplus.extension.plu
 
     @Override
     public Expression getTenantId() {
-        Long tenantId = TenantContext.getTenantId();
-        if (tenantId == null) {
-            tenantId = 1L;
-        }
-        return new LongValue(tenantId);
+        // 缺上下文一律 fail closed，绝不回退 tenant=1；业务入口应先 requireTenantId 以保证稳定 403
+        return new LongValue(TenantContext.requireTenantId());
     }
 
     @Override
