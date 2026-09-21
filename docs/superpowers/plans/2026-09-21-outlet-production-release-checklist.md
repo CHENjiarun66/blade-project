@@ -53,6 +53,11 @@
       复核检查 SQL 归零后再重新迁移。禁止由迁移脚本"拍脑袋"决定。
 - [ ] V67 成功后复核：`SHOW CREATE TABLE sales_outlet` 含生成列 `tenant_default_guard`
       与唯一索引 `uk_outlet_tenant_default`。
+- [ ] **V67 DDL 影响实测（副本）**：在接近生产数据量的副本上记录 `ALTER TABLE sales_outlet`
+      新增 STORED 生成列 + 唯一索引的耗时与锁表影响；评估是否需要 `ALGORITHM=INPLACE`/低峰窗口，
+      并把实测结果写入发布记录（生成列可能触发表重建/拷贝）。
+- [ ] `sys_user_outlet` / `agent_key_outlet` 的“每主体一个默认”目前仅服务层保证（无 DB 唯一索引），
+      上线前执行重复审计：`SELECT tenant_id,user_id,COUNT(*) FROM sys_user_outlet WHERE deleted=0 AND is_default=1 GROUP BY tenant_id,user_id HAVING COUNT(*)>1;`（Key 表同构）；发现重复由人工归一。
 
 ## 3. 回填预演（dry-run，副本）
 
@@ -104,6 +109,8 @@
 - [ ] 观察一个发布周期：越权 403、待归档、统计口径、导出、文件、Agent 出口。
 - [ ] 切写：新草稿/订单必须写 `source_outlet_id`；旧客户端兼容期保留。
 - [ ] 监控：跨档口泄漏告警、`/api/agent/*` 401/403 比例、查询耗时。
+- [ ] **移动端多档口冒烟**：单档口销售员进入创建订单看到只读“已绑定档口”并提交成功；多档口 Owner 能选择档口并提交 `sourceOutletId`；多档口无默认时必须显式选择，`/api/outlets/options` 失败时阻断提交并可重试。
+- [ ] **Agent 批量草稿冒烟**：越权/不可用 `sourceOutletCode` 的混合批返回真实 HTTP 403 且 `order_draft` 零新增；普通 400/409 仍按 HTTP 200 per-item `ERROR` 继续；`DUPLICATE` 幂等。
 
 ## 7. 回滚
 

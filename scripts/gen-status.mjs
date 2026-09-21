@@ -53,6 +53,7 @@ const STATUS_LABEL = {
 function parseStatus(raw) {
   const s = raw
   if (s.includes('✅')) return { status: STATUS.done, executor: '' }
+  if (s.includes('🚧') || s.includes('部分完成')) return { status: STATUS.partial, executor: '' }
   if (s.includes('⏸') || s.includes('暂缓') || s.includes('转外部')) {
     return { status: STATUS.deferred, executor: '' }
   }
@@ -62,16 +63,15 @@ function parseStatus(raw) {
       const m = s.match(/执行人[:：]\s*([^）)]+)/)
       return { status: STATUS.doing, executor: m ? m[1].trim() : '' }
     }
-    if (s.includes('部分完成')) return { status: STATUS.partial, executor: '' }
     return { status: STATUS.todo, executor: '' }
   }
-  if (s.includes('部分完成')) return { status: STATUS.partial, executor: '' }
   return { status: STATUS.other, executor: '' }
 }
 
-/** 解析 TASKS.md → 任务数组 */
+/** 解析 TASKS.md → 任务数组；同 ID 只计一次，避免重复行双计 */
 function parseTasks(content) {
   const tasks = []
+  const seenIds = new Set()
   let module = ''
   let phase = ''
   for (const line of content.split('\n')) {
@@ -85,8 +85,10 @@ function parseTasks(content) {
       continue
     }
     // 表格行：| BE-001 | 任务名 | 状态 | 备注 |（ID 支持 TEST-ORDER-INV-001 多段格式）
-    const m = line.match(/^\| ((?:BE|BA|FE|TEST|DOC|AGENT)-[0-9A-Z]+(?:-[0-9A-Z]+)*) \| (.+?) \| (.+?) \|(.*)$/)
+    const m = line.match(/^\| ((?:BE|BA|FE|TEST|DOC|AGENT|DB|DATA|DEPLOY|ARCH|ERP|OPS|PRICE)-[0-9A-Z]+(?:-[0-9A-Z]+)*) \| (.+?) \| (.+?) \|(.*)$/)
     if (!m) continue
+    if (seenIds.has(m[1])) continue
+    seenIds.add(m[1])
     const { status, executor } = parseStatus(m[3].trim())
     tasks.push({
       id: m[1],
@@ -194,6 +196,16 @@ function renderMarkdown(now, stats) {
     lines.push('- （无）')
   }
   lines.push('')
+  lines.push('## 其他状态待人工归类（' + stats.other.length + '）')
+  lines.push('')
+  if (stats.other.length) {
+    for (const t of stats.other) {
+      lines.push(`- ${t.id} ${t.name} — ${t.module}${t.phase ? ` › ${t.phase}` : ''}`)
+    }
+  } else {
+    lines.push('- （无）')
+  }
+  lines.push('')
   lines.push('## 暂缓或由外部流程承担（' + stats.deferred.length + '）')
   lines.push('')
   if (stats.deferred.length) {
@@ -287,6 +299,7 @@ function renderHtml(now, stats) {
   .section.doing { border-left:4px solid var(--doing); }
   .section.todo { border-left:4px solid var(--todo); }
   .section.partial { border-left:4px solid var(--partial); }
+  .section.other { border-left:4px solid var(--other); }
   .section.deferred { border-left:4px solid var(--deferred); }
   .section.done { border-left:4px solid var(--done); }
   .task-table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -331,6 +344,7 @@ function renderHtml(now, stats) {
   ${section('🔴 正在做', stats.doing, 'doing')}
   ${section('🟡 还没做', stats.todo, 'todo')}
   ${section('🔵 部分完成', stats.partial, 'partial')}
+  ${section('⚠️ 其他（待人工归类）', stats.other, 'other')}
   ${section('⏸ 暂缓或由外部流程承担', stats.deferred, 'deferred')}
   ${section('✅ 已完成（共 ' + stats.done.length + ' 项）', stats.done, 'done')}
 

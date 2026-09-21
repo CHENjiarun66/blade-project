@@ -1014,6 +1014,26 @@ GET /api/analytics/product-detail?periodType=WEEK&productName=624-1%23
 
 ---
 
+## 档口接口（Series 档口权限）
+
+| Method | Path | 权限 | 说明 |
+|--------|------|------|------|
+| GET | `/api/outlets` | `menu:outlet` | 档口列表（分页），支持 keyword/status |
+| GET | `/api/outlets/options` | 登录即可 | 当前调用者可用且启用的档口选项；结构化返回 `scopeType`/`peopleScope`/`locked`/`defaultOutletId`/`items` |
+| GET | `/api/outlets/{id}` | `menu:outlet` | 档口详情（含引用计数） |
+| POST | `/api/outlets` | `btn:outlet:create` | 新建档口；`outlet_code` 创建后不可修改 |
+| PUT | `/api/outlets/{id}` | `btn:outlet:edit` | 更新档口；`isTenantDefault=1` 要求启用 |
+| PATCH | `/api/outlets/{id}/status?status=0|1` | `btn:outlet:disable` | 启用/禁用；禁用会清除租户默认标记 |
+
+规则：
+
+- **第一期不提供 `DELETE /api/outlets/{id}`**。有历史引用的档口通过**禁用**保留，历史订单/草稿仍展示名称快照；禁用档口不可用于新建，但仍可被历史读取。
+- 新写（正式订单/草稿/用户绑定/Agent Key）只允许**启用且属于当前调用者可用范围**的档口。
+- 每个租户最多一个未删除的租户默认档口，由数据库唯一索引 `uk_outlet_tenant_default`（V67）兜底；跨租户默认互不影响。
+- 缺租户上下文的请求 fail-closed（业务 403），不会回退 `tenant=1`。
+
+---
+
 ## 文件中心接口（Series E2 档口权限）
 
 | Method | Path | 说明 |

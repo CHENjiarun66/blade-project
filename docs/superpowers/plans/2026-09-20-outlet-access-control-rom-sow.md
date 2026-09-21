@@ -75,7 +75,7 @@
 | BE-OUTLET-004 | `OutletAccessPolicy` | ✅ 完成（DeepSeek，2026-09-21） | 用户/Agent 范围解析、默认档口、授权检查和统一选项服务 |
 | BE-OUTLET-005 | `OrderAccessPolicy` 二维范围重构 | ✅ 完成（DeepSeek，2026-09-21） | 档口范围 × 人员范围；列表、详情、动作、`allowedActions` 一致 |
 | BE-OUTLET-006 | 草稿权限接入 | ✅ 完成（DeepSeek，2026-09-21） | 草稿列表/详情/写入/删除/确认统一档口范围，确认时二次校验 |
-| TEST-OUTLET-001 | 后端越权矩阵 | ✅ 完成（DeepSeek，2026-09-21） | 单/多/全部/无/未归档、SELF/ALL_USERS、跨租户、禁用档口由 `OutletScopeMatrixTest`、`OutletScopeCrossResourceAuditTest`、`OrderOutletWriteRulesTest`、`AgentOutletScopeIntegrationTest` 覆盖 |
+| TEST-OUTLET-001 | 后端越权矩阵 | 🚧 分批完成（DeepSeek，2026-09-21） | 单/多/全部/无/未归档、SELF/ALL_USERS、跨租户、禁用档口由 `OutletScopeMatrixTest`、`OutletScopeCrossResourceAuditTest`、`OrderOutletWriteRulesTest`、`AgentOutletScopeIntegrationTest` 覆盖；NONE 用户/负责人全人员/改名快照等仍待后续批次（与 docs/03-TASKS.md 对齐） |
 
 验收门禁：禁止在 Controller 中以角色名散落判断；`btn:order:viewAll` 不得继续单独绕过新的档口范围。
 
@@ -120,7 +120,7 @@
 |---|---|---|---|
 | ARCH-OUTLET-002 | 兼容期复盘 | ⏳ TODO | 观察至少一个发布周期，评估 `btn:order:viewAll` 和空档口兼容路径 |
 | DB-OUTLET-004 | 非空约束评估 | ⏳ TODO | 存量归档完成后评估正式订单 `source_outlet_id NOT NULL`，不是首发必做 |
-| DOC-OUTLET-001 | 文档与 Agent 手册收口 | ⏳ TODO | PRD、数据库、权限、API、发布记录和 Agent 连接手册同步真实实现 |
+| DOC-OUTLET-001 | 文档与 Agent 手册收口 | 🚧 本地文档完成（DeepSeek，2026-09-21） | PRD、数据库、权限、API、发布记录和 Agent 连接手册已同步本地实现；生产发布记录与验收待外部（与 docs/03-TASKS.md 对齐） |
 
 ---
 

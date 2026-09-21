@@ -32,7 +32,7 @@
 | PC 管理端页面开发 | ✅ 完成 | 订单/库存/商品/客户管理页面 |
 | 看板系统开发 | ⏳ 部分完成 | 仪表盘、趋势、库存周转和数据分析已完成；仪表盘数据权限待补 |
 | 外部 Agent 对接 | ⏳ 进行中 | 款式趋势、颜色尺码结构、纸单草稿和 WhatsApp 本地归档已完成；经营类只读接口、生产联调和限流仍待完成 |
-| 档口主数据与数据权限 | ⏳ 进行中 | Series A 数据模型（V63）、B1 后端（V64）与 B2 前端（档口管理页/用户档口授权）完成；统一访问策略、订单/草稿/统计出口与生产回填待 Series C-G |
+| 档口主数据与数据权限 | ⏳ 部分完成 | Series A–E 本地完成（V63–V67 迁移、后端统一策略、PC 管理端、订单/草稿/文件/看板/分析/客户统计/导出与 Agent 出口、租户上下文 fail-closed）；Series F 历史迁移/生产发布与 Series G 收口待外部 |
 
 ### 近期主线与状态口径（2026-08-29）
 
@@ -79,26 +79,15 @@
 
 > 本轮只做数据模型加法迁移，不进入 CRUD、权限策略、前端或生产部署。ROM/SOW 见 [2026-09-20-outlet-access-control-rom-sow.md](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)，交付报告见 [2026-09-20-outlet-series-a-delivery.md](./superpowers/plans/2026-09-20-outlet-series-a-delivery.md)。
 
-| 任务 ID | 任务 | 状态 | 备注 |
-|---------|------|------|------|
-| DB-OUTLET-001 | 档口与用户关联表 | ✅ 完成 | `sales_outlet`、`sys_user_outlet` 实体/Mapper/Flyway V63/租户与索引/契约测试 |
-| DB-OUTLET-002 | 订单与草稿档口 ID 及变更审计 | ✅ 完成 | `sale_order/order_draft.source_outlet_id` 可空加法迁移 + `order_outlet_change_log`，保留 `source_shop` 不改写历史 |
-| DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成 | `agent_key_outlet` 表/实体/Mapper + `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE，默认 NONE）+ 轮换同事务复制范围与有效绑定 |
-| DATA-OUTLET-001 | 历史档口审计工具 | ✅ 完成 | `scripts/outlet-source-shop-audit.sql`：只读分布/空值/疑似批次/纯数字/冲突 + 可编辑名称映射 CTE（可自动映射/未映射），全程无写语句 |
+本轮交付（权威状态见下文「Phase 7.1: 档口主数据与跨档口数据权限」统一任务表，避免重复计数）：`DB-OUTLET-001` 档口与用户关联表（`sales_outlet`/`sys_user_outlet`、Flyway V63、租户与索引/契约测试）；`DB-OUTLET-002` 订单与草稿可空 `source_outlet_id` + `order_outlet_change_log`，保留 `source_shop` 不改写历史；`DB-OUTLET-003` `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE，默认 NONE）；`DATA-OUTLET-001` 只读历史档口审计工具 `scripts/outlet-source-shop-audit.sql`。
 
 未做任务（保持 TODO）：Series B 档口 CRUD 与用户授权、Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口，均不在本轮范围。
 
 ### 档口权限 Series B1 后端（2026-09-21，DeepSeek）
 
-> 本轮仅实现后端（档口主数据服务/API、用户多档口绑定、权限迁移），不做前端；BA-OUTLET-001/002 保持 TODO。交付报告见 [2026-09-21-outlet-series-b1-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b1-delivery.md)。
+> 本轮仅实现后端（档口主数据服务/API、用户多档口绑定、权限迁移），不做前端；`BA-OUTLET-001/002` 前端随后由 Series B2 完成。交付报告见 [2026-09-21-outlet-series-b1-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b1-delivery.md)。
 
-| 任务 ID | 任务 | 状态 | 备注 |
-|---------|------|------|------|
-| BE-OUTLET-001 | 档口主数据服务/API | ✅ 完成 | `/api/outlets` CRUD/启停/options/引用统计/默认唯一；租户隔离、跨租户 404；无租户上下文 fail-closed 403 |
-| BE-OUTLET-002 | 用户多档口绑定 | ✅ 完成 | 用户 DTO/VO 增 `outletIds/defaultOutletId/outletScope/peopleScope`；同事务校验保存；旧客户端不清空 |
-| BE-OUTLET-003 | 权限与迁移 | ✅ 完成 | V64 新增 menu/btn/data/agent 权限码并赋权 OWNER/ADMIN/FINANCE；兼容 `btn:order:viewAll` |
-| BA-OUTLET-001 | 档口管理页面 | ✅ 完成（DeepSeek，2026-09-21） | `/outlets` 列表/搜索/状态筛选/新建编辑/设默认/启停二次确认（引用提示）；按钮按 `btn:outlet:*` 显隐 |
-| BA-OUTLET-002 | 用户管理档口授权 | ✅ 完成（DeepSeek，2026-09-21） | 用户表单可访问档口多选 + 默认档口 + 权限摘要；销售员空档口阻止；仅状态切换不提交档口 |
+本轮交付（权威状态见下文「Phase 7.1」）：`BE-OUTLET-001` 档口主数据服务/API；`BE-OUTLET-002` 用户多档口绑定；`BE-OUTLET-003` V64 权限与迁移。
 
 未做任务（保持 TODO）：Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口。
 
@@ -111,11 +100,7 @@
 > 仅后端统一数据访问策略（BE-OUTLET-004/005/006）+ V65 迁移，不进入 Series D UI。交付报告见 [2026-09-21-outlet-series-c-delivery.md](./superpowers/plans/2026-09-21-outlet-series-c-delivery.md)。
 > 第二轮 Codex 终审整改（commit `c8551b0`）：补齐草稿“新建/更新”档口归属（Agent 只认 `sourceOutletCode`、手工显式 ID/默认/unassigned 规则）、`View`/`Summary` 暴露 `sourceOutletId`/`sourceOutletCode`；新增 `OrderDraftOutletAttributionTest` 16 例，全量后端 633/633。
 
-| 任务 ID | 任务 | 状态 | 备注 |
-|---------|------|------|------|
-| BE-OUTLET-004 | 统一 `OutletAccessPolicy` | ✅ 完成 | 用户/Agent 范围快照、读写分离、默认优先级、结构化 options 契约 |
-| BE-OUTLET-005 | `OrderAccessPolicy` 二维重构 | ✅ 完成 | 档口×人员 SQL 谓词、`btn:order:viewAll` 兼容不绕过、Agent scope |
-| BE-OUTLET-006 | 草稿档口权限接入 | ✅ 完成 | page/batches/detail/update/confirm 统一范围；TOCTOU 复核；空档口确认阻断；create/update 服务端权威归属（第二轮整改） |
+本轮交付（权威状态见下文「Phase 7.1」）：`BE-OUTLET-004` 统一 `OutletAccessPolicy`；`BE-OUTLET-005` `OrderAccessPolicy` 二维重构；`BE-OUTLET-006` 草稿档口权限接入（含第二轮整改）。
 
 ---
 
@@ -598,6 +583,7 @@
 | DB-OUTLET-001 | 档口与用户关联表 | ✅ 完成（DeepSeek，2026-09-20） | 新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则 |
 | DB-OUTLET-002 | 订单与草稿档口 ID 及变更审计 | ✅ 完成（DeepSeek，2026-09-20） | 为 `sale_order/order_draft` 增加可空 `source_outlet_id`，新增 `order_outlet_change_log`；保留 `source_shop` 名称快照和兼容双读 |
 | DB-OUTLET-003 | Agent Key 档口关联 | ✅ 完成（DeepSeek，2026-09-20） | 新增 `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）；轮换同事务复制范围与绑定 |
+| DB-OUTLET-004 | 非空约束评估 | ⏳ TODO（待外部） | 存量归档完成后评估正式订单 `source_outlet_id NOT NULL`；不是首发必做，需先完成生产副本回填与对账 |
 | BE-OUTLET-001 | 档口主数据服务与 API | ✅ 完成（DeepSeek，2026-09-21；第二批B + 第四批强化） | CRUD、启停、默认档口、引用统计和 `/api/outlets/options`。第二批B：V67 用 generated nullable guard + `uk_outlet_tenant_default` 在数据库层保证每租户最多一个未删除默认且遇历史重复 fail-closed；设置默认按“租户级串行锁（`sys_tenant` FOR UPDATE）→清同租户其它默认→标记目标”，SQL 显式 `tenant_id`+`deleted`，默认必须启用、禁用清除默认；`pageList` 改为按页内 outletIds 一次 GROUP BY 批量计数，消除逐行 3 次 count 的 N+1。第四批：`TenantContext.requireTenantId` 统一 fail-closed 且 `TenantLineHandler` 不再回退 tenant=1；`lockTenantRow` 返回 null 时设置默认 403 并回滚 |
 | BE-OUTLET-002 | 用户多档口绑定 | ✅ 完成（DeepSeek，2026-09-21） | 用户创建/更新/详情增加 `outletIds/defaultOutletId`，与角色同事务保存；销售员至少一个档口 |
 | BE-OUTLET-003 | 档口和人员范围权限 | ✅ 完成（DeepSeek，2026-09-21） | 新增 `data:outlet:all`、`data:order:peopleAll` 和档口管理权限；兼容迁移 `btn:order:viewAll` |
@@ -618,7 +604,7 @@
 | DATA-OUTLET-002 | 生产副本映射预演 | 🚧 代码完成、生产副本演练与人工确认未完成（DeepSeek，2026-09-21） | 显式 CSV 回填工具（`OutletBackfillService` + CLI）：dry-run 默认、apply 四重安全闸门拒绝生产特征、只改 `source_outlet_id`、冲突不覆盖、疑似批次跳过、双表、对账、幂等、自动测试。第二批A 增强审计报告：逐条 mapping（legacy/outlet_code/decision/reason + 候选/更新数）、operator（apply 必填、preview 缺省 PREVIEW）、起止时间、expected/actual 库名（严禁凭据）、映射文件 SHA-256、apply 前后 `source_outlet_id` 赋值摘要哈希（`orderIdOutletDigest`/`draftIdOutletDigest`）；生产副本真实预演、异常清单确认与对账签字待外部 |
 | DATA-OUTLET-003 | 用户初始档口授权清单 | 🚧 建议包完成（DeepSeek，2026-09-21） | 只读建议 SQL + 确认 CSV 模板（outletScope/peopleScope/默认/多档口），decision 恒 NEEDS_REVIEW，绝不自动授权；人工确认与授权待外部 |
 | TEST-OUTLET-001 | 后端越权矩阵 | 🚧 第一批/终审 + 第二批A 完成（DeepSeek，2026-09-21） | 第一批：`OrderShipScopeGuardTest`（NONE 发货 403、幂等先鉴权、授权通过）、`OrderPlaceholderSplitScopeGuardTest`、`CustomerOrderScopeIntegrationTest`；终审：`OrderScopeRealDbIntegrationTest`（真实 MySQL 403 且副作用为零）、`CustomerPreferenceCacheEvictionTest`（真实 Redis evict 全范围、动作链路）。第二批A：`FileOutletAccessPolicyTest.peopleAll_keepsOwnUnboundFileVisible_butNotOthers_andOrderDraftScopeStillApplies`（peopleAll 下本人未绑定文件 list/count/detail 一致，订单/草稿仍按档口范围）、`OrderScopeRealDbIntegrationTest.realDb_financialActionChecksAccessBeforeIdempotencyShortCircuit/realDb_authorizedFinancialRetryIsIdempotent`（财务先鉴权后幂等）、`DashboardAnalyticsPermissionIntegrationTest`（menu:dashboard/menu:analytics 无权限 403、有权限可用）、`CrossTenantOutletIsolationIntegrationTest`（真实 DB：tenant1 绑/Key 绑 tenant2 档口失败无副作用、跨租户档口读改启停 404，覆盖并增强 mock 的 `UserOutletBindingTest.crossTenantOutletIsRejectedAsNotFound`）。其余 `OutletScopeMatrixTest`/`OrderOutletWriteRulesTest`/`AgentOutletScopeIntegrationTest` 保留。第四批：`TenantLineHandlerFailClosedTest`（缺上下文不生成 tenant=1）、`TenantContextFailClosedIntegrationTest`（user/role/permission/product/customer/outlet 缺上下文稳定 403 且零写入、真实 MyBatis 查询 fail-closed、tenant1/tenant2 真实登录正常）、`SalesOutletTenantDefaultIntegrationTest.missingSysTenantRowFailsClosedAndRollsBack`（无 sys_tenant 行时设置默认 403 回滚）。NONE 用户/负责人全人员/改名快照等仍待后续批次 |
-| TEST-OUTLET-002 | 订单与草稿 E2E | ✅ 完成（DeepSeek，2026-09-21） | 后端 17 例 + Playwright 5 例：快速录单、手工/Agent 草稿、草稿确认、正式订单、列表筛选、待归档和伪造档口 403 |
+| TEST-OUTLET-002 | 订单与草稿 E2E | ✅ 完成（DeepSeek，2026-09-21） | 后端 17 例 + Playwright 6 例（`e2e-order-outlet.spec.ts`）：快速录单单/多档口、options 不缓存、草稿/正式订单列表档口筛选与待归档、伪造越权档口 403 |
 | TEST-OUTLET-003 | 全出口防泄漏回归 | ✅ 完成（DeepSeek，2026-09-21） | 文件出口（E2）+ Agent 出口（E3）：Agent A 档口无法通过 orders list/detail、草稿 code/内部 ID、capabilities、outlets 推断 B 数据；NONE 为空、缺 `outlets:read` 403、Key 无效 401；Agent 不访问未归档 NULL；三种主体沿用 E1/E2 矩阵 |
 | TEST-OUTLET-004 | 全量回归与性能 | 🚧 本地完成（DeepSeek，2026-09-21） | 全量后端 + PC 构建 + 关键 E2E；`OutletScopeCrossResourceAuditTest` 矩阵审计、`OutletIndexCoverageTest` 索引核对、`scripts/outlet-scope-explain.sql` 查询计划预演；生产规模性能待验证 |
 | DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | ⏳ TODO（待外部） | checklist 已写（`2026-09-21-outlet-production-release-checklist.md`），未执行任何备份/预演/灰度/回滚 |

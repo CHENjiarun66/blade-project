@@ -30,6 +30,7 @@
   .section.doing { border-left:4px solid var(--doing); }
   .section.todo { border-left:4px solid var(--todo); }
   .section.partial { border-left:4px solid var(--partial); }
+  .section.other { border-left:4px solid var(--other); }
   .section.deferred { border-left:4px solid var(--deferred); }
   .section.done { border-left:4px solid var(--done); }
   .task-table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -56,7 +57,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/21 16:25:07　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/9/21 16:42:20　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -73,18 +74,18 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">188 完成 · 0 进行中 · 22 待办 · 0 部分 · 6 暂缓</span>
+          <span class="card-nums">192 完成 · 0 进行中 · 26 待办 · 0 部分 · 8 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:90%"></div></div>
-        <div class="bar-label">90% 完成（活跃 210 项，暂缓 6 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:88%"></div></div>
+        <div class="bar-label">88% 完成（活跃 218 项，暂缓 8 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">107 完成 · 0 进行中 · 0 待办 · 0 部分 · 2 暂缓</span>
+          <span class="card-nums">112 完成 · 0 进行中 · 3 待办 · 5 部分 · 2 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:97%"></div></div>
-        <div class="bar-label">97% 完成（活跃 110 项，暂缓 2 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:93%"></div></div>
+        <div class="bar-label">93% 完成（活跃 120 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -93,14 +94,6 @@
         </div>
         <div class="bar"><div class="bar-fill" style="width:64%"></div></div>
         <div class="bar-label">64% 完成（活跃 25 项，暂缓 2 项）</div>
-      </div>
-      <div class="card">
-        <div class="card-head">
-          <span class="card-title">项目阶段</span>
-          <span class="card-nums">8 完成 · 0 进行中 · 0 待办 · 0 部分 · 0 暂缓</span>
-        </div>
-        <div class="bar"><div class="bar-fill" style="width:100%"></div></div>
-        <div class="bar-label">100% 完成（活跃 8 项，暂缓 0 项）</div>
       </div></div>
 
 
@@ -110,7 +103,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">31</span></h2>
+      <h2>🟡 还没做 <span class="count">38</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -125,6 +118,27 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
         <td class="td-remark">本轮先覆盖商品、订单详情和订单导出；打印、分享、Agent、缓存需后续专项补齐后才能标记完成 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">ERP-DATA-001</td>
+        <td class="td-name">启云记迁移数据质量与期初库存</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">清洗主数据，按真实 SKU×仓导入 `MIGRATION_OPENING`；与 Blade V42 订单迁移严格分开 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">ERP-ARCHIVE-001</td>
+        <td class="td-name">启云记历史单据只读档案</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">旧金额标记 `LEGACY_UNTRUSTED`，不得重放到活动库存或财务账 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">ERP-PUR-STOCK-001</td>
+        <td class="td-name">无价采购收货与库存过账</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">允许 `UNPRICED` 收货，库存动作不依赖价格可见性；不包含应付/付款 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BE-506</td>
@@ -267,6 +281,34 @@
         <td class="td-remark">V43-V58 于 2026-09-11 首发，Agent Key、纸单多图和草稿并排核单于 2026-09-12 随 release `20260912_220631` 上线；剩余工作是在实际 Mac 使用最小 scope Agent Key，通过外网 API 导入 30 张结构化纸单结果，并核对断线幂等、审计、库存、财务和统计隔离 |</td>
       </tr>
       <tr data-status="todo">
+        <td class="td-id">OPS-TLS-001</td>
+        <td class="td-name">`chenjianas.asia` 证书续期</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">当前 TrustAsia 证书 2026-11-26 到期，尚无自动续期；最迟 2026-11-19 前替换 NAS `/volume2/blade/secrets/tls` 证书并验证裸域名/`www` 均可信 200 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">DB-OUTLET-004</td>
+        <td class="td-name">非空约束评估</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">存量归档完成后评估正式订单 `source_outlet_id NOT NULL`；不是首发必做，需先完成生产副本回填与对账 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">DEPLOY-OUTLET-001</td>
+        <td class="td-name">NAS 灰度发布与回滚</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">checklist 已写（`2026-09-21-outlet-production-release-checklist.md`），未执行任何备份/预演/灰度/回滚 |</td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">ARCH-OUTLET-002</td>
+        <td class="td-name">兼容期复盘</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">稳定一个发布周期后评估旧 `btn:order:viewAll`、空档口兼容和 ID 非空约束 |</td>
+      </tr>
+      <tr data-status="todo">
         <td class="td-id">FE-005</td>
         <td class="td-name">@blade/core 封装</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
@@ -332,12 +374,52 @@
     </section>
 
     <section class="section partial">
-      <h2>🔵 部分完成 <span class="count">0</span></h2>
+      <h2>🔵 部分完成 <span class="count">5</span></h2>
+      <table class="task-table">
+      <tr data-status="partial">
+        <td class="td-id">DATA-OUTLET-002</td>
+        <td class="td-name">生产副本映射预演</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">显式 CSV 回填工具（`OutletBackfillService` + CLI）：dry-run 默认、apply 四重安全闸门拒绝生产特征、只改 `source_outlet_id`、冲突不覆盖、疑似批次跳过、双表、对账、幂等、自动测试。第二批A 增强审计报告：逐条 mapping（legacy/outlet_code/decision/reason + 候选/更新数）、operator（apply 必填、preview 缺省 PREVIEW）、起止时间、expected/actual 库名（严禁凭据）、映射文件 SHA-256、apply 前后 `source_outlet_id` 赋值摘要哈希（`orderIdOutletDigest`/`draftIdOutletDigest`）；生产副本真实预演、异常清单确认与对账签字待外部 |</td>
+      </tr>
+      <tr data-status="partial">
+        <td class="td-id">DATA-OUTLET-003</td>
+        <td class="td-name">用户初始档口授权清单</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">只读建议 SQL + 确认 CSV 模板（outletScope/peopleScope/默认/多档口），decision 恒 NEEDS_REVIEW，绝不自动授权；人工确认与授权待外部 |</td>
+      </tr>
+      <tr data-status="partial">
+        <td class="td-id">TEST-OUTLET-001</td>
+        <td class="td-name">后端越权矩阵</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">第一批：`OrderShipScopeGuardTest`（NONE 发货 403、幂等先鉴权、授权通过）、`OrderPlaceholderSplitScopeGuardTest`、`CustomerOrderScopeIntegrationTest`；终审：`OrderScopeRealDbIntegrationTest`（真实 MySQL 403 且副作用为零）、`CustomerPreferenceCacheEvictionTest`（真实 Redis evict 全范围、动作链路）。第二批A：`FileOutletAccessPolicyTest.peopleAll_keepsOwnUnboundFileVisible_butNotOthers_andOrderDraftScopeStillApplies`（peopleAll 下本人未绑定文件 list/count/detail 一致，订单/草稿仍按档口范围）、`OrderScopeRealDbIntegrationTest.realDb_financialActionChecksAccessBeforeIdempotencyShortCircuit/realDb_authorizedFinancialRetryIsIdempotent`（财务先鉴权后幂等）、`DashboardAnalyticsPermissionIntegrationTest`（menu:dashboard/menu:analytics 无权限 403、有权限可用）、`CrossTenantOutletIsolationIntegrationTest`（真实 DB：tenant1 绑/Key 绑 tenant2 档口失败无副作用、跨租户档口读改启停 404，覆盖并增强 mock 的 `UserOutletBindingTest.crossTenantOutletIsRejectedAsNotFound`）。其余 `OutletScopeMatrixTest`/`OrderOutletWriteRulesTest`/`AgentOutletScopeIntegrationTest` 保留。第四批：`TenantLineHandlerFailClosedTest`（缺上下文不生成 tenant=1）、`TenantContextFailClosedIntegrationTest`（user/role/permission/product/customer/outlet 缺上下文稳定 403 且零写入、真实 MyBatis 查询 fail-closed、tenant1/tenant2 真实登录正常）、`SalesOutletTenantDefaultIntegrationTest.missingSysTenantRowFailsClosedAndRollsBack`（无 sys_tenant 行时设置默认 403 回滚）。NONE 用户/负责人全人员/改名快照等仍待后续批次 |</td>
+      </tr>
+      <tr data-status="partial">
+        <td class="td-id">TEST-OUTLET-004</td>
+        <td class="td-name">全量回归与性能</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">全量后端 + PC 构建 + 关键 E2E；`OutletScopeCrossResourceAuditTest` 矩阵审计、`OutletIndexCoverageTest` 索引核对、`scripts/outlet-scope-explain.sql` 查询计划预演；生产规模性能待验证 |</td>
+      </tr>
+      <tr data-status="partial">
+        <td class="td-id">DOC-OUTLET-001</td>
+        <td class="td-name">文档与接入手册收口</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">PRD/DATABASE/API_SPEC/16/17/19/ROM-SOW/TASKS 已同步本地实现；生产发布记录与验收待外部 |</td>
+      </tr></table>
+    </section>
+
+    <section class="section other">
+      <h2>⚠️ 其他（待人工归类） <span class="count">0</span></h2>
       <p class="empty">（无）</p>
     </section>
 
     <section class="section deferred">
-      <h2>⏸ 暂缓或由外部流程承担 <span class="count">10</span></h2>
+      <h2>⏸ 暂缓或由外部流程承担 <span class="count">12</span></h2>
       <table class="task-table">
       <tr data-status="deferred">
         <td class="td-id">BE-1048</td>
@@ -345,6 +427,20 @@
         <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
         <td class="td-meta">后端 › Phase 3.4: 订单状态、金额、收款与履约重构（P0）</td>
         <td class="td-remark">新模型稳定一个发布周期后再评估，不属于本次长任务首发删除范围 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">ARCH-FIN-002</td>
+        <td class="td-name">通用财务演进与订单子账桥接</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">完整资金账户、AR/AP、跨单核销、预收预付、采购付款启动前先冻结唯一真相和迁移方案 |</td>
+      </tr>
+      <tr data-status="deferred">
+        <td class="td-id">ERP-PUR-FIN-001</td>
+        <td class="td-name">采购估值、应付与付款</td>
+        <td class="td-status"><span class="pill pill-deferred">⏸ 暂缓/外部承担</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">依赖 ARCH-FIN-002；不得阻塞 ERP-PUR-STOCK-001 |</td>
       </tr>
       <tr data-status="deferred">
         <td class="td-id">BE-601</td>
@@ -412,64 +508,8 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 319 项） <span class="count">319</span></h2>
+      <h2>✅ 已完成（共 320 项） <span class="count">320</span></h2>
       <table class="task-table">
-      <tr data-status="done">
-        <td class="td-id">BE-OUTLET-001</td>
-        <td class="td-name">档口主数据服务/API</td>
-        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
-        <td class="td-remark">`/api/outlets` CRUD/启停/options/引用统计/默认唯一；租户隔离、跨租户 404；无租户上下文 fail-closed 403 |</td>
-      </tr>
-      <tr data-status="done">
-        <td class="td-id">BE-OUTLET-002</td>
-        <td class="td-name">用户多档口绑定</td>
-        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
-        <td class="td-remark">用户 DTO/VO 增 `outletIds/defaultOutletId/outletScope/peopleScope`；同事务校验保存；旧客户端不清空 |</td>
-      </tr>
-      <tr data-status="done">
-        <td class="td-id">BE-OUTLET-003</td>
-        <td class="td-name">权限与迁移</td>
-        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
-        <td class="td-remark">V64 新增 menu/btn/data/agent 权限码并赋权 OWNER/ADMIN/FINANCE；兼容 `btn:order:viewAll` |</td>
-      </tr>
-      <tr data-status="done">
-        <td class="td-id">BA-OUTLET-001</td>
-        <td class="td-name">档口管理页面</td>
-        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
-        <td class="td-remark">`/outlets` 列表/搜索/状态筛选/新建编辑/设默认/启停二次确认（引用提示）；按钮按 `btn:outlet:*` 显隐 |</td>
-      </tr>
-      <tr data-status="done">
-        <td class="td-id">BA-OUTLET-002</td>
-        <td class="td-name">用户管理档口授权</td>
-        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">项目阶段 › 档口权限 Series B1 后端（2026-09-21，DeepSeek）</td>
-        <td class="td-remark">用户表单可访问档口多选 + 默认档口 + 权限摘要；销售员空档口阻止；仅状态切换不提交档口 |</td>
-      </tr>
-      <tr data-status="done">
-        <td class="td-id">BE-OUTLET-004</td>
-        <td class="td-name">统一 `OutletAccessPolicy`</td>
-        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">项目阶段 › 档口权限 Series C 统一访问策略（2026-09-21，DeepSeek）</td>
-        <td class="td-remark">用户/Agent 范围快照、读写分离、默认优先级、结构化 options 契约 |</td>
-      </tr>
-      <tr data-status="done">
-        <td class="td-id">BE-OUTLET-005</td>
-        <td class="td-name">`OrderAccessPolicy` 二维重构</td>
-        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">项目阶段 › 档口权限 Series C 统一访问策略（2026-09-21，DeepSeek）</td>
-        <td class="td-remark">档口×人员 SQL 谓词、`btn:order:viewAll` 兼容不绕过、Agent scope |</td>
-      </tr>
-      <tr data-status="done">
-        <td class="td-id">BE-OUTLET-006</td>
-        <td class="td-name">草稿档口权限接入</td>
-        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
-        <td class="td-meta">项目阶段 › 档口权限 Series C 统一访问策略（2026-09-21，DeepSeek）</td>
-        <td class="td-remark">page/batches/detail/update/confirm 统一范围；TOCTOU 复核；空档口确认阻断；create/update 服务端权威归属（第二轮整改） |</td>
-      </tr>
       <tr data-status="done">
         <td class="td-id">BE-001</td>
         <td class="td-name">Spring Boot 3 项目初始化</td>
@@ -1045,6 +1085,27 @@
         <td class="td-remark">2026-09-11 后端全量 496/496、共享类型/PC/移动端构建通过；访问令牌不可充当刷新令牌，refresh token 采用 Redis 单次轮换，真实 HTTP 验证旧 JWT 在注销后由 200 变为 403；一次性空库验证 V1→V58、3 单迁移/零人工核对、幂等重放及全部 SQL 发布门禁；生产副本验证 V42→V58 与 145 单迁移/重放通过，当前最终候选已生成可留档证据 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">ERP-GAP-001</td>
+        <td class="td-name">旧 ERP 真实使用度只读审计</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">851 商品、4493 SKU/仓行、4 仓；库存事实可信度高，旧金额/结算状态不作为迁移真相 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">ARCH-PROD-001</td>
+        <td class="td-name">SKU 语义与库存写入契约</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">`NORMAL`、当前 `DEFAULT` 可落库存；`PLACEHOLDER` 与已有启用真实规格的历史 `DEFAULT` 禁止新增库存事实；全量回归通过 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">PRICE-PRIVACY-001</td>
+        <td class="td-name">商品/订单 API 与导出金额脱敏</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
+        <td class="td-remark">商品/订单返回与订单导出按字段权限裁剪，不以 0 伪装；V57 补齐销售收款必要字段，仓库角色仍无金额权限；其他出口由 TEST-ERP-PRICE-PRIVACY-001 追踪 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BE-401</td>
         <td class="td-name">客户表和 CRUD</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -1526,6 +1587,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
         <td class="td-remark">占位行显示中文语义，未拆分时前后端共同阻止配货；随 release `20260916_104900` 上线 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">ARCH-620</td>
+        <td class="td-name">订单全流程回退、冲销与审批设计</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
+        <td class="td-remark">新增 `18-ORDER_REVERSAL_APPROVAL_DESIGN.md`；锁定可逆/禁止状态、依赖门禁、R0-R3 风险等级、角色权限、审批职责分离、逆向事务和测试门禁；尚未开发 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-609</td>
@@ -2144,6 +2212,34 @@
         <td class="td-remark">修改密码、个人信息；头部下拉菜单新增个人中心入口 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">ARCH-OUTLET-001</td>
+        <td class="td-name">档口和数据范围契约冻结</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">锁定档口主数据、用户多档口、`ALL/ASSIGNED/NONE × ALL_USERS/SELF`、Agent Key 档口范围和生产迁移边界 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">DB-OUTLET-001</td>
+        <td class="td-name">档口与用户关联表</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">新增 `sales_outlet`、`sys_user_outlet`、租户索引、默认档口唯一性和软删除/禁用规则 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">DB-OUTLET-002</td>
+        <td class="td-name">订单与草稿档口 ID 及变更审计</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">为 `sale_order/order_draft` 增加可空 `source_outlet_id`，新增 `order_outlet_change_log`；保留 `source_shop` 名称快照和兼容双读 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">DB-OUTLET-003</td>
+        <td class="td-name">Agent Key 档口关联</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">新增 `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE 默认 NONE）；轮换同事务复制范围与绑定 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BE-OUTLET-001</td>
         <td class="td-name">档口主数据服务与 API</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
@@ -2256,11 +2352,18 @@
         <td class="td-remark">Key Manager 全部/指定/不开放档口编辑器、默认档口、禁用档口仅历史绑定、列表展示与 rotate 回显；凭证弹窗 capabilities→outlets 接入说明；Playwright 2 passed |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">DATA-OUTLET-001</td>
+        <td class="td-name">历史档口只读审计工具</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">统计 `source_shop` 分布并输出自动映射、疑似批次、空值和冲突清单；含可编辑名称映射 CTE，全程只读不写生产 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">TEST-OUTLET-002</td>
         <td class="td-name">订单与草稿 E2E</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">后端 17 例 + Playwright 5 例：快速录单、手工/Agent 草稿、草稿确认、正式订单、列表筛选、待归档和伪造档口 403 |</td>
+        <td class="td-remark">后端 17 例 + Playwright 6 例（`e2e-order-outlet.spec.ts`）：快速录单单/多档口、options 不缓存、草稿/正式订单列表档口筛选与待归档、伪造越权档口 403 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">TEST-OUTLET-003</td>
