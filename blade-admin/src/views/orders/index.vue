@@ -280,10 +280,10 @@
                 type="primary"
                 link
                 size="small"
-                @click.stop="handleEdit(row)"
+                @click.stop="handleRowClick(row)"
               >
-                <span class="material-symbols-outlined text-sm mr-0.5">edit</span>
-                编辑
+                <span class="material-symbols-outlined text-sm mr-0.5">visibility</span>
+                查看详情
               </el-button>
             </template>
           </el-table-column>
@@ -313,156 +313,16 @@
     @close="closeImageViewer"
   />
 
-  <!-- 编辑订单弹窗 -->
-  <el-dialog
-    v-model="showEditDialog"
-    title="编辑订单"
-    width="600px"
-    :close-on-click-modal="false"
-    destroy-on-close
-  >
-    <!-- 订单上下文摘要 -->
-    <div class="mb-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600 flex gap-6">
-      <span>订单号：<b class="text-gray-900">{{ editingOrder?.orderNo }}</b></span>
-      <span>状态：<el-tag size="small">{{ editingOrder?.statusName }}</el-tag></span>
-      <span>金额：<b class="text-gray-900">{{ formatMoney(editingOrder?.totalAmount ?? 0) }}</b></span>
-    </div>
-    <el-alert
-      v-if="!canEditFinancialFields"
-      class="mb-4"
-      type="info"
-      :closable="false"
-      show-icon
-    >
-      <template #title>
-        已结清或已进入履约流程的订单会锁定客户、商品与金额结构；备注和订单图片仍可维护。
-      </template>
-    </el-alert>
-    <el-form
-      ref="editFormRef"
-      :model="editForm"
-      :rules="editRules"
-      label-width="100px"
-      class="pt-2"
-    >
-      <el-form-item label="客户名称" prop="customerName">
-        <el-input v-model="editForm.customerName" :disabled="!canEditBasicFields" placeholder="请输入客户名称" />
-      </el-form-item>
-      <el-form-item label="客户电话" prop="customerPhone">
-        <el-input v-model="editForm.customerPhone" :disabled="!canEditBasicFields" placeholder="请输入客户电话" />
-      </el-form-item>
-      <el-form-item label="客户地址">
-        <el-input v-model="editForm.customerAddress" :disabled="!canEditBasicFields" placeholder="请输入客户地址" />
-      </el-form-item>
-      <el-form-item label="纸质单号">
-        <el-input v-model="editForm.sourceDocNo" :disabled="!canEditBasicFields" placeholder="纸质单据号" />
-      </el-form-item>
-      <el-form-item label="来源档口">
-        <div class="w-full">
-          <OutletSelect
-            v-model="editForm.sourceOutletId"
-            :pending="editingOutletPending"
-            :allow-pending="canUseUnassigned"
-            :disabled="!canChangeOutlet"
-            :fallback-label="editingOrder?.sourceShop"
-            test-id="order-edit-outlet"
-          />
-          <el-input
-            v-if="canChangeOutlet && outletChanged"
-            v-model="editForm.outletChangeReason"
-            type="textarea"
-            :rows="2"
-            class="mt-2"
-            data-testid="outlet-change-reason"
-            placeholder="档口变更原因（必填）"
-          />
-        </div>
-      </el-form-item>
-      <el-form-item label="订单日期">
-        <el-date-picker v-model="editForm.orderDate" :disabled="!canEditBasicFields" value-format="YYYY-MM-DD" type="date" class="!w-full" />
-      </el-form-item>
-      <el-form-item label="订单类型">
-        <el-radio-group v-model="editForm.orderType" :disabled="!canEditBasicFields">
-          <el-radio value="SPOT">现货订单</el-radio>
-          <el-radio value="PREORDER">订货订单</el-radio>
-        </el-radio-group>
-      </el-form-item>
-      <el-form-item label="运费收入">
-        <el-input-number v-model="editForm.freightAmount" :disabled="!canEditFinancialFields" :min="0" :precision="2" :controls="false" class="!w-full" />
-      </el-form-item>
-      <el-form-item v-if="canEditCost" label="运费成本">
-        <el-input-number v-model="editForm.freightCost" :disabled="!canEditFinancialFields" :min="0" :precision="2" :controls="false" class="!w-full" />
-      </el-form-item>
-      <el-form-item label="送货方式">
-        <el-radio-group v-model="editForm.needDelivery" :disabled="!canEditBasicFields">
-          <el-radio :value="0">自取</el-radio>
-          <el-radio :value="1">需要送货</el-radio>
-        </el-radio-group>
-      </el-form-item>
-      <el-form-item v-if="editForm.needDelivery === 1" label="送货地址">
-        <el-input v-model="editForm.deliveryAddress" :disabled="!canEditBasicFields" placeholder="请输入送货地址" />
-      </el-form-item>
-      <el-form-item label="备注">
-        <el-input
-          v-model="editForm.remark"
-          type="textarea"
-          :rows="3"
-          placeholder="请输入备注"
-        />
-      </el-form-item>
-      <el-form-item label="订单图片">
-        <div class="w-full space-y-3">
-          <div class="flex flex-wrap gap-3">
-            <div
-              v-for="(img, index) in editImageSources"
-              :key="`${img}-${index}`"
-              class="group relative h-24 w-24 overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
-            >
-              <img :src="img" alt="" class="h-full w-full object-cover" />
-              <button
-                type="button"
-                class="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                aria-label="移除订单图片"
-                @click="removeEditImage(index)"
-              >
-                <span class="material-symbols-outlined text-[14px]">close</span>
-              </button>
-            </div>
-            <label
-              class="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-gray-500 transition-colors hover:border-[#408aee] hover:bg-blue-50"
-            >
-              <span class="material-symbols-outlined mb-1 text-2xl text-gray-400">add_photo_alternate</span>
-              <span class="text-[10px] font-medium">{{ editImageUploading ? '上传中' : '上传图片' }}</span>
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                class="hidden"
-                :disabled="editImageUploading"
-                @change="handleEditImageUpload"
-              />
-            </label>
-          </div>
-          <p class="text-xs text-gray-400">支持多选上传；图片保存为 fileId，历史图片会保留到本次保存。</p>
-        </div>
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="showEditDialog = false">取消</el-button>
-      <el-button type="primary" :loading="editSaving" @click="handleEditSave">保存</el-button>
-    </template>
-  </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getOrderPage, updateOrder, exportOrders, type OrderUpdateDTO, type OrderVO } from '@/api/order'
+import { getOrderPage, exportOrders, type OrderVO } from '@/api/order'
 import type { OutletOptionVO } from '@/api/outlet'
-import { parseImageSources, parseImageValues, parseImageVariantSources, uploadFile } from '@/api/file'
-import { ElImageViewer, ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import OutletSelect from '@/components/OutletSelect.vue'
+import { parseImageSources, parseImageVariantSources } from '@/api/file'
+import { ElImageViewer, ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { loadOutletOptions } from '@/utils/outletOptions'
 
@@ -479,7 +339,6 @@ const dateRange = ref<Date[]>([])
 const outletFilter = ref<number | 'UNASSIGNED' | null>(null)
 const outletFilterOptions = ref<OutletOptionVO[]>([])
 const canUseUnassigned = computed(() => authStore.permissions.includes('data:outlet:unassigned'))
-const canChangeOutlet = computed(() => authStore.permissions.includes('btn:order:changeOutlet'))
 
 function outletFilterLabel(outlet: OutletOptionVO) {
   return outlet.outletCode ? `${outlet.outletName}（${outlet.outletCode}）` : outlet.outletName
@@ -575,138 +434,9 @@ async function handleExport() {
   }
 }
 
-// 编辑弹窗
-const showEditDialog = ref(false)
-const editSaving = ref(false)
-const editImageUploading = ref(false)
-const editFormRef = ref<FormInstance>()
-const editingOrder = ref<OrderVO | null>(null)
-const originalOutletId = ref<number | null>(null)
-const editingOutletPending = computed(() => editingOrder.value?.sourceOutletId == null)
-const editImageValues = ref<string[]>([])
-const editImageSources = computed(() => parseImageVariantSources(JSON.stringify(editImageValues.value), 'thumb'))
-const canEditBasicFields = computed(() => editingOrder.value?.allowedActions?.includes('editOrder') === true)
-const canEditFinancialFields = computed(() => canEditBasicFields.value)
-const canEditCost = computed(() => authStore.permissions.includes('field:cost_price'))
 const imageViewerVisible = ref(false)
 const imageViewerUrls = ref<string[]>([])
 const imageViewerIndex = ref(0)
-const editForm = reactive({
-  customerName: '',
-  orderDate: '',
-  sourceDocNo: '',
-  sourceOutletId: null as number | null,
-  outletChangeReason: '',
-  orderType: 'SPOT',
-  customerPhone: '',
-  customerAddress: '',
-  needDelivery: 0,
-  deliveryAddress: '',
-  freightAmount: 0,
-  freightCost: 0,
-  remark: '',
-  images: '',
-})
-const editRules: FormRules = {
-  customerName: [{ required: true, message: '客户名称不能为空', trigger: 'blur' }],
-}
-const outletChanged = computed(() => editForm.sourceOutletId !== originalOutletId.value)
-
-function handleEdit(row: OrderVO) {
-  editingOrder.value = row
-  editForm.customerName = row.customerName || ''
-  editForm.orderDate = row.orderDate || ''
-  editForm.sourceDocNo = row.sourceDocNo || ''
-  editForm.sourceOutletId = row.sourceOutletId ?? null
-  editForm.outletChangeReason = ''
-  originalOutletId.value = row.sourceOutletId ?? null
-  editForm.orderType = row.orderType || 'SPOT'
-  editForm.customerPhone = row.customerPhone || ''
-  editForm.customerAddress = row.customerAddress || ''
-  editForm.needDelivery = row.needDelivery ?? 0
-  editForm.deliveryAddress = row.deliveryAddress || ''
-  editForm.freightAmount = row.freightAmount || 0
-  editForm.freightCost = row.freightCost || 0
-  editForm.remark = row.remark || ''
-  editImageValues.value = parseImageValues(row.images)
-  syncEditImages()
-  showEditDialog.value = true
-}
-
-async function handleEditSave() {
-  if (!editFormRef.value || !editingOrder.value) return
-  await editFormRef.value.validate()
-  editSaving.value = true
-  try {
-    const payload: OrderUpdateDTO = {
-      remark: editForm.remark,
-      images: editForm.images,
-    }
-    if (canChangeOutlet.value && outletChanged.value) {
-      if (editForm.sourceOutletId == null) {
-        ElMessage.warning('档口不能清空，请选择有效档口')
-        return
-      }
-      if (!editForm.outletChangeReason.trim()) {
-        ElMessage.warning('请填写档口变更原因')
-        return
-      }
-      payload.sourceOutletId = editForm.sourceOutletId
-      payload.outletChangeReason = editForm.outletChangeReason.trim()
-    }
-    if (canEditBasicFields.value) {
-      Object.assign(payload, {
-        customerName: editForm.customerName,
-        orderDate: editForm.orderDate,
-        sourceDocNo: editForm.sourceDocNo,
-        orderType: editForm.orderType,
-        customerPhone: editForm.customerPhone,
-        customerAddress: editForm.customerAddress,
-        needDelivery: editForm.needDelivery,
-        deliveryAddress: editForm.deliveryAddress,
-      })
-    }
-    if (canEditFinancialFields.value) {
-      payload.freightAmount = editForm.freightAmount
-      if (canEditCost.value) payload.freightCost = editForm.freightCost
-    }
-    await updateOrder(editingOrder.value.id, payload)
-    ElMessage.success('订单信息已更新')
-    showEditDialog.value = false
-    loadData()
-  } catch (error: any) {
-    ElMessage.error(error.message || '保存失败')
-  } finally {
-    editSaving.value = false
-  }
-}
-
-async function handleEditImageUpload(e: Event) {
-  const target = e.target as HTMLInputElement
-  if (!target.files) return
-  editImageUploading.value = true
-  try {
-    for (const file of Array.from(target.files)) {
-      const res = await uploadFile(file, 'order', editingOrder.value?.id)
-      editImageValues.value.push(String(res.data.id))
-    }
-    syncEditImages()
-  } catch (error: any) {
-    ElMessage.error(error.message || '图片上传失败')
-  } finally {
-    editImageUploading.value = false
-    target.value = ''
-  }
-}
-
-function removeEditImage(index: number) {
-  editImageValues.value.splice(index, 1)
-  syncEditImages()
-}
-
-function syncEditImages() {
-  editForm.images = editImageValues.value.length > 0 ? JSON.stringify(editImageValues.value) : ''
-}
 
 function orderImageSources(row: OrderVO) {
   return parseImageVariantSources(row.images, 'thumb')

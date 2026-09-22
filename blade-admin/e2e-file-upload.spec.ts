@@ -82,19 +82,20 @@ test('product image upload returns fileId through unified file API', async ({ pa
   await expect(page.getByText('服务器内部错误')).toHaveCount(0)
 })
 
-test('order edit image upload shows preview in order dialog', async ({ page, request }) => {
+test('order detail image maintenance uploads and previews an image', async ({ page, request }) => {
   const auth = await loginAdmin(page, request)
 
   await page.goto('/orders')
-  await page.getByRole('button', { name: '编辑' }).first().click()
-  await expect(page.getByRole('dialog', { name: '编辑订单' })).toBeVisible()
+  await page.getByRole('button', { name: '查看详情' }).first().click()
+  await page.getByRole('button', { name: '维护备注/图片' }).click()
+  await expect(page.getByRole('dialog', { name: '维护备注/图片' })).toBeVisible()
 
   const uploadResponsePromise = page.waitForResponse((response) =>
     response.url().includes('/api/files/upload')
     && response.request().method() === 'POST'
   )
 
-  await page.locator('input[type="file"]').setInputFiles(
+  await page.getByRole('dialog', { name: '维护备注/图片' }).locator('input[type="file"]').setInputFiles(
     path.resolve(dirname, 'src/views/customers/test-screenshots/c01-login-filled.png')
   )
 

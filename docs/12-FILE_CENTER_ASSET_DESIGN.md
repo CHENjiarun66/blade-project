@@ -196,7 +196,7 @@ GET /api/files/{id}/variant?type=card
 | 场景 | 图片来源 |
 |------|----------|
 | 商品列表主图 | `card` 或 `thumb` |
-| 订单列表/编辑弹窗图片墙 | `thumb` |
+| 订单列表缩略图 / 订单详情维护图片墙 | `thumb` |
 | 文件中心网格 | `card` |
 | 文件中心列表小图 | `thumb` |
 | Catalog 商品卡片 | `card` |

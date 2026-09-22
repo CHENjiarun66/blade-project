@@ -12,7 +12,7 @@
         </button>
         <h2 class="text-2xl font-bold text-gray-900 tracking-tight">订单详情</h2>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center justify-end gap-3">
         <!-- 状态操作按钮（按后端 allowedActions 白名单展示，历史行回退旧判断） -->
         <template v-if="order">
           <el-button
@@ -21,7 +21,24 @@
             plain
             @click="openOrderEdit"
           >
-            编辑订单
+            <span class="material-symbols-outlined mr-1 text-[18px]">edit_note</span>
+            编辑订单内容
+          </el-button>
+          <el-button
+            v-if="canMaintainOrderAssets"
+            plain
+            @click="openRemarkImagesEdit"
+          >
+            <span class="material-symbols-outlined mr-1 text-[18px]">add_photo_alternate</span>
+            维护备注/图片
+          </el-button>
+          <el-button
+            v-if="canChangeOutlet"
+            plain
+            @click="openOutletChange"
+          >
+            <span class="material-symbols-outlined mr-1 text-[18px]">store</span>
+            变更来源档口
           </el-button>
           <el-button
             v-if="hasAction('recordPayment') && !legacyUnmigrated"
@@ -599,7 +616,7 @@
     <!-- 未结清、未进入履约阶段的订单内容编辑 -->
     <el-dialog
       v-model="showOrderEditDialog"
-      title="编辑订单"
+      title="编辑订单内容"
       width="1040px"
       :close-on-click-modal="false"
       destroy-on-close
@@ -608,8 +625,29 @@
         <el-alert
           type="info"
           :closable="false"
-          title="未收款或部分收款、且尚未进入履约流程时，可修改客户和商品。已结清后将自动锁定。"
+          title="这里集中修改订单基础信息、客户、商品和金额。订单结清或进入履约流程后，内容会自动锁定。"
         />
+
+        <section class="edit-section">
+          <h3>订单信息</h3>
+          <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <label class="edit-field">
+              <span>纸质单号</span>
+              <el-input v-model="orderEditForm.sourceDocNo" clearable placeholder="请输入纸质单号" />
+            </label>
+            <label class="edit-field">
+              <span>订单日期</span>
+              <el-date-picker v-model="orderEditForm.orderDate" value-format="YYYY-MM-DD" type="date" class="!w-full" />
+            </label>
+            <label class="edit-field">
+              <span>订单类型</span>
+              <el-radio-group v-model="orderEditForm.orderType">
+                <el-radio-button value="SPOT">现货订单</el-radio-button>
+                <el-radio-button value="PREORDER">订货订单</el-radio-button>
+              </el-radio-group>
+            </label>
+          </div>
+        </section>
 
         <section class="edit-section">
           <h3>客户信息</h3>
@@ -700,7 +738,21 @@
         </section>
 
         <section class="edit-section">
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <h3>配送与金额</h3>
+          <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label class="edit-field">
+              <span>配送方式</span>
+              <el-radio-group v-model="orderEditForm.needDelivery">
+                <el-radio-button :value="0">自取</el-radio-button>
+                <el-radio-button :value="1">需要送货</el-radio-button>
+              </el-radio-group>
+            </label>
+            <label v-if="orderEditForm.needDelivery === 1" class="edit-field">
+              <span>配送地址</span>
+              <el-input v-model="orderEditForm.deliveryAddress" clearable placeholder="请输入配送地址" />
+            </label>
+          </div>
+          <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
             <label class="edit-field"><span>客户运费收入</span><el-input-number v-model="orderEditForm.freightAmount" :min="0" :precision="2" :controls="false" class="!w-full" /></label>
             <label v-if="canEditCost" class="edit-field"><span>实际运费成本</span><el-input-number v-model="orderEditForm.freightCost" :min="0" :precision="2" :controls="false" class="!w-full" /></label>
             <div class="edit-total-card"><span>修改后应收</span><strong>¥ {{ fmt(orderEditTotal) }}</strong></div>
@@ -716,6 +768,107 @@
       <template #footer>
         <el-button :disabled="orderEditSaving" @click="showOrderEditDialog = false">取消</el-button>
         <el-button type="primary" :loading="orderEditSaving" @click="saveOrderEdit">保存修改</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 生命周期锁定后仍可独立维护，不与订单内容编辑混在一起 -->
+    <el-dialog
+      v-model="showRemarkImagesDialog"
+      title="维护备注/图片"
+      width="680px"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <div class="space-y-5">
+        <el-alert
+          type="info"
+          :closable="false"
+          title="备注和凭证图片不会改变订单金额、客户、商品或履约状态。"
+        />
+        <label class="edit-field">
+          <span>订单备注</span>
+          <el-input v-model="remarkImagesForm.remark" type="textarea" :rows="4" placeholder="补充订单说明" />
+        </label>
+        <div class="edit-field">
+          <span>订单图片</span>
+          <div class="flex flex-wrap gap-3">
+            <div
+              v-for="(img, index) in remarkImageSources"
+              :key="`${img}-${index}`"
+              class="group relative h-28 w-28 overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
+            >
+              <img :src="img" alt="订单图片" class="h-full w-full object-cover" />
+              <button
+                type="button"
+                class="absolute right-1.5 top-1.5 rounded-full bg-black/65 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                aria-label="移除订单图片"
+                @click="removeRemarkImage(index)"
+              >
+                <span class="material-symbols-outlined block text-[16px]">close</span>
+              </button>
+            </div>
+            <label class="flex h-28 w-28 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 text-gray-500 transition-colors hover:border-[#408aee] hover:bg-blue-50">
+              <span class="material-symbols-outlined mb-1 text-2xl">add_photo_alternate</span>
+              <span class="text-xs font-semibold">{{ remarkImageUploading ? '上传中' : '上传图片' }}</span>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                class="hidden"
+                :disabled="remarkImageUploading"
+                @change="handleRemarkImageUpload"
+              />
+            </label>
+          </div>
+          <p class="text-xs text-gray-400">新图片会先进入文件中心，保存后绑定到当前订单。</p>
+        </div>
+      </div>
+      <template #footer>
+        <el-button :disabled="remarkImagesSaving" @click="showRemarkImagesDialog = false">取消</el-button>
+        <el-button type="primary" :loading="remarkImagesSaving" @click="saveRemarkImages">保存备注/图片</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 来源档口是高权限审计操作，独立于普通订单内容编辑 -->
+    <el-dialog
+      v-model="showOutletChangeDialog"
+      title="变更来源档口"
+      width="540px"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <div class="space-y-5">
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm">
+          <span class="text-gray-500">当前来源档口</span>
+          <strong class="ml-3 text-gray-900">{{ order?.sourceShop || '待归档档口' }}</strong>
+        </div>
+        <label class="edit-field">
+          <span>新来源档口</span>
+          <OutletSelect
+            v-model="outletChangeForm.sourceOutletId"
+            :pending="order?.sourceOutletId == null"
+            :allow-pending="canUseUnassigned"
+            :fallback-label="order?.sourceShop"
+            test-id="order-detail-outlet"
+          />
+        </label>
+        <label class="edit-field">
+          <span>变更原因 <em class="text-red-500 not-italic">*</em></span>
+          <el-input
+            v-model="outletChangeForm.reason"
+            type="textarea"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+            data-testid="outlet-change-reason"
+            placeholder="请说明为什么需要变更来源档口"
+          />
+        </label>
+        <el-alert type="warning" :closable="false" title="此操作会记录原档口、新档口、原因和操作人，保存后可审计。" />
+      </div>
+      <template #footer>
+        <el-button :disabled="outletChangeSaving" @click="showOutletChangeDialog = false">取消</el-button>
+        <el-button type="primary" :loading="outletChangeSaving" @click="saveOutletChange">确认变更</el-button>
       </template>
     </el-dialog>
 
@@ -974,14 +1127,18 @@ import { getOrderById, updateOrder, confirmSettlement, addPayment, completeOrder
 import { getAllWarehouses, getInventoryByWarehouse, type WarehouseVO, type InventoryVO } from '@/api/inventory'
 import { getProductPage } from '@/api/product'
 import { getCustomerPage, type CustomerVO } from '@/api/customer'
-import { parseImageSources, parseImageVariantSources } from '@/api/file'
+import { parseImageSources, parseImageValues, parseImageVariantSources, uploadFile } from '@/api/file'
 import { hasFriendlySkuName, skuColorDisplay, skuFriendlyName, skuSizeDisplay } from '@/utils/skuDisplay'
 import { useAuthStore } from '@/stores/auth'
+import OutletSelect from '@/components/OutletSelect.vue'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const canEditCost = computed(() => authStore.permissions.includes('field:cost_price'))
+const canMaintainOrderAssets = computed(() => authStore.permissions.includes('btn:order:edit'))
+const canChangeOutlet = computed(() => canMaintainOrderAssets.value && authStore.permissions.includes('btn:order:changeOutlet'))
+const canUseUnassigned = computed(() => authStore.permissions.includes('data:outlet:unassigned'))
 
 const order = ref<OrderVO | null>(null)
 const loading = ref(true)
@@ -1117,12 +1274,31 @@ const orderEditSaving = ref(false)
 const orderEditSkuOptions = ref<OrderEditSkuOption[]>([])
 const orderEditItems = ref<OrderEditItem[]>([])
 const orderEditForm = reactive({
+  orderDate: '',
+  sourceDocNo: '',
+  orderType: 'SPOT',
   customerId: undefined as number | undefined,
   customerName: '',
   customerPhone: '',
   customerAddress: '',
+  needDelivery: 0,
+  deliveryAddress: '',
   freightAmount: 0,
   freightCost: 0,
+})
+
+const showRemarkImagesDialog = ref(false)
+const remarkImagesSaving = ref(false)
+const remarkImageUploading = ref(false)
+const remarkImageValues = ref<string[]>([])
+const remarkImagesForm = reactive({ remark: '' })
+const remarkImageSources = computed(() => parseImageVariantSources(JSON.stringify(remarkImageValues.value), 'thumb'))
+
+const showOutletChangeDialog = ref(false)
+const outletChangeSaving = ref(false)
+const outletChangeForm = reactive({
+  sourceOutletId: null as number | null,
+  reason: '',
 })
 
 const orderEditTotal = computed(() => roundMoney(
@@ -1171,10 +1347,15 @@ async function loadOrderEditSkuOptions() {
 
 async function openOrderEdit() {
   if (!order.value || !hasAction('editOrder')) return
+  orderEditForm.orderDate = order.value.orderDate || ''
+  orderEditForm.sourceDocNo = order.value.sourceDocNo || ''
+  orderEditForm.orderType = order.value.orderType || 'SPOT'
   orderEditForm.customerId = order.value.customerId || undefined
   orderEditForm.customerName = order.value.customerName || ''
   orderEditForm.customerPhone = order.value.customerPhone || ''
   orderEditForm.customerAddress = order.value.customerAddress || ''
+  orderEditForm.needDelivery = order.value.needDelivery ?? 0
+  orderEditForm.deliveryAddress = order.value.deliveryAddress || ''
   orderEditForm.freightAmount = Number(order.value.freightAmount || 0)
   orderEditForm.freightCost = Number(order.value.freightCost || 0)
   orderEditItems.value = (order.value.items || []).map(item => ({
@@ -1236,6 +1417,14 @@ function rowSubtotal(row: OrderEditItem) {
 
 async function saveOrderEdit() {
   if (!order.value || orderEditSaving.value) return
+  if (!orderEditForm.orderDate) {
+    ElMessage.warning('请选择订单日期')
+    return
+  }
+  if (orderEditForm.needDelivery === 1 && !orderEditForm.deliveryAddress.trim()) {
+    ElMessage.warning('需要送货时请填写配送地址')
+    return
+  }
   if (orderEditItems.value.some(row => !row.skuId || !row.quantity || row.quantity <= 0)) {
     ElMessage.warning('请为每一行选择 SKU 并填写有效数量')
     return
@@ -1247,10 +1436,15 @@ async function saveOrderEdit() {
   orderEditSaving.value = true
   try {
     await updateOrder(order.value.id, {
+      orderDate: orderEditForm.orderDate,
+      sourceDocNo: orderEditForm.sourceDocNo.trim(),
+      orderType: orderEditForm.orderType,
       customerId: orderEditForm.customerId,
       customerName: orderEditForm.customerName.trim() || '散客',
       customerPhone: orderEditForm.customerPhone.trim(),
       customerAddress: orderEditForm.customerAddress.trim(),
+      needDelivery: orderEditForm.needDelivery,
+      deliveryAddress: orderEditForm.needDelivery === 1 ? orderEditForm.deliveryAddress.trim() : '',
       freightAmount: Number(orderEditForm.freightAmount || 0),
       ...(canEditCost.value ? { freightCost: Number(orderEditForm.freightCost || 0) } : {}),
       items: orderEditItems.value.map(row => ({
@@ -1267,6 +1461,91 @@ async function saveOrderEdit() {
     ElMessage.error(error.message || '保存订单失败')
   } finally {
     orderEditSaving.value = false
+  }
+}
+
+function openRemarkImagesEdit() {
+  if (!order.value || !canMaintainOrderAssets.value) return
+  remarkImagesForm.remark = order.value.remark || ''
+  remarkImageValues.value = parseImageValues(order.value.images)
+  showRemarkImagesDialog.value = true
+}
+
+async function handleRemarkImageUpload(event: Event) {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  if (files.length === 0) return
+  remarkImageUploading.value = true
+  try {
+    for (const file of files) {
+      // 保存订单前保持为未绑定文件；保存成功后由后端统一同步绑定，取消弹窗不会误绑订单。
+      const response = await uploadFile(file, 'order')
+      remarkImageValues.value.push(String(response.data.id))
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '图片上传失败')
+  } finally {
+    remarkImageUploading.value = false
+    target.value = ''
+  }
+}
+
+function removeRemarkImage(index: number) {
+  remarkImageValues.value.splice(index, 1)
+}
+
+async function saveRemarkImages() {
+  if (!order.value || remarkImagesSaving.value) return
+  remarkImagesSaving.value = true
+  try {
+    await updateOrder(order.value.id, {
+      remark: remarkImagesForm.remark.trim(),
+      images: remarkImageValues.value.length > 0 ? JSON.stringify(remarkImageValues.value) : '',
+    })
+    ElMessage.success('订单备注和图片已更新')
+    showRemarkImagesDialog.value = false
+    await loadOrder()
+  } catch (error: any) {
+    ElMessage.error(error.message || '保存备注和图片失败')
+  } finally {
+    remarkImagesSaving.value = false
+  }
+}
+
+function openOutletChange() {
+  if (!order.value || !canChangeOutlet.value) return
+  outletChangeForm.sourceOutletId = order.value.sourceOutletId ?? null
+  outletChangeForm.reason = ''
+  showOutletChangeDialog.value = true
+}
+
+async function saveOutletChange() {
+  if (!order.value || outletChangeSaving.value) return
+  if (outletChangeForm.sourceOutletId == null) {
+    ElMessage.warning('请选择新的来源档口')
+    return
+  }
+  if (outletChangeForm.sourceOutletId === order.value.sourceOutletId) {
+    ElMessage.warning('新来源档口与当前档口相同')
+    return
+  }
+  if (!outletChangeForm.reason.trim()) {
+    ElMessage.warning('请填写档口变更原因')
+    return
+  }
+  outletChangeSaving.value = true
+  try {
+    await updateOrder(order.value.id, {
+      sourceOutletId: outletChangeForm.sourceOutletId,
+      outletChangeReason: outletChangeForm.reason.trim(),
+    })
+    ElMessage.success('来源档口已变更并记录审计日志')
+    showOutletChangeDialog.value = false
+    await loadOrder()
+  } catch (error: any) {
+    ElMessage.error(error.message || '变更来源档口失败')
+  } finally {
+    outletChangeSaving.value = false
   }
 }
 
