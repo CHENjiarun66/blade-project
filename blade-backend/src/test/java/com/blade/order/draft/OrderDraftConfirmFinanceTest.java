@@ -1,10 +1,15 @@
 package com.blade.order.draft;
 
 import com.blade.common.tenant.TenantContext;
+import com.blade.common.exception.BusinessException;
 import com.blade.common.result.PageResult;
 import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.service.FileService;
+import com.blade.customer.entity.Customer;
+import com.blade.customer.entity.CustomerPhone;
+import com.blade.customer.mapper.CustomerMapper;
+import com.blade.customer.mapper.CustomerPhoneMapper;
 import com.blade.order.draft.dto.OrderDraftDTO;
 import com.blade.order.draft.entity.OrderDraft;
 import com.blade.order.draft.entity.OrderDraftItem;
@@ -66,6 +71,8 @@ class OrderDraftConfirmFinanceTest {
     @Autowired private ProductMapper productMapper;
     @Autowired private FileStorageMapper fileStorageMapper;
     @Autowired private FileService fileService;
+    @Autowired private CustomerMapper customerMapper;
+    @Autowired private CustomerPhoneMapper customerPhoneMapper;
     @Autowired private com.blade.file.policy.FileBusinessAccessPolicy fileBusinessAccessPolicy;
     @Autowired private ObjectMapper objectMapper;
 
@@ -275,6 +282,101 @@ class OrderDraftConfirmFinanceTest {
             Order order = orderMapper.selectById(response.getOrderId());
             assertEquals(CollectionStatus.UNPAID.name(), order.getCollectionStatus());
             assertEquals(0, order.getBalanceAmount().compareTo(new BigDecimal("100.00")));
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void confirmDraft_newCustomerCreatesMaster_andSamePhoneDoesNotDuplicate() {
+        bindContext();
+        try {
+            String phone = "+232 76-857-336";
+            Long firstDraftId = seedDraft("NEW-CUSTOMER-A", BigDecimal.ZERO, new BigDecimal("100.00"));
+            OrderDraft firstDraft = draftMapper.selectById(firstDraftId);
+            firstDraft.setCustomerId(null);
+            firstDraft.setCustomerName("K. Sankoh");
+            firstDraft.setCustomerPhone(phone);
+            firstDraft.setCustomerCountryCode("+232");
+            firstDraft.setCustomerAddress("Freetown");
+            draftMapper.updateById(firstDraft);
+
+            OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();
+            request.setAcknowledgeWarnings(true);
+            Order firstOrder = orderMapper.selectById(draftService.confirm(firstDraftId, request).getOrderId());
+            assertNotNull(firstOrder.getCustomerId(), "新客户必须在确认草稿时创建并关联客户主档");
+
+            Customer customer = customerMapper.selectById(firstOrder.getCustomerId());
+            assertEquals("K. Sankoh", customer.getName());
+            assertEquals("+232", customer.getCountryCode());
+            assertEquals("Freetown", customer.getAddress());
+            List<CustomerPhone> phones = customerPhoneMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CustomerPhone>()
+                            .eq(CustomerPhone::getPhone, "23276857336")
+                            .eq(CustomerPhone::getDeleted, 0));
+            assertEquals(1, phones.size());
+
+            Long secondDraftId = seedDraft("NEW-CUSTOMER-B", BigDecimal.ZERO, new BigDecimal("100.00"));
+            OrderDraft secondDraft = draftMapper.selectById(secondDraftId);
+            secondDraft.setCustomerId(null);
+            secondDraft.setCustomerName("同电话识别名称");
+            secondDraft.setCustomerPhone("23276857336");
+            draftMapper.updateById(secondDraft);
+
+            Order secondOrder = orderMapper.selectById(draftService.confirm(secondDraftId, request).getOrderId());
+            assertEquals(firstOrder.getCustomerId(), secondOrder.getCustomerId(), "同一电话必须关联已有客户，不能重复建档");
+            assertEquals(1, customerPhoneMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CustomerPhone>()
+                            .eq(CustomerPhone::getPhone, "23276857336")
+                            .eq(CustomerPhone::getDeleted, 0)).size());
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void confirmDraft_emptyCustomerUsesWalkIn_withoutCreatingCustomerMaster() {
+        bindContext();
+        try {
+            Long draftId = seedDraft("WALK-IN", BigDecimal.ZERO, new BigDecimal("100.00"));
+            OrderDraft draft = draftMapper.selectById(draftId);
+            draft.setCustomerId(null);
+            draft.setCustomerName(null);
+            draft.setCustomerPhone(null);
+            draft.setCustomerCountryCode(null);
+            draft.setCustomerAddress(null);
+            draftMapper.updateById(draft);
+
+            OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();
+            request.setAcknowledgeWarnings(true);
+            Order order = orderMapper.selectById(draftService.confirm(draftId, request).getOrderId());
+            assertNull(order.getCustomerId());
+            assertEquals("散客", order.getCustomerName());
+        } finally {
+            TenantContext.clear();
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void confirmDraft_newCustomerWithoutPhoneIsRejected() {
+        bindContext();
+        try {
+            Long draftId = seedDraft("CUSTOMER-NO-PHONE", BigDecimal.ZERO, new BigDecimal("100.00"));
+            OrderDraft draft = draftMapper.selectById(draftId);
+            draft.setCustomerId(null);
+            draft.setCustomerName("新客户但无电话");
+            draft.setCustomerPhone(null);
+            draftMapper.updateById(draft);
+
+            OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();
+            request.setAcknowledgeWarnings(true);
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> draftService.confirm(draftId, request));
+            assertEquals(400, ex.getCode());
+            assertTrue(ex.getMessage().contains("新客户请填写客户电话"));
         } finally {
             TenantContext.clear();
             SecurityContextHolder.clearContext();

@@ -191,7 +191,7 @@
                   v-model="current.customerName"
                   :fetch-suggestions="queryCustomerSuggestions"
                   value-key="name"
-                  placeholder="输入客户名称搜索，未匹配可保留散客"
+                  placeholder="输入客户名称搜索；新客户确认时自动建档"
                   clearable
                   class="!w-full"
                   :disabled="readonly"
@@ -232,6 +232,9 @@
                 <span>客户地址</span>
                 <el-input v-model="current.customerAddress" :disabled="readonly" clearable placeholder="客户地址" />
               </label>
+              <p class="customer-entry-hint md:col-span-2">
+                选择已有客户会直接关联；新客户填写名称和电话后，在确认订单时自动加入客户列表。客户信息留空则按散客处理。
+              </p>
             </div>
           </section>
         </div>
@@ -872,6 +875,25 @@ function validateDocumentIdentity(draft: OrderDraftView) {
   return true
 }
 
+function validateCustomerForConfirmation(draft: OrderDraftView) {
+  if (draft.customerId) return true
+  const name = draft.customerName?.trim() || ''
+  const phone = draft.customerPhone?.trim() || ''
+  const address = draft.customerAddress?.trim() || ''
+  const countryCode = draft.customerCountryCode?.trim() || ''
+  const isEmpty = !name && !phone && !address && !countryCode
+  if (isEmpty || name === '散客') return true
+  if (!name) {
+    ElMessage.warning('请填写客户名称；如不建立客户，请清空客户信息后按散客保存')
+    return false
+  }
+  if (!phone) {
+    ElMessage.warning('新客户请填写客户电话；如不建立客户，请清空客户信息后按散客保存')
+    return false
+  }
+  return true
+}
+
 async function loadProducts() {
   const response = await getProductPage({ current: 1, size: 1000, status: 1 })
   const products: ProductVO[] = response.data?.records || response.data?.data?.records || []
@@ -1055,6 +1077,7 @@ async function saveDraft(showMessage = true) {
 async function confirmDraft() {
   if (!current.value) return
   if (!validateDocumentIdentity(current.value)) return
+  if (!validateCustomerForConfirmation(current.value)) return
   if (current.value.sourceOutletId == null) {
     ElMessage.warning('该草稿待归档档口，请先选择档口再确认')
     return
@@ -1453,6 +1476,16 @@ onMounted(async () => {
 .field-block > small {
   color: #94a3b8;
   font-size: 11px;
+}
+
+.customer-entry-hint {
+  margin-top: -8px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .draft-entry-page :deep(.el-input__wrapper),

@@ -7,6 +7,8 @@
     :disabled="disabled"
     :hide-after="0"
     :show-arrow="false"
+    :teleported="true"
+    popper-class="country-code-popper"
   >
     <template #reference>
       <el-input
@@ -15,7 +17,6 @@
         :placeholder="placeholder"
         :disabled="disabled"
         class="country-code-input"
-        @click="onInputClick"
       >
         <template #prefix>
           <span v-if="selectedCountry" class="flag-text">{{ getFlag(selectedCountry.iso) }}</span>
@@ -210,10 +211,6 @@ function onScroll(e: Event) {
   if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) {
     visibleCount.value += PAGE_SIZE
   }
-}
-
-function onInputClick() {
-  visible.value = true
 }
 
 function selectCountry(c: Country) {

@@ -157,15 +157,25 @@ test('手工草稿可恢复完整快速录单字段并确认生成正式订单',
     elements.map(element => (element as HTMLTextAreaElement).value),
   )).toContain('送货地址')
 
+  const countryCodeField = page.getByText('国家区号', { exact: true }).locator('..')
+  await countryCodeField.locator('input').click()
+  const countrySearch = page.getByPlaceholder('搜索国家名称或区号')
+  await expect(countrySearch).toBeVisible()
+  await countrySearch.fill('232')
+  await page.getByText('塞拉利昂', { exact: true }).click()
+  await expect(countryCodeField.locator('input')).toHaveValue(/\+232/)
+
   await page.getByRole('button', { name: '确认并生成订单' }).click()
   await page.getByRole('button', { name: '确认生成正式订单' }).click()
-  await page.getByRole('button', { name: '查看正式订单' }).click()
-
-  await expect(page).toHaveURL(/\/orders\/999$/)
+  await Promise.all([
+    page.waitForURL(/\/orders\/999$/),
+    page.getByRole('button', { name: '查看正式订单' }).click(),
+  ])
   expect(savePayload).toMatchObject({
     sourceBatchNo: '41',
     sourceOrderNo: 'QUICK-DRAFT-002',
     orderType: 'SPOT',
+    customerCountryCode: '+232',
     paidAmount: 40,
     freightAmount: 8,
     freightCost: 3,
