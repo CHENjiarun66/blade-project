@@ -779,6 +779,8 @@ deploy/nas/deploy_app_from_local.sh --execute
 
 2026-09-20 文件中心订单图片绑定修复发布记录：应用 commit `198868975c4273c92fdd39dc430a68f66463e735`，release `20260920_104500`，NAS 备份 `/volume2/blade/db-backups/nas_blade_project_prod_20260920_104500`，Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260920_104500`。Flyway V60→V61；145 张正式订单与 38 个订单图片引用保留，38/38 个引用已有有效绑定，缺失、重复、跨租户绑定和仍落入未绑定列表的订单图片均为 0。发布仅替换后端与 Web，MySQL、Redis、uploads 未重启或覆盖；维护模式已解除，外网可信 HTTPS 返回 200。
 
+2026-09-23 正式订单编辑入口收口发布记录：应用 commit `c6fc29388761a7f943620f27ef6404c1b7d08923`，release `20260923_order_edit_c6fc293`，NAS 备份 `/volume2/blade/db-backups/nas_blade_project_prod_20260923_order_edit_c6fc293`，Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260923_order_edit_c6fc293`。本次为前端交互增量，后端与 migration surface 相对已通过生产副本预演的 `104db0e` 未变化；Flyway 保持 V68，172 张正式订单、752 条订单明细与 355 条文件记录发布前后保持一致。历史迁移与幂等重放均为 0、人工核对为 0，SQL 不变量全部通过；仅替换后端与 Web，MySQL、Redis 容器 ID 保持不变，内外网可信 HTTPS、生产登录和订单分页 API 均返回 200。
+
 当前证书于 2026-11-26 03:59:59 GMT 到期，尚未建立自动续期。运维人员必须于 2026-11-19 前完成替换，使用新证书覆盖 NAS 密钥目录后仅重建 `web`，并重复证书/私钥匹配、裸域名和 `www` 外网信任链验证。
 
 ---
