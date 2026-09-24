@@ -143,6 +143,7 @@ class OrderDraftConfirmFinanceTest {
         draft.setSourceOrderNo(ref);
         draft.setStatus("EDITING");
         draft.setCustomerName("草稿确认测试客户");
+        draft.setCustomerPhone("138" + String.format("%08d", Math.floorMod(System.nanoTime(), 100_000_000L)));
         draft.setDeposit(deposit);
         draft.setPaperTotalAmount(paperTotal);
         draft.setWarningAcknowledged(0);
@@ -343,10 +344,11 @@ class OrderDraftConfirmFinanceTest {
             Long draftId = seedDraft("WALK-IN", BigDecimal.ZERO, new BigDecimal("100.00"));
             OrderDraft draft = draftMapper.selectById(draftId);
             draft.setCustomerId(null);
-            draft.setCustomerName(null);
-            draft.setCustomerPhone(null);
-            draft.setCustomerCountryCode(null);
-            draft.setCustomerAddress(null);
+            // MyBatis-Plus 默认不会把 null 字段写回数据库；使用空串模拟用户清空输入框。
+            draft.setCustomerName("");
+            draft.setCustomerPhone("");
+            draft.setCustomerCountryCode("");
+            draft.setCustomerAddress("");
             draftMapper.updateById(draft);
 
             OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();
@@ -368,7 +370,7 @@ class OrderDraftConfirmFinanceTest {
             OrderDraft draft = draftMapper.selectById(draftId);
             draft.setCustomerId(null);
             draft.setCustomerName("新客户但无电话");
-            draft.setCustomerPhone(null);
+            draft.setCustomerPhone("");
             draftMapper.updateById(draft);
 
             OrderDraftDTO.ConfirmRequest request = new OrderDraftDTO.ConfirmRequest();

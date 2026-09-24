@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 第二批B/收口：Flyway 从空库 V1→V68 的正向证据，以及历史重复默认档口的 fail-closed 反例。
+ * 第二批B/收口：Flyway 从空库 V1→V69 的正向证据，以及历史重复默认档口的 fail-closed 反例。
  *
  * <p>真实 MySQL：临时建库、Flyway migrate、断言终态版本与唯一索引/生成列，最后 drop 临时库，
  * 不触碰 blade_project 与任何生产库。</p>
@@ -34,7 +34,7 @@ class FlywayFreshDatabaseMigrationTest {
     @Autowired private Environment environment;
 
     @Test
-    void migratesFromEmptyDatabaseToV68WithGeneratedGuardsAndUniqueIndexes() throws Exception {
+    void migratesFromEmptyDatabaseToV69WithGeneratedGuardsAndUniqueIndexes() throws Exception {
         String db = freshDbName();
         String url = environment.getProperty("spring.datasource.url");
         String user = environment.getProperty("spring.datasource.username", "root");
@@ -51,9 +51,9 @@ class FlywayFreshDatabaseMigrationTest {
                     .load();
             flyway.migrate();
 
-            assertEquals("68", flyway.info().current().getVersion().getVersion(),
-                    "空库必须迁移到 V68");
-            assertTrue(flyway.info().applied().length >= 68, "应记录至少 68 条迁移历史");
+            assertEquals("69", flyway.info().current().getVersion().getVersion(),
+                    "空库必须迁移到 V69");
+            assertTrue(flyway.info().applied().length >= 69, "应记录至少 69 条迁移历史");
 
             try (Connection conn = DriverManager.getConnection(freshUrl, user, password);
                  Statement st = conn.createStatement()) {
@@ -187,8 +187,8 @@ class FlywayFreshDatabaseMigrationTest {
             retry.repair();
             retry.migrate();
 
-            assertEquals("68", retry.info().current().getVersion().getVersion(),
-                    "清理重复并 repair 后必须能直接迁移到 V68");
+            assertEquals("69", retry.info().current().getVersion().getVersion(),
+                    "清理重复并 repair 后必须能继续迁移到当前最新版本 V69");
             try (Connection conn = DriverManager.getConnection(freshUrl, user, password);
                  Statement st = conn.createStatement()) {
                 assertGeneratedColumn(st, db, "sys_user_outlet", "user_default_guard");
@@ -238,7 +238,7 @@ class FlywayFreshDatabaseMigrationTest {
     }
 
     private String freshDbName() {
-        return "blade_v68_fresh_" + Long.toString(System.nanoTime()).substring(8);
+        return "blade_v69_fresh_" + Long.toString(System.nanoTime()).substring(8);
     }
 
     private String replaceDatabase(String url, String database) {
