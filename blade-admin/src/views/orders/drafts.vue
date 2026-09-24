@@ -835,6 +835,7 @@ async function loadDraftDetail(id: number) {
       ...normalized,
       needDelivery: response.data.needDelivery ?? 0,
     }
+    applySafeSkuMatches()
     loadedOutletId.value = normalized.sourceOutletId ?? null
     const incomingBatchKey = batchKey(normalized.sourceBatchNo)
     const batchChanged = selectedBatchKey.value !== incomingBatchKey
@@ -957,6 +958,59 @@ function onSkuSelect(row: OrderDraftItem) {
   row.systemReferencePrice = sku.price
   if (manualDraft.value && row.costPrice == null) row.costPrice = sku.costPrice
   row.matchStatus = 'MATCHED'
+}
+
+function normalizeProductCode(value?: string) {
+  return (value || '').toLowerCase().replace(/[\s#＃_\-./\\]/g, '')
+}
+
+function specifiedColor(value?: string) {
+  const trimmed = value?.trim()
+  if (!trimmed) return ''
+  const normalized = trimmed.toLowerCase().replace(/[\s_/\-]/g, '')
+  if (!normalized
+    || normalized === 'na'
+    || normalized === '无'
+    || normalized.includes('无品名')
+    || normalized.includes('无颜色')
+    || normalized.includes('未指定')
+    || normalized.includes('混色')
+    || normalized.includes('unspecified')) return ''
+  return trimmed
+}
+
+/**
+ * 兼容修复发布前已创建的 Agent 草稿。新草稿由服务端自动匹配；旧草稿首次打开时，
+ * 这里只接受精确款号下唯一且语义安全的 SKU，绝不在多个具体规格之间猜测。
+ */
+function applySafeSkuMatches() {
+  if (!current.value || !skuOptions.value.length) return 0
+  let matched = 0
+  current.value.items.forEach(row => {
+    if (row.skuId || !row.rawProductCode?.trim()) return
+    const code = normalizeProductCode(row.rawProductCode)
+    const productSkus = skuOptions.value.filter(option => normalizeProductCode(option.productCode) === code)
+    if (!productSkus.length) return
+
+    const color = specifiedColor(row.rawColor)
+    let candidates: SkuOption[]
+    if (!color) {
+      const placeholders = productSkus.filter(option => option.placeholder || option.skuType === 'PLACEHOLDER')
+      candidates = placeholders.length === 1
+        ? placeholders
+        : productSkus.filter(option => option.skuType === 'DEFAULT')
+    } else {
+      const normalizedColor = color.toLowerCase().replace(/\s/g, '')
+      candidates = productSkus.filter(option => option.skuType === 'NORMAL'
+        && option.colorName.toLowerCase().replace(/\s/g, '').includes(normalizedColor))
+    }
+    if (candidates.length !== 1) return
+
+    row.skuId = candidates[0].skuId
+    onSkuSelect(row)
+    matched += 1
+  })
+  return matched
 }
 
 async function queryCustomerSuggestions(query: string, callback: (items: CustomerVO[]) => void) {
@@ -1194,6 +1248,12 @@ onMounted(async () => {
   }
   if (batchResult.status === 'rejected') {
     ElMessage.warning('批次导航加载失败，当前草稿仍可继续编辑')
+  }
+  if (detailResult.status === 'fulfilled' && productResult.status === 'fulfilled') {
+    const matched = applySafeSkuMatches()
+    if (matched > 0) {
+      ElMessage.success(`已按精确款号自动匹配 ${matched} 行商品；保存草稿后生效`)
+    }
   }
 })
 </script>

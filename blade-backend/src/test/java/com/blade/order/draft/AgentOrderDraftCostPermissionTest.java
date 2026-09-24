@@ -2,6 +2,7 @@ package com.blade.order.draft;
 
 import com.blade.agent.auth.AgentPrincipal;
 import com.blade.agent.entity.AgentKey;
+import com.blade.agent.service.AgentCatalogService;
 import com.blade.order.draft.dto.OrderDraftDTO;
 import com.blade.order.draft.service.AgentOrderDraftService;
 import com.blade.order.draft.service.OrderDraftWriter;
@@ -26,7 +27,8 @@ import static org.mockito.Mockito.when;
 class AgentOrderDraftCostPermissionTest {
     private final OrderDraftWriter writer = mock(OrderDraftWriter.class);
     private final OutletAccessPolicy outletAccessPolicy = mock(OutletAccessPolicy.class);
-    private final AgentOrderDraftService service = new AgentOrderDraftService(writer, outletAccessPolicy);
+    private final AgentCatalogService catalogService = mock(AgentCatalogService.class);
+    private final AgentOrderDraftService service = new AgentOrderDraftService(writer, outletAccessPolicy, catalogService);
 
     @Test
     void rejectsCostFieldsWhenKeyOnlyHasDraftWriteScope() {
