@@ -781,6 +781,8 @@ deploy/nas/deploy_app_from_local.sh --execute
 
 2026-09-23 正式订单编辑入口收口发布记录：应用 commit `c6fc29388761a7f943620f27ef6404c1b7d08923`，release `20260923_order_edit_c6fc293`，NAS 备份 `/volume2/blade/db-backups/nas_blade_project_prod_20260923_order_edit_c6fc293`，Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/nas_blade_project_prod_20260923_order_edit_c6fc293`。本次为前端交互增量，后端与 migration surface 相对已通过生产副本预演的 `104db0e` 未变化；Flyway 保持 V68，172 张正式订单、752 条订单明细与 355 条文件记录发布前后保持一致。历史迁移与幂等重放均为 0、人工核对为 0，SQL 不变量全部通过；仅替换后端与 Web，MySQL、Redis 容器 ID 保持不变，内外网可信 HTTPS、生产登录和订单分页 API 均返回 200。
 
+2026-09-25 草稿客户与 Agent 自动匹配发布记录：应用 commit `83312c4fee03e0e393e5500bdb72bcd8935a254a`，release `20260925_draft_customer_83312c4`，NAS 备份 `/volume2/blade/db-backups/nas_blade_project_prod_20260925_draft_customer_83312c4`，Mac 持久副本 `/Users/chenjiarun/Documents/BladeProject生产备份/20260925_draft_customer_83312c4/nas_blade_project_prod_20260925_draft_customer_83312c4`。V69 仅扩容 `sale_order.customer_phone` 到 `varchar(50)`，不改写历史值；生产副本和正式发布均验证 172 张正式订单、752 条订单明细保持一致，历史迁移与幂等重放均为 0、人工核对为 0，五项订单不变量通过。仅替换 backend/web，MySQL 容器 `6fef291345ca`、Redis 容器 `bdaff110cbdb` 保持不变；内外网可信 HTTPS 200，维护模式已解除。
+
 当前证书于 2026-11-26 03:59:59 GMT 到期，尚未建立自动续期。运维人员必须于 2026-11-19 前完成替换，使用新证书覆盖 NAS 密钥目录后仅重建 `web`，并重复证书/私钥匹配、裸域名和 `www` 外网信任链验证。
 
 ---
