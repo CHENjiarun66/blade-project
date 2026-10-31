@@ -252,6 +252,33 @@ class FileOutletAccessPolicyTest {
     // ==================== list 预分页 ====================
 
     @Test
+    void ownerWithAllPeopleAndFilePermissionsCanListAndCountFiles() {
+        long outlet = seedOutlet(1L, "E2-OWNER");
+        long owner = seedUser(1L, "e2owner" + System.nanoTime() % 100000);
+        String prefix = "e2owner-" + System.nanoTime();
+        long ownFile = seedFile(1L, owner, "PRIVATE", null, null, prefix + "-own.png");
+        long order = seedOrder(1L, outlet, owner);
+        long orderFile = seedFile(1L, owner, "PRIVATE", null, null, prefix + "-order.png");
+        bind(orderFile, "order", order);
+
+        auth(owner, "menu:file", "btn:file:viewAll", "data:outlet:all", "data:order:peopleAll");
+        FilePageDTO dto = new FilePageDTO();
+        dto.setKeyword(prefix);
+        dto.setSize(1L);
+        PageResult<?> first = fileService.pageList(dto);
+        assertEquals(2L, first.getTotal());
+        assertEquals(1, first.getRecords().size());
+        dto.setCurrent(2L);
+        PageResult<?> second = fileService.pageList(dto);
+        assertEquals(2L, second.getTotal());
+        assertEquals(1, second.getRecords().size());
+        List<Long> ids = List.of(
+                ((com.blade.file.dto.FileVO) first.getRecords().get(0)).getId(),
+                ((com.blade.file.dto.FileVO) second.getRecords().get(0)).getId());
+        assertTrue(ids.containsAll(List.of(ownFile, orderFile)));
+    }
+
+    @Test
     void fileCenterList_excludesOtherOutletFiles_andCountMatches() {
         long outletA = seedOutlet(1L, "E2-LST-A");
         long outletB = seedOutlet(1L, "E2-LST-B");

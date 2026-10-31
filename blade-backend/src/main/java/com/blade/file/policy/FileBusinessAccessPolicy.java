@@ -199,7 +199,10 @@ public class FileBusinessAccessPolicy {
                     .map(id -> placeholder(params, id))
                     .collect(Collectors.joining(",", "(", ")"));
         }
-        String actorPh = actorId != null ? placeholder(params, actorId) : null;
+        // MyBatis-Plus requires every apply() parameter to occur in the SQL.
+        // Actor filtering is only needed for SELF orders or owner-only unbound files.
+        String actorPh = actorId != null && (!peopleAll || !viewAll)
+                ? placeholder(params, actorId) : null;
 
         boolean unassigned = scope.unassignedAllowed();
         String orderOutlet = outletPredicate("o", readableIn, unassigned);

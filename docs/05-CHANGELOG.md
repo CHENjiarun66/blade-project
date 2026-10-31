@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-11-01 变更记录
+
+### [修复] - 文件中心管理员列表请求失败
+
+- 线上现象：文件夹树正常，`GET /api/files?current=1&size=20&status=1` 返回 HTTP 200、业务码 400 且无 message；NAS、后端、MySQL、Redis 和磁盘状态均正常。
+- 根因：同时拥有 `data:order:peopleAll` 与 `btn:file:viewAll` 时，可见性 SQL 不引用 actor，但参数数组仍包含 actor；MyBatis-Plus `apply` 渲染查询抛出 `sql not contains: "{3}"`，经 MyBatis 包装后只记录空异常消息。
+- 修复：只在 SELF 订单或仅本人可见的未绑定文件需要 actor 条件时绑定 actor 参数；租户、档口、敏感绑定和普通用户可见性规则保持原语义。
+- 回归：新增 4 种人员/文件权限组合的真实 MyBatis 参数渲染与租户 SQL 解析测试，以及 Owner 真实数据库分页/计数回归；修复前 Owner 参数渲染测试失败，修复后通过。
+- 发布范围：基于当前生产 `83312c4`（文档基线 `1e26ce7`）的后端热修复，无新增 migration、无前端变更；生产库 V69。已完成 NAS/Mac 双份压缩数据库备份与 SHA-256 校验。
+
 ## 2026-09-24 变更记录
 
 ### [修复] - 草稿国家区号下拉与新客户自动建档

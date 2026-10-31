@@ -57,7 +57,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/9/22 00:10:25　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/11/1 02:28:33　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -82,10 +82,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">112 完成 · 0 进行中 · 3 待办 · 5 部分 · 2 暂缓</span>
+          <span class="card-nums">113 完成 · 0 进行中 · 3 待办 · 5 部分 · 2 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:93%"></div></div>
-        <div class="bar-label">93% 完成（活跃 120 项，暂缓 2 项）</div>
+        <div class="bar-label">93% 完成（活跃 121 项，暂缓 2 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -94,12 +94,27 @@
         </div>
         <div class="bar"><div class="bar-fill" style="width:64%"></div></div>
         <div class="bar-label">64% 完成（活跃 25 项，暂缓 2 项）</div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">项目阶段</span>
+          <span class="card-nums">0 完成 · 1 进行中 · 0 待办 · 0 部分 · 0 暂缓</span>
+        </div>
+        <div class="bar"><div class="bar-fill" style="width:0%"></div></div>
+        <div class="bar-label">0% 完成（活跃 1 项，暂缓 0 项）</div>
       </div></div>
 
 
     <section class="section doing">
-      <h2>🔴 正在做 <span class="count">0</span></h2>
-      <p class="empty">（无）</p>
+      <h2>🔴 正在做 <span class="count">1</span></h2>
+      <table class="task-table">
+      <tr data-status="doing">
+        <td class="td-id">OPS-FILE-001</td>
+        <td class="td-name">定位并修复 NAS 文件中心列表请求失败，完成线上回归<span class="tag executor">执行人：Codex</span></td>
+        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
+        <td class="td-meta">项目阶段 › 线上紧急修复（2026-11-01）</td>
+        <td class="td-remark"></td>
+      </tr></table>
     </section>
 
     <section class="section todo">
@@ -508,7 +523,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 321 项） <span class="count">321</span></h2>
+      <h2>✅ 已完成（共 322 项） <span class="count">322</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">BE-001</td>
@@ -1565,7 +1580,7 @@
         <td class="td-name">草稿确认转正式订单</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 6: 外部纸单识别 Agent 与订单草稿（P0）</td>
-        <td class="td-remark">JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计；未建档客户允许只保留订单快照或留空按散客处理，失效/跨租户 customerId 会解除关联且不阻断确认 |</td>
+        <td class="td-remark">JWT 人工确认后幂等创建正式订单；纸单数量/售价/总额/定金优先，草稿阶段不进入库存、财务和统计；已选客户直接关联，新客户名称+电话完整时按电话去重后自动建档，空白/散客不建档，信息不完整时阻断并提示；失效/跨租户 customerId 会解除关联后按同一规则重新解析 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-616</td>
@@ -1894,14 +1909,14 @@
         <td class="td-name">订单列表页</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
-        <td class="td-remark">表格 + 高级筛选 + 分页 + 支付状态筛选 + 编辑按钮 + 订单上下文摘要 + 图片 fileId 字段 |</td>
+        <td class="td-remark">表格 + 高级筛选 + 分页 + 支付状态筛选 + 图片 fileId；列表只负责查找/浏览，操作列和行点击统一进入详情，不再保留重复编辑弹窗 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-202</td>
         <td class="td-name">订单详情页</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 2: 订单管理</td>
-        <td class="td-remark">查看、状态/收款/配货操作；按后端 `allowedActions.editOrder` 在“已确认 + 未进入履约 + 未收款/部分收款”显示编辑入口，可修改客户快照、商品/SKU、数量、售价、成本（受字段权限控制）和运费，并阻止应收低于当前净实收 |</td>
+        <td class="td-remark">正式订单唯一编辑入口；按后端 `allowedActions.editOrder` 在“已确认 + 未进入履约 + 未收款/部分收款”显示“编辑订单内容”，集中修改单据基础信息、客户快照、商品/SKU、数量、售价、成本（受字段权限控制）、配送和运费，并阻止应收低于当前净实收；备注/图片与高权限档口变更分别独立操作，锁定订单仍可维护非结构信息 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-203</td>
@@ -2335,7 +2350,7 @@
         <td class="td-name">订单与草稿档口选择器</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">单档口锁定、多档口只显示授权集合、Owner 显示全部启用档口；快速录单/新建/草稿详情/编辑弹窗接入，改档口需原因 |</td>
+        <td class="td-remark">单档口锁定、多档口只显示授权集合、Owner 显示全部启用档口；快速录单/新建/草稿详情接入；正式订单档口变更移至详情页独立高权限弹窗，必须选择不同档口并填写审计原因，不与普通内容编辑混合 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-OUTLET-004</td>
@@ -2401,11 +2416,18 @@
         <td class="td-remark">长任务系列 C/D；按真实颜色/尺码拆分并显示守恒校验和历史 |</td>
       </tr>
       <tr data-status="done">
+        <td class="td-id">BA-806</td>
+        <td class="td-name">草稿国家区号与客户录入口径统一</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 8: 纸单草稿人工复核（P0）</td>
+        <td class="td-remark">修复国家区号点击后被二次切换关闭；下拉挂载到页面顶层并支持搜索选择。草稿确认与快速录单统一：已有客户关联、新客户自动建档、空白按散客；待生产发布 |</td>
+      </tr>
+      <tr data-status="done">
         <td class="td-id">BA-901</td>
         <td class="td-name">PC 订单图片上传接入</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 9: 统一文件存储接入（P1）</td>
-        <td class="td-remark">新建/快速录单/编辑/详情页接入统一文件接口，快速录单与编辑弹窗支持图片墙上传/预览/移除，订单保存 fileId |</td>
+        <td class="td-remark">新建/快速录单/详情页接入统一文件接口；详情页“维护备注/图片”独立支持图片墙上传/预览/移除，上传先进入文件中心，订单保存时同步 fileId 绑定；生命周期锁定后仍可维护 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-902</td>
@@ -2426,7 +2448,7 @@
         <td class="td-name">PC 图片上传 E2E 回归</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 9: 统一文件存储接入（P1）</td>
-        <td class="td-remark">Playwright 覆盖商品主图、编辑订单、快速录单图片上传，断言统一文件接口返回 fileId、预览图可加载且无系统错误 |</td>
+        <td class="td-remark">Playwright 覆盖商品主图、订单详情“维护备注/图片”、快速录单图片上传，断言统一文件接口返回 fileId、预览图可加载且无系统错误 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BA-1001</td>
