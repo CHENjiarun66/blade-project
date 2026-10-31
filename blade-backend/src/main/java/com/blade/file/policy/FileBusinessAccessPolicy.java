@@ -12,7 +12,7 @@ import com.blade.order.mapper.OrderMapper;
 import com.blade.order.service.OrderAccessPolicy;
 import com.blade.outlet.policy.OutletAccessPolicy;
 import com.blade.outlet.policy.OutletAccessScope;
-import com.blade.system.user.entity.User;
+import com.blade.file.service.FileRequestContext;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -115,7 +115,7 @@ public class FileBusinessAccessPolicy {
         if (hasViewAll()) {
             return;
         }
-        Long actorId = currentUserId();
+        Long actorId = FileRequestContext.resolveOperatorId();
         if (actorId != null && actorId.equals(file.getCreateBy())) {
             return;
         }
@@ -374,11 +374,4 @@ public class FileBusinessAccessPolicy {
                 .anyMatch(code::equals);
     }
 
-    private Long currentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        return null;
-    }
 }

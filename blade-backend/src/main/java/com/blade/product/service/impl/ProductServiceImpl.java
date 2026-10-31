@@ -13,6 +13,8 @@ import com.blade.file.entity.FileStorage;
 import com.blade.file.mapper.FileBusinessBindMapper;
 import com.blade.file.mapper.FileStorageMapper;
 import com.blade.file.service.FileService;
+import com.blade.file.service.FileRequestContext;
+import com.blade.auth.service.AuthenticatedUserDetails;
 import com.blade.inventory.entity.Inventory;
 import com.blade.inventory.mapper.InventoryMapper;
 import com.blade.order.entity.OrderItem;
@@ -1177,6 +1179,9 @@ public class ProductServiceImpl implements ProductService {
 
     private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof AuthenticatedUserDetails) {
+            return FileRequestContext.requireOperatorId();
+        }
         if (authentication != null && authentication.getPrincipal() instanceof User user) {
             return user.getId();
         }
