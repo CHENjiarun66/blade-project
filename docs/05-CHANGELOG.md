@@ -14,6 +14,9 @@
 - 认证加载器新增 `AuthenticatedUserDetails`，在保留原账号状态、密码擦除和 authorities 语义的同时携带数据库 userId/tenantId；文件请求上下文和私人未绑定文件的创建者校验统一解析可靠 ID，拒绝匿名、未认证、只有用户名或租户不符的身份，不用默认管理员代替。
 - 商品主图/图集/SKU 素材绑定记录兼容该认证身份，保存真实操作者 ID；没有改变商品图片选择、绑定角色、业务权限或数据库结构。已有有效 JWT 会在后续请求加载新身份类型，无须重新登录。
 - 新增真实 MVC 登录 → JWT 过滤器 → 商品图片上传 → 预览 → 主图保存回归，校验文件与主图绑定 create_by 都为实际用户；另覆盖没有商品权限的上传拒绝、私人未绑定文件本人可读/他人 403，以及 4 项请求身份反例。修复前真实登录上传测试因业务码 403 失败。
+- 验证：隔离测试库执行 `scripts/test-db-seed.sql` 后，`mvn -o -q test` **880/880**（Failures 0 / Errors 0 / Skipped 0）；`mvn -o -q -DskipTests package`、linux/amd64 镜像构建与 `git diff --check` 均通过，无新增 migration 或前端文件变更。
+- 生产：应用 commit `9e0470c41bbb352940cdf07be2f4adabbee91c74`，release `20261101_upload_user_hotfix`。NAS/Mac 双份备份与镜像 SHA-256 均校验，仅 compose `up -d --no-deps backend` 加 Nginx reload，保留上一个文件中心修复及回滚镜像/jar；MySQL/Redis/web 的容器 ID、启动时间一致。启动确认 V69 无需迁移，切换前后保持 176 单、758 明细、355 文件元数据。
+- 线上原登录态验收：商品图片上传业务码 200，文件 356 的 create_by=4 与当前账号一致，原图 PNG/200、thumb JPEG/200。测试附件已解绑并软删除，仅新增该测试元数据及软删除的测试绑定；有效文件总数发布前后均为 331，现有商品主图未改变。外网可信 HTTPS 200、维护模式关闭，证据在 `/volume2/blade/releases/20261101_upload_user_hotfix`。
 
 ### [修复] - 文件中心管理员列表请求失败
 

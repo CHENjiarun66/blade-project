@@ -7,6 +7,8 @@
 
 ## 1. 当前生产环境事实
 
+> 2026-11-01 商品图片上传热修复：应用 `9e0470c41bbb352940cdf07be2f4adabbee91c74`，release `20261101_upload_user_hotfix`，修复真实 JWT 登录后上传文件无法解析用户，保留此前文件中心列表修复。全量 880/880；原登录态上传/预览/缩略图成功、create_by=4，测试文件 356 已解绑并软删除，有效文件仍 331、原商品主图不变。仅更新 backend、reload Nginx，MySQL/Redis/web 未重启；V69 无迁移，176 单/758 明细不变。双份备份、manifest 与回滚文件在 NAS 对应备份/release 目录。
+
 > 2026-11-01 无迁移后端热修复：应用 commit `ce8a69f3815920a3e1dcf51d7adf0194fea6a129`，release `20261101_file_center_hotfix`，修复管理员文件列表多绑定 SQL 参数的问题。生产保持 V69，176 单/758 明细/355 文件元数据不变。NAS/Mac 双份备份已校验，仅替换 backend 并 reload Nginx；没有重建 web/MySQL/Redis，也没有执行只适用于订单结构升级的历史迁移脚本。详细 manifest、部署脚本、发布前后对账、旧镜像标签与 jar 位于 `/volume2/blade/releases/20261101_file_center_hotfix`。外网文件中心列表、筛选、图片原图与缩略图验收通过。
 
 > 2026-09-20 发布后核对：NAS 生产数据库为 Flyway V61，四个生产容器均在运行；当前应用 release 为 `20260920_104500`，commit 为 `198868975c4273c92fdd39dc430a68f66463e735`。V61 已补齐历史正式订单/草稿图片绑定，文件中心订单图片分类与上传、编辑绑定同步已部署；30 单真实联调等运行验收仍按任务文档继续。
