@@ -57,7 +57,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/11/1 02:28:33　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/11/1 02:33:53　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -98,23 +98,16 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">项目阶段</span>
-          <span class="card-nums">0 完成 · 1 进行中 · 0 待办 · 0 部分 · 0 暂缓</span>
+          <span class="card-nums">1 完成 · 0 进行中 · 0 待办 · 0 部分 · 0 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:0%"></div></div>
-        <div class="bar-label">0% 完成（活跃 1 项，暂缓 0 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-label">100% 完成（活跃 1 项，暂缓 0 项）</div>
       </div></div>
 
 
     <section class="section doing">
-      <h2>🔴 正在做 <span class="count">1</span></h2>
-      <table class="task-table">
-      <tr data-status="doing">
-        <td class="td-id">OPS-FILE-001</td>
-        <td class="td-name">定位并修复 NAS 文件中心列表请求失败，完成线上回归<span class="tag executor">执行人：Codex</span></td>
-        <td class="td-status"><span class="pill pill-doing">⏳ 进行中</span></td>
-        <td class="td-meta">项目阶段 › 线上紧急修复（2026-11-01）</td>
-        <td class="td-remark"></td>
-      </tr></table>
+      <h2>🔴 正在做 <span class="count">0</span></h2>
+      <p class="empty">（无）</p>
     </section>
 
     <section class="section todo">
@@ -523,8 +516,15 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 322 项） <span class="count">322</span></h2>
+      <h2>✅ 已完成（共 323 项） <span class="count">323</span></h2>
       <table class="task-table">
+      <tr data-status="done">
+        <td class="td-id">OPS-FILE-001</td>
+        <td class="td-name">定位并修复 NAS 文件中心列表请求失败，完成线上回归</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 线上紧急修复（2026-11-01）</td>
+        <td class="td-remark"></td>
+      </tr>
       <tr data-status="done">
         <td class="td-id">BE-001</td>
         <td class="td-name">Spring Boot 3 项目初始化</td>

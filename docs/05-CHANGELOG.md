@@ -15,6 +15,9 @@
 - 修复：只在 SELF 订单或仅本人可见的未绑定文件需要 actor 条件时绑定 actor 参数；租户、档口、敏感绑定和普通用户可见性规则保持原语义。
 - 回归：新增 4 种人员/文件权限组合的真实 MyBatis 参数渲染与租户 SQL 解析测试，以及 Owner 真实数据库分页/计数回归；修复前 Owner 参数渲染测试失败，修复后通过。
 - 发布范围：基于当前生产 `83312c4`（文档基线 `1e26ce7`）的后端热修复，无新增 migration、无前端变更；生产库 V69。已完成 NAS/Mac 双份压缩数据库备份与 SHA-256 校验。
+- 验证：`mvn -o -q -Dtest='File*Test' test` 在恢复生产备份的隔离库通过 **208/208**；干净隔离库执行 `scripts/test-db-seed.sql` 后，`mvn -o -q test` 全量通过 **873/873**（Failures 0 / Errors 0 / Skipped 0）；`mvn -o -q -DskipTests package` 与 linux/amd64 镜像构建通过，`git diff --check` 通过。生产副本用于文件专项检查；全量测试改用空库，避免测试默认档口与生产副本既有默认档口冲突。
+- 生产：应用 commit `ce8a69f3815920a3e1dcf51d7adf0194fea6a129`，release `20261101_file_center_hotfix`；以原生产镜像为基础替换已验证 jar，仅用 compose `up -d --no-deps backend` 更新后端，保留旧镜像与 jar 回滚。此次没有迁移，未执行订单历史迁移/重放脚本。前端仅重载 Nginx 解析后端地址。
+- 线上验收：当前登录账号的列表、第二页、商品素材、未绑定、回收站与文件夹树均为 HTTP 200/业务 200；有效文件 331，原图与 thumb 均返回 JPEG/200，页面 20 张图片加载完成。Flyway V69、176 张订单、758 条明细、355 条文件元数据均与发布前一致；MySQL/Redis/web 的容器 ID 和启动时间一致，维护模式关闭，外网可信 HTTPS 200。发布证据与回滚文件位于 `/volume2/blade/releases/20261101_file_center_hotfix`。
 
 ## 2026-09-24 变更记录
 
