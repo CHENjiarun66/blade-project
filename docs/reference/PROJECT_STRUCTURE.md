@@ -22,6 +22,12 @@ BladeProject/
 
 ---
 
+## 文档结构与来源
+
+`docs/` 根目录保留现行契约、范围、任务与交接；`reference/` 为操作/接口参考，`architecture/` 为实现说明，`backlog/` 为候选需求，`archive/` 为旧设计和交付证据。目录生命周期见 [文档目录](../DOCUMENT_CATALOG.md)。`scripts/check-docs.mjs` 检查相对链接与方向数据，`scripts/gen-status.mjs` 从任务和方向 JSON 生成看板。
+
+使用 `git worktree list` 和分支盘点确认当前工作区；旧 V50 驾驶舱工作区不是生产基线。精确部署版本以发布清单为准。
+
 ## 二、目录职责
 
 | 目录 | 职责 |

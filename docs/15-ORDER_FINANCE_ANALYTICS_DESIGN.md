@@ -1,8 +1,8 @@
 # 如何设计订单金额、结清与经营统计
 
-> 内容类型：概念设计与统计口径。更新时间：2026-08-29。
+> 内容类型：现行订单财务与统计契约。原设计：2026-08-29；状态核对：2026-11-02。
 
-> 实现状态：业务口径已确认，数据库、接口、界面和统计查询尚未按本文实施。订单生命周期以 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) 为准。
+> 实现状态：订单专用财务流水、金额快照、统一动作及主要统计查询已实施并发布。它不等于已经实现完整采购应付、通用 AR/AP 或独立资金账户总账。订单生命周期以 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) 为准。
 
 本文定义订单金额、实际收款、退款、短款核销、尾款和经营统计之间的关系。它解决“客户少付但业务确认结清”以及状态重构后统计范围变化的问题。
 
@@ -373,4 +373,4 @@ net_revenue - net_cost
 
 金额模型、状态机和统计查询不能分三个版本独立切换。过渡期接口同时返回旧字段和新快照，所有写入仍由新财务服务统一处理。
 
-跨模块消费者、实施工作包、缓存失效、公共契约和发布门禁详见[订单大重构 ROM/SOW](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。
+跨模块消费者、实施工作包、缓存失效、公共契约和发布门禁详见[订单大重构 ROM/SOW](archive/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。

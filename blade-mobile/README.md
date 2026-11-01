@@ -18,10 +18,12 @@
 - 当前代码中使用的是 `vuetify@^4.0.3`，本文档已按实际依赖对齐。
 - 依赖中存在 `naive-ui`，但当前源码未见实际使用；暂视为疑似残留依赖，后续可单独清理。
 
+当前以存量兼容维护为主，新增页面后置；完整移动发布与真实验收未闭环，见 [范围](../docs/PROJECT_SCOPE.md)。共享类型需先构建，步骤见 [环境配置](../docs/00-SETUP.md)。
+
 ## 开发
 
 ```bash
-npm install
+npm ci
 npm run dev
 npm run build
 ```

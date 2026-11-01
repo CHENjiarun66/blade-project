@@ -1,111 +1,47 @@
 # BladeProject 文档中心
 
-> 所有 AI 和开发者的主导航页。
+> 文档状态：现行导航。更新：2026-11-02。近期主线由用户确认：稳定现有订单、库存和真实业务验收。
 
----
+先区分当前业务契约、实际交付状态、后续规划和历史证据，再选择要读的文档。设计完成、代码完成、部署完成和业务验收通过是四种不同状态。
 
-当前分支整理与正式/测试差异见 [2026-11-02 Git 盘点](./reference/GIT_INVENTORY_2026-11-02.md)。
+## 先读这四份
 
-## 快速开始（新 AI/新会话必读）
+| 你要确认什么 | 入口 |
+|---|---|
+| 现在做什么、哪些扩展后置 | [项目范围与主线](./PROJECT_SCOPE.md) |
+| 项目成熟度、主要风险与改进顺序 | [项目评估](./PROJECT_REVIEW_2026-11-02.md) |
+| 当前模块、任务和交接状态 | [会话快照](./SESSION_CONTEXT.md)、[状态板](./STATUS.md)、[任务账本](./03-TASKS.md) |
+| 当前订单、收款、库存等业务规则 | [PRD](./02-PRD.md) |
 
-**第一步**：阅读 [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) — 项目当前状态快照
+## 按工作选择文档
 
-**第二步**：阅读 [产品需求文档（PRD）](./02-PRD.md) — 业务规则和技术栈依据
+| 工作 | 文档 |
+|---|---|
+| 启动和测试本地环境 | [环境配置](./00-SETUP.md) |
+| 开发、合并、归档分支 | [Git 工作流](./reference/GIT_BRANCH_WORKFLOW.md)、[分支盘点](./reference/GIT_INVENTORY_2026-11-02.md) |
+| 多 Agent 认领与交接 | [协作规范](./reference/AGENT_COLLABORATION.md) |
+| 找需要修复或优化的代码 | [代码评估与验收清单](./CODE_REVIEW_2026-11-02.md) |
+| 订单状态和编辑边界 | [生命周期契约](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) |
+| 金额、结清和统计口径 | [订单财务契约](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md) |
+| 库存履约与旧字段 | [订单库存现行说明](./06-ORDER_INVENTORY_DESIGN.md) |
+| 客户维护与统计 | [客户现行说明](./08-CUSTOMER_OPTIMIZATION.md) |
+| 文件中心、预览和上传 | [文件存储](./09-FILE_STORAGE_DESIGN.md)、[数字资产](./12-FILE_CENTER_ASSET_DESIGN.md) |
+| 档口、人员和 Agent 数据范围 | [档口权限](./20-OUTLET_ACCESS_CONTROL_DESIGN.md) |
+| API / 数据结构 | [接口参考](./reference/API_SPEC.md)、[数据库参考](./architecture/DATABASE.md)；精确字段以 DTO/Controller/Flyway 为准 |
+| NAS 检查、备份和发布 | [NAS 运维](./13-NAS_PRODUCTION_OPS.md) |
+| Agent Key 与纸单批量录入 | [连接手册](./19-AGENT_CONNECTION_PLAYBOOK.md)、[Key 管理](./16-AGENT_LOCAL_KEY_MANAGER.md)、[草稿操作](./17-AGENT_ORDER_DRAFT_RUNBOOK.md) |
+| 排查问题 | [故障排查](./reference/TROUBLESHOOTING.md)、[订单风险清单](./reference/ORDER_SYSTEM_ISSUES.md) |
 
-**第三步**：阅读 [开发任务清单](./03-TASKS.md) — 当前进度和任务状态
+## 后置规划和历史证据
 
-**第四步**：需要启动环境时，再看 [环境配置指南](./00-SETUP.md)
+- [订单回退与审批设计](./18-ORDER_REVERSAL_APPROVAL_DESIGN.md)：设计已确认，功能尚未实现，不是现有订单退货/冲销入口
+- [旧 ERP 优化蓝图](./reference/legacy-erp-to-blade-optimization-blueprint.md)：后续接替范围，不是本期上线清单
+- [库存扩展候选](./backlog/INVENTORY_EXPANSION_QUESTIONS.md)：未排期问题，不构成已确认需求
+- [历史档案](./archive/README.md)：完成的 SOW、阶段审核、旧方案和交付记录
+- [文档目录与处理清单](./DOCUMENT_CATALOG.md)：每份文档的状态、去向及删除理由
 
-**第五步**：需要开发、合并或上线时，必须阅读 [Git 分支与发布工作流](./reference/GIT_BRANCH_WORKFLOW.md)
+历史文档中的“禁止发布”“尚未实施”“待 V42 迁移”只描述当时阶段。当前判断按现行契约、代码和最近发布证据完成，不能把一个旧审核结论当成今天的总状态。
 
----
+## 更新规则
 
-## 项目结构
-
-```text
-BladeProject/
-├── docs/                 # 文档中心
-├── blade-backend/        # 后端
-├── blade-mobile/         # 移动端 PWA
-├── blade-admin/          # PC 管理端
-├── packages/types/       # 共享类型
-├── tools/                # 本机辅助工具（含 Agent Key 管理器）
-└── stitch/               # 原型工程
-```
-
-详细结构见 [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md)。
-
----
-
-## 你通常会用到的文档
-
-| 场景 | 文档 |
-|------|------|
-| 快速接手当前状态 | [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) |
-| 一眼看清项目进度（自动生成） | [STATUS.md](./STATUS.md) |
-| 确认业务规则和技术栈 | [02-PRD.md](./02-PRD.md) |
-| 查看任务状态 | [03-TASKS.md](./03-TASKS.md) |
-| 查看变更历史 | [05-CHANGELOG.md](./05-CHANGELOG.md) |
-| 查看项目结构 | [reference/PROJECT_STRUCTURE.md](./reference/PROJECT_STRUCTURE.md) |
-| 开发分支、测试集成、上线发布 | [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) |
-| 查订单/库存设计 | [06-ORDER_INVENTORY_DESIGN.md](./06-ORDER_INVENTORY_DESIGN.md) |
-| 查订单状态、收款与履约重构方案 | [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) |
-| 查订单金额、结清与统计口径 | [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md) |
-| 查订单全流程回退、冲销和审批规则 | [18-ORDER_REVERSAL_APPROVAL_DESIGN.md](./18-ORDER_REVERSAL_APPROVAL_DESIGN.md) |
-| 查档口主数据、用户多档口和数据权限边界 | [20-OUTLET_ACCESS_CONTROL_DESIGN.md](./20-OUTLET_ACCESS_CONTROL_DESIGN.md) |
-| 领取档口权限改造任务与查看 ROM/SOW | [2026-09-20-outlet-access-control-rom-sow.md](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md) |
-| 领取订单大重构工作包与查看分支/发布边界 | [2026-08-30-order-lifecycle-finance-refactor-rom-sow.md](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md) |
-| 让实现 Agent 领取订单重构任务并等待 Codex 审核 | [2026-08-30-order-refactor-agent-execution-board.md](./superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md) |
-| 查图片/附件上传与存储设计 | [09-FILE_STORAGE_DESIGN.md](./09-FILE_STORAGE_DESIGN.md) |
-| 查文件中心/数字资产/客户展示页设计 | [12-FILE_CENTER_ASSET_DESIGN.md](./12-FILE_CENTER_ASSET_DESIGN.md) |
-| 查 NAS 生产环境发布/运维 | [13-NAS_PRODUCTION_OPS.md](./13-NAS_PRODUCTION_OPS.md) |
-| 查外部 AI Agent 对接设计 | [10-AGENT_INTEGRATION_DESIGN.md](./10-AGENT_INTEGRATION_DESIGN.md) |
-| 让 Codex、ZCode、DeepSeek 等 Agent 连接生产系统 | [19-AGENT_CONNECTION_PLAYBOOK.md](./19-AGENT_CONNECTION_PLAYBOOK.md) |
-| 接入外部 AI Agent | [11-AGENT_ACCESS_GUIDE.md](./11-AGENT_ACCESS_GUIDE.md) |
-| 在 Mac 上录入、管理和授权使用 Agent Key | [16-AGENT_LOCAL_KEY_MANAGER.md](./16-AGENT_LOCAL_KEY_MANAGER.md) |
-| 让 Agent 从纸单/Excel 批量创建订单草稿 | [17-AGENT_ORDER_DRAFT_RUNBOOK.md](./17-AGENT_ORDER_DRAFT_RUNBOOK.md) |
-| 多 Agent 协作、认领与 worktree 隔离 | [reference/AGENT_COLLABORATION.md](./reference/AGENT_COLLABORATION.md) |
-| 排查问题 | [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md) |
-| 查看技术决策 | [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md) |
-| 查旧 ERP 真实数据与使用度证据 | [reference/legacy-erp-functional-audit.md](./reference/legacy-erp-functional-audit.md) |
-| 查旧 ERP 接替范围、冲突校准与发布阶段 | [reference/legacy-erp-to-blade-optimization-blueprint.md](./reference/legacy-erp-to-blade-optimization-blueprint.md) |
-
----
-
-## AI 开发规则
-
-### 规则 1：PRD 是唯一依据
-
-开发前必须阅读 [02-PRD.md](./02-PRD.md)。功能开发严格按 PRD 执行，不擅自添加或修改功能。
-
-### 规则 2：任务驱动
-
-从 [03-TASKS.md](./03-TASKS.md) 领取任务，完成后同步更新状态。
-
-### 规则 3：变更必须记录
-
-需求、架构和关键决策变化需要同步到 [05-CHANGELOG.md](./05-CHANGELOG.md)。
-
-### 规则 4：遇到问题先查文档
-
-1. [reference/TROUBLESHOOTING.md](./reference/TROUBLESHOOTING.md)
-2. [reference/DECISIONS_LOG.md](./reference/DECISIONS_LOG.md)
-3. 仍无法确认时再向用户提问
-
-### 规则 5：分支与发布必须受控
-
-开发前必须确认当前 Git 分支。新功能默认从 `master` 或 `develop` 创建 `feature/*` 分支；NAS 生产环境只部署 `master`；合并、发布和 GitHub push 规则按 [reference/GIT_BRANCH_WORKFLOW.md](./reference/GIT_BRANCH_WORKFLOW.md) 执行。
-
----
-
-## 相关项目路径
-
-| 项目 | 路径 |
-|------|------|
-| BladeProject 主目录 | `../` |
-| 文档中心 | `./` |
-| 后端 | `../blade-backend/` |
-| 移动端 PWA | `../blade-mobile/` |
-| PC 管理端 | `../blade-admin/` |
-| 共享类型 | `../packages/types/` |
-| 原 Blade 项目（参考） | `/Users/chenjiarun/Documents/Blade/` |
+业务规则改动更新 PRD 和对应契约；实施状态更新任务账本及交接快照；验证证据写入 CHANGELOG。已完成的阶段材料归档，不反复堆入会话快照。新增文档先明确它是现行契约、操作手册、规划还是历史证据。

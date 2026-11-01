@@ -11,7 +11,7 @@
 | 层级 | 技术 |
 |------|------|
 | 框架 | Spring Boot 3.2+ |
-| 安全 | Spring Security 6 (OAuth2) |
+| 安全 | Spring Security 6 + JWT |
 | ORM | MyBatis-Plus 3.5+ |
 | 数据库 | MySQL 8 |
 | 缓存 | Redis 7 |
@@ -33,7 +33,7 @@ BladeProject/
 │   │   ├── product/           # 商品模块
 │   │   ├── order/             # 订单模块
 │   │   ├── inventory/          # 库存模块
-│   │   ├── client/             # 客户模块
+│   │   ├── customer/           # 客户模块
 │   │   ├── dashboard/          # 看板模块
 │   │   └── common/             # 公共模块
 │   ├── src/main/resources/
@@ -48,31 +48,15 @@ BladeProject/
 
 ## 三、多租户规则（最核心）
 
-### 3.1 唯一正确方式：TenantLineInnerInterceptor
+### 3.1 可信上下文与自动过滤
 
-**所有租户隔离通过 MyBatis-Plus 插件自动处理，禁止手动拼接 tenant_id。**
+受管业务表由 MyBatis-Plus TenantLineInnerInterceptor 过滤，租户来自可信 TenantContext，缺失时 fail closed。实际白名单在 TenantLineHandler 代码；不要复制不存在的 tenant-line YAML 配置。全局权限定义与无 tenant_id 的关系表是明确例外。
 
-```yaml
-# application.yml
-mybatis-plus:
-  tenant-line:
-    enabled: true
-    tenant-table: sys_user
-    ignore-tables:
-      - sys_dict
-      - sys_param
-```
+Owner 跨档口仍限当前租户，不存在 tenant_id=0 自动访问全部数据。手写 SQL、后台任务和工具必须显式建立受信上下文及范围，不能自行猜租户。业务服务仍需要校验租户/数据归属和动作权限；自动过滤不能替代授权。
 
-### 3.2 禁止
+### 3.2 真实用户
 
-- ❌ 禁止在代码中手动加 `.eq("tenant_id", xxx)`
-- ❌ 禁止在 Service 层手动判断租户
-- ❌ 禁止用 AOP 自己实现租户拦截
-
-### 3.3 允许的情况
-
-- 在 `ignore-tables` 中的表可以不加租户条件
-- 超级管理员（tenant_id = 0）可以访问所有数据
+JWT principal 是 AuthenticatedUserDetails，不是业务 User 实体；统一解析当前用户，无法识别时拒绝，禁止默认管理员兜底。真实认证链回归见 BE-STAB-001/006。
 
 ---
 
@@ -111,13 +95,13 @@ public class OrderController {
 - ✅ 所有 Entity 加 `@TableName`
 - ✅ 所有接口加 Swagger 注解 `@Operation`
 - ✅ 所有 DTO 加 `@Valid` + 校验注解
-- ✅ 所有 Service 方法加事务 `@Transactional`
+- ✅ 多步业务写入在服务层用 `@Transactional` 保证原子性；纯读取按需要使用只读事务
 
 ### 4.3 禁止
 
 - ❌ 禁止返回 `Map` / `HashMap`，必须定义 VO
 - ❌ 禁止省略 `@Valid`
-- ❌ 禁止不加 `@Transactional`
+- ❌ 禁止关键多表写入缺失事务边界
 
 ---
 
@@ -173,7 +157,7 @@ public class OrderController {
 ### 6.2 表设计
 
 - 表名用下划线：`sys_user`、`product_order`
-- 必须有 `id`、`tenant_id`、`create_time`、`update_time`、`deleted` 字段
+- 新业务表按需要定义主键、租户、审计和索引；追加式财务/审计记录不提供任意更新或删除，不能强加通用软删模式
 - 索引命名：`idx_{table}_{column}`
 
 ---
@@ -183,7 +167,7 @@ public class OrderController {
 ### 7.1 JWT Token
 
 - Token 放在 `Authorization: Bearer {token}` 请求头
-- Token 过期时间：30 分钟
+- Token 默认过期时间：1 小时（以 application.yml 与生产配置为准）
 - Refresh Token 过期时间：7 天
 
 ### 7.2 权限校验
@@ -193,7 +177,7 @@ public class OrderController {
 @PreAuthorize("hasRole('ADMIN')")
 
 // 权限码校验
-@PreAuthorize("hasAuthority('order:create')")
+@PreAuthorize("hasAuthority('btn:order:create')")
 ```
 
 ---
@@ -244,7 +228,7 @@ public class OrderController {
 |------|----------|------|
 | 库存扣减/出库 | 🔴 必须 | 可能超卖 |
 | 库存预留/释放 | 🔴 必须 | 可能超额预留 |
-| 订单创建（扣库存） | 🔴 必须 | 可能超卖 |
+| 库存履约发货 | 🔴 必须 | 正式单创建/收款不扣库存，发货需防重复 |
 | 商品/SKU编码生成 | 🟡 应该 | 可能重复 |
 | 金额计算/支付 | 🔴 必须 | 可能金额错误 |
 
@@ -312,7 +296,7 @@ if (rows == 0) {
 
 ### 10.6 参考文档
 
-详细并发控制设计见：`../docs/06-ORDER_INVENTORY_DESIGN.md`（第七章：并发控制设计）
+详细并发控制设计见：`../docs/06-ORDER_INVENTORY_DESIGN.md`（现行摘要；详细实现见 InventoryServiceImpl/OrderActionService）
 
 ---
 

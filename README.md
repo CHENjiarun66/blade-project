@@ -4,6 +4,7 @@
 
 ## 阅读顺序
 
+0. [项目范围与优先级](./docs/PROJECT_SCOPE.md)、[项目评估](./docs/PROJECT_REVIEW_2026-11-02.md)
 1. [docs/SESSION_CONTEXT.md](./docs/SESSION_CONTEXT.md)
 2. [docs/01-README.md](./docs/01-README.md)
 3. [docs/02-PRD.md](./docs/02-PRD.md)
@@ -24,6 +25,7 @@
 ## 说明
 
 - 业务规则和技术栈以 [docs/02-PRD.md](./docs/02-PRD.md) 为准。
+- 任务百分比仅表示任务计数，不等于完整 ERP 或真实业务验收完成率。
 - 当前进度以 [docs/03-TASKS.md](./docs/03-TASKS.md) 为准。
 - 最近变更以 [docs/05-CHANGELOG.md](./docs/05-CHANGELOG.md) 为准。
 - Git 分支、GitHub 同步和 NAS 生产发布以 [docs/reference/GIT_BRANCH_WORKFLOW.md](./docs/reference/GIT_BRANCH_WORKFLOW.md) 为准。

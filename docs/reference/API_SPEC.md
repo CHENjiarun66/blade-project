@@ -1,5 +1,7 @@
 # API 接口规范
 
+> 现行接口摘要，2026-11-02 对齐。本文是分领域参考，示例字段为子集；精确路由、DTO 和权限以当前 Controller/接口注解为准。订单动作已按新生命周期重写，历史通用状态接口已移除。
+
 > 本文档记录所有后端 API 接口的详细规格。
 > AI 开发时必须严格按照本文档执行。
 > 新 AI 必须先阅读本文档再开始对接接口。
@@ -148,274 +150,40 @@ Authorization: Bearer {token}
 
 ---
 
-## 三、订单接口
+## 三、订单接口（当前动作模型）
 
-### 3.1 订单列表
+旧 `PUT /api/orders/{id}/status` 文档已失效，当前 Controller 不提供任意修改主状态的路由。状态/金额由服务端动作计算。下表核对 `OrderController`，请求 DTO、动作权限与数据范围仍以源码为准。
 
-```
-GET /api/orders
-```
+| 方法与路径 | 用途 |
+|---|---|
+| GET /api/orders | 分页列表；按档口×人员范围过滤 |
+| GET /api/orders/{id} | 详情，包含 allowedActions 与主状态字段 |
+| POST /api/orders | 新建正式单；纸单 Agent 应先创建草稿 |
+| PUT /api/orders/{id} | 在结构编辑窗口内更新 |
+| POST /api/orders/confirm-payment | 保留的收款入口；不是任意状态更新 |
+| POST /api/orders/{id}/add-payment | 追加收款/核销动作 |
+| POST /api/orders/{id}/confirm-settlement | 短款/结清处理 |
+| POST /api/orders/{id}/refund | 退款 |
+| POST /api/orders/{id}/reverse-record | 财务流水冲销；不是完整订单库存回退 |
+| POST /api/orders/{id}/fulfillment-mode | 结清后选择 STOCK_LINKED / RECORD_ONLY |
+| POST /api/orders/{id}/cancel | 受状态与记录约束的取消 |
+| DELETE /api/orders/{id} | 受权限与业务条件约束的删除 |
+| POST /api/orders/{id}/items/{itemId}/split | 占位 SKU 拆分 |
+| GET/POST/PUT/DELETE /api/orders/{id}/delivery-plan | 读取/创建/更新/删除配货计划，方法分别授权 |
+| GET/POST /api/orders/{id}/adjustment | 读取/建立调整 |
+| POST /api/orders/{id}/confirm-adjustment | 确认调整 |
+| POST /api/orders/{id}/cancel-adjustment | 取消调整 |
+| POST /api/orders/{id}/deliver | 发货 |
+| POST /api/orders/{id}/complete | 完成 |
+| GET /api/orders/export | 与列表同范围/同筛选的导出 |
 
-**请求参数**：
+### 订单响应与筛选约定
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| current | int | 否 | 当前页，默认 1 |
-| size | int | 否 | 每页条数，默认 20 |
-| status | int | 否 | 订单状态：0创建/1已付款/2已发货/3已完成/4已取消/5退货中/6已退货 |
-| keyword | string | 否 | 搜索关键词（订单号/客户名） |
-| sourceOutletId | long | 否 | 按来源档口筛选；只允许当前用户 `readable` 集合，伪造/越权返回 403（不静默空结果） |
-| unassignedOnly | boolean | 否 | 仅看“待归档档口”（`source_outlet_id IS NULL`）；需 `data:outlet:unassigned`，与 `sourceOutletId` 互斥（400）。不传表示全部（仍由统一档口 × 人员范围裁剪） |
+`fulfillmentStatus`、`collectionStatus`、`fulfillmentMode` 是主维度；`allowedActions` 由权限、状态和金额共同计算。旧 `status/paymentStatus` 只供兼容消费者，不能当成更新请求。精确响应字段见 `order/dto/OrderVO.java`，金额模型见 [财务契约](../15-ORDER_FINANCE_ANALYTICS_DESIGN.md)。
 
-> `GET /api/orders/export` 与列表使用完全相同的筛选与数据范围：在 count/select 之前应用统一档口 × 人员谓词与 `sourceOutletId`/`unassignedOnly` 校验（越权 403），禁止事后内存过滤；导出可见集合与同参数列表一致（Series E1）。
+`sourceOutletId` 只能指定可读档口，越权返回 403；`unassignedOnly` 需要待归档权限且与指定档口互斥。列表、详情和导出必须使用统一范围；关键词、分页及其他参数以当前列表 Controller/查询 DTO 为准，不把旧字段示例作为全量接口定义。
 
-**请求示例**：
-```
-GET /api/orders?current=1&size=20&status=0&keyword=张三
-```
-
-**成功响应**：
-```json
-{
-  "code": 200,
-  "data": {
-    "records": [
-      {
-        "id": 1,
-        "orderNo": "ORD202603210001",
-        "customerName": "张三",
-        "totalAmount": 1000.00,
-        "status": 0,
-        "statusName": "待处理",
-        "sourceOutletId": 12,
-        "sourceOutletCode": "YL",
-        "sourceShop": "御龙",
-        "createTime": "2026-03-21 10:00:00"
-      }
-    ],
-    "total": 100,
-    "size": 20,
-    "current": 1,
-    "pages": 5
-  }
-}
-```
-
----
-
-### 3.2 订单详情
-
-```
-GET /api/orders/{id}
-```
-
-**路径参数**：
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| id | long | 订单 ID |
-
-**成功响应**：
-```json
-{
-  "code": 200,
-  "data": {
-    "id": 1,
-    "orderNo": "ORD202603210001",
-    "customerName": "张三",
-    "customerPhone": "13800138000",
-    "customerAddress": "北京市朝阳区xxx",
-    "totalAmount": 1000.00,
-    "status": 0,
-    "statusName": "待处理",
-    "remark": "尽快发货",
-    "items": [
-      {
-        "productName": "商品A",
-        "sku": "SKU001",
-        "price": 100.00,
-        "quantity": 10,
-        "subtotal": 1000.00
-      }
-    ],
-    "createTime": "2026-03-21 10:00:00",
-    "updateTime": "2026-03-21 10:00:00"
-  }
-}
-```
-
----
-
-### 3.3 创建订单
-
-```
-POST /api/orders
-```
-
-**请求体**：
-```json
-{
-  "customerName": "张三",
-  "customerPhone": "13800138000",
-  "customerAddress": "北京市朝阳区xxx",
-  "sourceOutletId": 12,
-  "remark": "尽快发货",
-  "items": [
-    {
-      "productId": 1,
-      "skuId": 101,
-      "price": 100.00,
-      "quantity": 10
-    }
-  ]
-}
-```
-
-**档口规则（Series D）**：
-- 每张正式订单必须有具体档口：显式 `sourceOutletId` → 稳定 `sourceOutletCode`（可选，未传 ID 时按当前可用集合解析）→ 统一默认优先级（个人/租户/唯一可用）；仍不能确定返回 `400 请选择档口`。
-- `data:outlet:unassigned` 只用于历史空值读取/草稿待归档，**不能新建空档口正式订单**。
-- 目标档口必须同租户、未删除、启用且当前操作者可用；`source_shop` 一律由档口主数据名称生成，忽略客户端 `sourceShop`；`sourceBatchNo` 不得兜底。
-
-**成功响应**：
-```json
-{
-  "code": 200,
-  "data": {
-    "id": 1,
-    "orderNo": "ORD202603210001"
-  }
-}
-```
-
----
-
-### 3.4 更新订单状态
-
-```
-PUT /api/orders/{id}/status
-```
-
-**请求体**：
-```json
-{
-  "status": 1
-}
-```
-
-**状态码说明**：
-| 值 | 名称 |
-|----|------|
-| 0 | 创建 |
-| 1 | 已付款 |
-| 2 | 配货中（ADJUSTMENT_PENDING） |
-| 3 | 待发货（READY_TO_SHIP） |
-| 4 | 已发货 |
-| 5 | 已完成 |
-| 6 | 已取消 |
-| 7 | 退货中（预留，流程未实现） |
-| 8 | 已退货（预留，流程未实现） |
-
-**成功响应**：
-```json
-{
-  "code": 200,
-  "message": "状态更新成功"
-}
-```
-
----
-
-### 3.5 删除订单
-
-```
-DELETE /api/orders/{id}
-```
-
-**成功响应**：
-```json
-{
-  "code": 200,
-  "message": "删除成功"
-}
-```
-
----
-
-### 3.6 更新订单基础信息
-
-```
-PUT /api/orders/{id}
-```
-
-**请求体**：
-```json
-{
-  "customerName": "张三",
-  "customerPhone": "13800138000",
-  "customerAddress": "北京市朝阳区xxx",
-  "needDelivery": 1,
-  "deliveryAddress": "送货地址",
-  "remark": "备注",
-  "images": "[\"101\",\"102\"]",
-  "sourceOutletId": 12,
-  "outletChangeReason": "门店搬迁，重新归属"
-}
-```
-
-**说明**：所有字段均为可选，按字段是否传值选择性更新。
-
-**改档口（Series D 高风险动作）**：
-- 未传 `sourceOutletId` = 保持原值；传入与原值相同 = 不写审计。
-- 变更档口或给历史 `source_outlet_id=NULL` 归档必须拥有 `btn:order:changeOutlet`（V66 迁移仅授予 OWNER/ADMIN；后端强制，不依赖前端隐藏），目标档口必须同租户、未删、启用且当前可写。
-- 必须填写非空 `outletChangeReason`；同事务向 `order_outlet_change_log` 追加旧/新 ID、名称、原因、操作者；历史 NULL 归档额外要求 `data:outlet:unassigned`。
-- 已发货/已完成订单原本仅允许备注/图片，显式改档口作为独立高权限例外可执行；金额、明细及其他字段不被放开。
-- 自由文本 `sourceShop` 不再生效，名称快照始终来自主数据。
-
-**成功响应**：
-```json
-{
-  "code": 200,
-  "message": "success"
-}
-```
-
----
-
-### 3.7 追加收款
-
-```
-POST /api/orders/{id}/add-payment
-```
-
-**触发条件**：订单 `status === 0`（创建状态）且 `paymentStatus !== 2`（未付全款）
-
-**请求体**：
-```json
-{
-  "additionalAmount": 2000.00
-}
-```
-
-**业务规则**：
-- 在当前 `paidAmount` 基础上累加本次收款金额
-- 累加后 `paidAmount >= totalAmount` → `paymentStatus` 自动变为 2（全款）
-- 累加后 `paidAmount < totalAmount` → `paymentStatus` 保持或变为 1（定金）
-- 不改变订单 `status`，不涉及库存操作
-
-**成功响应**：
-```json
-{
-  "code": 200,
-  "message": "success"
-}
-```
-
-**错误响应**（400 + 可读错误信息）：
-- "只有创建状态的订单才可追加收款"
-- "订单已付全款，无需追加"
-- "追加后金额不能超过订单总额"
-
----
+编辑结构仅在 `CONFIRMED + UNDECIDED + 非SETTLED`，且无核销/退款/退货时开放；部分收款后新应收不得低于净实收。草稿不是正式订单，删除草稿独立分支未集成前不能假定生产已有对应能力。
 
 ## 三、客户接口
 
@@ -1184,7 +952,7 @@ V59 起草稿响应增加 `entrySource`：`AGENT` 保持上述纸单语义，`MA
 - 响应：`View`/`Summary` 返回 `sourceOutletId`、`sourceOutletCode`（编码派生自主数据）；`sourceShop` 为服务端主数据名称快照，忽略客户端传入值。
 - 列表筛选（Series D）：`GET /api/order-drafts` 新增 `sourceOutletId`（仅当前 `readable` 集合，越权 403）与 `unassignedOnly`（仅 `data:outlet:unassigned`，与 `sourceOutletId` 互斥 400）；不传为“全部档口”，仍受统一档口 × 人员范围裁剪。
 - 幂等与失败语义：同创建主体（Agent Key ID / 手工 user ID）同 `externalRefNo` 重试返回 `DUPLICATE` 并携带原 `draftId`；不同主体返回 409 且不暴露已有 ID；被拒绝的首次请求不落库。历史 `source_outlet_id=NULL` 的 Agent 草稿重试不升级为可读，返回通用 `ERROR` 且不泄漏内部 ID。
-- Series E3/E3 整改：Agent 订单列表只接受 `sourceOutletCode`（传 `sourceOutletId` 返回 400）；Agent `style-trends`/`sku-mix` 只接受 `sourceOutletCodes`（传 `sourceOutletIds` 返回 400）；`AgentOrderDTO.OrderView` 返回 `sourceOutletCode`。历史 `source_shop` 回填与用户初始授权为运维/本地工具（见 [Series F 本地交付报告](../superpowers/plans/2026-09-21-outlet-series-f-local-delivery.md)），不暴露 HTTP API。
+- Series E3/E3 整改：Agent 订单列表只接受 `sourceOutletCode`（传 `sourceOutletId` 返回 400）；Agent `style-trends`/`sku-mix` 只接受 `sourceOutletCodes`（传 `sourceOutletIds` 返回 400）；`AgentOrderDTO.OrderView` 返回 `sourceOutletCode`。历史 `source_shop` 回填与用户初始授权为运维/本地工具（见 [Series F 本地交付报告](../archive/plans/2026-09-21-outlet-series-f-local-delivery.md)），不暴露 HTTP API。
 
 SKU 候选补充规则：候选返回 `skuType` 和 `placeholder`。只按款号查询任何显式规格商品时，`PLACEHOLDER` 以 `matchScore=1.00` 优先返回，即使当前只有一个具体 `NORMAL` SKU；请求包含 `colorName` 或 `sizeCode` 时不返回占位 SKU。只有纯无规格 `DEFAULT` 商品按款号直接返回实际 SKU。英文 SKU 编码是接口稳定标识，前端应将 `DEFAULT/NA-NA` 显示为“无规格商品（实际 SKU）”，将 `PLACEHOLDER/UNSPEC-UNSPEC` 显示为“整款录入（颜色/尺码未指定）”。`GET /api/agent/analytics/sku-mix` 的款号总量包含占位销量，真实 `skus/colors/sizes` 排名排除占位量，并通过 `unspecified`、`historicalNoVariant`、`variantCoverageRate`、`variantDataQuality` 分别描述当前整款录入量、商品升级规格前的历史无规格量及规格覆盖质量。
 

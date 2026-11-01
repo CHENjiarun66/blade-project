@@ -1,0 +1,53 @@
+{
+  "baseline": "132c9e6",
+  "moves": {
+    "docs/superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md": "docs/archive/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md",
+    "docs/superpowers/plans/2026-09-21-outlet-series-c-delivery.md": "docs/archive/plans/2026-09-21-outlet-series-c-delivery.md",
+    "docs/superpowers/plans/2026-06-11-quick-order-product-batch-entry-sow.md": "docs/archive/plans/2026-06-11-quick-order-product-batch-entry-sow.md",
+    "docs/superpowers/plans/2026-08-30-order-refactor-final-delivery-report.md": "docs/archive/plans/2026-08-30-order-refactor-final-delivery-report.md",
+    "docs/superpowers/plans/2026-08-30-order-refactor-sow0-baseline-audit.md": "docs/archive/plans/2026-08-30-order-refactor-sow0-baseline-audit.md",
+    "docs/superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md": "docs/archive/plans/2026-09-20-outlet-access-control-rom-sow.md",
+    "docs/superpowers/plans/2026-06-14-product-management-v2-rom-sow.md": "docs/archive/plans/2026-06-14-product-management-v2-rom-sow.md",
+    "docs/superpowers/plans/2026-09-21-outlet-series-f-local-delivery.md": "docs/archive/plans/2026-09-21-outlet-series-f-local-delivery.md",
+    "docs/superpowers/plans/2026-09-21-outlet-series-e3-delivery.md": "docs/archive/plans/2026-09-21-outlet-series-e3-delivery.md",
+    "docs/superpowers/plans/2026-05-22-agent-gateway-style-trends.md": "docs/archive/plans/2026-05-22-agent-gateway-style-trends.md",
+    "docs/superpowers/plans/2026-06-18-file-derivatives-v1-sow.md": "docs/archive/plans/2026-06-18-file-derivatives-v1-sow.md",
+    "docs/superpowers/plans/2026-08-30-order-refactor-agent-execution-board.md": "docs/archive/plans/2026-08-30-order-refactor-agent-execution-board.md",
+    "docs/superpowers/plans/2026-09-21-outlet-integrity-audit-remediation-1.md": "docs/archive/plans/2026-09-21-outlet-integrity-audit-remediation-1.md",
+    "docs/superpowers/plans/2026-06-21-order-inventory-soft-coupling-v1-rom-sow.md": "docs/archive/plans/2026-06-21-order-inventory-soft-coupling-v1-rom-sow.md",
+    "docs/superpowers/plans/2026-09-21-outlet-series-b1-delivery.md": "docs/archive/plans/2026-09-21-outlet-series-b1-delivery.md",
+    "docs/superpowers/plans/2026-09-21-outlet-series-e1-delivery.md": "docs/archive/plans/2026-09-21-outlet-series-e1-delivery.md",
+    "docs/superpowers/plans/2026-09-20-outlet-series-a-delivery.md": "docs/archive/plans/2026-09-20-outlet-series-a-delivery.md",
+    "docs/superpowers/plans/2026-09-21-outlet-series-b2-delivery.md": "docs/archive/plans/2026-09-21-outlet-series-b2-delivery.md",
+    "docs/superpowers/plans/2026-09-21-outlet-series-e2-delivery.md": "docs/archive/plans/2026-09-21-outlet-series-e2-delivery.md",
+    "docs/superpowers/plans/2026-08-30-order-refactor-zcode-long-run-task.md": "docs/archive/plans/2026-08-30-order-refactor-zcode-long-run-task.md",
+    "docs/superpowers/plans/2026-09-21-outlet-series-d-delivery.md": "docs/archive/plans/2026-09-21-outlet-series-d-delivery.md",
+    "docs/architecture/BACKEND_MIGRATION.md": "docs/archive/architecture/BACKEND_MIGRATION.md",
+    "docs/07-INVENTORY_EXTENDED_QUESTIONS.md": "docs/backlog/INVENTORY_EXPANSION_QUESTIONS.md",
+    "docs/superpowers/plans/2026-06-18-file-derivatives-production-rollout.md": "docs/archive/plans/2026-06-18-file-derivatives-production-rollout.md",
+    "docs/superpowers/plans/2026-09-21-outlet-production-release-checklist.md": "docs/archive/plans/2026-09-21-outlet-production-release-checklist.md",
+    "docs/superpowers/plans/2026-09-22-order-entry-customer-fixes-production-release.md": "docs/archive/plans/2026-09-22-order-entry-customer-fixes-production-release.md",
+    "档口iPad选款-客户行为数据采集方案.md": "docs/backlog/IPAD_CUSTOMER_BEHAVIOR_COLLECTION.md"
+  },
+  "superseded_snapshots": {
+    "docs/06-ORDER_INVENTORY_DESIGN.md": "docs/archive/designs/ORDER_INVENTORY_V50.md",
+    "docs/08-CUSTOMER_OPTIMIZATION.md": "docs/archive/designs/CUSTOMER_OPTIMIZATION_ORIGINAL.md",
+    "docs/architecture/MOBILE_PWA_PLAN.md": "docs/archive/designs/MOBILE_PWA_ORIGINAL.md",
+    "docs/13-NAS_PRODUCTION_OPS.md": "docs/archive/operations/NAS_OPS_BEFORE_2026-11-02.md",
+    "docs/SESSION_CONTEXT.md": "docs/archive/snapshots/SESSION_CONTEXT_BEFORE_2026-11-02.md",
+    "docs/architecture/DATABASE.md": "docs/archive/designs/DATABASE_REFERENCE_BEFORE_2026-11-02.md"
+  },
+  "removed_duplicate_guides": {
+    "docs/开发者必读文档.md": "docs/01-README.md",
+    "docs/给Agent读的生产环境发布指南.md": "docs/13-NAS_PRODUCTION_OPS.md",
+    "docs/reference/DEVELOPMENT_WORKFLOW.md": "docs/reference/AGENT_COLLABORATION.md"
+  },
+  "split_history": [
+    "docs/archive/changelog/2026-09-and-earlier.md",
+    "docs/archive/execution/TASK_EXECUTION_BEFORE_2026-11-02.md"
+  ],
+  "backup_sha256": "7112f36df6e3a75bf49f2d58b7f9fcbe2dc18c3506cf9584da32ab0795ec4af1",
+  "section_archives": [
+    "docs/archive/designs/BUILTIN_OCR_ORIGINAL.md"
+  ]
+}

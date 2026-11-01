@@ -10,10 +10,10 @@
 
 | 层级 | 技术 |
 |------|------|
-| 框架 | Vue 3.4+ (Composition API) |
+| 框架 | Vue 3.5 (Composition API) |
 | 构建 | Vite 8 |
 | 语言 | TypeScript 5 |
-| UI 库 | Vuetify 3 + Naive UI |
+| UI 库 | Vuetify 4（Naive UI 依赖在包中，未作为当前主 UI） |
 | 路由 | Vue Router 4 |
 | 状态 | Pinia |
 | HTTP | Axios |
@@ -134,7 +134,7 @@ vite.config.ts 中已配置 vite-plugin-pwa：
 
 ```bash
 # 安装依赖
-npm install
+npm ci
 
 # 开发
 npm run dev

@@ -2,7 +2,7 @@
 
 > 本文件规定 Codex、DeepSeek 和其他 Agent 工具在同一仓库协作时的信息同步协议。
 > 所有 Agent 开工前必须阅读本文档、`SESSION_CONTEXT.md`、`03-TASKS.md` 和当前任务的设计/SOW。
-> 当前仓库没有根目录 `AGENTS.md`，因此本文件和 Git 工作流是现行协作规则；如后续新增统一入口，必须同步更新本文档。
+> 用户在会话提供的 AGENTS.md 指引和当前授权优先；本文件说明仓库交接约定，不自动要求启动其他 Agent。方向优先级见 PROJECT_SCOPE.md。
 
 ---
 
@@ -24,7 +24,7 @@ Git = 唯一交付同步通道（代码与文档的最终一致来源）
 |----|------|------|
 | 规则层 | `docs/reference/AGENT_COLLABORATION.md` + `GIT_BRANCH_WORKFLOW.md` | 规定必须做什么及如何合并发布 |
 | 状态层 | `docs/SESSION_CONTEXT.md`、`docs/03-TASKS.md`、`docs/05-CHANGELOG.md` | 记录"现在是什么状态、谁在做" |
-| 事实层 | Git（同一工作区） | 代码、文档、历史的最终一致来源 |
+| 事实层 | Git（共享提交，独立工作区） | 代码、文档、历史的最终一致来源 |
 
 **核心原则**：
 - 同一仓库不等于共享同一工作目录；并发修改必须使用独立 worktree 和分支。
@@ -78,7 +78,7 @@ git branch -vv                        # 3. 核对 ahead/behind 和 upstream
 
 **收工（任务完成或会话结束，必做）**：
 
-0. 运行 `node scripts/gen-status.mjs` 刷新状态看板（更新 `docs/STATUS.md`）
+0. 运行 `node scripts/check-docs.mjs` 检查链接后，再运行 `node scripts/gen-status.mjs` 刷新状态看板（更新 `docs/STATUS.md`）
 1. 更新 `docs/03-TASKS.md`：任务状态 + 执行记录
 2. 更新 `docs/05-CHANGELOG.md`：变更内容 + 原因 + 影响范围 + **验证结果** + 执行人
 3. 更新 `docs/SESSION_CONTEXT.md`：当前摘要、下一步、未完成事项
@@ -97,7 +97,7 @@ git branch -vv                        # 3. 核对 ahead/behind 和 upstream
 
 ### 协议 4：提交与分支纪律
 
-- 分支规范沿用 `docs/reference/GIT_BRANCH_WORKFLOW.md`（`feature/*` → `develop` → `release/*` → `master`）。
+- 分支规范沿用 `docs/reference/GIT_BRANCH_WORKFLOW.md`（Codex 用 `codex/*`，其他工具可用 `feature/*`，经 `develop` → `release/*` → `master`）。
 - 跨模块大重构使用一个集成分支和多个独立 worktree/子分支；不得让多个 Agent 并发写同一工作区。
 - 每个可回滚节点一个 commit，按功能边界拆分，message 带执行人后缀。
 - **多个无关功能禁止混在一个 commit。**

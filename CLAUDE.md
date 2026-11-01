@@ -9,6 +9,7 @@
 
 **新 AI 必读顺序**：
 
+0. [docs/PROJECT_SCOPE.md](./docs/PROJECT_SCOPE.md) — 用户确认的当前主线与后置范围
 1. 📊 [docs/STATUS.md](./docs/STATUS.md) — 项目状态总览（自动生成，一眼看清做了什么/在做什么/没做什么）
 2. 📋 [docs/01-README.md](./docs/01-README.md) — 项目结构和工作流程
 3. 📝 [docs/02-PRD.md](./docs/02-PRD.md) — 产品需求文档（开发依据）
@@ -35,7 +36,7 @@
 
 ### 规则 1：PRD 是唯一依据
 
-**所有开发必须严格按 [02-PRD.md](./docs/02-PRD.md) 执行**。不擅自添加/修改功能。
+**所有开发遵循用户当前授权、[范围](./docs/PROJECT_SCOPE.md)、[02-PRD.md](./docs/02-PRD.md) 及对应现行契约**。历史档案不作为当前实施指令。不擅自添加/修改功能。
 
 ### 规则 2：任务驱动
 
@@ -59,7 +60,7 @@
 
 ### 规则 6：分支和发布必须受控
 
-开发前必须确认当前 Git 分支和工作区状态。新功能默认使用 `feature/*` 分支，集成测试使用 `develop`，上线候选使用 `release/*`，NAS 生产环境只部署 `master`。详细规则见 [docs/reference/GIT_BRANCH_WORKFLOW.md](./docs/reference/GIT_BRANCH_WORKFLOW.md)。
+开发前必须确认当前 Git 分支和工作区状态。Codex 新工作默认使用 `codex/*` 分支（其他执行工具可用 `feature/*`），集成测试使用 `develop`，上线候选使用 `release/*`，NAS 生产环境只部署 `master`。详细规则见 [docs/reference/GIT_BRANCH_WORKFLOW.md](./docs/reference/GIT_BRANCH_WORKFLOW.md)。
 
 ### 规则 7：双 Agent 联合开发必须同步
 
@@ -72,9 +73,9 @@ Codex 与 DeepSeek（DSH）在同一工作区联合开发时，必须遵守 [doc
 
 ### 规则 8：交接必须刷新状态看板
 
-每次任务交接 / 收工时运行 `node scripts/gen-status.mjs` 刷新项目状态看板：
+每次任务交接 / 收工时运行 `node scripts/check-docs.mjs` 检查链接后，再运行 `node scripts/gen-status.mjs` 刷新项目状态看板：
 
-- 数据源：`docs/03-TASKS.md`（脚本只读，不修改业务数据）
+- 数据源：`docs/03-TASKS.md` 与 `docs/project-streams.json`（脚本只读，不修改业务数据）
 - 产物：`docs/STATUS.md`（提交入库）、`outputs/status.html`（本地可视化看板，浏览器打开）
 - 刷新后必须把 `docs/STATUS.md` 的变更一并 commit + push
 
@@ -84,9 +85,9 @@ Codex 与 DeepSeek（DSH）在同一工作区联合开发时，必须遵守 [doc
 
 | 层级 | 技术 |
 |------|------|
-| 移动端 | Vue3 + Vite + TypeScript + PWA + Vuetify3 |
+| 移动端 | Vue3 + Vite + TypeScript + PWA + Vuetify4 |
 | 后端 | Spring Boot 3 + Spring Security + MyBatis-Plus |
-| AI 工具 | Claude Code（主力） |
+| AI 工具 | 按当前会话授权选择执行工具 |
 
 详见：[docs/02-PRD.md](./docs/02-PRD.md)
 

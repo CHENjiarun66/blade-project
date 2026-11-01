@@ -7,7 +7,7 @@
 
 ## 任务领取规则
 
-1. **自主领取**：AI 根据状态自行领取 `TODO` 任务
+1. **按主线领取**：在用户授权范围内按当前优先级领取任务；后置需求不因标记 `TODO` 自动启动
 2. **主动更新**：完成任务后立即更新状态
 3. **交接同步**：任务状态变更必须同步到本文档
 4. **阻塞上报**：遇到阻塞立即在本文档注明，并通知用户
@@ -24,95 +24,37 @@
 | OPS-FILE-001 | 定位并修复 NAS 文件中心列表请求失败，完成线上回归 | ✅ 完成（Codex；873 项后端回归通过，生产 release `20261101_file_center_hotfix`） |
 | OPS-FILE-002 | 修复商品图片上传无法解析当前用户，补真实 JWT 上传回归并发布 | ✅ 完成（Codex；880 项全量回归通过，生产 release `20261101_upload_user_hotfix`） |
 | OPS-GIT-001 | 分支与正式/测试基线盘点、历史归档、进度记录纠正 | ✅ 完成（Codex，2026-11-02） |
+| OPS-DOC-001 | 项目范围评估、文档生命周期整理与代码改进清单 | ✅ 完成（Codex，2026-11-02；13 方向、文档归档/链接验证、7 项代码改进待办） |
 
-| 阶段 | 状态 | 说明 |
-|------|------|------|
-| 技术方案讨论 | ✅ 完成 | 多 Agent 团队讨论，决策已锁定 |
-| 文档体系建设 | ✅ 完成 | 完整文档体系建立 |
-| 后端骨架搭建 | ✅ 完成 | Spring Boot 3 项目初始化 |
-| 商品模块开发 | ✅ 完成 | 颜色/尺码/SKU 管理，API 验证通过 |
-| 库存模块开发 | ✅ 完成 | 仓库/库存/出入库/预警/预留锁定 |
-| 订单系统开发 | ✅ 完成 | 重构，与库存联动 |
-| 客户系统开发 | ✅ 完成 | 客户档案 CRUD + 电话搜索 |
-| 移动端骨架搭建 | ✅ 完成 | Vue3 PWA 项目初始化 |
-| 移动端页面开发 | ⏳ 进行中 | 订单/库存/商品页面开发 |
-| PC 管理端骨架搭建 | ✅ 完成 | Vue3 + Element Plus + TailwindCSS，登录/布局/仪表盘全部完成 |
-| PC 管理端页面开发 | ✅ 完成 | 订单/库存/商品/客户管理页面 |
-| 看板系统开发 | ⏳ 部分完成 | 仪表盘、趋势、库存周转、数据分析及档口×人员读取范围已实现；全出口隐私和生产性能验收继续跟踪 |
-| 外部 Agent 对接 | ⏳ 进行中 | 款式趋势、颜色尺码结构、纸单草稿和 WhatsApp 本地归档已完成；经营类只读接口、生产联调和限流仍待完成 |
-| 档口主数据与数据权限 | ⏳ 部分完成 | Series A–E 已实现，V63–V68 与档口权限已随 2026-09-22 发布；生产副本映射已有记录，用户授权、专项验收/性能与兼容期收口仍待完成 |
+### 当前方向与实施顺序（2026-11-02）
 
-### 近期主线与状态口径（2026-08-29）
+用户确认先稳定现有订单、库存和真实业务验收。方向状态见 [PROJECT_SCOPE.md](./PROJECT_SCOPE.md) 和 [project-streams.json](./project-streams.json)，不要把模块已实现与真实验收通过混为一谈。
 
-近期工作按“功能开发、本地验证、生产部署、真实业务验收”四级记录。只有四级全部通过，才视为生产可用。
+| 顺序 | 工作 | 边界 |
+|---|---|---|
+| P0 | 真实操作者、库存动作权限、现有订单/库存稳定性 | BE-STAB-001/002 优先；代码尚未修复 |
+| P0 | 档口用户授权及订单/统计/导出/文件全出口验收 | 统一策略已部署，实际授权与专项验收未闭环 |
+| P0 | 发布、备份、TLS 和真实认证回归 | 证书 11/19 前完成续期验证；普通发布与旧迁移分离 |
+| P1 | 真实纸单样本与 30 单联调 | 先 TEST-PHASE2-001，再 TEST-PHASE2-002 |
+| 后置 | 新 Agent 分析、移动页面、完整旧 ERP/通用财务 | 本轮不启动；存量问题继续维护 |
 
-| 工作流 | 功能开发 | 本地验证 | 生产部署 | 真实业务验收 | 当前结论 |
-|------|------|------|------|------|------|
-| WhatsApp 本地归档与客户工作区 | ✅ | ✅ | ✅ | ⏳ | V43-V47 已随 2026-09-11 release 部署，待 Mac Collector → NAS 真实联调 |
-| 纸单 Agent 批量草稿 | ✅ | ✅ | ✅ | ⏳ | V48/V58 与前后端已部署，待 30 张真实纸单和最小 scope Key 验收 |
-| SPU 占位 SKU 与分析隔离 | ✅ | ✅ | ✅ | ⏳ | V49/V50/V56 已部署；187 个商品均有唯一占位 SKU，待真实履约拆分验收 |
-| 订单状态、金额、收款与履约重构 | ✅ | ✅ | ✅ | ⏳ | release `20260911_032005` 已迁移 145 单且全部门禁通过，待页面业务验收 |
-| Agent Gateway 经营分析 | ⏳ | 部分 | ⏳ | ⏳ | 款式趋势和 SKU 结构完成，其余数据包待开发 |
-| 移动端 | ⏳ | ⏳ | ⏳ | ⏳ | 骨架和部分页面完成，不是当前主线 |
-
-### 最近完成的工作（2026-08-24 至 2026-08-27）
-
-提交记录与 V43-V50 数据库迁移确认了以下成果：
-
-| 日期 | 工作 | 结果 |
-|------|------|------|
-| 2026-08-24～26 | WhatsApp 本地归档、Collector、Agent 分析、缺失媒体、定向扫描、只读聊天和客户详情工作区 | 本地真实数据与自动化验证完成，尚未部署 NAS |
-| 2026-08-27 | Agent 商品候选、结构化批量订单草稿、人工确认和幂等处理 | 本地 MVP 与合成样本验证完成；原图上传后改为非必需兼容能力 |
-| 2026-08-27 | 草稿工作台改为快速录单式编辑界面 | 前端构建与 Playwright 验证完成 |
-| 2026-08-27 | SPU 占位 SKU 自动维护、候选匹配和无规格 DEFAULT 规则 | V49/V50 与后端测试完成 |
-| 2026-08-27 | 占位销量计入款号总量并与真实颜色尺码排行隔离 | PC 与 Agent 分析验证完成 |
-| 2026-09-05 | Owner Agent Key 管理、一次性签发、轮换/停用与 Mac 外网配置 | V58、后端 API 和 PC 页签完成；待 NAS 生产联调 |
-
-### 必须联动实施的任务组
-
-以下任务不能拆开上线：
-
-| 优先级 | 联动任务 | 依赖关系 | 完成标志 |
-|------|------|------|------|
-| P0-0 | BE-1040～BE-1052、BA-1120～BA-1123、FE-110～FE-111、TEST-ORDER-LIFECYCLE-001 | 按[订单大重构 ROM/SOW](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)先完成加法迁移和统一状态机，再并行切换履约、各端和统计消费者 | 新旧字段兼容、两种履约方式闭环、全部消费者同口径、旧订单迁移可预演和回滚 |
-| P0-1 | BE-610、BE-611、BE-612、BA-805 | 先实现拆分和审计，再启用履约保护和界面 | 占位订单可拆分，未拆分订单不能配货或出库，统计不重复 |
-| P0-2 | TEST-PHASE2-001 | 依赖 P0-1 | “单据收纳/42”图片和 Excel 在本地完成整批复核 |
-| P0-3 | TEST-PHASE2-002 | V48-V58 已部署；真实 Agent 联调依赖 P0-2 | 从 Mac 使用最小 scope Key 和可配置外网入口完成 30 单联调 |
-| P1-1 | TEST-WA-NAS-001 | 依赖生产 Collector/Worker Key、网络和备份 | Mac 增量同步、客户工作区、媒体和定向扫描在 NAS 验收 |
-| P1-2 | BE-556～BE-560、BE-585、BE-562 | 先完成数据包和毛利脱敏，再做限流与真实 Agent 回归 | Agent Gateway 经营接口按租户和 scope 稳定返回 |
-| P1-3 | BE-506 / TEST-OUTLET-001/004 | 统一读取范围已实现并部署，继续专项权限/生产性能验收 | 仪表盘按档口×人员显示数据，验收证据齐全 |
-| P0-4 | DB-OUTLET-001～003、BE-OUTLET-001～010、BA-OUTLET-001～006、TEST-OUTLET-001～004、DATA-OUTLET-001～003 | 按[档口权限 ROM/SOW](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)完成主数据、用户绑定和统一后端策略后，才能切换订单/草稿/统计出口 | 销售员无法越权访问其他档口；Owner 可跨档口；历史订单安全回填且全部出口同口径 |
-
-### 档口权限 Series A 数据模型与兼容迁移（2026-09-20，DeepSeek）
-
-> 本轮只做数据模型加法迁移，不进入 CRUD、权限策略、前端或生产部署。ROM/SOW 见 [2026-09-20-outlet-access-control-rom-sow.md](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)，交付报告见 [2026-09-20-outlet-series-a-delivery.md](./superpowers/plans/2026-09-20-outlet-series-a-delivery.md)。
-
-本轮交付（权威状态见下文「Phase 7.1: 档口主数据与跨档口数据权限」统一任务表，避免重复计数）：`DB-OUTLET-001` 档口与用户关联表（`sales_outlet`/`sys_user_outlet`、Flyway V63、租户与索引/契约测试）；`DB-OUTLET-002` 订单与草稿可空 `source_outlet_id` + `order_outlet_change_log`，保留 `source_shop` 不改写历史；`DB-OUTLET-003` `agent_key_outlet` 与 `agent_key.outlet_scope_type`（ALL/ASSIGNED/NONE，默认 NONE）；`DATA-OUTLET-001` 只读历史档口审计工具 `scripts/outlet-source-shop-audit.sql`。
-
-未做任务（保持 TODO）：Series B 档口 CRUD 与用户授权、Series C 统一访问策略、Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口，均不在本轮范围。
-
-### 档口权限 Series B1 后端（2026-09-21，DeepSeek）
-
-> 本轮仅实现后端（档口主数据服务/API、用户多档口绑定、权限迁移），不做前端；`BA-OUTLET-001/002` 前端随后由 Series B2 完成。交付报告见 [2026-09-21-outlet-series-b1-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b1-delivery.md)。
-
-本轮交付（权威状态见下文「Phase 7.1」）：`BE-OUTLET-001` 档口主数据服务/API；`BE-OUTLET-002` 用户多档口绑定；`BE-OUTLET-003` V64 权限与迁移。
-
-未做任务（保持 TODO）：Series D 订单/草稿交互、Series E 统计/导出/文件/Agent、Series F 历史迁移与生产发布、Series G 收口。
-
-### 档口权限 Series B2 前端（2026-09-21，DeepSeek）
-
-> 仅实现 BA-OUTLET-001/002 前端。交付报告见 [2026-09-21-outlet-series-b2-delivery.md](./superpowers/plans/2026-09-21-outlet-series-b2-delivery.md)。
-
-### 档口权限 Series C 统一访问策略（2026-09-21，DeepSeek）
-
-> 仅后端统一数据访问策略（BE-OUTLET-004/005/006）+ V65 迁移，不进入 Series D UI。交付报告见 [2026-09-21-outlet-series-c-delivery.md](./superpowers/plans/2026-09-21-outlet-series-c-delivery.md)。
-> 第二轮 Codex 终审整改（commit `c8551b0`）：补齐草稿“新建/更新”档口归属（Agent 只认 `sourceOutletCode`、手工显式 ID/默认/unassigned 规则）、`View`/`Summary` 暴露 `sourceOutletId`/`sourceOutletCode`；新增 `OrderDraftOutletAttributionTest` 16 例，全量后端 633/633。
-
-本轮交付（权威状态见下文「Phase 7.1」）：`BE-OUTLET-004` 统一 `OutletAccessPolicy`；`BE-OUTLET-005` `OrderAccessPolicy` 二维重构；`BE-OUTLET-006` 草稿档口权限接入（含第二轮整改）。
-
----
+旧 Series A/B/C 等阶段交付和当时的“未做”描述已归入对应 [历史交付](./archive/README.md)，以下原任务 ID 与各自交付状态继续保留。未认领任务不等于正在执行。
 
 ## 后端开发任务
+
+### 稳定性修复与优化（2026-11-02 评估新增，尚未实施）
+
+详细证据与验收见 [CODE_REVIEW_2026-11-02.md](./CODE_REVIEW_2026-11-02.md)。先完成 P1，再考虑页面拆分；此表为后续待办，本轮不把评估记成代码修复。
+
+| 任务 ID | 任务 | 状态 | 验收边界 |
+|---|---|---|---|
+| BE-STAB-001 | 统一真实 JWT 身份解析并移除默认管理员兜底 | ⏳ TODO | P1；库存/客户/占位拆分/WhatsApp；实际用户、缺身份拒绝与审计回归 |
+| BE-STAB-002 | 库存写入口动作权限与角色/前端一致 | ⏳ TODO | P1；无权 JWT 五类写入 403 且零副作用；授权账号正常 |
+| BE-STAB-003 | 关闭生产 SQL 结果 stdout 并验证脱敏 | ⏳ TODO | P1；日志不含认证秘密/客户敏感结果，保留必要审计 |
+| BE-STAB-004 | 异常响应与服务端诊断关联 | ⏳ TODO | P2；空消息/嵌套异常/业务异常有安全提示与请求 ID |
+| BE-STAB-005 | 分离普通应用发布、schema 与历史数据迁移模式 | ⏳ TODO | P1；普通发布不执行旧迁移，不默认 V58，不降级 V69 |
+| BE-STAB-006 | 真实登录 JWT/数据范围回归与可复现自动检查入口 | ⏳ TODO | P2；隔离数据库，权限/幂等/失败零写入，适合接 CI |
+| BE-STAB-007 | 拆分订单/商品大页面和大服务 | ⏳ TODO | P2 后置；先行为保护，保持 API/金额/动作行为 |
 
 ### Phase 0: 基础骨架（已完成）
 
@@ -126,7 +68,7 @@
 | BE-006 | 认证接口（登录/登出/刷新） | ✅ 完成 | /api/auth/*；refresh token 支持 remember=30天 / 默认7天、tenantId、类型校验和 Redis 单次轮换；PC/移动端登出同时撤销 access/refresh 会话 |
 | BE-007 | 用户 CRUD 接口 | ✅ 完成 | /api/system/users |
 | BE-008 | Flyway 数据库迁移脚本 | ✅ 完成 | V1__init_schema |
-| BE-009 | 社交登录适配 | ⏳ TODO | 微信/钉钉（暂缓） |
+| BE-009 | 社交登录适配 | ⏸ 暂缓 | 微信/钉钉（暂缓） |
 
 ### Phase 1: 商品模块（P0）
 
@@ -198,14 +140,14 @@
 | BE-125 | 库存服务-跨仓总量预留 | ✅ 完成 | globalReserve/globalRelease/getGlobalAvailableQty 方法 |
 | BE-126 | 库存服务-按计划出库 | ✅ 完成 | `outByPlan` 按租户计划原子扣减实际库存，只更新 quantity/version，不再依赖 global_reserved_qty；直接单计划出库接口已关闭 |
 | BE-127 | 订单服务-创建订单重构 | ✅ 完成 | warehouseId 可选；创建订单不扣库存、不预占、不因库存不足失败 |
-| BE-128 | 订单服务-付款确认重构 | ✅ 完成 | 历史实现为调用跨仓总量预留；2026-06-17 生产口径已调整为收款不锁库存，待 BE-138/BE-139 收尾 |
+| BE-128 | 订单服务-付款确认重构 | ✅ 完成 | 历史实现为调用跨仓总量预留；2026-06-17 已调整为收款不锁库存，BE-138/BE-139 已完成；当前见 14/15 号契约 |
 | BE-129 | 订单服务-配货计划 | ✅ 完成 | OrderDeliveryPlanService + Controller，配货计划 CRUD + 确认/取消调整 |
 | BE-130 | 订单服务-调整记录 | ✅ 完成 | AdjustmentLogDTO + recordAdjustment + getAdjustmentLogs |
 | BE-131 | 订单状态-配货中状态 | ✅ 完成 | status=2(ADJUSTMENT_PENDING)，status=3(READY_TO_SHIP)，完整流转 |
 
 ### Phase 3.2A: 订单库存软解耦生产口径（P0）- 已收口
 
-> ROM/SOW：`docs/superpowers/plans/2026-06-21-order-inventory-soft-coupling-v1-rom-sow.md`
+> ROM/SOW：`docs/archive/plans/2026-06-21-order-inventory-soft-coupling-v1-rom-sow.md`
 > 本轮明确排除部分发货、分批发货和缺货退款，先完成收款去预留、发货时实际扣库存、发货路径统一、抹零结清和测试收口。
 
 | 任务 ID | 任务 | 状态 | 备注 |
@@ -233,9 +175,9 @@
 
 ### Phase 3.4: 订单状态、金额、收款与履约重构（P0）
 
-> 业务方案见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) 和 [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)，实施分工见[订单大重构 ROM/SOW](./superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。本阶段代码、生产迁移和 NAS 首发已经完成；2026-09-12 又完成 Agent Key、纸单多图和草稿并排核单增量发布。
+> 业务方案见 [14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) 和 [15-ORDER_FINANCE_ANALYTICS_DESIGN.md](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md)，实施分工见[订单大重构 ROM/SOW](archive/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。本阶段代码、生产迁移和 NAS 首发已经完成；2026-09-12 又完成 Agent Key、纸单多图和草稿并排核单增量发布。
 >
-> 本阶段由 Z Code 实现，Codex 不认领编码任务。`ORDER-SOW-0` 已在 `d800ec4` 完成并获准进入实施；后续按[Z Code 长任务](./superpowers/plans/2026-08-30-order-refactor-zcode-long-run-task.md)连续完成、自测和分系列提交，中间不再逐工作包等待 Codex，全部完成后统一进行代码审核。生产与 NAS 门禁不变。
+> 本阶段由 Z Code 实现，Codex 不认领编码任务。`ORDER-SOW-0` 已在 `d800ec4` 完成并获准进入实施；后续按[Z Code 长任务](archive/plans/2026-08-30-order-refactor-zcode-long-run-task.md)连续完成、自测和分系列提交，中间不再逐工作包等待 Codex，全部完成后统一进行代码审核。生产与 NAS 门禁不变。
 
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
@@ -462,7 +404,7 @@
 | BE-1009B | 文件预览业务权限映射 | ✅ 完成 | 子任务，已合并到 BE-1009 |
 | BE-1010 | 基础视频文件支持 | ✅ 完成 | 上传支持 video/mp4、video/webm、video/quicktime；上传上限默认 200MB 且支持环境变量覆盖；自动分类 fileType（IMAGE/VIDEO/OTHER）和 fileExt；FileUploadVO 新增 fileType/fileExt；不做转码/封面/Range/分片 |
 | BE-1011 | 文件中心回归测试 | ✅ 完成 | 覆盖上传、列表、绑定、未绑定清理、删除保护；补充批量删除有效绑定文件拒绝测试；`File*Test` 98/98 通过 |
-| BE-1012 | 图片派生图/缩略图底座 | ✅ 完成 | SOW：docs/superpowers/plans/2026-06-18-file-derivatives-v1-sow.md；V38 新增 file_derivative；已建立派生图服务、生成器、存储 Provider 脚手架；上传后生成 thumb/card，失败不回滚原图；新增 GET /api/files/{id}/variant?type=thumb/card 并复用原图权限/previewToken，缺失时回退原图；新增当前租户幂等批量补生成接口；2026-06-18 已在本机测试环境为 tenant 1 的 89 张历史图补齐 178 个派生文件（0 FAILED、0 缺失），生产环境仍须按运维规范单独执行 |
+| BE-1012 | 图片派生图/缩略图底座 | ✅ 完成 | SOW：docs/archive/plans/2026-06-18-file-derivatives-v1-sow.md；V38 新增 file_derivative；已建立派生图服务、生成器、存储 Provider 脚手架；上传后生成 thumb/card，失败不回滚原图；新增 GET /api/files/{id}/variant?type=thumb/card 并复用原图权限/previewToken，缺失时回退原图；新增当前租户幂等批量补生成接口；2026-06-18 已在本机测试环境为 tenant 1 的 89 张历史图补齐 178 个派生文件（0 FAILED、0 缺失），生产环境仍须按运维规范单独执行 |
 | BE-1013 | 商品素材查询 API | ✅ 完成 | GET /api/products/{id}/file-bindings，返回 main/gallery/skuImages 分组，previewUrl 统一为 /api/files/{fileId}/preview |
 | BE-1014 | 商品/SKU 删除引用保护验收 + SKU精细更新 | ✅ 完成 | 新增 PUT /api/products/skus 单个SKU更新；syncProductSkus 保留已有 SKU price/costPrice/barCode/status；delete/deleteColor/deleteSize 添加引用保护，有引用时提示建议禁用；39 个后端测试全部通过 |
 | BE-1015 | 订单图片绑定一致性与历史修复 | ✅ 完成并发布（2026-09-20） | 上传和订单编辑时同步 `file_business_bind`，文件中心“订单图片”聚合 `order`/`order_draft`；V61 补齐历史绑定。release `20260920_104500` 验证 38/38 个订单图片引用已绑定、重复/跨租户/缺失绑定均为 0，未绑定列表中的订单图片为 0 |
@@ -584,7 +526,7 @@
 ### Phase 7.1: 档口主数据与跨档口数据权限（P0）
 
 > 业务和架构依据：[20-OUTLET_ACCESS_CONTROL_DESIGN.md](./20-OUTLET_ACCESS_CONTROL_DESIGN.md)
-> 实施顺序和验收门禁：[2026-09-20-outlet-access-control-rom-sow.md](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)
+> 实施顺序和验收门禁：[2026-09-20-outlet-access-control-rom-sow.md](archive/plans/2026-09-20-outlet-access-control-rom-sow.md)
 
 | 任务 ID | 任务 | 状态 | 备注 |
 |---------|------|------|------|
@@ -629,7 +571,7 @@
 | BA-803 | 快速录单草稿工作台 | ✅ 完成并发布 | `/orders/drafts` 已改为快速录单式编辑：左侧录单、右侧粘性原图持续并排，支持多图翻页/缩略图/点击放大/隐藏；中屏不使用抽屉，编辑时原图不关闭，商品表格在自身区域横向滚动；2026-09-12 随 release `20260912_220631` 上线 |
 | BA-804 | 草稿工作台占位 SKU 标识 | ✅ 完成 | 商品选择器优先显示占位 SKU，并明确标记“整款（未指定颜色/尺码）”，避免与真实颜色尺码混淆 |
 | BA-805 | 占位 SKU 拆分界面 | ✅ 完成并终审通过 | 长任务系列 C/D；按真实颜色/尺码拆分并显示守恒校验和历史 |
-| BA-806 | 草稿国家区号与客户录入口径统一 | ✅ 本地完成（Codex，2026-09-24） | 修复国家区号点击后被二次切换关闭；下拉挂载到页面顶层并支持搜索选择。草稿确认与快速录单统一：已有客户关联、新客户自动建档、空白按散客；待生产发布 |
+| BA-806 | 草稿国家区号与客户录入口径统一 | ✅ 完成并发布（2026-09-25） | 修复国家区号点击后被二次切换关闭；下拉挂载到页面顶层并支持搜索选择。草稿确认与快速录单统一：已有客户关联、新客户自动建档、空白按散客；62649cc 已包含在生产 Web 83312c4，不能继续标记待发布 |
 
 ### Phase 9: 统一文件存储接入（P1）
 
@@ -767,383 +709,9 @@
 
 ---
 
-## 任务执行记录
+## 历史执行明细
 
-> AI 完成每个任务后，在下方记录执行时间和结果。
-
-### 执行模板
-
-```markdown
-### {任务ID} - {任务名称}
-- 执行时间：YYYY-MM-DD HH:mm
-- 执行结果：✅ 完成 / ❌ 失败
-- 备注：如有问题在此说明
-```
-
-### 记录
-
-### BE-1001 - 数字资产表结构扩展
-- 执行时间：2026-06-03 13:44
-- 执行结果：✅ 完成
-- 备注：Hermes Agent 按 Codex SOW 新增 V35 文件中心资产表结构迁移，补充文件夹、业务绑定、操作日志、清理日志实体和 Mapper；新增 FileAssetSchemaTest，Codex 复核并运行 FileAssetSchemaTest + FileControllerTest 通过。
-
-### BE-1002 - 文件中心分页/详情 API
-- 执行时间：2026-06-03 13:58
-- 执行结果：✅ 完成
-- 备注：Hermes Agent 按 Codex SOW 新增文件分页/详情接口、FilePageDTO/FileVO 和 Controller 测试；Codex 复核后将 businessType/bound 查询收口到 file_business_bind，并独立运行 FileControllerTest + FileAssetSchemaTest 通过。
-
-### BE-1003 - 文件夹管理 API
-- 执行时间：2026-06-03 14:07
-- 执行结果：✅ 完成
-- 备注：Hermes Agent 按 Codex SOW 新增文件夹树、新建、更新、删除 API；Codex 复核后补强租户/软删除边界并新增 FileFolderServiceImplTest，最终 FileFolderControllerTest + FileFolderServiceImplTest + FileControllerTest + FileAssetSchemaTest 通过。
-
-### BE-1004 + BE-1006 - 多业务绑定与文件批量操作 API
-- 执行时间：2026-06-03 15:49
-- 执行结果：✅ 完成
-- 备注：Hermes Agent 按 Codex SOW 新增多业务绑定和批量操作 API；Codex 复核后补强租户/解绑边界并运行 FileBindingControllerTest + FileBindingServiceImplTest + FileFolderControllerTest + FileFolderServiceImplTest + FileControllerTest + FileAssetSchemaTest 通过。
-
-### BE-1005 - 商品/SKU 图片绑定服务
-- 执行时间：2026-06-03 16:25
-- 执行结果：✅ 完成
-- 备注：Hermes Agent 执行，Codex 复核后补强重复 fileId、主图替换、createBy 和 Controller DTO 透传测试。新增 PUT /api/products/{id}/file-bindings，支持主图(main)/图集(gallery)/SKU图片(sku_image)替换语义绑定，product.image_url fileId 同步到 file_business_bind，非数字历史 URL 忽略。
-
-### BE-1010 - 基础视频文件支持
-- 执行时间：2026-06-03 16:37
-- 执行结果：✅ 完成
-- 备注：Hermes Agent 执行，Codex 复核后补齐 application.yml 运行配置中的 video/mp4、video/webm、video/quicktime，并补充 FileControllerTest 上传响应 fileType/fileExt 断言。Claude Code 小范围试跑补充 FileAllowedTypesRegressionTest，防止运行配置 allowed-types 漂移。FileServiceImpl.upload 自动分类 fileType（IMAGE/VIDEO/OTHER）和 fileExt；FileUploadVO 新增 fileType/fileExt。`FileVideoSupportTest + FileControllerTest + FileAssetSchemaTest + FileCleanup*Test` 共 49/49 测试通过；`File*Test` 共 82/82 测试通过。
-
-### BE-1009A - 文件预览 PUBLIC/PRIVATE 基础收口
-- 执行时间：2026-06-03 18:11
-- 执行结果：✅ 完成（BE-1009 部分完成）
-- 备注：Claude Code 执行初稿，Codex 复核后修正真实认证主体判断和测试预期。`/api/files/{id}/preview` 保持可进入 Controller，PUBLIC 文件可匿名预览；PRIVATE/null 文件必须是已认证用户；租户/status 过滤继续由 `FileService.getActiveFile(id)` 执行。未改 SecurityConfig，未做业务权限映射，BE-1009 仍需继续收口业务权限。`FileControllerTest` 11/11 通过；`File*Test` 86/86 通过。
-
-### BE-1009B - 文件预览业务权限映射
-- 执行时间：2026-06-03 18:35
-- 执行结果：✅ 完成（BE-1009 全部完成）
-- 备注：Claude Code 执行，Codex 复核后补齐 temp/unknown 绑定走 viewOwn 的边界。新增 BUSINESS_PERMISSION_MAP（product/sku→menu:product、order→btn:order:view、inventory_log→btn:inventory:viewLog、ocr_document→menu:file）；checkBusinessPermission() 先查 viewAll 绕过，再查 file_business_bind 绑定映射，无绑定时回退 file_storage.businessType，unbound/temp/unknown 仅靠 viewOwn+可靠 userId；getReliableUserId() 不 fallback 到 1L。FileService 新增 getActiveBindings()。`FileControllerTest` 20/20 通过；`File*Test` 95/95 通过。
-
-### BE-1009C - 浏览器原生私有图片预览认证
-- 执行时间：2026-06-04 17:20
-- 执行结果：✅ 完成（BE-1009 预览链路补强）
-- 备注：修复文件已保存但前端图片不显示的问题。根因是 `<img>` 标签和 `window.open()` 不会携带 Axios `Authorization` 头，PRIVATE 文件预览进入 Controller 后被判定未登录。`JwtAuthenticationFilter` 仅对 `/api/files/{id}/preview` 接受 `previewToken` 查询参数；`filePreviewUrl(fileId)` 统一拼接当前 access token；文件中心“打开原文件”和 Catalog 预览地址同步接入。`JwtAuthenticationFilterTest + FileControllerTest` 22/22 通过；Playwright 验证 `/files` 7/7 张图加载成功、`/products` 1/1 张 fileId 图片加载成功。
-
-### BE-1011 - 文件中心回归测试
-- 执行时间：2026-06-04 09:57
-- 执行结果：✅ 完成
-- 备注：Claude Code 执行尝试因预算上限中断，Codex 接手完成。确认现有文件中心回归覆盖上传、列表/详情、绑定、文件夹、未绑定治理、清理标记、视频类型和私有预览权限；补齐批量删除保护，`FileBindingServiceImpl.batchDelete()` 发现当前租户有效绑定时拒绝软删除，新增 `batchDelete_rejectsActiveBoundFiles` 回归测试。`FileBindingServiceImplTest` 13/13 通过；`File*Test` 96/96 通过。
-
-### BE-1013 + BE-1014 - 商品管理 v2 后端 Slice 1
-- 执行时间：2026-06-14 15:47
-- 执行结果：✅ 完成
-- 备注：Claude Code 实现，Codex 两轮审核后补正租户过滤、businessType 分离、空颜色/尺码禁用 SKU 和空数组返回等问题。新增 GET /api/products/{id}/file-bindings（返回主图/图集/SKU图片分组）、PUT /api/products/skus（单个SKU更新 price/costPrice/barCode/status）；修复 syncProductSkus 保留已有 SKU 字段不覆盖；delete/deleteColor/deleteSize 添加引用保护；ProductServiceV2Test 26/26 通过，ProductFileBindingServiceTest 11/11 通过，ProductFileBindingControllerTest 2/2 通过。新增文件：ProductFileBindingsVO.java、SkuUpdateDTO.java、ProductServiceV2Test.java。
-
-### BE-001 ~ BE-008 - 后端骨架搭建
-- 执行时间：2026-03-21 18:10
-- 执行结果：✅ 完成
-- 备注：Spring Boot 3 项目初始化完成，包含 pom.xml、application.yml、SecurityConfig、MybatisPlusConfig、多租户配置、统一响应 R.java、认证接口、Flyway 迁移脚本
-
-### BE-007 - 用户 CRUD 接口
-- 执行时间：2026-03-21 19:00
-- 执行结果：✅ 完成
-- 备注：UserController（/api/system/users）、UserService、UserServiceImpl、UserVO/UserCreateDTO/UserUpdateDTO/UserPageDTO、RoleMapper 新增用户角色关联方法
-
-### BE-101 ~ BE-104 - 订单系统接口（旧版，需重构）
-- 执行时间：2026-03-21 19:10
-- 执行结果：⚠️ 已完成但需重构
-- 备注：旧版订单系统不符合新设计（无SKU、颜色尺码、库存联动），需要按 PRD v1.1 重构
-
-### BE-201 ~ BE-206 - 商品模块
-- 执行时间：2026-03-21 19:40
-- 执行结果：✅ 完成
-- 备注：ProductController、ProductService、ProductServiceImpl、商品分类/颜色/尺码/SKU 实体、DTO、Mapper，V3__product_module.sql（含默认颜色尺码和测试商品）
-
-### BE-201 ~ BE-206 - 商品模块验证
-- 执行时间：2026-03-21 21:20
-- 执行结果：✅ 完成
-- 备注：API 全面测试通过，修复了多个问题：UserDetailsServiceImpl 角色加载、sys_user_role.tenant_id、admin 密码、product.price 字段、关联表 tenant_id、@PutMapping 路径注解、Java 17 安装
-
-### BE-007 - 用户管理接口验证
-- 执行时间：2026-03-21 21:20
-- 执行结果：✅ 完成
-- 备注：修复 UserDetailsServiceImpl 角色加载 null 问题，登录功能正常
-
-### 订单模块 API 测试用例
-- 执行时间：2026-03-22 22:00
-- 执行结果：✅ 完成
-- 备注：
-  - 新增 OrderControllerTest.java，24 个测试用例
-  - 覆盖：认证、CRUD、状态流转、库存联动、异常场景
-  - 修复 ProductServiceImpl.convertToVO() SKU 列表填充问题
-  - 修复商品编码唯一性问题（测试使用时间戳）
-
-### 线下录单流程需求讨论
-- 执行时间：2026-03-23
-- 执行结果：✅ 完成
-- 备注：
-  - 讨论并确认线下录单流程的线上化方案
-  - 新增支付状态（未付款/已付定金/已付全款）
-  - 新增定金金额、是否需要送货、已送货状态等字段
-  - PRD v1.4 更新
-  - TASKS.md 新增 BE-113~BE-115
-
-### OCR 拍照录单功能讨论
-- 执行时间：2026-03-23
-- 执行结果：✅ 完成
-- 备注：
-  - 讨论 OCR 识别各字段的难度（款号最难，数量/金额最易）
-  - 确定方案 A（半自动）：款号手动选，其他自动填
-  - 确定方案 B（AI 全自动）：后续探索，OCR + AI 模糊匹配
-  - 优先级 P2，等订单核心流程跑通后再重点开发
-  - PRD v1.5 新增第九章 OCR 拍照录单
-  - TASKS.md 新增 BE-601~605, FE-601~602, BA-701~702
-
-### BE-301 ~ BE-309 - 库存模块开发
-- 执行时间：2026-03-21 23:40
-- 执行结果：✅ 完成
-- 备注：仓库CRUD、库存查询、入库（支持图片+供应商）、出库（ORDER/OTHER+reason）、直接调整、预留锁定/释放、库存预警
-
-### BE-101 ~ BE-110 - 订单模块重构（对接库存联动）
-- 执行时间：2026-03-21 23:51
-- 执行结果：✅ 完成
-- 备注：
-  - V5__order_refactor.sql：订单表新增 customer_id, paid_amount, warehouse_id, pay_time, confirm_time, deliver_time, complete_time；订单明细表新增 sku_code, color_name, size_name
-  - OrderServiceImpl：重构 create/updateStatus/delete 方法，新增 confirmPayment/deliverOrder/completeOrder/cancelOrder 方法
-  - 库存联动：付款确认→reserveInventory()、发货→outInventory()、取消→releaseInventory()
-  - 全流程测试通过：创建→付款确认→发货→完成，创建→付款确认→取消（库存正确释放）
-
-### BE-201 ~ BE-206 - 商品模块测试用例
-- 执行时间：2026-03-21 23:16
-- 执行结果：✅ 完成
-- 备注：编写 ProductControllerTest，15 个测试用例覆盖：登录、列表查询、创建商品（普通/带SKU/不带SKU）、更新商品、删除商品、查询商品、异常场景
-
-### FE-001, FE-005~FE-007 - 移动端骨架搭建
-- 执行时间：2026-03-22 00:30
-- 执行结果：✅ 完成
-- 备注：
-  - Vue3 + Vite + TypeScript + Vuetify 4 + Pinia + Vue Router
-  - PWA 配置：vite-plugin-pwa + Service Worker + Web App Manifest
-  - 路由：/login, /orders, /orders/create, /orders/:id, /inventory, /inventory/in, /inventory/out, /products, /dashboard
-  - 页面组件：Login, Layout（底部导航）, OrderList, OrderCreate, OrderDetail, InventoryList, InventoryIn, InventoryOut, ProductList, Dashboard
-  - API 层：client（Axios 封装），auth/order/inventory/product API
-  - 类型定义：auth, order, inventory, product 类型
-  - 构建产物：dist/（PWA + 24个资源文件）
-
-### 架构讨论 - PC 管理端方案
-- 执行时间：2026-03-22 01:00
-- 执行结果：✅ 完成
-- 备注：
-  - Agent Teams 讨论确定：采用独立项目 blade-admin（方案 B）
-  - 推荐 Monorepo 结构：packages/api + packages/types 共享
-  - blade-mobile 专注移动端，blade-admin 专注 PC 端
-  - 技术选型：Vue3 + Element Plus（PC端更合适）
-
-### PRD v1.2 更新 - 前端架构规划
-- 执行时间：2026-03-22 01:15
-- 执行结果：✅ 完成
-- 备注：
-  - 更新项目概述：新增 Monorepo 结构说明
-  - 更新技术栈：移动端（Vuetify 4）、PC端（Element Plus）
-  - 新增前端项目定位表格
-  - 新增版本历史 v1.2
-
-### packages/types - 共享类型定义
-- 执行时间：2026-03-22 01:30
-- 执行结果：✅ 完成
-- 备注：
-  - 创建 packages/types 包，包含：auth、order、inventory、product 类型定义
-  - blade-mobile 已集成使用 @blade/types
-  - 编译产物：dist/（.js + .d.ts）
-  - 以后 blade-admin 也可以复用这些类型
-
-### BA-203 - PC 管理端新建订单页开发
-
-- 执行时间：2026-03-23
-- 执行结果：✅ 完成
-- 备注：
-  - 参考 Stitch 设计搭建新建订单页面
-  - 左侧8列：客户信息（电话搜索匹配客户）、支付信息（支付状态单选+定金/已付金额）、商品明细（SKU选择表格）
-  - 右侧4列：金额汇总卡片、状态卡片、送货设置、图片上传、备注信息
-  - 支付状态联动逻辑：切换状态自动清零相关金额
-  - 客户电话搜索：blur 时搜索客户，自动填充名称/地址并锁定；无匹配时解锁可编辑
-  - 电话号码 normalize：支持 +86、+1 等国家代码，去掉 +-空格后搜索
-  - 字段样式：输入框背景 rgb(243 244 246)，圆角12px，文字深灰色
-
-### BA-201 - PC 管理端订单列表页开发
-
-- 执行时间：2026-03-23
-- 执行结果：✅ 完成
-- 备注：
-  - 集成 Stitch 设计 UI（专业主题 + 品牌蓝 #408aee）
-  - 筛选区域：关键字搜索、订单状态下拉、支付状态下拉、日期范围、重置筛选
-  - 2026-08-17 补充：筛选区新增“确认筛选”按钮，关键字回车提交；日期范围传入后端并按 `order_date` 查询，旧数据为空时回退 `create_time`；同一关键字按订单号或客户名匹配。
-  - 表格：订单编号、客户、订单金额、已付金额、订单状态、支付状态、配送、备注、图片
-  - 分页组件 + 状态标签组件
-  - 侧边栏：收起/展开两种宽度状态
-
-### BE-401~BE-403 - 客户模块开发
-
-- 执行时间：2026-03-23
-- 执行结果：✅ 完成
-- 备注：
-  - V9__customer_module.sql：crm_customer + crm_customer_phone 表
-  - 一个客户可有多个电话号码（is_primary 区分主号）
-  - 客户电话表支持 tenant_id 多租户
-  - GET /api/customers/search?phone：按电话搜索，自动 normalize（去掉 +-空格）
-  - POST /api/customers：创建客户同时创建主电话
-  - 前端：searchCustomerByPhone + createCustomer API
-  - SecurityConfig：/api/customers/** 放行
-
-### BA-004 - PC 管理端登录页 + 多租户登录
-- 执行时间：2026-03-22 18:30
-- 执行结果：✅ 完成
-- 备注：
-  - 集成 Stitch 设计的登录页 UI（专业主题 + 企业/账号/密码/验证码）
-  - 实现多租户登录：test_tenant、demo_tenant
-  - 修复登录跳转问题：router.replace('/dashboard')
-  - 修复错误响应处理：client.ts 检查 code !== 200 时 reject
-  - 修复密码 BCrypt hash：使用正确 hash 更新数据库
-  - 修复 Redis 未启动问题
-
-### 后端多租户登录支持
-- 执行时间：2026-03-22 18:30
-- 执行结果：✅ 完成
-- 备注：
-  - AuthService.login() 支持 tenantCode 查询租户后查询用户
-  - V6__tenant_login_support.sql 更新正确的 BCrypt hash
-  - 添加 demo_tenant 的 admin 用户
-
-### BA-301~BA-305 - PC 管理端库存页面
-- 执行时间：2026-03-24
-- 执行结果：✅ 完成
-- 备注：
-  - 库存列表页：表格 + 仓库/预警状态筛选 + 分页
-  - 入库操作：弹窗 + SKU选择 + 多商品入库
-  - 出库操作：弹窗 + SKU选择 + reason字段 + 多商品出库
-  - 库存调整：弹窗 + 盘盈盘亏 + 调整原因
-  - 库存记录：弹窗查询变动日志
-  - 后端新增：InventoryLogVO, InventoryLogPageDTO, /api/inventory/logs, /api/products/skus
-
-### BA-401~BA-406 - PC 管理端商品管理页面
-- 执行时间：2026-03-24
-- 执行结果：✅ 完成
-- 备注：
-  - 商品列表页：表格 + 分类/状态筛选 + 分页 + 新建/编辑商品弹窗
-  - 商品编辑页：颜色/尺码选择 + SKU 生成预览
-  - 颜色列表页：颜色管理 + 新建/编辑弹窗
-  - 尺码列表页：尺码管理 + 新建/编辑弹窗
-  - 商品分类页：分类管理 + 新建/编辑弹窗
-  - 后端新增：ProductCategoryController, ProductCategoryService, ProductCategoryVO
-
-### BA-501~BA-502 - PC 管理端客户管理页面
-- 执行时间：2026-03-24 14:15
-- 执行结果：✅ 完成
-- 备注：
-  - 后端新增 CustomerPageDTO, CustomerCreateDTO, CustomerUpdateDTO
-  - 后端 CustomerService 新增 pageList, getById, updateCustomer, deleteCustomer 方法
-  - 后端 CustomerController 新增 GET /customers, GET /customers/{id}, PUT /customers, DELETE /customers/{id}
-  - 前端 customer.ts API 全面更新
-  - 前端 clients/index.vue：真实 API 调用 + 新建/编辑弹窗 + 删除确认 + 分页
-
-### BA-205 - 订单显示开单人员
-- 执行时间：2026-03-24 14:30
-- 执行结果：✅ 完成
-- 备注：
-  - 订单列表增加"开单人员"列，展示 salesmanName
-  - OrderVO 已有 salesmanName 字段，无需修改后端
-- 执行时间：2026-03-24
-- 执行结果：✅ 完成
-- 备注：
-  - 商品列表页：表格 + 分类/状态筛选 + 分页 + 新建/编辑商品弹窗
-  - 商品编辑页：颜色/尺码选择 + SKU 生成预览
-  - 颜色列表页：颜色管理 + 新建/编辑弹窗
-  - 尺码列表页：尺码管理 + 新建/编辑弹窗
-  - 商品分类页：分类管理 + 新建/编辑弹窗
-  - 后端新增：ProductCategoryController, ProductCategoryService, ProductCategoryVO
-
-### Bug 修复 - 订单分页 + TypeScript 编译错误
-- 执行时间：2026-03-24
-- 执行结果：✅ 完成
-- 备注：
-  - 修复订单分页无效：el-pagination 缺少 @current-change 事件
-  - 修复 TypeScript 错误：orders/detail.vue 移除未使用 deleteOrder、orders/new.vue 移除未使用 filteredSkus/addProduct
-  - 修复 warehouseId 类型问题、API 响应结构问题
-
-### BE-117~BE-122 - 库存并发控制修复（P0）
-- 执行时间：2026-03-24 14:00
-- 执行结果：✅ 完成
-- 备注：
-  - 添加 Redisson 依赖（pom.xml）
-  - 创建 RedissonConfig 配置类
-  - 创建 V11 数据库迁移脚本（inventory 表添加 version 字段）
-  - Inventory Entity 添加 @Version 字段 + get/set 方法
-  - MybatisPlusConfig 启用 OptimisticLockerInnerInterceptor
-  - InventoryServiceImpl 所有库存操作方法（in/out/adjust/reserve/release）全部添加：
-    - Redis 分布式锁（inventory:lock:{skuId}:{warehouseId}）
-    - 乐观锁校验（version 字段）
-  - adjust() 新增：调整后库存不能为负校验
-  - release() 新增：预留数量不足校验
-  - 编译验证通过
-
-### BE-129~BE-131 - 配货计划后端实现
-- 执行时间：2026-03-31
-- 执行结果：✅ 完成
-- 备注：
-  - OrderDeliveryPlanServiceImpl 实现配货计划 CRUD + 确认/取消调整
-  - confirmAdjustment 修复：同步仓库信息到 order_items（修复 500 错误）
-  - 完整订单流转验证：CREATED(0) → PAID(1) → ADJUSTMENT_PENDING(2) → READY_TO_SHIP(3) → DELIVERED(4) → COMPLETED(5)
-  - 库存扣减验证通过：SKU 101: 100→85, SKU 102: 50→46
-
-### 前端配货计划实现（BA-210/BA-211）
-- 执行时间：2026-03-31
-- 执行结果：✅ 完成
-- 备注：
-  - blade-admin/src/api/order.ts 新增 DeliveryPlanVO/DeliveryPlanDTO/AdjustmentLogDTO 类型
-  - 新增 7 个配货计划 API 函数：createDeliveryPlan/updateDeliveryPlan/getDeliveryPlan/deleteDeliveryPlan/confirmAdjustment/cancelAdjustment/getAdjustmentLogs/recordAdjustment
-  - detail.vue 新增配货计划区块、调整记录区块
-  - 改造按钮逻辑：status=1 显示"创建配货计划"，status=2 显示确认/取消调整
-  - 新增辅助函数：adjustmentStatusName/adjustmentStatusTagClass/planStatusName/deliveryPlanStatusTagClass/adjustmentTypeName
-  - 修复 TypeScript 错误：移除未使用的 import 和变量
-
-### BA-1004~BA-1006 - PC 文件中心上传/移动/删除/绑定/清理
-- 执行时间：2026-06-04
-- 执行结果：✅ 完成
-- 备注：
-  - 扩展 blade-admin/src/api/file.ts：新增 batchDeleteFiles/batchMoveFiles/getFileBindings/createFileBindings/deleteFileBinding/getUnboundCandidates/softDeleteUnbound/createFileFolder；FileUploadVO 新增 fileType/fileExt 字段
-  - 扩展 blade-admin/src/api/product.ts：新增 ProductFileBindingDTO/SkuImageBindingDTO 和 setProductFileBindings()
-  - files/index.vue：上传按钮改为隐藏多文件 input + loading 态；网格视图新增 el-checkbox 多选；列表视图新增 type=selection 列；批量工具栏（移动/绑定/删除/取消选择）；移动弹窗选文件夹或未归档；删除前先查绑定/展示风险详情弹窗/确认后调 batch-delete；绑定按钮打开 FileBindDialog；清理按钮打开 FileCleanupPanel
-  - FileBindDialog.vue：remote 搜索商品→选角色 main/gallery/sku_image→sku_image 时显示 SKU 多选→PUT /api/products/{id}/file-bindings
-  - FileCleanupPanel.vue：清理说明/保留天数/候选统计刷新/软删除确认/回收站快捷入口
-  - npm run build 通过；所有 API 仅使用 POST batch-delete（非 DELETE /api/files/{id}）
-
-### DEPLOY-001 - 群晖 NAS 生产部署骨架
-- 执行时间：2026-06-05
-- 执行结果：✅ 完成
-- 备注：
-  - 新增 `deploy/nas/docker-compose.prod.yml`，在 `/volume2/blade` 独立运行 MySQL、Redis、后端和前端 Nginx
-  - 新增 `deploy/nas/nginx/default.conf`，统一代理 `/api/` 到后端，前端 SPA 使用 `try_files` 回退
-  - 新增 `blade-backend/Dockerfile` 和 `blade-admin/Dockerfile`
-  - 新增 `deploy/nas/.env.prod.example`、`deploy/nas/README.md` 和 `deploy/nas/deploy_from_local.sh`
-  - 后端 `JWT_SECRET` 支持通过生产环境变量覆盖
-  - NAS 目标端口：`8899`；生产访问入口：`http://192.168.1.10:8899/catalog`
-  - 本地验证：`mvn clean package -DskipTests` 通过；`npm run build` 通过
-  - NAS 实际部署验证：前端 `/catalog` 200；登录后 `/api/catalog/filters` 200；四个容器 `blade-mysql/blade-redis/blade-backend/blade-web` 均 Up
-  - 群晖部署注意：NAS 拉 Docker Hub 超时，发布脚本已改为本机 `linux/amd64` 离线镜像包 + NAS `docker load`；Synology `scp` 使用 `scp -O`
-  - 部署目录已迁移到存储空间 2 共享文件夹 `/volume2/blade`
-  - 数据库已从本机生产库 `blade_project_prod` 迁移到 NAS `blade_project_prod`；本机生产库未修改；导入 SQL 中将主租户 `tenant_id=1` 的 `tenant_code` 调整为 `dwy_jiajiadress`
-  - NAS 导入前备份：`/volume2/blade/db-backups/nas_blade_project_prod_before_import_20260605.sql`
-  - 数据迁移验证：`product=164`、`product_sku=416`、`sale_order=81`、`file_storage=22`、`flyway=39`；`dwy_jiajiadress/admin/admin123` 登录后 Catalog API 200
-
-### DEPLOY-002 - NAS 生产运维手册
-- 执行时间：2026-06-05
-- 执行结果：✅ 完成
-- 备注：
-  - 新增 `docs/13-NAS_PRODUCTION_OPS.md`，作为后续 Agent 发布、备份、迁移和回滚的专用运维手册
-  - 覆盖 NAS 基础信息、生产目录、容器、数据库边界、项目架构、首次部署、日常发布、GitHub/Gitee/本机归档代码来源、数据库迁移、uploads 迁移、回滚、常见问题和 Agent 操作红线
-  - 明确日常发布只更新 `blade-backend:prod` 和 `blade-web:prod`，不重建 MySQL/Redis，不删除生产数据目录
-  - 已在 `docs/01-README.md` 和 `docs/SESSION_CONTEXT.md` 加入索引
-  - 已同步关键文档快照到 NAS：`/volume2/blade/docs`，并新增 `README_FOR_AGENTS.md` 作为 NAS 侧 Agent 接手入口
-
----
+早期逐项实现记录已移到 [历史执行明细](./archive/execution/TASK_EXECUTION_BEFORE_2026-11-02.md)。当前任务状态以本表为准。
 
 ## 注意事项
 

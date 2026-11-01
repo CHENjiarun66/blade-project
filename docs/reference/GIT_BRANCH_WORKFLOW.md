@@ -84,7 +84,7 @@ feature/nas-deploy
 规则：
 
 - 一个功能模块一个 `feature/*` 分支。
-- Agent 默认应在 `feature/*` 分支开发，不应直接改 `master`。
+- Codex 默认用 `codex/*`，其他工具可用 `feature/*`；均作为单任务分支开发，不应直接改 `master`。
 - 功能拆得太大时，应继续拆成更小的 feature 分支。
 - 功能未完成时，不合入 `master`。
 
@@ -228,22 +228,11 @@ codex/<refactor-name>            重构集成分支
 - 合并到集成分支后执行跨模块回归，再创建 `release/*`；只有 release 验收并合入 `master` 后才发布 NAS。
 - 如果当前 Agent 环境要求使用 `codex/` 前缀，按该前缀创建；其他开发工具可继续使用项目约定的 `feature/*`，但职责和发布门禁不变。
 
-当前订单重构的具体工作包见 [订单生命周期、财务与统计大重构 ROM/SOW](../superpowers/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。
+当前订单重构的具体工作包见 [订单生命周期、财务与统计大重构 ROM/SOW](../archive/plans/2026-08-30-order-lifecycle-finance-refactor-rom-sow.md)。
 
-### 4.4 当前快照分支处理建议
+### 4.4 历史快照恢复
 
-当前分支：
-
-```text
-snapshot/current-all-work-20260611
-```
-
-建议用途：
-
-- 作为当前完整开发成果的候选快照。
-- 先在本地或测试环境完整验证。
-- 如果决定整体上线，可从它创建 `release/2026-06-11`，测试通过后合入 `master`。
-- 如果只想上线其中一部分功能，应从 `master` 创建 release 分支，再用 cherry-pick 或按功能分支挑选提交。
+`snapshot/current-all-work-20260611` 已归档，不是当前活动分支。需要追溯时从 `archive/2026-11-02/snapshot/current-all-work-20260611` 标签创建独立工作区；当前开发从最新 develop 开始，不能把旧快照当成整体上线候选。
 
 ---
 

@@ -2,7 +2,7 @@
 /**
  * gen-status.mjs — 生成项目状态看板
  *
- * 数据源：docs/03-TASKS.md（任务表格）
+ * 数据源：docs/03-TASKS.md（任务表格）与 docs/project-streams.json（方向/验收）
  * 产物：
  *   - outputs/status.html  —— 可视化看板（浏览器打开，人看）
  *   - docs/STATUS.md       —— 紧凑状态摘要（AI / GitHub 直接看）
@@ -12,7 +12,7 @@
  *
  * 维护约定（docs/reference/AGENT_COLLABORATION.md 收工协议）：
  *   - 每次 AI 任务交接 / 收工时运行本脚本刷新看板，并把 docs/STATUS.md 提交入库。
- *   - 本脚本只读 03-TASKS.md，不修改任何业务数据。
+ *   - 本脚本只读任务和方向数据，不修改任何业务数据。
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -22,6 +22,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const TASKS_PATH = join(ROOT, 'docs/03-TASKS.md')
 const HTML_PATH = join(ROOT, 'outputs/status.html')
 const MD_PATH = join(ROOT, 'docs/STATUS.md')
+const portfolio = JSON.parse(readFileSync(join(ROOT, 'docs/project-streams.json'), 'utf8'))
 
 /** 模块名 → 看板短名 */
 const MODULE_SHORT = {
@@ -146,11 +147,23 @@ function renderMarkdown(now, stats) {
   const lines = []
   lines.push('# 项目状态总览（自动生成）')
   lines.push('')
-  lines.push('> 生成时间：' + now + '　|　数据源：[03-TASKS.md](./03-TASKS.md)　|　本文件由 `node scripts/gen-status.mjs` 自动生成，请勿手工编辑。')
+  lines.push('> 生成时间：' + now + '　|　数据源：[任务](./03-TASKS.md) + [方向数据](./project-streams.json)　|　本文件由 `node scripts/gen-status.mjs` 自动生成，请勿手工编辑。')
   lines.push('> 可视化看板：`outputs/status.html`（浏览器打开）')
-  lines.push('> 进度百分比按活跃范围计算，不把“暂缓或由外部流程承担”计入分母。')
+  lines.push('> 百分比仅按任务计数计算（完成 ÷ 非暂缓任务），不代表完整 ERP、生产验收或实际工作量完成率。')
   lines.push('')
-  lines.push('## 模块进度')
+  lines.push('## 当前主线与方向状态')
+  lines.push('')
+  lines.push('**' + portfolio.focus + '**（范围更新：' + portfolio.updated + '）。方向不等于正在执行的任务；已部署不等于真实验收通过。')
+  lines.push('')
+  lines.push('| 方向 | 顺序 | 执行状态 | 实现/部署 | 真实验收 | 下一步 |')
+  lines.push('|---|---|---|---|---|---|')
+  for (const stream of portfolio.streams) {
+    lines.push('| ' + ['name', 'priority', 'execution', 'implementation', 'acceptance', 'next'].map(key => stream[key].replaceAll('|', '\\|')).join(' | ') + ' |')
+  }
+  lines.push('')
+  lines.push('详见 [范围](./PROJECT_SCOPE.md)、[项目评估](./PROJECT_REVIEW_2026-11-02.md)、[代码修复待办](./CODE_REVIEW_2026-11-02.md)。')
+  lines.push('')
+  lines.push('## 任务计数进度（不代表整个项目完成率）')
   lines.push('')
   lines.push('| 模块 | 进度 | 统计 |')
   lines.push('|------|------|------|')
@@ -229,6 +242,7 @@ function renderMarkdown(now, stats) {
 
 /** 生成 HTML 看板 */
 function renderHtml(now, stats) {
+  const streamRows = portfolio.streams.map(s => `<tr>${['name', 'priority', 'execution', 'implementation', 'acceptance', 'next'].map(k => `<td>${esc(s[k])}</td>`).join('')}</tr>`).join('')
   const modCards = Object.values(stats.modules)
     .sort((a, b) => b.total - a.total)
     .map((m) => {
@@ -326,9 +340,15 @@ function renderHtml(now, stats) {
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：${now}　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：${now}　·　数据源：任务 + project-streams.json　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
+  <article class="section portfolio">
+    <h2>当前主线：${esc(portfolio.focus)}</h2>
+    <p>方向状态更新 ${esc(portfolio.updated)}。已实现、已部署和真实验收分别记录；新增后置方向继续维护存量。</p>
+    <div style="overflow-x:auto"><table class="task-table"><thead><tr><th>方向</th><th>顺序</th><th>执行</th><th>实现/部署</th><th>验收</th><th>下一步</th></tr></thead><tbody>${streamRows}</tbody></table></div>
+  </article>
+  <p>以下百分比仅为任务计数，分母排除暂缓项；不代表整个 ERP、生产验收或工作量完成率。</p>
   <div class="controls">
     <input type="search" id="search" placeholder="搜索任务 ID / 名称 / 备注…">
     <button data-filter="all" class="active">全部</button>
@@ -363,7 +383,7 @@ function renderHtml(now, stats) {
       const textOk = !q || tr.textContent.toLowerCase().includes(q)
       tr.classList.toggle('hidden', !(statusOk && textOk))
     })
-    document.querySelectorAll('.section').forEach((sec) => {
+    document.querySelectorAll('.section:not(.portfolio)').forEach((sec) => {
       const visible = Array.from(sec.querySelectorAll('tr[data-status]')).some((tr) => !tr.classList.contains('hidden'))
       sec.classList.toggle('hidden', !visible)
     })
