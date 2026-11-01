@@ -4,6 +4,8 @@
 
 ---
 
+当前分支整理与正式/测试差异见 [2026-11-02 Git 盘点](./reference/GIT_INVENTORY_2026-11-02.md)。
+
 ## 快速开始（新 AI/新会话必读）
 
 **第一步**：阅读 [SESSION_CONTEXT.md](./SESSION_CONTEXT.md) — 项目当前状态快照

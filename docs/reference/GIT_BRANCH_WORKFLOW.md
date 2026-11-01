@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-11-02 当前分支职责与归档
+
+- 活动分支共 6 个：`master`（正式）、`develop`（集成基线）、`codex/order-draft-delete`（待移植/回归）、`codex/project-cockpit`（看板工具及未提交规划）、`feature/agent-collaboration-hardening`（规范待复核）、`codex/order-edit-entry-consolidation`（已合入但保留本地未提交文件）。
+- `develop` 已从旧版本快进到正式基线。新的开发从最新 develop/master 拉独立 worktree；不能因为旧目录叫 BladeProject，就把 V50 旧源码当最新测试版。
+- 历史分支使用 `archive/2026-11-02/<原分支名>` 标签保留 SHA；实际后端/网页源码使用 `prod/*` 标签标记。恢复历史分支从相应标签新建分支，不能 force-reset master/develop。
+- 完成功能应经验证后合入并同步 develop；归档前检查祖先/补丁关系、未提交工作区、远程并发变化及备份。分支少不等于工作被合入，待审查内容继续独立保留。
+- 共享 post-* 钩子应先确认当前 worktree 有 helper，再执行分支专属看板，避免旧工具影响正式工作区。
+- 完整清单与恢复方法见 [Git 分支与进度盘点](./GIT_INVENTORY_2026-11-02.md)。
+
 ## 一、目标
 
 本规范解决以下问题：
@@ -124,10 +133,10 @@ hotfix/file-preview-403
 - 不建议长期在 snapshot 分支上继续开发。
 - snapshot 分支可以作为后续拆分 feature/release 的来源。
 
-当前已有：
+历史快照已归档：
 
 ```text
-snapshot/current-all-work-20260611
+archive/2026-11-02/snapshot/current-all-work-20260611
 ```
 
 该分支是 2026-06-11 对当前大范围开发成果做分类提交后的完整快照。

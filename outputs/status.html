@@ -57,7 +57,7 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/11/1 02:50:41　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/11/2 01:28:07　·　数据源：docs/03-TASKS.md　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <div class="controls">
@@ -74,15 +74,15 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">后端</span>
-          <span class="card-nums">193 完成 · 0 进行中 · 26 待办 · 0 部分 · 8 暂缓</span>
+          <span class="card-nums">194 完成 · 0 进行中 · 25 待办 · 0 部分 · 8 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:88%"></div></div>
-        <div class="bar-label">88% 完成（活跃 219 项，暂缓 8 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:89%"></div></div>
+        <div class="bar-label">89% 完成（活跃 219 项，暂缓 8 项）</div>
       </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">PC 管理端</span>
-          <span class="card-nums">113 完成 · 0 进行中 · 3 待办 · 5 部分 · 2 暂缓</span>
+          <span class="card-nums">113 完成 · 0 进行中 · 2 待办 · 6 部分 · 2 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:93%"></div></div>
         <div class="bar-label">93% 完成（活跃 121 项，暂缓 2 项）</div>
@@ -98,10 +98,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">项目阶段</span>
-          <span class="card-nums">2 完成 · 0 进行中 · 0 待办 · 0 部分 · 0 暂缓</span>
+          <span class="card-nums">3 完成 · 0 进行中 · 0 待办 · 0 部分 · 0 暂缓</span>
         </div>
         <div class="bar"><div class="bar-fill" style="width:100%"></div></div>
-        <div class="bar-label">100% 完成（活跃 2 项，暂缓 0 项）</div>
+        <div class="bar-label">100% 完成（活跃 3 项，暂缓 0 项）</div>
       </div></div>
 
 
@@ -111,7 +111,7 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">38</span></h2>
+      <h2>🟡 还没做 <span class="count">36</span></h2>
       <table class="task-table">
       <tr data-status="todo">
         <td class="td-id">BE-009</td>
@@ -147,13 +147,6 @@
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
         <td class="td-meta">后端 › Phase 3.5: 旧 ERP 接替增量（订单/商品优先，完整财务后置）</td>
         <td class="td-remark">允许 `UNPRICED` 收货，库存动作不依赖价格可见性；不包含应付/付款 |</td>
-      </tr>
-      <tr data-status="todo">
-        <td class="td-id">BE-506</td>
-        <td class="td-name">仪表盘数据权限</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
-        <td class="td-remark">明确并实现销售员、主管和 Owner 的仪表盘数据范围；与客户归属、订单创建人和分析权限联动 |</td>
       </tr>
       <tr data-status="todo">
         <td class="td-id">BE-556</td>
@@ -303,13 +296,6 @@
         <td class="td-remark">存量归档完成后评估正式订单 `source_outlet_id NOT NULL`；不是首发必做，需先完成生产副本回填与对账 |</td>
       </tr>
       <tr data-status="todo">
-        <td class="td-id">DEPLOY-OUTLET-001</td>
-        <td class="td-name">NAS 灰度发布与回滚</td>
-        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
-        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">checklist 已写（`2026-09-21-outlet-production-release-checklist.md`），未执行任何备份/预演/灰度/回滚 |</td>
-      </tr>
-      <tr data-status="todo">
         <td class="td-id">ARCH-OUTLET-002</td>
         <td class="td-name">兼容期复盘</td>
         <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
@@ -382,14 +368,14 @@
     </section>
 
     <section class="section partial">
-      <h2>🔵 部分完成 <span class="count">5</span></h2>
+      <h2>🔵 部分完成 <span class="count">6</span></h2>
       <table class="task-table">
       <tr data-status="partial">
         <td class="td-id">DATA-OUTLET-002</td>
         <td class="td-name">生产副本映射预演</td>
         <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">显式 CSV 回填工具（`OutletBackfillService` + CLI）：dry-run 默认、apply 四重安全闸门拒绝生产特征、只改 `source_outlet_id`、冲突不覆盖、疑似批次跳过、双表、对账、幂等、自动测试。第二批A 增强审计报告：逐条 mapping（legacy/outlet_code/decision/reason + 候选/更新数）、operator（apply 必填、preview 缺省 PREVIEW）、起止时间、expected/actual 库名（严禁凭据）、映射文件 SHA-256、apply 前后 `source_outlet_id` 赋值摘要哈希（`orderIdOutletDigest`/`draftIdOutletDigest`）；生产副本真实预演、异常清单确认与对账签字待外部 |</td>
+        <td class="td-remark">显式 CSV 回填工具（`OutletBackfillService` + CLI）：dry-run 默认、apply 四重安全闸门拒绝生产特征、只改 `source_outlet_id`、冲突不覆盖、疑似批次跳过、双表、对账、幂等、自动测试。第二批A 增强审计报告：逐条 mapping（legacy/outlet_code/decision/reason + 候选/更新数）、operator（apply 必填、preview 缺省 PREVIEW）、起止时间、expected/actual 库名（严禁凭据）、映射文件 SHA-256、apply 前后 `source_outlet_id` 赋值摘要哈希（`orderIdOutletDigest`/`draftIdOutletDigest`）；2026-09-22 已有生产副本真实预演和 169 单对账记录；异常清单、人工确认与最终签字仍需收口 |</td>
       </tr>
       <tr data-status="partial">
         <td class="td-id">DATA-OUTLET-003</td>
@@ -413,11 +399,18 @@
         <td class="td-remark">全量后端 + PC 构建 + 关键 E2E；`OutletScopeCrossResourceAuditTest` 矩阵审计、`OutletIndexCoverageTest` 索引核对、`scripts/outlet-scope-explain.sql` 查询计划预演；生产规模性能待验证 |</td>
       </tr>
       <tr data-status="partial">
+        <td class="td-id">DEPLOY-OUTLET-001</td>
+        <td class="td-name">NAS 灰度发布与回滚</td>
+        <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
+        <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
+        <td class="td-remark">2026-09-22 生产副本 V61→V68、历史映射、备份及生产发布已有 CHANGELOG/运维记录；不能再记为“未执行任何备份/预演”。用户授权、专项灰度/回滚演练与性能证据仍须逐项验收，不因代码上线自动标记全部完成 |</td>
+      </tr>
+      <tr data-status="partial">
         <td class="td-id">DOC-OUTLET-001</td>
         <td class="td-name">文档与接入手册收口</td>
         <td class="td-status"><span class="pill pill-partial">⏳ 部分完成</span></td>
         <td class="td-meta">PC 管理端 › Phase 7.1: 档口主数据与跨档口数据权限（P0）</td>
-        <td class="td-remark">PRD/DATABASE/API_SPEC/16/17/19/ROM-SOW/TASKS 已同步本地实现；生产发布记录与验收待外部 |</td>
+        <td class="td-remark">PRD/DATABASE/API_SPEC/16/17/19/ROM-SOW/TASKS 已同步本地实现，生产发布记录已存在；剩余专项验收、授权确认及兼容收口继续跟踪 |</td>
       </tr></table>
     </section>
 
@@ -516,7 +509,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 324 项） <span class="count">324</span></h2>
+      <h2>✅ 已完成（共 326 项） <span class="count">326</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">OPS-FILE-001</td>
@@ -528,6 +521,13 @@
       <tr data-status="done">
         <td class="td-id">OPS-FILE-002</td>
         <td class="td-name">修复商品图片上传无法解析当前用户，补真实 JWT 上传回归并发布</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 线上紧急修复（2026-11-01）</td>
+        <td class="td-remark"></td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">OPS-GIT-001</td>
+        <td class="td-name">分支与正式/测试基线盘点、历史归档、进度记录纠正</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">项目阶段 › 线上紧急修复（2026-11-01）</td>
         <td class="td-remark"></td>
@@ -1329,6 +1329,13 @@
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
         <td class="td-remark">menu:analytics + data:analytics:profit，销售员默认无毛利权限 |</td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-506</td>
+        <td class="td-name">仪表盘数据权限</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">后端 › Phase 5: 看板系统（P2）</td>
+        <td class="td-remark">2026-11-02 代码复核：DashboardController 检查 menu:dashboard，DashboardServiceImpl 统一使用 OrderAccessPolicy.resolveReadScope / OrderReadScope；按档口×人员过滤，aad6b88、9c1a481 已在生产。生产专项验收/性能由 TEST-OUTLET-001/004 继续跟踪 |</td>
       </tr>
       <tr data-status="done">
         <td class="td-id">BE-551</td>

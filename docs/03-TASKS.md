@@ -23,6 +23,7 @@
 |------|------|------|
 | OPS-FILE-001 | 定位并修复 NAS 文件中心列表请求失败，完成线上回归 | ✅ 完成（Codex；873 项后端回归通过，生产 release `20261101_file_center_hotfix`） |
 | OPS-FILE-002 | 修复商品图片上传无法解析当前用户，补真实 JWT 上传回归并发布 | ✅ 完成（Codex；880 项全量回归通过，生产 release `20261101_upload_user_hotfix`） |
+| OPS-GIT-001 | 分支与正式/测试基线盘点、历史归档、进度记录纠正 | ✅ 完成（Codex，2026-11-02） |
 
 | 阶段 | 状态 | 说明 |
 |------|------|------|
@@ -37,9 +38,9 @@
 | 移动端页面开发 | ⏳ 进行中 | 订单/库存/商品页面开发 |
 | PC 管理端骨架搭建 | ✅ 完成 | Vue3 + Element Plus + TailwindCSS，登录/布局/仪表盘全部完成 |
 | PC 管理端页面开发 | ✅ 完成 | 订单/库存/商品/客户管理页面 |
-| 看板系统开发 | ⏳ 部分完成 | 仪表盘、趋势、库存周转和数据分析已完成；仪表盘数据权限待补 |
+| 看板系统开发 | ⏳ 部分完成 | 仪表盘、趋势、库存周转、数据分析及档口×人员读取范围已实现；全出口隐私和生产性能验收继续跟踪 |
 | 外部 Agent 对接 | ⏳ 进行中 | 款式趋势、颜色尺码结构、纸单草稿和 WhatsApp 本地归档已完成；经营类只读接口、生产联调和限流仍待完成 |
-| 档口主数据与数据权限 | ⏳ 部分完成 | Series A–E 本地完成（V63–V68 迁移、后端统一策略、PC 管理端、订单/草稿/文件/看板/分析/客户统计/导出与 Agent 出口、租户上下文 fail-closed）；Series F 历史迁移/生产发布与 Series G 收口待外部 |
+| 档口主数据与数据权限 | ⏳ 部分完成 | Series A–E 已实现，V63–V68 与档口权限已随 2026-09-22 发布；生产副本映射已有记录，用户授权、专项验收/性能与兼容期收口仍待完成 |
 
 ### 近期主线与状态口径（2026-08-29）
 
@@ -79,7 +80,7 @@
 | P0-3 | TEST-PHASE2-002 | V48-V58 已部署；真实 Agent 联调依赖 P0-2 | 从 Mac 使用最小 scope Key 和可配置外网入口完成 30 单联调 |
 | P1-1 | TEST-WA-NAS-001 | 依赖生产 Collector/Worker Key、网络和备份 | Mac 增量同步、客户工作区、媒体和定向扫描在 NAS 验收 |
 | P1-2 | BE-556～BE-560、BE-585、BE-562 | 先完成数据包和毛利脱敏，再做限流与真实 Agent 回归 | Agent Gateway 经营接口按租户和 scope 稳定返回 |
-| P1-3 | BE-506 | 与客户归属、订单创建人和分析权限一起设计 | 仪表盘按角色显示正确数据范围 |
+| P1-3 | BE-506 / TEST-OUTLET-001/004 | 统一读取范围已实现并部署，继续专项权限/生产性能验收 | 仪表盘按档口×人员显示数据，验收证据齐全 |
 | P0-4 | DB-OUTLET-001～003、BE-OUTLET-001～010、BA-OUTLET-001～006、TEST-OUTLET-001～004、DATA-OUTLET-001～003 | 按[档口权限 ROM/SOW](./superpowers/plans/2026-09-20-outlet-access-control-rom-sow.md)完成主数据、用户绑定和统一后端策略后，才能切换订单/草稿/统计出口 | 销售员无法越权访问其他档口；Owner 可跨档口；历史订单安全回填且全部出口同口径 |
 
 ### 档口权限 Series A 数据模型与兼容迁移（2026-09-20，DeepSeek）
@@ -340,7 +341,7 @@
 | BE-503 | 热销商品接口 | ✅ 完成 | GET /api/dashboard/top-products，仅统计已产生收款订单 |
 | BE-504 | 数据分析接口 | ✅ 完成 | GET /api/analytics/summary、trend、product-ranking、product-detail |
 | BE-505 | 数据分析权限 | ✅ 完成 | menu:analytics + data:analytics:profit，销售员默认无毛利权限 |
-| BE-506 | 仪表盘数据权限 | ⏳ TODO | 明确并实现销售员、主管和 Owner 的仪表盘数据范围；与客户归属、订单创建人和分析权限联动 |
+| BE-506 | 仪表盘数据权限 | ✅ 已实现并发布 | 2026-11-02 代码复核：DashboardController 检查 menu:dashboard，DashboardServiceImpl 统一使用 OrderAccessPolicy.resolveReadScope / OrderReadScope；按档口×人员过滤，aad6b88、9c1a481 已在生产。生产专项验收/性能由 TEST-OUTLET-001/004 继续跟踪 |
 
 ### Phase 5.5: 外部 Agent 对接（P2）
 
@@ -609,15 +610,15 @@
 | BA-OUTLET-005 | 统计档口筛选与对比 | ✅ 完成（DeepSeek，2026-09-21） | 分析页/仪表盘档口多选（选项仅授权集合）；空=当前完整可见范围；仪表盘待归档开关（需 unassigned）与计数；多选参数逐项后端校验 |
 | BA-OUTLET-006 | Agent Key 档口配置 | ✅ 完成（DeepSeek，2026-09-21） | Key Manager 全部/指定/不开放档口编辑器、默认档口、禁用档口仅历史绑定、列表展示与 rotate 回显；凭证弹窗 capabilities→outlets 接入说明；Playwright 2 passed |
 | DATA-OUTLET-001 | 历史档口只读审计工具 | ✅ 完成（DeepSeek，2026-09-20） | 统计 `source_shop` 分布并输出自动映射、疑似批次、空值和冲突清单；含可编辑名称映射 CTE，全程只读不写生产 |
-| DATA-OUTLET-002 | 生产副本映射预演 | 🚧 代码完成、生产副本演练与人工确认未完成（DeepSeek，2026-09-21） | 显式 CSV 回填工具（`OutletBackfillService` + CLI）：dry-run 默认、apply 四重安全闸门拒绝生产特征、只改 `source_outlet_id`、冲突不覆盖、疑似批次跳过、双表、对账、幂等、自动测试。第二批A 增强审计报告：逐条 mapping（legacy/outlet_code/decision/reason + 候选/更新数）、operator（apply 必填、preview 缺省 PREVIEW）、起止时间、expected/actual 库名（严禁凭据）、映射文件 SHA-256、apply 前后 `source_outlet_id` 赋值摘要哈希（`orderIdOutletDigest`/`draftIdOutletDigest`）；生产副本真实预演、异常清单确认与对账签字待外部 |
+| DATA-OUTLET-002 | 生产副本映射预演 | 🚧 已有生产副本预演，异常/人工确认待收口（2026-11-02 核对） | 显式 CSV 回填工具（`OutletBackfillService` + CLI）：dry-run 默认、apply 四重安全闸门拒绝生产特征、只改 `source_outlet_id`、冲突不覆盖、疑似批次跳过、双表、对账、幂等、自动测试。第二批A 增强审计报告：逐条 mapping（legacy/outlet_code/decision/reason + 候选/更新数）、operator（apply 必填、preview 缺省 PREVIEW）、起止时间、expected/actual 库名（严禁凭据）、映射文件 SHA-256、apply 前后 `source_outlet_id` 赋值摘要哈希（`orderIdOutletDigest`/`draftIdOutletDigest`）；2026-09-22 已有生产副本真实预演和 169 单对账记录；异常清单、人工确认与最终签字仍需收口 |
 | DATA-OUTLET-003 | 用户初始档口授权清单 | 🚧 建议包完成（DeepSeek，2026-09-21） | 只读建议 SQL + 确认 CSV 模板（outletScope/peopleScope/默认/多档口），decision 恒 NEEDS_REVIEW，绝不自动授权；人工确认与授权待外部 |
 | TEST-OUTLET-001 | 后端越权矩阵 | 🚧 第一批/终审 + 第二批A 完成（DeepSeek，2026-09-21） | 第一批：`OrderShipScopeGuardTest`（NONE 发货 403、幂等先鉴权、授权通过）、`OrderPlaceholderSplitScopeGuardTest`、`CustomerOrderScopeIntegrationTest`；终审：`OrderScopeRealDbIntegrationTest`（真实 MySQL 403 且副作用为零）、`CustomerPreferenceCacheEvictionTest`（真实 Redis evict 全范围、动作链路）。第二批A：`FileOutletAccessPolicyTest.peopleAll_keepsOwnUnboundFileVisible_butNotOthers_andOrderDraftScopeStillApplies`（peopleAll 下本人未绑定文件 list/count/detail 一致，订单/草稿仍按档口范围）、`OrderScopeRealDbIntegrationTest.realDb_financialActionChecksAccessBeforeIdempotencyShortCircuit/realDb_authorizedFinancialRetryIsIdempotent`（财务先鉴权后幂等）、`DashboardAnalyticsPermissionIntegrationTest`（menu:dashboard/menu:analytics 无权限 403、有权限可用）、`CrossTenantOutletIsolationIntegrationTest`（真实 DB：tenant1 绑/Key 绑 tenant2 档口失败无副作用、跨租户档口读改启停 404，覆盖并增强 mock 的 `UserOutletBindingTest.crossTenantOutletIsRejectedAsNotFound`）。其余 `OutletScopeMatrixTest`/`OrderOutletWriteRulesTest`/`AgentOutletScopeIntegrationTest` 保留。第四批：`TenantLineHandlerFailClosedTest`（缺上下文不生成 tenant=1）、`TenantContextFailClosedIntegrationTest`（user/role/permission/product/customer/outlet 缺上下文稳定 403 且零写入、真实 MyBatis 查询 fail-closed、tenant1/tenant2 真实登录正常）、`SalesOutletTenantDefaultIntegrationTest.missingSysTenantRowFailsClosedAndRollsBack`（无 sys_tenant 行时设置默认 403 回滚）。NONE 用户/负责人全人员/改名快照等仍待后续批次 |
 | TEST-OUTLET-002 | 订单与草稿 E2E | ✅ 完成（DeepSeek，2026-09-21） | 后端 17 例 + Playwright 6 例（`e2e-order-outlet.spec.ts`）：快速录单单/多档口、options 不缓存、草稿/正式订单列表档口筛选与待归档、伪造越权档口 403 |
 | TEST-OUTLET-003 | 全出口防泄漏回归 | ✅ 完成（DeepSeek，2026-09-21） | 文件出口（E2）+ Agent 出口（E3）：Agent A 档口无法通过 orders list/detail、草稿 code/内部 ID、capabilities、outlets 推断 B 数据；NONE 为空、缺 `outlets:read` 403、Key 无效 401；Agent 不访问未归档 NULL；三种主体沿用 E1/E2 矩阵 |
 | TEST-OUTLET-004 | 全量回归与性能 | 🚧 本地完成（DeepSeek，2026-09-21） | 全量后端 + PC 构建 + 关键 E2E；`OutletScopeCrossResourceAuditTest` 矩阵审计、`OutletIndexCoverageTest` 索引核对、`scripts/outlet-scope-explain.sql` 查询计划预演；生产规模性能待验证 |
-| DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | ⏳ TODO（待外部） | checklist 已写（`2026-09-21-outlet-production-release-checklist.md`），未执行任何备份/预演/灰度/回滚 |
+| DEPLOY-OUTLET-001 | NAS 灰度发布与回滚 | 🚧 已部署，专项收口待补证 | 2026-09-22 生产副本 V61→V68、历史映射、备份及生产发布已有 CHANGELOG/运维记录；不能再记为“未执行任何备份/预演”。用户授权、专项灰度/回滚演练与性能证据仍须逐项验收，不因代码上线自动标记全部完成 |
 | ARCH-OUTLET-002 | 兼容期复盘 | ⏳ TODO（待外部） | 稳定一个发布周期后评估旧 `btn:order:viewAll`、空档口兼容和 ID 非空约束 |
-| DOC-OUTLET-001 | 文档与接入手册收口 | 🚧 本地文档完成（DeepSeek，2026-09-21） | PRD/DATABASE/API_SPEC/16/17/19/ROM-SOW/TASKS 已同步本地实现；生产发布记录与验收待外部 |
+| DOC-OUTLET-001 | 文档与接入手册收口 | 🚧 本地文档完成（DeepSeek，2026-09-21） | PRD/DATABASE/API_SPEC/16/17/19/ROM-SOW/TASKS 已同步本地实现，生产发布记录已存在；剩余专项验收、授权确认及兼容收口继续跟踪 |
 
 ### Phase 8: 纸单草稿人工复核（P0）
 
