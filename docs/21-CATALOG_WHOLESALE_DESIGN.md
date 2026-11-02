@@ -23,6 +23,19 @@
 
 旧版 BA-1030“不混 SKU 图”、手机横屏强制提示、SKU 零售矩阵的交互已由本次规则替代，不应恢复旧测试断言。
 
+## iPad PWA 真机反馈修正（2026-11-02）
+
+用户首轮真机发现：主屏幕应用顶部搜索/清单与状态栏重叠；大图贴左上、叉号部分位于屏幕外；详情图片上下裁切。大图在 IAB 也复现，834×1194 下弹层坐标为 (0,0)、margin=0，叉号 top=-12。
+
+- `/catalog` 根布局按 `env(safe-area-inset-*)` 统一留出四边安全区，`100dvh` 有 `100vh` 回退。底部导航不再重复消费底部 inset；顶部搜索和清单点击高度至少 44px。详情/批发面板处于已避开系统栏的工作区内。
+- 原全局 reset 清除了 dialog 默认 margin；所有选款 dialog 显式 fixed + 安全区 inset + margin:auto，尺寸受可用视口限制。大图使用内部 52px 工具栏，44×44 叉号留在弹层内部，不向上外移；图片区域收缩到剩余空间。横竖屏切换重新布局，保留原生 dialog 焦点与 Esc 关闭。
+- 详情改为 3:4 图片框、contain 完整适配，所有上传图按原始比例显示；不再用 cover 裁掉头部/下摆。列表画册仍保持原裁切方式。
+- HTML/manifest 的 theme/background 同步暖白 `#F8F7F3`，替换旧金棕浏览器栏色。保留已有 `black-translucent` 主屏幕配置，兼容已安装图标，通过安全区保护内容。依据 [WebKit 安全区说明](https://webkit.org/blog/7929/designing-websites-for-iphone-x/) 与 [Apple Web App 配置说明](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html)。
+
+本轮 `npm run test:catalog` 47/47、`npm run build` 通过；IAB 在 834×1194、1194×834、390×844 复核从列表/详情打开大图、关闭返回、横屏筛选弹窗、完整图片和无新增控制台错误。大图中心误差小于 1px，叉号完全位于内部且命中正确按钮。新增 3 条浏览器几何回归，总 12 条类型/发现检查通过，未另跑浏览器 CLI；安全区模拟用例不等于真机 PWA 复测通过。
+
+同一局域网测试地址已更新。iOS 主屏幕应用可能保留旧页面，复测先从多任务界面完全退出后重新打开；不会清除本机选款/报价。后端接口、数据库及生产环境本轮不变。用户真机复测完成前，`TEST-CATALOG-DEVICE-001` 保持部分完成。
+
 ## 接口适配
 
 旧读取路由和返回 DTO 不变：

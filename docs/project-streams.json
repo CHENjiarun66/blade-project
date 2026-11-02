@@ -112,10 +112,11 @@
       "priority": "当前",
       "execution": "新版代码接入完成；待真机验收及发布",
       "implementation": "v4.1 界面、批发清单与草稿接口已实现；生产仍为旧版",
-      "acceptance": "本机浏览器与隔离数据库通过；真实 iPad Safari 和 NAS 发布待执行",
+      "acceptance": "真机首轮发现三处显示问题；代码已修，待 PWA 复测及 NAS 发布",
       "next": "确认真机滚动/切图、输入键盘和报价，再走 release 发布；行为采集后置",
       "tasks": [
         "BA-CATALOG-001",
+        "BA-CATALOG-002",
         "BE-CATALOG-001",
         "TEST-CATALOG-001",
         "TEST-CATALOG-DEVICE-001",

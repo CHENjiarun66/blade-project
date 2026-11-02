@@ -3534,3 +3534,100 @@
     flex-basis:40px;
   }
 }
+
+/* iPad Home Screen / Safari: each safe-area inset is owned by the page once.
+   Dialogs are in the top layer, so they explicitly use the same safe rectangle. */
+.catalog-page{
+  --catalog-safe-top: env(safe-area-inset-top,0px);
+  --catalog-safe-right: env(safe-area-inset-right,0px);
+  --catalog-safe-bottom: env(safe-area-inset-bottom,0px);
+  --catalog-safe-left: env(safe-area-inset-left,0px);
+  --catalog-viewport-height: 100vh;
+  height: var(--catalog-viewport-height);
+  box-sizing: border-box;
+  padding: var(--catalog-safe-top) var(--catalog-safe-right) var(--catalog-safe-bottom) var(--catalog-safe-left);
+}
+@supports(height:100dvh){
+  .catalog-page{
+    --catalog-viewport-height: 100dvh;
+  }
+}
+.catalog-page .mobile-nav{
+  padding-bottom: 0;
+}
+.catalog-page .search,
+.catalog-page .cart-trigger{
+  min-height: 44px;
+}
+.catalog-page .detail-image{
+  aspect-ratio: 3/4;
+  background: var(--paper);
+}
+.catalog-page .gallery-detail,
+.catalog-page .gallery-detail .catalog-photo{
+  background: var(--paper);
+  object-fit: contain;
+}
+.catalog-page dialog.modal,
+.catalog-page dialog.lightbox{
+  position: fixed;
+  inset: var(--catalog-safe-top) var(--catalog-safe-right) var(--catalog-safe-bottom) var(--catalog-safe-left);
+  margin: auto;
+  max-width: calc(100vw - var(--catalog-safe-left) - var(--catalog-safe-right) - 24px);
+  max-height: calc(var(--catalog-viewport-height) - var(--catalog-safe-top) - var(--catalog-safe-bottom) - 24px);
+}
+.catalog-page dialog.lightbox{
+  width: min(86vw,850px);
+  height: min(88vh,960px);
+  overflow: hidden;
+  padding: 0;
+}
+.catalog-page dialog.lightbox[open]{
+  display: flex;
+  flex-direction: column;
+}
+.catalog-page .lightbox-toolbar{
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 52px;
+  padding: 4px 8px;
+  background: var(--paper);
+}
+.catalog-page .lightbox-close{
+  position: static;
+  transform: none;
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background: #fff;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.catalog-page .lightbox-gallery{
+  flex: 1 1 0;
+  height: auto;
+  min-height: 0;
+  width: 100%;
+}
+@supports(height:100dvh){
+  .catalog-page dialog.lightbox{
+    height: min(88dvh,960px);
+  }
+}
+@media(max-width:640px){
+  .catalog-page dialog.lightbox{
+    width: 94vw;
+    height: 80vh;
+  }
+  @supports(height:100dvh){
+    .catalog-page dialog.lightbox{
+      height: 80dvh;
+    }
+  }
+}

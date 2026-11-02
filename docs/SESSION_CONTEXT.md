@@ -24,8 +24,8 @@
 
 - 独立工作区 `BladeProject-worktrees/catalog-wholesale-ui`，分支 `codex/catalog-wholesale-ui`，基于 develop `8b5fb91`；功能提交 `49ff9f1` 已快进集成 develop，并验证 origin/develop 与功能分支 SHA 一致。master 保持 `8b5fb91`，未发布 NAS。
 - 原 `/catalog` 已替换为批发选款页，读取现有商品/图片/库存标记，新增可选精确款号/选中 ID 查询；移交进入现有订单草稿，颜色说明保存为 rawColor，客户单价不回写商品。
-- 本机隔离 MySQL/Redis，47 项前端与 123 项后端测试通过，正式构建通过；IAB 真 API 验证添加回列表、手机/iPad 尺寸、图片手势和两款 180 件/5490 元草稿，店员保存后字段仍在。Playwright 回归源码已同步，未另跑浏览器 CLI。
-- 无新增 migration、生产部署或生产数据操作。生产保持上表版本；真机 Safari/软键盘和 NAS 配套发布仍待办。详细契约见 [选款说明](./21-CATALOG_WHOLESALE_DESIGN.md)。
+- 本机隔离 MySQL/Redis，47 项前端与 123 项后端测试通过，正式构建通过；IAB 真 API 验证添加回列表、手机/iPad 尺寸、图片手势和两款 180 件/5490 元草稿，店员保存后字段仍在。Playwright 回归源码已同步，未另跑浏览器 CLI。PWA 修复另补 3 项几何回归（总 12 条），类型和发现检查通过；IAB 复核 834×1194、1194×834、390×844 大图居中、叉号 44×44 且可关闭、详情完整显示。
+- 无新增 migration、生产部署或生产数据操作。生产保持上表版本；用户真机首轮已反馈 PWA 顶部遮挡、大图偏移/关不掉和详情裁图；对应代码已修并更新 `http://192.168.1.3:5880/catalog`，待主屏幕应用完全退出后复测。软键盘等剩余验收及 NAS 配套发布仍待办。详细契约见 [选款说明](./21-CATALOG_WHOLESALE_DESIGN.md)。
 
 ## 暂缓的稳定性任务
 
