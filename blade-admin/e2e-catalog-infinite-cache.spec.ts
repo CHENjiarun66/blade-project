@@ -290,3 +290,16 @@ test('single-finger touch listeners consume a diagonal photo swipe but leave ver
   expect(await touch(7,80)).toBe(false); await expect(gallery).toHaveAttribute('data-active-index','0')
   expect(await touch(-20,18)).toBe(true); await expect(gallery).toHaveAttribute('data-active-index','1')
 })
+
+
+test('lightbox closes on a backdrop tap, preserves image taps and ignores drags across its boundary', async ({ page }) => {
+  await setup(page); await page.setViewportSize({width:834,height:1194}); await page.goto('/catalog')
+  const card=page.locator('.gallery-card[data-product-id="1"]'),viewer=page.getByRole('dialog',{name:'商品大图',exact:true})
+  await card.locator('.gallery-slide[aria-hidden="false"]').click()
+  const box=(await viewer.boundingBox())!,x=box.x/2,y=box.y+box.height/2
+  await page.locator('.gallery-lightbox .gallery-slide[aria-hidden="false"]').click();await expect(viewer).toBeVisible()
+  await page.mouse.move(box.x+box.width/2,y);await page.mouse.down();await page.mouse.move(x,y,{steps:10});await page.mouse.up();await expect(viewer).toBeVisible()
+  await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+15,y+24,{steps:5});await page.mouse.move(x,y,{steps:5});await page.mouse.up();await expect(viewer).toBeVisible()
+  await page.mouse.click(x,y);await expect(viewer).not.toBeVisible();await expect(page.locator('body')).not.toHaveCSS('position','fixed')
+  await card.locator('.gallery-slide[aria-hidden="false"]').click();await page.getByRole('button',{name:'关闭大图',exact:true}).click();await expect(viewer).not.toBeVisible()
+})
