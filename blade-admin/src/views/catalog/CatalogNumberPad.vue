@@ -3,8 +3,8 @@
     <div class="modal-top"><div><p class="number-pad-caption">{{ request?.mode === 'quantity' ? '总数量 · 件' : '本次单价 · 元' }}</p><h2>{{ request?.label }}</h2></div>
       <button type="button" class="icon-button" aria-label="取消数字输入" @click="dialog?.close()"><CatalogIcon name="close" /></button></div>
     <output class="number-pad-value" :class="{ 'will-replace': replacing && !!draft }" aria-live="polite" aria-label="当前输入">{{ draft || (request?.mode === 'quantity' ? '待填数量' : '待报价') }}</output>
-    <div class="number-pad-edit"><span>{{ draft && replacing ? '输入新数字即可替换' : '可留空，交由店员补充' }}</span><button type="button" @click="press('clear')">清空</button><button type="button" aria-label="退格" @click="press('backspace')">退格</button></div>
-    <div class="number-pad-grid"><button v-for="key in keys" :key="key" type="button" :disabled="key === '.' && request?.mode !== 'price'" :aria-label="key === '.' ? '小数点' : `数字${key}`" @click="press(key)">{{ key }}</button></div>
+    <div class="number-pad-edit"><span>{{ draft && replacing ? '输入新数字即可替换' : '可留空，交由店员补充' }}</span><button type="button" class="number-pad-clear" aria-label="清空 CLEAR" @click="press('clear')">清空<span lang="en">CLEAR</span></button></div>
+    <div class="number-pad-grid"><button v-for="key in keys" :key="key" type="button" :class="{ 'number-pad-backspace': key === 'backspace' }" :aria-label="key === 'backspace' ? '退格' : key === '.' ? '小数点' : `数字${key}`" @click="press(key)"><template v-if="key === 'backspace'"><CatalogIcon name="backspace" :size="25" /><span>退格</span></template><template v-else>{{ key }}</template></button></div>
     <p v-if="!valid" class="number-pad-error" role="alert">{{ request?.mode === 'quantity' ? '数量须为 1–999999 的整数，也可留空' : '单价最多 6 位整数、2 位小数' }}</p>
     <div class="modal-actions"><button type="button" class="secondary-button" @click="dialog?.close()">取消</button><button type="button" class="primary-button" :disabled="!valid" @click="confirm">确定<CatalogIcon name="check" /></button></div>
   </dialog>
@@ -16,7 +16,7 @@ import type { NumberEntryRequest } from './numericEntry'
 import { keypadValue, validKeypadValue, committedKeypadValue } from './numericKeypadModel'
 const dialog = ref<HTMLDialogElement>(), request = shallowRef<NumberEntryRequest | null>(null)
 const draft = ref(''), replacing = ref(true)
-const keys = ['7','8','9','4','5','6','1','2','3','00','0','.']
+const keys = computed(() => ['7','8','9','4','5','6','1','2','3',request.value?.mode === 'price' ? '.' : '00','0','backspace'])
 const valid = computed(() => !request.value || validKeypadValue(draft.value, request.value.mode))
 function closed() { if (!dialog.value?.open) request.value = null }
 function open(value: NumberEntryRequest) { if (dialog.value?.open) return; request.value = value; draft.value = value.value; replacing.value = true; dialog.value?.showModal() }

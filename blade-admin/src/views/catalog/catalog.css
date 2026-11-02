@@ -3644,13 +3644,16 @@
 .catalog-page .number-pad-caption{font-size:11px;color:var(--muted);margin:0 0 5px}
 .catalog-page .number-pad-value{display:block;min-height:70px;padding:12px 14px;background:var(--paper);color:var(--ink);font-size:30px;font-variant-numeric:tabular-nums;line-height:1.5;overflow:hidden;text-align:right;white-space:nowrap}
 .catalog-page .number-pad-value.will-replace{color:var(--sage);text-decoration:underline;text-underline-offset:6px}
-.catalog-page .number-pad-edit{display:flex;align-items:center;gap:14px;min-height:43px;color:var(--sage);font-size:12px}
-.catalog-page .number-pad-edit span{margin-right:auto;font-size:10px;color:var(--muted)}
-.catalog-page .number-pad-edit button{min-height:40px;min-width:36px}
+.catalog-page .number-pad-edit{display:flex;align-items:center;gap:10px;min-height:56px;color:var(--sage);font-size:12px}
+.catalog-page .number-pad-edit>span{margin-right:auto;font-size:10px;line-height:1.5;color:var(--muted)}
+.catalog-page .number-pad-clear{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;min-width:116px;min-height:44px;padding:0 15px;background:#f0f1ec;border:1px solid var(--line);border-radius:2px;font-size:15px;font-weight:600;touch-action:manipulation}
+.catalog-page .number-pad-clear span{font-size:11px;letter-spacing:.04em;font-weight:500}
+.catalog-page .number-pad-clear:active{background:#dce4d5}
 .catalog-page .number-pad-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
 .catalog-page .number-pad-grid button{min-height:54px;background:#f0f1ec;border:1px solid var(--line);border-radius:2px;font-size:23px;font-variant-numeric:tabular-nums;touch-action:manipulation}
 .catalog-page .number-pad-grid button:active{background:#dce4d5;transform:scale(.97)}
-.catalog-page .number-pad-grid button:disabled{visibility:hidden}
+.catalog-page .number-pad-grid .number-pad-backspace{display:flex;align-items:center;justify-content:center;gap:7px;color:var(--sage)}
+.catalog-page .number-pad-backspace span{font-size:13px;font-weight:500}
 .catalog-page .number-pad-modal .modal-actions{margin-top:14px;gap:9px}
 .catalog-page .number-pad-modal .modal-actions button{min-height:46px}
 .catalog-page .number-pad-error{font-size:11px;color:var(--heart);margin:8px 0 0}
@@ -3665,8 +3668,8 @@
 @media(max-height:650px) and (min-width:641px){
   .catalog-page .number-pad-modal{padding:14px 18px}
   .catalog-page .number-pad-value{min-height:52px;font-size:25px;padding:7px 12px}
-  .catalog-page .number-pad-grid button{min-height:39px;font-size:20px}
-  .catalog-page .number-pad-edit{min-height:36px}
+  .catalog-page .number-pad-grid button{min-height:44px;font-size:20px}
+  .catalog-page .number-pad-edit{min-height:52px}
 }
 /* Keep the invisible checkbox aligned with its label while the product pane scrolls. */
 .catalog-page .stock-switch{position:relative}
