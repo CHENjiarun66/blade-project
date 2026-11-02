@@ -1,6 +1,6 @@
 import { onMounted, onBeforeUnmount, type Ref } from 'vue'
 
-// Recover only after text entry. Pinch zoom and ordinary photo/page scrolling stay browser-owned.
+// Fit the real viewport on entry/rotation, then recover after native text entry. Never resize for pinch zoom.
 export function useCatalogViewport(root: Ref<HTMLElement | undefined>) {
   let recovering = false, keyboardSeen = false, frame = 0, timer: ReturnType<typeof setTimeout> | undefined
   const viewport = window.visualViewport
@@ -8,8 +8,15 @@ export function useCatalogViewport(root: Ref<HTMLElement | undefined>) {
     const el = document.activeElement
     return el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && !el.readOnly && !['checkbox','radio','button','submit'].includes(el.type)) || (el instanceof HTMLElement && el.isContentEditable)
   }
+  function fitHeight() {
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || (window.navigator as Navigator & { standalone?: boolean })?.standalone
+    // Home-screen Safari can report a dvh smaller than its layout viewport on initial launch.
+    const height = standalone ? Math.max(window.innerHeight, document.documentElement.clientHeight, viewport?.height || 0) : viewport?.height || window.innerHeight
+    root.value?.style.setProperty('--catalog-viewport-height', `${Math.round(height)}px`)
+  }
   function restore() {
-    if (!recovering || (viewport && Math.abs(viewport.scale - 1) > .02)) return
+    if (viewport && Math.abs(viewport.scale - 1) > .02) return
+    if (!recovering) { if (!editable()) fitHeight(); return }
     const layoutHeight = Math.max(window.innerHeight, document.documentElement.clientHeight)
     // Safari animates keyboard dismissal; wait until the visible viewport expands again.
     if (viewport && viewport.height < layoutHeight - 100) { keyboardSeen = keyboardSeen || editable(); return }
@@ -26,11 +33,11 @@ export function useCatalogViewport(root: Ref<HTMLElement | undefined>) {
   function blurred() { if (recovering) { schedule(); clearTimeout(timer); timer = setTimeout(schedule, 350) } }
   function resized() {
     if (!editable() && (!viewport || Math.abs(viewport.scale - 1) <= .02)) {
-      root.value?.style.removeProperty('--catalog-viewport-height')
       schedule()
     }
   }
   onMounted(() => {
+    restore()
     document.addEventListener('focusin', focused); document.addEventListener('focusout', blurred)
     viewport?.addEventListener('resize', schedule); window.addEventListener('resize', resized)
   })

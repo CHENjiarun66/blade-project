@@ -90,16 +90,16 @@ test('horizontal intent tolerates a natural vertical drift',()=>assert.equal(ges
 const stocks = load('stockDisplay')
 test('available stock is shown without treating old cached data as zero',()=>{assert.equal(stocks.stockLabel({hasStock:true,availableQty:120}),'可选现货 120 件');assert.equal(stocks.stockLabel({hasStock:true}),'有现货');assert.equal(stocks.stockLabel({hasStock:false,availableQty:0}),'暂无现货')})
 
-function viewportHarness() {
+function viewportHarness({standalone=false,layoutHeight=1194,visibleHeight=1194}={}) {
   class Element { isContentEditable=false; blur(){ doc.activeElement=null; fire(documentEvents,'focusout') } }
   class Input extends Element { readOnly=false; type='text' }
   class Textarea extends Element {}
   const documentEvents=new Map(),windowEvents=new Map(),visualEvents=new Map(),frames=[],mounted=[],unmount=[]
   const styleValues=new Map(),scrolls=[]
   const style={setProperty:(k,v)=>styleValues.set(k,v),removeProperty:k=>styleValues.delete(k)}
-  const doc={activeElement:null,documentElement:{clientHeight:1194},addEventListener:(k,f)=>documentEvents.set(k,f),removeEventListener:k=>documentEvents.delete(k)}
-  const visual={height:1194,scale:1,addEventListener:(k,f)=>visualEvents.set(k,f),removeEventListener:k=>visualEvents.delete(k)}
-  const win={innerHeight:1194,visualViewport:visual,scrollTo:(...args)=>scrolls.push(args),addEventListener:(k,f)=>windowEvents.set(k,f),removeEventListener:k=>windowEvents.delete(k)}
+  const doc={activeElement:null,documentElement:{clientHeight:layoutHeight},addEventListener:(k,f)=>documentEvents.set(k,f),removeEventListener:k=>documentEvents.delete(k)}
+  const visual={height:visibleHeight,scale:1,addEventListener:(k,f)=>visualEvents.set(k,f),removeEventListener:k=>visualEvents.delete(k)}
+  const win={innerHeight:layoutHeight,visualViewport:visual,matchMedia:()=>({matches:standalone}),scrollTo:(...args)=>scrolls.push(args),addEventListener:(k,f)=>windowEvents.set(k,f),removeEventListener:k=>windowEvents.delete(k)}
   const exports={}
   const source=fs.readFileSync(new URL('../src/views/catalog/useCatalogViewport.ts',import.meta.url),'utf8')
   vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:()=>({onMounted:fn=>mounted.push(fn),onBeforeUnmount:fn=>unmount.push(fn)}),document:doc,window:win,HTMLElement:Element,HTMLInputElement:Input,HTMLTextAreaElement:Textarea,requestAnimationFrame:fn=>{frames.push(fn);return frames.length},cancelAnimationFrame(){},setTimeout:()=>0,clearTimeout(){}})
@@ -109,7 +109,7 @@ function viewportHarness() {
 }
 test('keyboard dismissal recovers height and root scroll after blur',()=>{const h=viewportHarness();h.focus(h.input);h.visual.height=700;h.resize();h.flush();assert.equal(h.scrolls.length,0);h.blur();h.visual.height=1194;h.resize();h.flush();assert.equal(h.styleValues.get('--catalog-viewport-height'),'1194px');assert.equal(h.scrolls.length,1);h.cleanup()})
 test('dedicated iPad keyboard hide also recovers when input keeps focus',()=>{const h=viewportHarness();h.focus(h.input);h.visual.height=700;h.resize();h.flush();h.visual.height=1194;h.resize();h.flush();assert.equal(h.doc.activeElement,null);assert.equal(h.scrolls.length,1);h.cleanup()})
-test('pinch zoom is not mistaken for keyboard dismissal',()=>{const h=viewportHarness();h.focus(h.input);h.blur();h.visual.scale=1.5;h.visual.height=796;h.resize();h.flush();assert.equal(h.scrolls.length,0);assert.equal(h.styleValues.size,0);h.cleanup()})
+test('pinch zoom is not mistaken for keyboard dismissal',()=>{const h=viewportHarness();h.focus(h.input);h.blur();h.visual.scale=1.5;h.visual.height=796;h.resize();h.flush();assert.equal(h.scrolls.length,0);assert.equal(h.styleValues.get('--catalog-viewport-height'),'1194px');h.cleanup()})
 test('readonly numeric fields never arm native keyboard recovery',()=>{const h=viewportHarness();h.input.readOnly=true;h.focus(h.input);h.blur();h.resize();h.flush();assert.equal(h.scrolls.length,0);h.cleanup()})
 
 // Drive the actual Touch-event handlers: mouse-only regressions cannot catch Safari arbitration.
@@ -155,3 +155,7 @@ test('lightbox backdrop blocks single-finger scroll but retains native pinch zoo
 test('lightbox stops wheel scroll chaining while retaining control-wheel zoom',()=>{const h=scrollLockHarness();h.api.lock();const event=ctrlKey=>({ctrlKey,cancelable:true,prevented:false,preventDefault(){this.prevented=true}});const scroll=event(false),zoom=event(true);h.events.get('wheel')(scroll);h.events.get('wheel')(zoom);assert.equal(scroll.prevented,true);assert.equal(zoom.prevented,false)})
 
 test('an intentional new button tap is usable immediately after swiping',()=>{const h=gestureHarness();h.fire('touchstart',100);h.fire('touchmove',70,0,100);h.fire('touchend',70,0,200);const control=new h.root.constructor();control.closest=()=>({});h.fire('touchstart',80,0,250,{target:control});const event={detail:1,preventDefault(){this.prevented=true},stopImmediatePropagation(){}};h.api.guardClick(event);assert.equal(event.prevented,undefined)})
+
+test('PWA entry fills the layout viewport even when the visible viewport initially reports less height',()=>{const h=viewportHarness({standalone:true,layoutHeight:852,visibleHeight:793});assert.equal(h.styleValues.get('--catalog-viewport-height'),'852px');assert.equal(h.scrolls.length,0)})
+test('browser entry fits the visible viewport without reserving hidden browser chrome',()=>{const h=viewportHarness({layoutHeight:852,visibleHeight:759});assert.equal(h.styleValues.get('--catalog-viewport-height'),'759px')})
+test('rotation updates height without resetting normal browse scroll',()=>{const h=viewportHarness({standalone:true});h.win.innerHeight=393;h.doc.documentElement.clientHeight=393;h.visual.height=393;h.resize();h.flush();assert.equal(h.styleValues.get('--catalog-viewport-height'),'393px');assert.equal(h.scrolls.length,0)})

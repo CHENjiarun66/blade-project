@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "vue-tsc -b && vite build && npm run test:catalog:build",
     "preview": "vite preview",
-    "test:catalog": "node --test tests/catalog-model.test.mjs"
+    "test:catalog": "node --test tests/catalog-model.test.mjs",
+    "test:catalog:build": "node --test tests/catalog-css-build.test.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

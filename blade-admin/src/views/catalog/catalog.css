@@ -3680,3 +3680,17 @@
 .catalog-page dialog.lightbox,
 .catalog-page dialog.lightbox::backdrop{touch-action:pinch-zoom;overscroll-behavior:none}
 @media(prefers-reduced-motion:reduce){.catalog-page .gallery-track{transition:none}}
+
+/* Phone layout: one full search row and two generous product columns. */
+@media(max-width:640px){
+  .catalog-page .topbar{height:64px;min-height:64px;padding:10px 12px;gap:10px;flex-wrap:nowrap}
+  .catalog-page .topbar .brand{display:none}
+  .catalog-page .topbar .search{order:0;flex:1 1 0%;flex-basis:0%;width:auto;min-width:0;height:44px;margin:0;padding:0 12px;gap:8px}
+  .catalog-page .topbar .search>svg{flex-shrink:0}
+  .catalog-page .topbar .search input{font-size:16px;line-height:1.5;flex:1 1 0%;min-width:0;width:100%}
+  .catalog-page .topbar .cart-trigger{flex:0 0 auto;height:44px;min-height:44px;margin:0;padding:0 4px;gap:6px}
+  .catalog-page .cart-trigger .cart-label{display:none}
+  .catalog-page .product-grid,.catalog-page .has-panel .product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 8px}
+  .catalog-page .mobile-nav{height:52px;min-height:52px;padding:0;flex:0 0 52px}
+  .catalog-page .mobile-nav-button{flex-direction:row;gap:8px;min-height:44px;font-size:12px}
+}

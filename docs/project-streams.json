@@ -112,8 +112,8 @@
       "priority": "当前",
       "execution": "新版代码接入完成；待真机验收及发布",
       "implementation": "v4.1 界面、批发清单与草稿接口已实现；生产仍为旧版",
-      "acceptance": "用户确认主页面/大图滑动流畅；新增遮罩轻点退出待确认，业务验收继续",
-      "next": "确认真机滚动/切图、输入键盘和报价，再走 release 发布；行为采集后置",
+      "acceptance": "用户确认滑图流畅；手机两列/搜索/底部及遮罩退出待真机复测，业务验收继续",
+      "next": "复测手机两列/搜索/底部与遮罩退出，完成业务验收后走 release；行为采集后置",
       "tasks": [
         "BA-CATALOG-001",
         "BA-CATALOG-002",
@@ -123,6 +123,7 @@
         "OPS-CATALOG-001",
         "BA-CATALOG-003",
         "BA-CATALOG-004",
+        "BA-CATALOG-005",
         "BE-CATALOG-002"
       ]
     },

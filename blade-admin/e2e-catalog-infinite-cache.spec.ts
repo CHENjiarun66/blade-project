@@ -303,3 +303,27 @@ test('lightbox closes on a backdrop tap, preserves image taps and ignores drags 
   await page.mouse.click(x,y);await expect(viewer).not.toBeVisible();await expect(page.locator('body')).not.toHaveCSS('position','fixed')
   await card.locator('.gallery-slide[aria-hidden="false"]').click();await page.getByRole('button',{name:'关闭大图',exact:true}).click();await expect(viewer).not.toBeVisible()
 })
+
+
+test('phone portrait has two columns and a full-width readable search without a logo', async ({page})=>{
+  await page.setViewportSize({width:393,height:852});await setup(page);await page.goto('/catalog')
+  await expect(page.locator('.topbar .brand')).not.toBeVisible()
+  await expect(page.getByRole('button',{name:'打开批发清单，共0款',exact:true})).toBeVisible()
+  const search=page.getByRole('searchbox',{name:'搜索款号或商品名称',exact:true})
+  await expect(search).toHaveCSS('font-size','16px')
+  expect((await search.boundingBox())!.width).toBeGreaterThan(235)
+  expect(await page.locator('.product-grid').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(2)
+  await search.fill('款式1');await expect(search).toHaveValue('款式1')
+})
+
+test('phone content and compact navigation fill the viewport with one safe-area inset', async ({page})=>{
+  await page.setViewportSize({width:393,height:852});await setup(page);await page.goto('/catalog')
+  await expect(page.locator('.mobile-nav')).toBeVisible()
+  const geometry=await page.locator('.catalog-page').evaluate(el=>{
+    const root=el.getBoundingClientRect(),nav=el.querySelector('.mobile-nav')!.getBoundingClientRect(),workspace=el.querySelector('.workspace')!.getBoundingClientRect()
+    return {root:root.bottom,nav:nav.bottom,content:workspace.bottom,navTop:nav.top,inset:parseFloat(getComputedStyle(el).paddingBottom),height:window.innerHeight}
+  })
+  expect(Math.abs(geometry.root-geometry.height)).toBeLessThanOrEqual(1)
+  expect(Math.abs(geometry.root-geometry.nav-geometry.inset)).toBeLessThanOrEqual(1)
+  expect(Math.abs(geometry.content-geometry.navTop)).toBeLessThanOrEqual(1)
+})

@@ -14,6 +14,8 @@ export default defineConfig({
       resolvers: [ElementPlusResolver()],
     }),
   ],
+  // Keep width/height breakpoints readable by older iOS Safari after CSS minification.
+  build: { cssTarget: 'safari15' },
   server: {
     allowedHosts: true,
     port: 5777,
