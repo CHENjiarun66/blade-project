@@ -57,7 +57,7 @@
       <template v-else><div class="modal-top"><h2>确认批发清单</h2><button class="icon-button" :disabled="sending" aria-label="关闭确认" @click="handoffDialog?.close()"><CatalogIcon name="close" :size="20" /></button></div><p class="handoff-intro">店员将按款号核对颜色说明、总数量和本次报价，确认后开单。</p><div class="handoff-wholesale"><div v-for="line in chosenLines" :key="line.product.id" class="handoff-wholesale-line"><div><strong>{{ line.product.productCode }}</strong><span>{{ line.colorNote || '颜色待确认' }} · {{ quantity(line.qty) ?? '待定' }} 件</span></div><div><strong>{{ money(lineAmount(line)) }}</strong><span>单价 {{ priceCents(line.unitPrice) === null ? '待报价' : money(priceCents(line.unitPrice)) }}</span></div></div></div><div v-if="totals.pending" class="handoff-pending">{{ totals.pending }} 款数量或报价待补充，未计入完整金额；可交店员补充确认。</div><div class="handoff-finance"><span>{{ totals.styles }} 款 · {{ totals.qty }} 件</span><strong>{{ totals.pending ? '已填金额' : '合计金额' }} {{ totals.pending === totals.styles ? '待报价' : money(totals.amount) }}</strong></div><label v-if="canHandoff" class="field-label">开单档口<select v-model="handoffOutletId" :disabled="sending || outletLoading || outletOptions.length === 1" aria-label="开单档口"><option :value="undefined">请选择档口</option><option v-for="outlet in outletOptions" :key="outlet.id" :value="outlet.id">{{ outlet.outletName }}</option></select></label><p v-if="!canHandoff" class="catalog-notice">请店员使用具有开单权限的账号确认，当前清单已保存在本机。</p><p v-if="handoffError" class="catalog-notice" role="alert">{{ handoffError }}</p><button v-if="canHandoff" class="primary-button" :disabled="sending || outletLoading || !handoffOutletId" @click="sendHandoff">{{ sending ? '正在移交…' : '交给店员确认' }}<CatalogIcon name="arrow" :size="20" /></button><p class="preview-only">仅生成订单草稿，不创建正式订单或扣减库存</p></template>
     </dialog>
     <CatalogNumberPad ref="numberPad" />
-    <dialog ref="lightboxDialog" class="lightbox" aria-label="商品大图"><div class="lightbox-toolbar"><button type="button" class="lightbox-close icon-button" aria-label="关闭大图" @click="lightboxDialog?.close()"><CatalogIcon name="close" :size="20" /></button></div><div v-if="lightboxProduct" class="lightbox-gallery"><PhotoGallery ref="fullGallery" v-model="imageIndexes[lightboxProduct.id]" :images="productImages(lightboxProduct)" :product-id="lightboxProduct.id" :code="lightboxProduct.productCode" :name="lightboxProduct.name" context="lightbox" /></div></dialog>
+    <CatalogLightbox v-if="lightboxProduct" ref="lightbox" v-model="imageIndexes[lightboxProduct.id]" :images="productImages(lightboxProduct)" :product-id="lightboxProduct.id" :code="lightboxProduct.productCode" :name="lightboxProduct.name" :background="pageEl" />
   </div>
 </template>
 <script setup lang="ts">
@@ -76,6 +76,7 @@ import NumericInput from './NumericInput.vue'
 import CatalogNumberPad from './CatalogNumberPad.vue'
 import { numberEntryKey } from './numericEntry'
 import { useCatalogViewport } from './useCatalogViewport'
+import CatalogLightbox from './CatalogLightbox.vue'
 import { stockLabel } from './stockDisplay'
 const pageEl = ref<HTMLElement>(), numberPad = ref<InstanceType<typeof CatalogNumberPad>>()
 provide(numberEntryKey, request => numberPad.value?.open(request))
@@ -88,8 +89,8 @@ const panel = ref<'detail' | 'cart' | null>(null), detailLine = ref<SelectionLin
 const panelEl = ref<HTMLElement>(), browseEl = ref<HTMLElement>(), windowWidth = ref(window.innerWidth)
 const imageIndexes = reactive<Record<number, number>>({})
 const onlySelected = ref(false), chosenLines = computed(() => lines.value.filter(line => line.checked)), totals = computed(() => selectionTotals(lines.value))
-const filterDialog = ref<HTMLDialogElement>(), confirmDialog = ref<HTMLDialogElement>(), handoffDialog = ref<HTMLDialogElement>(), lightboxDialog = ref<HTMLDialogElement>()
-const lightboxProduct = ref<CatalogProductVO | null>(null)
+const filterDialog = ref<HTMLDialogElement>(), confirmDialog = ref<HTMLDialogElement>(), handoffDialog = ref<HTMLDialogElement>()
+const lightboxProduct = ref<CatalogProductVO | null>(null), lightbox = ref<InstanceType<typeof CatalogLightbox>>()
 const filterDraft = reactive({ categoryId: undefined as number | undefined, colorId: undefined as number | undefined, sizeId: undefined as number | undefined, inStock: false, hasImage: false })
 const toastMessage = ref(''), undoAction = shallowRef<(() => void) | null>(null)
 let toastTimer: ReturnType<typeof setTimeout>, searchTimer: ReturnType<typeof setTimeout> | undefined, detailRequest = 0, scrollBeforeDetail = 0
@@ -146,7 +147,7 @@ async function saveDetail() {
     notify(updated ? '已更新批发清单，可以继续选款' : '已加入批发清单，可以继续选款')
   } catch (e) { notify((e as Error).message) }
 }
-function openLightbox(product: CatalogProductVO) { if (!productImages(product).length) { void showDetail(product); return }; lightboxProduct.value = product; nextTick(() => lightboxDialog.value?.showModal()) }
+function openLightbox(product: CatalogProductVO) { if (!productImages(product).length) { void showDetail(product); return }; lightboxProduct.value = product; nextTick(() => lightbox.value?.open()) }
 const refreshingSelection = ref(false), selectionError = ref(''), lookupBusy = ref(false)
 async function refreshSelection(): Promise<boolean> {
   if (refreshingSelection.value) return false
@@ -214,13 +215,7 @@ async function sendHandoff() {
   finally { sending.value = false }
 }
 function resize() { windowWidth.value = window.innerWidth }
-function lightboxKeys(event: KeyboardEvent) {
-  if (!lightboxDialog.value?.open || !lightboxProduct.value || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
-  const id = lightboxProduct.value.id, count = productImages(lightboxProduct.value).length
-  imageIndexes[id] = Math.max(0, Math.min(count - 1, (imageIndexes[id] || 0) + (event.key === 'ArrowRight' ? 1 : -1)))
-  event.preventDefault()
-}
-onMounted(() => { applyCache(); void fetchProducts(); void loadFilters(); window.addEventListener('resize', resize); window.addEventListener('keydown', lightboxKeys) })
-onBeforeUnmount(() => { destroy(); ++detailRequest; clearTimeout(toastTimer); clearTimeout(searchTimer); selection.persist(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', lightboxKeys) })
+onMounted(() => { applyCache(); void fetchProducts(); void loadFilters(); window.addEventListener('resize', resize) })
+onBeforeUnmount(() => { destroy(); ++detailRequest; clearTimeout(toastTimer); clearTimeout(searchTimer); selection.persist(); window.removeEventListener('resize', resize) })
 </script>
 <style src="./catalog.css"></style>

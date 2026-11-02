@@ -218,7 +218,7 @@ test('slow short card swipes flip without requiring an exaggerated drag', async 
   const gallery = page.locator('.gallery-card[data-product-id="1"]')
   const box = await gallery.boundingBox(); expect(box).toBeTruthy()
   const x = box!.x + box!.width / 2, y = box!.y + box!.height / 2
-  await page.mouse.move(x,y); await page.mouse.down(); await page.mouse.move(x-40,y+2,{steps:8})
+  await page.mouse.move(x,y); await page.mouse.down(); await page.mouse.move(x-20,y+18,{steps:8})
   await page.waitForTimeout(180) // release slowly: distance, not a fast-flick shortcut, must be enough
   await page.mouse.up(); await expect(gallery).toHaveAttribute('data-active-index','1')
   await drag(page,'.gallery-card[data-product-id="1"]',5,90)
@@ -254,4 +254,39 @@ test.describe('touch numeric entry',()=>{
     expect(await page.locator('.catalog-page').evaluate(el=>el.getBoundingClientRect().height)).toBe(834)
     expect(await page.evaluate(()=>window.scrollY)).toBe(0)
   })
+})
+
+
+test('lightbox gestures own the image index and freeze background scrolling until close', async ({ page }) => {
+  await setup(page); await page.setViewportSize({width:834,height:1194}); await page.goto('/catalog')
+  const card=page.locator('.gallery-card[data-product-id="1"]'),browse=page.locator('.grid-area')
+  const before=await browse.evaluate(el=>el.scrollTop)
+  await card.locator('.gallery-slide[aria-hidden="false"]').click()
+  await expect(page.locator('body')).toHaveCSS('position','fixed')
+  const locked=await browse.evaluate(el=>el.scrollTop)
+  await drag(page,'.gallery-lightbox',-20,25)
+  await expect(page.locator('.gallery-lightbox')).toHaveAttribute('data-active-index','1')
+  await expect(card).toHaveAttribute('data-active-index','0')
+  await page.mouse.wheel(0,400); expect(await browse.evaluate(el=>el.scrollTop)).toBe(locked)
+  await page.getByRole('button',{name:'关闭大图',exact:true}).click()
+  await expect(card).toHaveAttribute('data-active-index','1')
+  expect(await browse.evaluate(el=>el.scrollTop)).toBe(before)
+  await expect(page.locator('body')).not.toHaveCSS('position','fixed')
+})
+
+test('single-finger touch listeners consume a diagonal photo swipe but leave vertical scroll available', async ({ page }) => {
+  await setup(page); await page.goto('/catalog')
+  const gallery=page.locator('.gallery-card[data-product-id="1"]')
+  async function touch(dx:number,dy:number) {
+    return gallery.evaluate((el,{dx,dy})=>{
+      const p=(x:number,y:number)=>new Touch({identifier:1,target:el,clientX:x,clientY:y})
+      el.dispatchEvent(new TouchEvent('touchstart',{bubbles:true,cancelable:true,touches:[p(100,100)],changedTouches:[p(100,100)]}))
+      const move=new TouchEvent('touchmove',{bubbles:true,cancelable:true,touches:[p(100+dx,100+dy)],changedTouches:[p(100+dx,100+dy)]})
+      el.dispatchEvent(move)
+      el.dispatchEvent(new TouchEvent('touchend',{bubbles:true,cancelable:true,touches:[],changedTouches:[p(100+dx,100+dy)]}))
+      return move.defaultPrevented
+    },{dx,dy})
+  }
+  expect(await touch(7,80)).toBe(false); await expect(gallery).toHaveAttribute('data-active-index','0')
+  expect(await touch(-20,18)).toBe(true); await expect(gallery).toHaveAttribute('data-active-index','1')
 })
