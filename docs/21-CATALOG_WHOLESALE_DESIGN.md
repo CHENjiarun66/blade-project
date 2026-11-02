@@ -76,7 +76,7 @@
 
 手机≤640px竖屏两列，横间距8px；顶栏隐藏Logo，搜索框伸展占可用宽度，右侧保留清单图标/计数。输入16px便于阅读与触控，底部导航52px，系统安全区由根布局保留一次。iPad/电脑继续原品牌和列数。useCatalogViewport补首次进入/resize高度校准：主屏幕模式采用布局和可视高度的最大值，普通浏览器采用可视高度；文字键盘恢复、缩放保护沿用。
 
-生产CSS原先将max-width改为范围语法。Safari16.4才支持此语法，见 [Apple发布说明](https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes)；Vite的CSS压缩目标可独立配置，见 [Vite构建选项](https://vite.dev/config/build-options#build-csstarget)。本轮仅将CSS目标设为safari15以保留传统断点，不更改JS目标，也不宣称所有功能均可运行于Safari15。`npm run build`在打包后自动执行`test:catalog:build`校验最终catalog CSS（也可单独运行`npm run test:catalog:build`），避免只验证开发样式。旧产物断言失败、新产物通过；用户手机iOS版本和桌面站点/主屏幕方式尚待核实，截图现象与响应式样式未生效吻合，但尚未在该手机直接捕获视口。
+生产CSS原先将max-width改为范围语法。Safari16.4才支持此语法，见 [Apple发布说明](https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes)；Vite的CSS压缩目标可独立配置，见 [Vite构建选项](https://vite.dev/config/build-options#build-csstarget)。本轮仅将CSS目标设为safari15以保留传统断点，不更改JS目标，也不宣称所有功能均可运行于Safari15。`npm run build`在打包后自动执行`test:catalog:build`校验最终catalog CSS（也可单独运行`npm run test:catalog:build`），避免只验证开发样式。旧产物断言失败、新产物通过；用户随后确认设备为iOS16.1.1并从主屏幕图标启动；该版本不支持原产物的范围断点，与截图响应式样式未生效的表现吻合。未在该手机直接采集视口，新两列/搜索/冷启动高度仍待真机确认。
 
 90项模型/视口回归、1项CSS产物及构建通过；20条浏览器回归源码类型/发现通过，未执行CLI。IAB生产编译真实页面，以隔离商品与图片快照/只读模拟API验证320、393、430宽两列与宽搜索；834×1194两列/1194×834三列及Logo保留。393×852模拟顶部59px/底部34px安全区：搜索输入249px、根高852、导航高52/底818、内容底766；列表末尾约10px边距，无额外底部空白。关键词筛到1款、清空回9款，失焦后高度不变；无相关控制台错误。预览使用生产编译样式，不叠加源码CSS；模拟安全区/组件验证仍不等同用户iPhone原生键盘、PWA冷启动验收。测试地址仍为`http://192.168.1.20:5880/catalog`，请重开后复测。
 
