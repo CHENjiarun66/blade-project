@@ -61,19 +61,19 @@ class CatalogControllerTest {
     @Test
     void listProducts_requiresAuth() throws Exception {
         mockMvc.perform(get("/api/catalog/products"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     void getProduct_requiresAuth() throws Exception {
         mockMvc.perform(get("/api/catalog/products/1"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     void getFilters_requiresAuth() throws Exception {
         mockMvc.perform(get("/api/catalog/filters"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ── Product list ──

@@ -829,6 +829,21 @@ GET /api/analytics/product-detail?periodType=WEEK&productName=624-1%23
 
 ---
 
+## 客户选款接口
+
+登录 JWT；读取需 `data:catalog:view`。原读取接口保持兼容，新增可选查询参数；详见 [批发选款契约](../21-CATALOG_WHOLESALE_DESIGN.md)。
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/api/catalog/products` | 原筛选分页；新增 `productCode` 精确款号与 `productIds` 逗号分隔 ID（最多 100）用于清单核对 |
+| GET | `/api/catalog/products/{id}` | 当前租户有效商品详情；展示字段，不含商品价格/成本 |
+| GET | `/api/catalog/filters` | 分类/颜色/尺码/库存筛选项 |
+| POST | `/api/catalog/handoffs` | 还需 `btn:order:create`，验证可用档口后按 UUID 幂等创建现有订单草稿 |
+
+移交体：`{requestId, sourceOutletId, items:[{productId,colorNote,quantity,unitPrice}]}`。数量和单价可为 null 留待店员补充；非空数量必须整数 1–999999，单价最多 6 位整数/2 位小数且非负；1–200 个不同款式。服务端重新查款号、计算金额，合计不超过 9999999999.99。响应仅 `draftId/reference/alreadyExists`；不会扣库存、登记收款或创建正式订单。
+
+---
+
 ## Agent 对接接口
 
 > 首次连接见 [19-AGENT_CONNECTION_PLAYBOOK.md](../19-AGENT_CONNECTION_PLAYBOOK.md)，字段参考见 [11-AGENT_ACCESS_GUIDE.md](../11-AGENT_ACCESS_GUIDE.md)，需求边界见 [10-AGENT_INTEGRATION_DESIGN.md](../10-AGENT_INTEGRATION_DESIGN.md)。

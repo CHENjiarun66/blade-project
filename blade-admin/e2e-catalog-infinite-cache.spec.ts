@@ -1,503 +1,149 @@
-import { expect, test, type Page, type Route } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
-function product(id: number, code = `P${id}`) {
-  return {
-    id,
-    productCode: code,
-    name: code,
-    categoryId: null,
-    categoryName: null,
-    mainImageUrl: null,
-    imageUrls: [],
-    hasImage: false,
-    hasStock: true,
-    stockStatus: '有现货',
-    tags: null,
-    colors: [],
-    sizes: [],
-    skus: [],
-    createTime: '2026-06-04T00:00:00',
-  }
+const permissions = ['data:catalog:view', 'btn:order:create', 'btn:order:view', 'menu:order']
+const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+function product(id: number) {
+  return { id, productCode: `P${id}`, name: `款式${id}`, categoryId: null, categoryName: null,
+    mainImageUrl: `/api/files/${id * 10}/preview`, imageUrls: [`/api/files/${id * 10 + 1}/preview`], hasImage: true, hasStock: true, stockStatus: '有现货', tags: [], colors: [], sizes: [], skus: [], createTime: '2026-11-02T00:00:00' }
 }
-
-async function grantCatalogAccess(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem('token', 'test-token')
-    localStorage.setItem('refreshToken', 'test-refresh-token')
-    localStorage.setItem('userInfo', JSON.stringify({
-      userId: '1',
-      username: 'admin',
-      realName: '管理员',
-    }))
-    localStorage.setItem('permissions', JSON.stringify(['data:catalog:view']))
-  })
-}
-
-async function mockFilters(page: Page) {
-  await page.route('**/api/catalog/filters', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: { categories: [], colors: [], sizes: [], stockModes: [] },
-      }),
-    })
-  })
-}
-
-test('catalog loads next page when scrolled near the bottom instead of showing pagination', async ({ page }) => {
-  await grantCatalogAccess(page)
-  await mockFilters(page)
-  const requestedPages: number[] = []
-
-  await page.route('**/api/catalog/products**', async (route: Route) => {
-    const url = new URL(route.request().url())
-    const current = Number(url.searchParams.get('current') || '1')
+async function setup(page: Page, goods = [product(1), product(2)], access = permissions) {
+  await page.addInitScript(({ access }) => {
+    const payload = btoa(JSON.stringify({ tenantId: 1, sub: 'catalog-test', exp: Math.floor(Date.now() / 1000) + 3600 }))
+    localStorage.setItem('token', `e30.${payload}.fixture`)
+    localStorage.setItem('userInfo', JSON.stringify({ userId: '4', username: 'catalog-test', realName: '测试店员' }))
+    localStorage.setItem('permissions', JSON.stringify(access))
+  }, { access })
+  await page.route('**/api/auth/codes', route => route.fulfill({ json: access }))
+  await page.route('**/api/catalog/filters', route => route.fulfill({ json: { code: 200, data: { categories: [], colors: [], sizes: [], stockModes: [] } } }))
+  await page.route('**/api/outlets/options', route => route.fulfill({ json: { code: 200, data: { items: [{ id: 1, outletCode: 'TEST', outletName: '测试档口', status: 1 }], defaultOutletId: 1, locked: true, scopeType: 'ASSIGNED', peopleScope: 'SELF' } } }))
+  const requestedPages: number[] = [], imageRequests: string[] = []
+  await page.route('**/api/catalog/products**', async route => {
+    const url = new URL(route.request().url()), detail = url.pathname.match(/\/products\/(\d+)$/)
+    if (detail) { await route.fulfill({ json: { code: 200, data: goods.find(p => p.id === Number(detail[1])) } }); return }
+    let filtered = goods
+    if (url.searchParams.get('productCode')) filtered = goods.filter(p => p.productCode === url.searchParams.get('productCode'))
+    if (url.searchParams.get('productIds')) filtered = goods.filter(p => url.searchParams.get('productIds')!.split(',').map(Number).includes(p.id))
+    const current = Number(url.searchParams.get('current') || 1), size = Number(url.searchParams.get('size') || 20)
     requestedPages.push(current)
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          current,
-          size: 20,
-          total: 25,
-          pages: 2,
-          records: current === 1
-            ? Array.from({ length: 20 }, (_, index) => product(index + 1))
-            : Array.from({ length: 5 }, (_, index) => product(index + 21)),
-        },
-      }),
-    })
+    await route.fulfill({ json: { code: 200, data: { records: filtered.slice((current - 1) * size, current * size), total: filtered.length, current, size, pages: Math.ceil(filtered.length / size) } } })
   })
+  await page.route('**/api/files/**', async route => {
+    const url = new URL(route.request().url())
+    imageRequests.push(`${url.pathname}?type=${url.searchParams.get('type') || 'original'}`)
+    await route.fulfill({ contentType: 'image/png', body: pixel })
+  })
+  return { requestedPages, imageRequests }
+}
+async function drag(page: Page, selector: string, dx: number, dy = 0) {
+  const bounds = await page.locator(selector).boundingBox(); expect(bounds).toBeTruthy()
+  const x = bounds!.x + bounds!.width / 2, y = bounds!.y + bounds!.height / 2
+  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + dx, y + dy, { steps: 8 }); await page.mouse.up()
+}
+async function fillStyle(page: Page, id = 1, qty = '120', price = '28.00') {
+  await page.getByRole('button', { name: `查看款式${id}详情`, exact: true }).click()
+  await page.getByLabel(`P${id}颜色说明`, { exact: true }).fill('混色（3色）')
+  await page.getByLabel(`P${id}总数量`, { exact: true }).fill(qty)
+  await page.getByLabel(`P${id}本次单价`, { exact: true }).fill(price)
+  await page.locator('#addDetail').click()
+  await expect(page.locator('.side-panel')).toHaveCount(0)
+}
 
-  await page.goto('/catalog')
-  await expect(page.locator('.product-card')).toHaveCount(20)
+test('catalog pages on scrolling without showing pagination', async ({ page }) => {
+  const { requestedPages } = await setup(page, Array.from({ length: 25 }, (_, i) => product(i + 1)))
+  await page.goto('/catalog'); await expect(page.locator('.product-card')).toHaveCount(20)
+  await page.locator('.grid-area').evaluate(el => { el.scrollTop = el.scrollHeight; el.dispatchEvent(new Event('scroll')) })
+  await expect(page.locator('.product-card')).toHaveCount(25); expect(requestedPages).toContain(2)
   await expect(page.locator('.grid-pagination')).toHaveCount(0)
-
-  await page.locator('.grid-area').evaluate((el) => {
-    el.scrollTop = el.scrollHeight
-    el.dispatchEvent(new Event('scroll'))
-  })
-
-  await expect(page.locator('.product-card')).toHaveCount(25)
-  expect(requestedPages).toContain(2)
 })
 
-test('catalog renders cached products before the network refresh finishes', async ({ page }) => {
-  await grantCatalogAccess(page)
-  await mockFilters(page)
-  await page.addInitScript(() => {
-    localStorage.setItem('catalog:products:v1:all|all|all|all|all|all', JSON.stringify({
-      savedAt: Date.now(),
-      total: 1,
-      current: 1,
-      pages: 1,
-      products: [{
-        id: 9001,
-        productCode: 'CACHE-9001',
-        name: 'CACHE-9001',
-        categoryId: null,
-        categoryName: null,
-        mainImageUrl: null,
-        imageUrls: [],
-        hasImage: false,
-        hasStock: true,
-        stockStatus: '有现货',
-        tags: null,
-        colors: [],
-        sizes: [],
-        skus: [],
-        createTime: '2026-06-04T00:00:00',
-      }],
-    }))
+test('cached products remain usable while the list refreshes', async ({ page }) => {
+  await setup(page, [product(2)])
+  await page.addInitScript(cached => { localStorage.setItem('catalog:products:v1:all|all|all|all|all|all', JSON.stringify({ savedAt: Date.now(), products: [cached], total: 1, current: 1, pages: 1 })) }, product(9))
+  await page.route('**/api/catalog/products?**', async route => {
+    await new Promise(resolve => setTimeout(resolve, 600))
+    await route.fulfill({ json: { code: 200, data: { records: [product(2)], total: 1, current: 1, size: 20, pages: 1 } } })
   })
-  await page.route('**/api/catalog/products**', async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 1200))
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          current: 1,
-          size: 20,
-          total: 1,
-          pages: 1,
-          records: [product(9002, 'NETWORK-9002')],
-        },
-      }),
-    })
-  })
-
-  await page.goto('/catalog')
-  await expect(page.getByText('CACHE-9001').first()).toBeVisible()
-  await expect(page.getByText('NETWORK-9002').first()).toBeVisible()
+  await page.goto('/catalog'); await expect(page.getByText('P9', { exact: true })).toBeVisible(); await expect(page.getByText('P2', { exact: true })).toBeVisible()
 })
 
-test('catalog detail carousel and fullscreen viewer support swipe navigation', async ({ page }) => {
-  await grantCatalogAccess(page)
-  await mockFilters(page)
-  await page.route('**/api/catalog/products**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          current: 1,
-          size: 20,
-          total: 1,
-          pages: 1,
-          records: [{
-            ...product(7001, 'SWIPE-7001'),
-            mainImageUrl: '/swipe-cover.jpg',
-            imageUrls: ['/swipe-a.jpg', '/swipe-b.jpg'],
-            hasImage: true,
-          }],
-        },
-      }),
-    })
-  })
-  await page.route('**/api/catalog/products/7001', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          ...product(7001, 'SWIPE-7001'),
-          mainImageUrl: '/swipe-cover.jpg',
-          imageUrls: ['/swipe-a.jpg', '/swipe-b.jpg'],
-          hasImage: true,
-        },
-      }),
-    })
-  })
-
-  await page.goto('/catalog')
-  await page.getByText('SWIPE-7001').first().click()
-  await expect(page.locator('.detail-panel .carousel-main')).toHaveAttribute('data-active-index', '0')
-
-  const carouselBox = await page.locator('.detail-panel .carousel-main').boundingBox()
-  expect(carouselBox).toBeTruthy()
-  await page.mouse.move(carouselBox!.x + carouselBox!.width - 20, carouselBox!.y + carouselBox!.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(carouselBox!.x + 20, carouselBox!.y + carouselBox!.height / 2)
-  await page.mouse.up()
-  await expect(page.locator('.detail-panel .carousel-main')).toHaveAttribute('data-active-index', '1')
-
-  await page.locator('.detail-panel .carousel-main').click()
-  await expect(page.locator('.fullscreen-overlay .fs-image-wrap')).toHaveAttribute('data-active-index', '1')
-
-  const fullscreenBox = await page.locator('.fs-image-wrap').boundingBox()
-  expect(fullscreenBox).toBeTruthy()
-  await page.mouse.move(fullscreenBox!.x + 20, fullscreenBox!.y + fullscreenBox!.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(fullscreenBox!.x + fullscreenBox!.width - 20, fullscreenBox!.y + fullscreenBox!.height / 2)
-  await page.mouse.up()
-  await expect(page.locator('.fullscreen-overlay .fs-image-wrap')).toHaveAttribute('data-active-index', '0')
+test('swipe locks direction and shares current image with detail and lightbox', async ({ page }) => {
+  await setup(page); await page.goto('/catalog')
+  const card = '.gallery-card[data-product-id="1"]'
+  await drag(page, card, 12, -90); await expect(page.locator(card)).toHaveAttribute('data-active-index', '0')
+  await drag(page, card, -100, 4); await expect(page.locator(card)).toHaveAttribute('data-active-index', '1')
+  await expect(page.locator('dialog.lightbox')).not.toBeVisible()
+  await page.getByRole('button', { name: '查看款式1详情' }).click()
+  await expect(page.locator('.gallery-detail')).toHaveAttribute('data-active-index', '1')
+  await page.locator('.gallery-detail .gallery-slide[aria-hidden="false"]').click()
+  await expect(page.locator('.gallery-lightbox')).toHaveAttribute('data-active-index', '1')
+  await drag(page, '.gallery-lightbox', -120, 1); await expect(page.locator('.gallery-lightbox')).toHaveAttribute('data-active-index', '1')
+  await drag(page, '.gallery-lightbox', 120, 1); await expect(page.locator('.gallery-lightbox')).toHaveAttribute('data-active-index', '0')
 })
 
-test('catalog requests card, thumb, and original images for their intended layers', async ({ page }) => {
-  await grantCatalogAccess(page)
-  await mockFilters(page)
-  const imageRequests: string[] = []
-  const pixel = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-    'base64',
-  )
-  const catalogProduct = {
-    ...product(7201, 'VARIANT-7201'),
-    mainImageUrl: '/api/files/101/preview',
-    imageUrls: ['/api/files/102/preview', '/api/files/104/preview'],
-    hasImage: true,
-    skus: [{
-      id: 1,
-      skuCode: 'VARIANT-7201-RED-M',
-      colorId: 1,
-      colorName: '红色',
-      sizeId: 1,
-      sizeCode: 'M',
-      imageUrls: ['/api/files/103/preview'],
-      hasStock: true,
-      stockStatus: '有现货',
-    }],
-  }
-
-  await page.route('**/api/catalog/products**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          current: 1,
-          size: 20,
-          total: 1,
-          pages: 1,
-          records: [catalogProduct],
-        },
-      }),
-    })
-  })
-  await page.route('**/api/catalog/products/7201', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: 200, message: 'success', data: catalogProduct }),
-    })
-  })
-  await page.route('**/api/files/**', async (route) => {
-    const url = new URL(route.request().url())
-    imageRequests.push(`${url.pathname}?type=${url.searchParams.get('type') || 'original'}`)
-    await route.fulfill({ status: 200, contentType: 'image/png', body: pixel })
-  })
-
-  await page.goto('/catalog')
-  await expect.poll(() => imageRequests).toContain('/api/files/101/variant?type=card')
-
-  await page.getByText('VARIANT-7201').first().click()
-  await expect(page.locator('.detail-panel .carousel-main')).toBeVisible()
-  await expect.poll(() => imageRequests).toContain('/api/files/102/variant?type=card')
-  await expect.poll(() => imageRequests).toContain('/api/files/102/variant?type=thumb')
-  expect(imageRequests).not.toContain('/api/files/103/variant?type=card')
-  expect(imageRequests).not.toContain('/api/files/103/variant?type=thumb')
-
-  await page.locator('.detail-panel .carousel-main').click()
-  await expect(page.locator('.fullscreen-overlay')).toBeVisible()
-  await expect.poll(() => imageRequests).toContain('/api/files/102/preview?type=original')
-  expect(imageRequests).not.toContain('/api/files/101/preview?type=original')
+test('card, selected thumbnail and lightbox use their intended image variants', async ({ page }) => {
+  const { imageRequests } = await setup(page); await page.goto('/catalog')
+  await expect.poll(() => imageRequests).toContain('/api/files/10/variant?type=card')
+  expect(imageRequests.some(url => url.includes('/preview?'))).toBe(false)
+  await page.getByLabel('加入款式1到选款清单', { exact: true }).click()
+  await page.getByRole('button', { name: '打开批发清单，共1款' }).click()
+  await expect.poll(() => imageRequests).toContain('/api/files/10/variant?type=thumb')
+  await page.getByRole('button', { name: '继续浏览款式' }).click()
+  await page.locator('.gallery-card[data-product-id="1"] .gallery-slide[aria-hidden="false"]').click()
+  await expect.poll(() => imageRequests).toContain('/api/files/10/preview?type=original')
 })
 
-test('catalog product gallery excludes duplicated main image and sku images', async ({ page }) => {
-  await grantCatalogAccess(page)
-  await mockFilters(page)
-  const imageRequests: string[] = []
-  const pixel = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-    'base64',
-  )
-  const catalogProduct = {
-    ...product(7301, 'GALLERY-7301'),
-    mainImageUrl: '/api/files/201/preview',
-    imageUrls: ['/api/files/201/preview', '/api/files/202/preview'],
-    hasImage: true,
-    skus: [{
-      id: 1,
-      skuCode: 'GALLERY-7301-BLUE-M',
-      colorId: 1,
-      colorName: '蓝色',
-      sizeId: 1,
-      sizeCode: 'M',
-      imageUrls: ['/api/files/203/preview'],
-      hasStock: true,
-      stockStatus: '有现货',
-    }],
-  }
-
-  await page.route('**/api/catalog/products**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          current: 1,
-          size: 20,
-          total: 1,
-          pages: 1,
-          records: [catalogProduct],
-        },
-      }),
-    })
-  })
-  await page.route('**/api/catalog/products/7301', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: 200, message: 'success', data: catalogProduct }),
-    })
-  })
-  await page.route('**/api/files/**', async (route) => {
-    const url = new URL(route.request().url())
-    imageRequests.push(`${url.pathname}?type=${url.searchParams.get('type') || 'original'}`)
-    await route.fulfill({ status: 200, contentType: 'image/png', body: pixel })
-  })
-
-  await page.goto('/catalog')
-  await expect.poll(() => imageRequests).toContain('/api/files/201/variant?type=card')
-
-  await page.getByText('GALLERY-7301').first().click()
-  await expect(page.locator('.detail-panel .carousel-main')).toBeVisible()
-  await expect.poll(() => imageRequests).toContain('/api/files/202/variant?type=card')
-  expect(imageRequests).not.toContain('/api/files/203/variant?type=card')
-
-  await page.locator('.detail-panel .carousel-main').click()
-  await expect(page.locator('.fullscreen-overlay')).toBeVisible()
-  await expect.poll(() => imageRequests).toContain('/api/files/202/preview?type=original')
-  expect(imageRequests.filter((request) => request === '/api/files/201/preview?type=original')).toHaveLength(0)
+test('photo order includes the main image and deduplicates uploaded gallery and SKU images', async ({ page }) => {
+  const p = { ...product(1), imageUrls: ['/api/files/10/preview', '/api/files/11/preview'], skus: [{ id: 1, skuCode: 'SKU', colorId: 1, colorName: '红色', sizeId: 1, sizeCode: 'M', imageUrls: ['/api/files/12/preview'], hasStock: true, stockStatus: '有现货' }] }
+  await setup(page, [p]); await page.goto('/catalog')
+  const gallery = page.locator('.gallery-card[data-product-id="1"]')
+  await expect(gallery).toHaveAttribute('data-gallery-count', '3')
+  await expect(gallery).toHaveAttribute('data-active-index', '0')
+  await gallery.getByRole('button', { name: 'P1下一张图片' }).click(); await gallery.getByRole('button', { name: 'P1下一张图片' }).click()
+  await expect(gallery).toHaveAttribute('data-active-index', '2')
 })
 
-test('catalog phone layout uses portrait-only browsing on iPhone 14 Pro size', async ({ page }) => {
-  await page.setViewportSize({ width: 393, height: 852 })
-  await grantCatalogAccess(page)
-  await mockFilters(page)
-  await page.route('**/api/catalog/products**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          current: 1,
-          size: 20,
-          total: 2,
-          pages: 1,
-          records: [product(8101, 'PHONE-8101'), product(8102, 'PHONE-8102')],
-        },
-      }),
-    })
-  })
-
-  await page.goto('/catalog')
-  await expect(page.getByText('PHONE-8101').first()).toBeVisible()
-  await expect(page.locator('.mobile-action-bar')).toBeVisible()
-
-  const columnCount = await page.locator('.product-grid').evaluate((el) => {
-    return getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length
-  })
-  expect(columnCount).toBe(2)
-
-  await page.setViewportSize({ width: 852, height: 393 })
-  await expect(page.getByText('请切回竖屏浏览')).toBeVisible()
-  await expect(page.locator('.detail-panel')).toHaveCount(0)
+test('phone uses two columns and remains browsable after rotation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await setup(page); await page.goto('/catalog')
+  await expect(page.locator('.mobile-nav')).toBeVisible()
+  expect(await page.locator('.product-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(2)
+  await page.setViewportSize({ width: 844, height: 390 }); await expect(page.getByText('请切回竖屏浏览')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '现货选款' })).toBeVisible()
 })
 
-test('catalog does not reset page scroll during visual viewport pinch resize', async ({ page }) => {
-  await grantCatalogAccess(page)
-  await mockFilters(page)
-  await page.addInitScript(() => {
-    ;(window as any).__scrollToCalls = 0
-    const originalScrollTo = window.scrollTo.bind(window)
-    window.scrollTo = ((...args: Parameters<typeof window.scrollTo>) => {
-      ;(window as any).__scrollToCalls += 1
-      return originalScrollTo(...args)
-    }) as typeof window.scrollTo
-  })
-  await page.route('**/api/catalog/products**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          current: 1,
-          size: 20,
-          total: 1,
-          pages: 1,
-          records: [product(8201, 'PINCH-8201')],
-        },
-      }),
-    })
-  })
-
-  await page.goto('/catalog')
-  await expect(page.getByText('PINCH-8201').first()).toBeVisible()
-  await page.evaluate(() => {
-    window.visualViewport?.dispatchEvent(new Event('resize'))
-  })
-
-  await expect.poll(() => page.evaluate(() => (window as any).__scrollToCalls)).toBe(0)
+test('detail add returns to browsing and retains the wholesale quote on refresh', async ({ page }) => {
+  await setup(page); await page.goto('/catalog'); await fillStyle(page)
+  await expect(page.getByRole('button', { name: '打开批发清单，共1款' })).toBeVisible()
+  await page.reload(); await page.getByRole('button', { name: '打开批发清单，共1款' }).click()
+  await expect(page.getByLabel('P1总数量', { exact: true })).toHaveValue('120')
+  await expect(page.getByLabel('P1本次单价', { exact: true })).toHaveValue('28.00')
+  await expect(page.locator('[data-line-amount="1"]')).toHaveText('3,360.00')
 })
 
-test('catalog search input focuses from touch on iPad viewport', async ({ page }) => {
-  await page.setViewportSize({ width: 820, height: 1180 })
-  await grantCatalogAccess(page)
-  await mockFilters(page)
-  await page.route('**/api/catalog/products**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          current: 1,
-          size: 20,
-          total: 1,
-          pages: 1,
-          records: [product(8301, 'SEARCH-8301')],
-        },
-      }),
-    })
+test('handoff retry reuses the same request ID and retains partial pending items', async ({ page }) => {
+  await setup(page); const attempts: any[] = []
+  await page.route('**/api/catalog/handoffs', async route => {
+    attempts.push(route.request().postDataJSON())
+    if (attempts.length === 1) { await route.abort('failed'); return }
+    await route.fulfill({ json: { code: 200, data: { draftId: 91, reference: 'XK-RETRY', alreadyExists: true } } })
   })
-
-  await page.goto('/catalog')
-  await expect(page.getByText('SEARCH-8301').first()).toBeVisible()
-
-  await page.locator('.search-box').dispatchEvent('touchstart', {
-    touches: [{ identifier: 1, target: await page.locator('.search-box').elementHandle(), clientX: 300, clientY: 60 }],
-    changedTouches: [{ identifier: 1, target: await page.locator('.search-box').elementHandle(), clientX: 300, clientY: 60 }],
-  })
-
-  await expect(page.locator('.search-input .el-input__inner')).toBeFocused()
-  await expect(page.locator('.search-input .el-input__inner')).toHaveCSS('user-select', 'text')
+  await page.goto('/catalog'); await fillStyle(page)
+  await page.getByLabel('加入款式2到选款清单', { exact: true }).click()
+  await page.getByRole('button', { name: '打开批发清单，共2款' }).click(); await page.locator('#handoffButton').click()
+  const dialog = page.locator('.handoff-modal')
+  await dialog.getByRole('button', { name: '交给店员确认', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await dialog.getByRole('button', { name: '交给店员确认', exact: true }).click()
+  await expect(dialog.getByRole('heading', { name: '批发清单已移交' })).toBeVisible()
+  expect(attempts).toHaveLength(2); expect(attempts[0].requestId).toBe(attempts[1].requestId)
+  expect(attempts[0].items[0]).toEqual({ productId: 1, colorNote: '混色（3色）', quantity: 120, unitPrice: '28.00' })
+  expect(attempts[0].items[1].unitPrice).toBeNull(); expect(attempts[0].items[1].quantity).toBeNull()
 })
 
-test('catalog fullscreen viewer clips adjacent slides on iPad portrait', async ({ page }) => {
-  await page.setViewportSize({ width: 820, height: 1180 })
-  await grantCatalogAccess(page)
-  await mockFilters(page)
-  const galleryProduct = {
-    ...product(8401, 'CLIP-8401'),
-    mainImageUrl: '/clip-cover.jpg',
-    imageUrls: ['/clip-a.jpg', '/clip-b.jpg', '/clip-c.jpg'],
-    hasImage: true,
-  }
-  await page.route('**/api/catalog/products**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 200,
-        message: 'success',
-        data: {
-          current: 1,
-          size: 20,
-          total: 1,
-          pages: 1,
-          records: [galleryProduct],
-        },
-      }),
-    })
-  })
-
-  await page.goto('/catalog')
-  await page.locator('.card-image').first().click()
-  await expect(page.locator('.fullscreen-overlay')).toBeVisible()
-  await page.locator('.fs-thumb').nth(1).click()
-  await expect(page.locator('.fs-image-wrap')).toHaveAttribute('data-active-index', '1')
-
-  await expect.poll(() => page.locator('.fs-image-slide').evaluateAll((slides) => {
-    return slides.map((slide) => {
-      const rect = slide.getBoundingClientRect()
-      return { left: rect.left, right: rect.right }
-    })
-  })).toEqual([
-    { left: -820, right: 0 },
-    { left: 0, right: 820 },
-    { left: 820, right: 1640 },
-  ])
+test('a permission rejection keeps the logged-in account and selection intact', async ({ page }) => {
+  await setup(page); await page.route('**/api/catalog/handoffs', route => route.fulfill({ status: 403, json: { code: 403, message: '档口权限已变更' } }))
+  await page.goto('/catalog'); await fillStyle(page); await page.getByRole('button', { name: '打开批发清单，共1款' }).click(); await page.locator('#handoffButton').click()
+  await page.locator('.handoff-modal').getByRole('button', { name: '交给店员确认', exact: true }).click()
+  await expect(page.locator('.handoff-modal').getByRole('alert')).toBeVisible(); await expect(page).toHaveURL(/\/catalog$/)
+  expect(await page.evaluate(() => !!localStorage.getItem('token'))).toBe(true)
+  await page.getByRole('button', { name: '关闭确认' }).click(); await expect(page.getByLabel('P1本次单价', { exact: true })).toHaveValue('28.00')
 })

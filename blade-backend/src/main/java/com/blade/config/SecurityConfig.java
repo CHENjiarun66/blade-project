@@ -56,6 +56,9 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> {})
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Let clients distinguish an expired/missing login (401) from an authorised permission denial (403).
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
+                    (request, response, exception) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
                     .requestMatchers(
                         "/api/auth/login",

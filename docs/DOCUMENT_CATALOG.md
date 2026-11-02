@@ -16,7 +16,7 @@
 
 删除前已备份，没有删除业务源码、迁移或原始数据。机器处理清单为 [document-actions-2026-11-02.json](./document-actions-2026-11-02.json)。
 
-## 现行入口、契约和手册（28）
+## 现行入口、契约和手册（29）
 
 | 文件 | 用途/标题 |
 |---|---|
@@ -40,6 +40,7 @@
 | [17-AGENT_ORDER_DRAFT_RUNBOOK.md](./17-AGENT_ORDER_DRAFT_RUNBOOK.md) | Agent 纸单 / Excel 批量订单草稿操作手册 |
 | [19-AGENT_CONNECTION_PLAYBOOK.md](./19-AGENT_CONNECTION_PLAYBOOK.md) | 让外部 Agent 连接 BladeProject |
 | [20-OUTLET_ACCESS_CONTROL_DESIGN.md](./20-OUTLET_ACCESS_CONTROL_DESIGN.md) | 档口主数据与跨档口数据权限设计 |
+| [21-CATALOG_WHOLESALE_DESIGN.md](./21-CATALOG_WHOLESALE_DESIGN.md) | 客户选款、批发清单和订单草稿接入契约 |
 | [CODE_REVIEW_2026-11-02.md](./CODE_REVIEW_2026-11-02.md) | 代码评估与后续修复验收 |
 | [DOCUMENT_CATALOG.md](./DOCUMENT_CATALOG.md) | 文档目录与整理记录 |
 | [PROJECT_REVIEW_2026-11-02.md](./PROJECT_REVIEW_2026-11-02.md) | 项目评估：先完成稳定性与真实验收 |

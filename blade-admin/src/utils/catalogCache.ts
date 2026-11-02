@@ -137,7 +137,7 @@ export async function getCachedImageUrl(src: string): Promise<string> {
 
 export async function clearCatalogCaches() {
   for (const key of Object.keys(localStorage)) {
-    if (key.startsWith(PRODUCT_CACHE_PREFIX)) {
+    if (key.startsWith(PRODUCT_CACHE_PREFIX) || key.startsWith('catalog:selection:v1:')) {
       localStorage.removeItem(key)
     }
   }

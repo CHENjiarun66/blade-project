@@ -83,7 +83,7 @@ class ProductControllerTest {
     @Test
     void testListProductsWithoutAuth() throws Exception {
         mockMvc.perform(get("/api/products"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -189,7 +189,7 @@ class ProductControllerTest {
         mockMvc.perform(post("/api/products")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(productJson))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ========== 更新商品测试 ==========

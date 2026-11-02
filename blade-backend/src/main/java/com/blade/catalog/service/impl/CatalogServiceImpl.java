@@ -58,6 +58,14 @@ public class CatalogServiceImpl implements CatalogService {
             qw.eq(Product::getCategoryId, dto.getCategoryId());
         }
 
+        if (dto.getProductCode() != null && !dto.getProductCode().isBlank()) {
+            qw.eq(Product::getProductCode, dto.getProductCode().trim());
+        }
+        if (dto.getProductIds() != null) {
+            if (dto.getProductIds().isEmpty()) return emptyPage(dto);
+            qw.in(Product::getId, dto.getProductIds());
+        }
+
         // colorId / sizeId filtering: build a set of productIds first
         Set<Long> colorFilteredIds = null;
         Set<Long> sizeFilteredIds = null;
@@ -93,9 +101,22 @@ public class CatalogServiceImpl implements CatalogService {
             qw.in(Product::getId, inStockProductIds);
         }
 
-        // hasImage filter: product.imageUrl is non-null non-empty (numeric fileId)
+        // Keep the filter consistent with visible main/gallery/SKU images. Every subquery is tenant scoped.
         if (Boolean.TRUE.equals(dto.getHasImage())) {
-            qw.isNotNull(Product::getImageUrl).ne(Product::getImageUrl, "");
+            qw.and(images -> images.exists("""
+                SELECT 1 FROM file_storage cf
+                WHERE cf.tenant_id = product.tenant_id AND cf.status = 1
+                  AND product.image_url REGEXP '^[0-9]+$'
+                  AND cf.id = CAST(product.image_url AS UNSIGNED)
+                """).or().exists("""
+                SELECT 1 FROM file_business_bind cb
+                JOIN file_storage cf ON cf.id = cb.file_id AND cf.tenant_id = product.tenant_id AND cf.status = 1
+                WHERE cb.tenant_id = product.tenant_id AND cb.deleted = 0
+                  AND ((cb.business_type = 'product' AND cb.business_id = product.id AND cb.bind_role IN ('main','gallery'))
+                    OR (cb.business_type = 'sku' AND EXISTS (
+                        SELECT 1 FROM product_sku cs WHERE cs.id = cb.business_id AND cs.product_id = product.id
+                          AND cs.tenant_id = product.tenant_id AND cs.deleted = 0 AND cs.status = 1 AND cs.sku_type <> 'PLACEHOLDER')))
+                """));
         }
 
         qw.orderByDesc(Product::getId);
@@ -307,7 +328,7 @@ public class CatalogServiceImpl implements CatalogService {
 
         // main image
         Long mainFid = parseFileId(p.getImageUrl());
-        vo.setMainImageUrl(mainFid != null ? previewUrl(mainFid) : null);
+        vo.setMainImageUrl(mainFid != null && fileMap.containsKey(mainFid) ? previewUrl(mainFid) : null);
 
         // gallery images from file_business_bind
         List<String> galleryUrls = new ArrayList<>();
@@ -368,6 +389,7 @@ public class CatalogServiceImpl implements CatalogService {
             skuVOs.add(sv);
         }
         vo.setSkus(skuVOs);
+        vo.setHasImage(vo.isHasImage() || skuVOs.stream().anyMatch(sku -> !sku.getImageUrls().isEmpty()));
         vo.setHasStock(anyStock);
         vo.setStockStatus(anyStock ? "有现货" : "暂无现货");
 
@@ -467,7 +489,9 @@ public class CatalogServiceImpl implements CatalogService {
             new LambdaQueryWrapper<FileBusinessBind>()
                 .eq(FileBusinessBind::getBusinessType, businessType)
                 .in(FileBusinessBind::getBusinessId, businessIds)
-                .eq(FileBusinessBind::getDeleted, 0));
+                .eq(FileBusinessBind::getDeleted, 0)
+                .orderByAsc(FileBusinessBind::getSort)
+                .orderByAsc(FileBusinessBind::getId));
         return binds.stream().collect(Collectors.groupingBy(FileBusinessBind::getBusinessId));
     }
 

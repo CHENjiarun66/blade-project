@@ -243,7 +243,7 @@
           <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 px-6 py-5">
             <div>
               <h3 class="text-lg font-bold text-gray-900">商品明细</h3>
-              <p class="mt-1 text-xs text-gray-500">和快速录单一样直接修改 SKU、数量和售价；灰色文字是 Agent 识别原文。</p>
+              <p class="mt-1 text-xs text-gray-500">{{ catalogDraft ? '核对选款颜色说明、整款数量和本次报价，再选择履约规格。' : '和快速录单一样直接修改 SKU、数量和售价；灰色文字是 Agent 识别原文。' }}</p>
             </div>
             <el-button v-if="!readonly" type="primary" plain class="!rounded-xl !font-bold" @click="addItem">
               <span class="material-symbols-outlined mr-1 text-sm">add</span>
@@ -284,8 +284,13 @@
                   </div>
                   <div class="mt-1 flex flex-wrap gap-2">
                     <span class="match-state" :class="row.skuId ? 'matched' : 'unmatched'">{{ row.skuId ? '已匹配' : '待匹配' }}</span>
-                    <span v-if="hasPriceDifference(row)" class="difference-state">纸单价不同于系统参考价</span>
+                    <span v-if="hasPriceDifference(row)" class="difference-state">{{ catalogDraft ? '本次报价不同于系统参考价' : '纸单价不同于系统参考价' }}</span>
                   </div>
+                </template>
+              </el-table-column>
+              <el-table-column v-if="catalogDraft" label="选款颜色说明" min-width="180">
+                <template #default="{ row }">
+                  <el-input v-model="row.rawColor" :disabled="readonly" maxlength="100" placeholder="混色 / 色数 / 具体颜色" />
                 </template>
               </el-table-column>
               <el-table-column label="数量" width="105">
@@ -305,7 +310,7 @@
                   <el-input-number v-model="row.costPrice" :min="0" :precision="2" :controls="false" :disabled="readonly" class="!w-full" />
                 </template>
               </el-table-column>
-              <el-table-column label="纸单金额" width="130">
+              <el-table-column :label="catalogDraft ? '选款原金额' : '纸单金额'" width="130">
                 <template #default="{ row }">
                   <el-input-number v-model="row.paperAmount" :min="0" :precision="2" :controls="false" :disabled="readonly" class="!w-full" />
                   <p class="cell-hint">识别 {{ row.rawAmount || '-' }}</p>
@@ -605,6 +610,7 @@ const orderTypeOptions = [
 
 const readonly = computed(() => current.value?.status !== 'EDITING')
 const manualDraft = computed(() => current.value?.entrySource === 'MANUAL')
+const catalogDraft = computed(() => current.value?.externalRefNo?.startsWith('CATALOG-') === true)
 const currentDraftIndex = computed(() => drafts.value.findIndex(draft => draft.id === selectedId.value))
 const unresolvedCount = computed(() => current.value?.items.filter(item => !item.skuId).length || 0)
 const calculatedTotal = computed(() =>
@@ -835,6 +841,7 @@ async function loadDraftDetail(id: number) {
       ...normalized,
       needDelivery: response.data.needDelivery ?? 0,
     }
+    if (normalized.externalRefNo?.startsWith('CATALOG-') && !normalized.sourceFileIds?.length && !normalized.sourceFileId) imagePanelVisible.value = false
     applySafeSkuMatches()
     loadedOutletId.value = normalized.sourceOutletId ?? null
     const incomingBatchKey = batchKey(normalized.sourceBatchNo)
@@ -944,7 +951,7 @@ function lineSkuLabel(row: OrderDraftItem) {
 function recognitionText(row: OrderDraftItem) {
   const product = row.rawProductCode || '未识别货号'
   const detail = row.rawDescription || row.rawColor || '无品名/颜色原文'
-  return `识别：${product} · ${detail}`
+  return `${catalogDraft.value ? '选款' : '识别'}：${product} · ${detail}`
 }
 
 function onSkuSelect(row: OrderDraftItem) {
@@ -1211,6 +1218,7 @@ function money(value?: number) {
 }
 
 function warningLabel(value: string) {
+  if (value === 'CATALOG_SELECTION_REVIEW_REQUIRED') return '客户选款：请核对颜色、数量和本次报价'
   if (value === 'SOURCE_IMAGE_MISSING') return '缺少纸单原图'
   if (value === 'ORDER_DATE_UNPARSED') return '日期待确认'
   if (value === 'DEPOSIT_UNPARSED') return '定金待确认'

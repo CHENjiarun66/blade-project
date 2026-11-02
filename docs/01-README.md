@@ -1,6 +1,6 @@
 # BladeProject 文档中心
 
-> 文档状态：现行导航。更新：2026-11-02。近期主线由用户确认：稳定现有订单、库存和真实业务验收。
+> 文档状态：现行导航。更新：2026-11-02。用户最新主线：先完成客户选款改版接入，原稳定性与真实验收工作暂缓。
 
 先区分当前业务契约、实际交付状态、后续规划和历史证据，再选择要读的文档。设计完成、代码完成、部署完成和业务验收通过是四种不同状态。
 
@@ -21,6 +21,7 @@
 | 开发、合并、归档分支 | [Git 工作流](./reference/GIT_BRANCH_WORKFLOW.md)、[分支盘点](./reference/GIT_INVENTORY_2026-11-02.md) |
 | 多 Agent 认领与交接 | [协作规范](./reference/AGENT_COLLABORATION.md) |
 | 找需要修复或优化的代码 | [代码评估与验收清单](./CODE_REVIEW_2026-11-02.md) |
+| 客户选款、批发清单与草稿移交 | [现行选款说明](./21-CATALOG_WHOLESALE_DESIGN.md) |
 | 订单状态和编辑边界 | [生命周期契约](./14-ORDER_LIFECYCLE_REFACTOR_DESIGN.md) |
 | 金额、结清和统计口径 | [订单财务契约](./15-ORDER_FINANCE_ANALYTICS_DESIGN.md) |
 | 库存履约与旧字段 | [订单库存现行说明](./06-ORDER_INVENTORY_DESIGN.md) |

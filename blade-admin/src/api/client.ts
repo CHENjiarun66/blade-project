@@ -130,12 +130,12 @@ client.interceptors.response.use(
     const originalRequest = error.config as RetryRequestConfig | undefined
     if (error.response) {
       switch (error.response.status) {
-        case 401:
         case 403:
-          if (error.response.status === 403 && originalRequest?._retry) {
-            ElMessage.error('没有权限访问')
-            break
-          }
+          // Permission/outlet denial is not an expired login. Keep the current selection and quotes.
+          error.message = (error.response.data as { message?: string })?.message || '当前账号没有此操作权限'
+          ElMessage.error(error.message)
+          break
+        case 401:
           if (originalRequest && !originalRequest._retry && localStorage.getItem('refreshToken')) {
             try {
               originalRequest._retry = true

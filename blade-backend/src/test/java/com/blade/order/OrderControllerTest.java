@@ -240,7 +240,7 @@ class OrderControllerTest {
     @Test
     void testListOrdersWithoutAuth() throws Exception {
         mockMvc.perform(get("/api/orders"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ========== 创建订单测试 ==========
@@ -331,7 +331,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(orderJson))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

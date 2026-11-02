@@ -1,5 +1,9 @@
 package com.blade.catalog.dto;
 
+import java.util.List;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+
 /**
  * Catalog product list filter + pagination DTO.
  * Accepts both "current" and "page" for page number.
@@ -7,6 +11,10 @@ package com.blade.catalog.dto;
 public class CatalogPageDTO {
 
     private String keyword;
+    @Size(max = 100)
+    private String productCode;
+    @Size(max = 100)
+    private List<@Positive Long> productIds;
     private Long categoryId;
     private Long colorId;
     private Long sizeId;
@@ -15,6 +23,11 @@ public class CatalogPageDTO {
 
     private Long current = 1L;
     private Long size = 20L;
+
+    public String getProductCode() { return productCode; }
+    public void setProductCode(String value) { this.productCode = value; }
+    public List<Long> getProductIds() { return productIds; }
+    public void setProductIds(List<Long> value) { this.productIds = value; }
 
     public String getKeyword() { return keyword; }
     public void setKeyword(String keyword) { this.keyword = keyword; }

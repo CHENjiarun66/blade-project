@@ -57,13 +57,13 @@
 <div class="wrap">
   <header>
     <h1>📊 BladeProject 项目状态看板</h1>
-    <div class="meta">生成时间：2026/11/2 01:56:30　·　数据源：任务 + project-streams.json　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
+    <div class="meta">生成时间：2026/11/2 16:24:45　·　数据源：任务 + project-streams.json　·　运行 <code>node scripts/gen-status.mjs</code> 刷新</div>
   </header>
 
   <article class="section portfolio">
-    <h2>当前主线：先稳定现有订单、库存和真实业务验收</h2>
+    <h2>当前主线：本轮优先完成客户选款改版接入；原订单、库存稳定性与真实验收暂缓，存量故障继续维护</h2>
     <p>方向状态更新 2026-11-02。已实现、已部署和真实验收分别记录；新增后置方向继续维护存量。</p>
-    <div style="overflow-x:auto"><table class="task-table"><thead><tr><th>方向</th><th>顺序</th><th>执行</th><th>实现/部署</th><th>验收</th><th>下一步</th></tr></thead><tbody><tr><td>订单、收款与库存履约</td><td>P0</td><td>存量维护；下一步真实验收</td><td>已实现并部署</td><td>待真实订单、并发与账实一致性验收</td><td>先修复身份和库存动作权限；验证结清→履约两条路径</td></tr><tr><td>档口权限与统计出口</td><td>P0</td><td>验收待执行</td><td>Series A–E 已部署；兼容期未收口</td><td>用户授权、越权与生产性能待验收</td><td>真实账号×档口×人员×导出/文件矩阵</td></tr><tr><td>运维、发布与回归</td><td>P0</td><td>维护；待修复项未认领</td><td>两次文件热修复已部署；发布脚本仍有旧迁移假设</td><td>TLS 续期与普通热修发布路径待闭环</td><td>11/19 前完成证书续期验证；分离应用发布和迁移</td></tr><tr><td>商品、客户与文件中心</td><td>P1</td><td>存量维护；新增扩展后置</td><td>CRUD、图片、预览衍生物已实现；11/1 热修复已上线</td><td>继续真实账号上传与文件授权回归</td><td>客户“我的”范围和审计身份修复；观察真实文件业务</td></tr><tr><td>纸单 Agent 与草稿</td><td>P1</td><td>真实业务验收待执行</td><td>批量草稿、人工确认、Key、占位 SKU 已部署</td><td>30 张真实纸单与最小 scope Key 未闭环</td><td>先已有样本复核，再 Mac→NAS 30 单；草稿删除独立待集成</td></tr><tr><td>WhatsApp 归档与客户工作区</td><td>P2</td><td>存量维护；新增分析扩展后置</td><td>归档、工作区与混合 Agent 代码已部署</td><td>Mac Collector→NAS 真实链路未闭环</td><td>保留维护任务，稳定主线后做真实联调</td></tr><tr><td>Agent 经营分析扩展</td><td>P2</td><td>新增后置；本轮不启动</td><td>款式趋势与 SKU 结构已实现，其余接口待开发</td><td>经营数据包、毛利脱敏、限流未完成</td><td>主线验收后再排期</td></tr><tr><td>移动端新页面与 PWA 扩展</td><td>P2</td><td>存量兼容维护；新增后置</td><td>骨架和部分订单/库存/商品页面已实现</td><td>独立移动发布和完整业务验收证据不足</td><td>仅跟随核心契约修复；不扩展考勤审批等新系统</td></tr><tr><td>iPad 展示与客户行为采集</td><td>P2</td><td>已有展示能力维护；行为采集后置</td><td>现货展示页代码已实现；行为采集仅候选方案</td><td>独立真实使用和性能验收待补齐</td><td>不把客户行为采集草案当已批准开发</td></tr><tr><td>完整旧 ERP 接替与通用财务</td><td>P3</td><td>规划后置；本轮不启动</td><td>订单专用财务已实现；采购应付/通用 AR/AP/总账未实现</td><td>完整替代未达到</td><td>先稳定当前工具，再按旧 ERP 蓝图拆小批次</td></tr><tr><td>订单回退与审批</td><td>P2</td><td>设计已确认；实现待排期</td><td>完整逆向流程未实现</td><td>未进入业务验收</td><td>不得把财务流水冲销当成库存回滚</td></tr><tr><td>内置 OCR / 微信社交登录</td><td>后置</td><td>OCR 已转外部 Agent；社交登录暂缓</td><td>外部纸单草稿通道已实现</td><td>外部通道按纸单主线验收</td><td>不重复建设旧 OCR 方案</td></tr><tr><td>项目驾驶舱与协作工具</td><td>支撑</td><td>内部工具分支保留；非业务主线</td><td>独立旧基线分支；未集成最新应用基线</td><td>需迁移后单独验证</td><td>不能用其旧 V50 工作区判断生产进度</td></tr></tbody></table></div>
+    <div style="overflow-x:auto"><table class="task-table"><thead><tr><th>方向</th><th>顺序</th><th>执行</th><th>实现/部署</th><th>验收</th><th>下一步</th></tr></thead><tbody><tr><td>订单、收款与库存履约</td><td>P0</td><td>存量维护；真实验收本轮暂缓</td><td>已实现并部署</td><td>待真实订单、并发与账实一致性验收</td><td>先修复身份和库存动作权限；验证结清→履约两条路径</td></tr><tr><td>档口权限与统计出口</td><td>P0</td><td>验收待执行</td><td>Series A–E 已部署；兼容期未收口</td><td>用户授权、越权与生产性能待验收</td><td>真实账号×档口×人员×导出/文件矩阵</td></tr><tr><td>运维、发布与回归</td><td>P0</td><td>维护；待修复项未认领</td><td>两次文件热修复已部署；发布脚本仍有旧迁移假设</td><td>TLS 续期与普通热修发布路径待闭环</td><td>11/19 前完成证书续期验证；分离应用发布和迁移</td></tr><tr><td>商品、客户与文件中心</td><td>P1</td><td>存量维护；新增扩展后置</td><td>CRUD、图片、预览衍生物已实现；11/1 热修复已上线</td><td>继续真实账号上传与文件授权回归</td><td>客户“我的”范围和审计身份修复；观察真实文件业务</td></tr><tr><td>纸单 Agent 与草稿</td><td>P1</td><td>真实业务验收待执行</td><td>批量草稿、人工确认、Key、占位 SKU 已部署</td><td>30 张真实纸单与最小 scope Key 未闭环</td><td>先已有样本复核，再 Mac→NAS 30 单；草稿删除独立待集成</td></tr><tr><td>WhatsApp 归档与客户工作区</td><td>P2</td><td>存量维护；新增分析扩展后置</td><td>归档、工作区与混合 Agent 代码已部署</td><td>Mac Collector→NAS 真实链路未闭环</td><td>保留维护任务，稳定主线后做真实联调</td></tr><tr><td>Agent 经营分析扩展</td><td>P2</td><td>新增后置；本轮不启动</td><td>款式趋势与 SKU 结构已实现，其余接口待开发</td><td>经营数据包、毛利脱敏、限流未完成</td><td>主线验收后再排期</td></tr><tr><td>移动端新页面与 PWA 扩展</td><td>P2</td><td>存量兼容维护；新增后置</td><td>骨架和部分订单/库存/商品页面已实现</td><td>独立移动发布和完整业务验收证据不足</td><td>仅跟随核心契约修复；不扩展考勤审批等新系统</td></tr><tr><td>客户选款与 iPad 展示</td><td>当前</td><td>新版代码接入完成；待真机验收及发布</td><td>v4.1 界面、批发清单与草稿接口已实现；生产仍为旧版</td><td>本机浏览器与隔离数据库通过；真实 iPad Safari 和 NAS 发布待执行</td><td>确认真机滚动/切图、输入键盘和报价，再走 release 发布；行为采集后置</td></tr><tr><td>完整旧 ERP 接替与通用财务</td><td>P3</td><td>规划后置；本轮不启动</td><td>订单专用财务已实现；采购应付/通用 AR/AP/总账未实现</td><td>完整替代未达到</td><td>先稳定当前工具，再按旧 ERP 蓝图拆小批次</td></tr><tr><td>订单回退与审批</td><td>P2</td><td>设计已确认；实现待排期</td><td>完整逆向流程未实现</td><td>未进入业务验收</td><td>不得把财务流水冲销当成库存回滚</td></tr><tr><td>内置 OCR / 微信社交登录</td><td>后置</td><td>OCR 已转外部 Agent；社交登录暂缓</td><td>外部纸单草稿通道已实现</td><td>外部通道按纸单主线验收</td><td>不重复建设旧 OCR 方案</td></tr><tr><td>项目驾驶舱与协作工具</td><td>支撑</td><td>内部工具分支保留；非业务主线</td><td>独立旧基线分支；未集成最新应用基线</td><td>需迁移后单独验证</td><td>不能用其旧 V50 工作区判断生产进度</td></tr></tbody></table></div>
   </article>
   <p>以下百分比仅为任务计数，分母排除暂缓项；不代表整个 ERP、生产验收或工作量完成率。</p>
   <div class="controls">
@@ -104,10 +104,10 @@
       <div class="card">
         <div class="card-head">
           <span class="card-title">项目阶段</span>
-          <span class="card-nums">4 完成 · 0 进行中 · 0 待办 · 0 部分 · 0 暂缓</span>
+          <span class="card-nums">7 完成 · 0 进行中 · 2 待办 · 0 部分 · 0 暂缓</span>
         </div>
-        <div class="bar"><div class="bar-fill" style="width:100%"></div></div>
-        <div class="bar-label">100% 完成（活跃 4 项，暂缓 0 项）</div>
+        <div class="bar"><div class="bar-fill" style="width:78%"></div></div>
+        <div class="bar-label">78% 完成（活跃 9 项，暂缓 0 项）</div>
       </div></div>
 
 
@@ -117,8 +117,22 @@
     </section>
 
     <section class="section todo">
-      <h2>🟡 还没做 <span class="count">42</span></h2>
+      <h2>🟡 还没做 <span class="count">44</span></h2>
       <table class="task-table">
+      <tr data-status="todo">
+        <td class="td-id">TEST-CATALOG-DEVICE-001</td>
+        <td class="td-name">真实 iPad Safari 与手机业务验收</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">项目阶段 › 客户选款改版接入（2026-11-02）</td>
+        <td class="td-remark"></td>
+      </tr>
+      <tr data-status="todo">
+        <td class="td-id">OPS-CATALOG-001</td>
+        <td class="td-name">新版选款 release 验收并发布 NAS</td>
+        <td class="td-status"><span class="pill pill-todo">⏳ 待办</span></td>
+        <td class="td-meta">项目阶段 › 客户选款改版接入（2026-11-02）</td>
+        <td class="td-remark"></td>
+      </tr>
       <tr data-status="todo">
         <td class="td-id">BE-STAB-001</td>
         <td class="td-name">统一真实 JWT 身份解析并移除默认管理员兜底</td>
@@ -564,7 +578,7 @@
     </section>
 
     <section class="section done">
-      <h2>✅ 已完成（共 327 项） <span class="count">327</span></h2>
+      <h2>✅ 已完成（共 330 项） <span class="count">330</span></h2>
       <table class="task-table">
       <tr data-status="done">
         <td class="td-id">OPS-FILE-001</td>
@@ -592,6 +606,27 @@
         <td class="td-name">项目范围评估、文档生命周期整理与代码改进清单</td>
         <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
         <td class="td-meta">项目阶段 › 线上紧急修复（2026-11-01）</td>
+        <td class="td-remark"></td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BA-CATALOG-001</td>
+        <td class="td-name">用确认稿替换 `/catalog`，实现批发清单、手机/iPad 布局与分方向切图</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 客户选款改版接入（2026-11-02）</td>
+        <td class="td-remark"></td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">BE-CATALOG-001</td>
+        <td class="td-name">选款按款号查询、状态核对和幂等移交现有订单草稿</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 客户选款改版接入（2026-11-02）</td>
+        <td class="td-remark"></td>
+      </tr>
+      <tr data-status="done">
+        <td class="td-id">TEST-CATALOG-001</td>
+        <td class="td-name">选款模型、接口、草稿与正式编译页面本机联调</td>
+        <td class="td-status"><span class="pill pill-done">✅ 完成</span></td>
+        <td class="td-meta">项目阶段 › 客户选款改版接入（2026-11-02）</td>
         <td class="td-remark"></td>
       </tr>
       <tr data-status="done">

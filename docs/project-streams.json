@@ -1,13 +1,13 @@
 {
   "updated": "2026-11-02",
-  "baseline": "132c9e6",
-  "focus": "先稳定现有订单、库存和真实业务验收",
+  "baseline": "8b5fb91",
+  "focus": "本轮优先完成客户选款改版接入；原订单、库存稳定性与真实验收暂缓，存量故障继续维护",
   "streams": [
     {
       "id": "sales",
       "name": "订单、收款与库存履约",
       "priority": "P0",
-      "execution": "存量维护；下一步真实验收",
+      "execution": "存量维护；真实验收本轮暂缓",
       "implementation": "已实现并部署",
       "acceptance": "待真实订单、并发与账实一致性验收",
       "next": "先修复身份和库存动作权限；验证结清→履约两条路径",
@@ -108,13 +108,19 @@
     },
     {
       "id": "ipad",
-      "name": "iPad 展示与客户行为采集",
-      "priority": "P2",
-      "execution": "已有展示能力维护；行为采集后置",
-      "implementation": "现货展示页代码已实现；行为采集仅候选方案",
-      "acceptance": "独立真实使用和性能验收待补齐",
-      "next": "不把客户行为采集草案当已批准开发",
-      "tasks": []
+      "name": "客户选款与 iPad 展示",
+      "priority": "当前",
+      "execution": "新版代码接入完成；待真机验收及发布",
+      "implementation": "v4.1 界面、批发清单与草稿接口已实现；生产仍为旧版",
+      "acceptance": "本机浏览器与隔离数据库通过；真实 iPad Safari 和 NAS 发布待执行",
+      "next": "确认真机滚动/切图、输入键盘和报价，再走 release 发布；行为采集后置",
+      "tasks": [
+        "BA-CATALOG-001",
+        "BE-CATALOG-001",
+        "TEST-CATALOG-001",
+        "TEST-CATALOG-DEVICE-001",
+        "OPS-CATALOG-001"
+      ]
     },
     {
       "id": "erp",

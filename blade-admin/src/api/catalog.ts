@@ -68,6 +68,8 @@ export interface CatalogPageResult {
 /** Query params for catalog product list */
 export interface CatalogPageParams {
   keyword?: string
+  productCode?: string
+  productIds?: string
   categoryId?: number
   colorId?: number
   sizeId?: number
@@ -104,4 +106,19 @@ export function getCatalogFilters() {
     data: CatalogFiltersVO
     message: string
   }>
+}
+
+/** Staff handoff creates an existing order draft, never a formal order. */
+export interface CatalogHandoffRequest {
+  requestId: string
+  sourceOutletId: number
+  items: { productId: number; colorNote: string; quantity: number | null; unitPrice: string | null }[]
+}
+export interface CatalogHandoffResponse {
+  draftId: number
+  reference: string
+  alreadyExists: boolean
+}
+export function handoffCatalogSelection(data: CatalogHandoffRequest) {
+  return client.post('/catalog/handoffs', data) as Promise<{ code: number; data: CatalogHandoffResponse; message: string }>
 }
