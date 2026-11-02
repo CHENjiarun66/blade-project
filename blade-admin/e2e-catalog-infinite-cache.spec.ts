@@ -212,3 +212,46 @@ test('detail photos fit in full rather than being cropped by a different frame r
   expect(frame!.y).toBeGreaterThanOrEqual(header!.y + header!.height)
   expect(await page.locator('.detail-image').evaluate(el => getComputedStyle(el).aspectRatio)).toBe('3 / 4')
 })
+
+test('slow short card swipes flip without requiring an exaggerated drag', async ({ page }) => {
+  await page.setViewportSize({ width: 834, height: 1194 }); await setup(page); await page.goto('/catalog')
+  const gallery = page.locator('.gallery-card[data-product-id="1"]')
+  const box = await gallery.boundingBox(); expect(box).toBeTruthy()
+  const x = box!.x + box!.width / 2, y = box!.y + box!.height / 2
+  await page.mouse.move(x,y); await page.mouse.down(); await page.mouse.move(x-40,y+2,{steps:8})
+  await page.waitForTimeout(180) // release slowly: distance, not a fast-flick shortcut, must be enough
+  await page.mouse.up(); await expect(gallery).toHaveAttribute('data-active-index','1')
+  await drag(page,'.gallery-card[data-product-id="1"]',5,90)
+  await expect(gallery).toHaveAttribute('data-active-index','1')
+})
+
+test('sellable stock is visible on cards and by colour in detail', async ({ page }) => {
+  const p = { ...product(1), availableQty:120, skus:[{id:1,skuCode:'P1-WHITE',colorId:1,colorName:'白色',sizeId:1,sizeCode:'均码',imageUrls:[],hasStock:true,stockStatus:'有现货',availableQty:120}] }
+  await setup(page,[p]); await page.goto('/catalog')
+  await expect(page.locator('.product-stock')).toHaveText('可选现货 120 件')
+  await page.getByRole('button',{name:'查看款式1详情',exact:true}).click()
+  await expect(page.locator('.detail-stock-summary')).toContainText('120件')
+  await expect(page.locator('.detail-stock-variants')).toContainText('白色 · 均码 120 件')
+})
+
+test.describe('touch numeric entry',()=>{
+  test.use({hasTouch:true})
+  test('quantity and price use the internal pad without shrinking the page',async({page})=>{
+    await page.setViewportSize({width:834,height:1194}); await setup(page); await page.goto('/catalog')
+    await page.getByRole('button',{name:'查看款式1详情',exact:true}).click()
+    const qty=page.getByLabel('P1总数量',{exact:true}),price=page.getByLabel('P1本次单价',{exact:true})
+    await expect(qty).toHaveAttribute('readonly',''); await expect(qty).toHaveAttribute('inputmode','none')
+    await qty.click(); const pad=page.getByRole('dialog',{name:'数字键盘',exact:true})
+    for(const key of ['1','2','0']) await pad.getByRole('button',{name:`数字${key}`,exact:true}).click()
+    await pad.getByRole('button',{name:'确定',exact:true}).click(); await expect(qty).toHaveValue('120')
+    await price.click(); for(const key of ['2','8','.','5']) await pad.getByRole('button',{name:key==='.'?'小数点':`数字${key}`,exact:true}).click()
+    await page.setViewportSize({width:1194,height:834})
+    const bounds=await pad.boundingBox();expect(bounds!.y).toBeGreaterThanOrEqual(0);expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(834)
+    await pad.getByRole('button',{name:'确定',exact:true}).click();await expect(price).toHaveValue('28.50')
+    await expect(page.locator('.detail-line-total')).toContainText('3,420.00')
+    await qty.click();await pad.getByRole('button',{name:'数字9',exact:true}).click();await pad.getByRole('button',{name:'取消',exact:true}).click()
+    await expect(qty).toHaveValue('120');await expect(pad).not.toBeVisible()
+    expect(await page.locator('.catalog-page').evaluate(el=>el.getBoundingClientRect().height)).toBe(834)
+    expect(await page.evaluate(()=>window.scrollY)).toBe(0)
+  })
+})

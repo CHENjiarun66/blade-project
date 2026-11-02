@@ -32,7 +32,7 @@ class CatalogVoSecurityTest {
         "id", "productCode", "name",
         "categoryId", "categoryName",
         "mainImageUrl", "imageUrls",
-        "hasImage", "hasStock", "stockStatus",
+        "hasImage", "hasStock", "availableQty", "stockStatus",
         "tags", "colors", "sizes", "skus",
         "createTime"
     );
@@ -42,7 +42,7 @@ class CatalogVoSecurityTest {
         "colorId", "colorName",
         "sizeId", "sizeCode",
         "imageUrls",
-        "hasStock", "stockStatus"
+        "hasStock", "availableQty", "stockStatus"
     );
 
     @Test

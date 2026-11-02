@@ -831,7 +831,7 @@ GET /api/analytics/product-detail?periodType=WEEK&productName=624-1%23
 
 ## 客户选款接口
 
-登录 JWT；读取需 `data:catalog:view`。原读取接口保持兼容，新增可选查询参数；详见 [批发选款契约](../21-CATALOG_WHOLESALE_DESIGN.md)。
+登录 JWT；读取需 `data:catalog:view`。原读取接口保持兼容，新增可选查询参数与用户确认的可用件数 `availableQty`（商品合计/SKU 分项，扣除两类预留，不含原始库存/仓库明细）；详见 [批发选款契约](../21-CATALOG_WHOLESALE_DESIGN.md)。
 
 | 方法 | 路径 | 用途 |
 |---|---|---|

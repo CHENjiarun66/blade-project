@@ -3631,3 +3631,43 @@
     }
   }
 }
+
+/* Touch numeric entry stays in the page; Safari's system keyboard is not involved. */
+.catalog-page .catalog-number-field{display:block;position:relative;width:100%;min-width:0}
+.catalog-page .catalog-number-field input{padding-right:37px!important}
+.catalog-page .number-pad-trigger{position:absolute;right:1px;top:1px;width:35px;height:calc(100% - 2px);min-height:40px;display:grid;place-items:center;color:var(--sage);touch-action:manipulation}
+.catalog-page .number-pad-trigger svg{width:17px;height:17px}
+.catalog-page .number-pad-trigger:hover{background:var(--sage-light)}
+.catalog-page .number-pad-modal{width:min(420px,calc(100vw - 24px));padding:20px;overscroll-behavior:contain}
+.catalog-page .number-pad-modal .modal-top{margin-bottom:14px}
+.catalog-page .number-pad-modal h2{font-size:19px;line-height:1.35;letter-spacing:0}
+.catalog-page .number-pad-caption{font-size:11px;color:var(--muted);margin:0 0 5px}
+.catalog-page .number-pad-value{display:block;min-height:70px;padding:12px 14px;background:var(--paper);color:var(--ink);font-size:30px;font-variant-numeric:tabular-nums;line-height:1.5;overflow:hidden;text-align:right;white-space:nowrap}
+.catalog-page .number-pad-value.will-replace{color:var(--sage);text-decoration:underline;text-underline-offset:6px}
+.catalog-page .number-pad-edit{display:flex;align-items:center;gap:14px;min-height:43px;color:var(--sage);font-size:12px}
+.catalog-page .number-pad-edit span{margin-right:auto;font-size:10px;color:var(--muted)}
+.catalog-page .number-pad-edit button{min-height:40px;min-width:36px}
+.catalog-page .number-pad-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.catalog-page .number-pad-grid button{min-height:54px;background:#f0f1ec;border:1px solid var(--line);border-radius:2px;font-size:23px;font-variant-numeric:tabular-nums;touch-action:manipulation}
+.catalog-page .number-pad-grid button:active{background:#dce4d5;transform:scale(.97)}
+.catalog-page .number-pad-grid button:disabled{visibility:hidden}
+.catalog-page .number-pad-modal .modal-actions{margin-top:14px;gap:9px}
+.catalog-page .number-pad-modal .modal-actions button{min-height:46px}
+.catalog-page .number-pad-error{font-size:11px;color:var(--heart);margin:8px 0 0}
+.catalog-page .detail-stock-summary{margin:16px 0 0;padding:15px 16px;background:#f2f4ed;border:1px solid #dfe5d7;color:var(--sage)}
+.catalog-page .detail-stock-amount{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:12px}
+.catalog-page .detail-stock-amount strong{font-size:28px;line-height:1.3;font-variant-numeric:tabular-nums}
+.catalog-page .detail-stock-amount small{font-size:12px;font-weight:400;margin-left:4px}
+.catalog-page .detail-stock-variants{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.catalog-page .detail-stock-variants span{font-size:11px;background:#fff;padding:4px 7px;border:1px solid #e1e6da}
+.catalog-page .detail-stock-summary p{font-size:10px;line-height:1.6;color:#818976;margin:10px 0 0}
+.catalog-page .stock-order-note{font-size:11px;color:var(--warm);line-height:1.6;margin-top:10px}
+@media(max-height:650px) and (min-width:641px){
+  .catalog-page .number-pad-modal{padding:14px 18px}
+  .catalog-page .number-pad-value{min-height:52px;font-size:25px;padding:7px 12px}
+  .catalog-page .number-pad-grid button{min-height:39px;font-size:20px}
+  .catalog-page .number-pad-edit{min-height:36px}
+}
+/* Keep the invisible checkbox aligned with its label while the product pane scrolls. */
+.catalog-page .stock-switch{position:relative}
+.catalog-page .stock-switch input{inset:auto 0 auto 0;top:50%;transform:translateY(-50%);width:100%;height:44px;margin:0;z-index:1;cursor:pointer}

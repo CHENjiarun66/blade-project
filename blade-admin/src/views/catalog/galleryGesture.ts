@@ -2,15 +2,15 @@ export type GestureAxis = 'pending' | 'vertical' | 'horizontal'
 export function gestureAxis(dx: number, dy: number, previous: GestureAxis): GestureAxis {
   if (previous !== 'pending') return previous
   const x = Math.abs(dx), y = Math.abs(dy)
-  if (y >= 8 && y >= x * 1.05) return 'vertical'
-  if (x >= 12 && x >= y * 1.5) return 'horizontal'
-  if (Math.hypot(x, y) >= 20) return 'vertical'
+  if (y >= 10 && y >= x * 1.2) return 'vertical'
+  if (x >= 10 && x >= y * 1.25) return 'horizontal'
+  if (Math.hypot(x, y) >= 28) return 'vertical'
   return 'pending'
 }
 export function swipeTarget(axis: GestureAxis, dx: number, velocity: number, width: number, index: number, count: number) {
   if (axis !== 'horizontal' || count <= 1) return index
-  const threshold = Math.max(44, Math.min(88, width * .18))
-  const flick = Math.abs(dx) >= 26 && Math.abs(velocity) >= .55 && Math.sign(dx) === Math.sign(velocity)
+  const threshold = Math.max(28, Math.min(52, width * .09))
+  const flick = Math.abs(dx) >= 20 && Math.abs(velocity) >= .3 && Math.sign(dx) === Math.sign(velocity)
   if (Math.abs(dx) < threshold && !flick) return index
   return Math.max(0, Math.min(count - 1, index + (dx < 0 ? 1 : -1)))
 }

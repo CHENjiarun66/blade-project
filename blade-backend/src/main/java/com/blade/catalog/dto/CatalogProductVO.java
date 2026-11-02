@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * Product info for catalog display.
- * No costPrice, no wholesalePrice, no supplierId, no raw inventory quantities.
+ * No costPrice, no wholesalePrice, no supplierId, no warehouse/reservation quantities; only sellable availableQty.
  */
 public class CatalogProductVO {
 
@@ -18,6 +18,7 @@ public class CatalogProductVO {
     private List<String> imageUrls;
     private boolean hasImage;
     private boolean hasStock;
+    private long availableQty;
     private String stockStatus;
     private List<String> tags;
     private List<ColorSizeEntry> colors;
@@ -74,6 +75,9 @@ public class CatalogProductVO {
 
     public boolean isHasImage() { return hasImage; }
     public void setHasImage(boolean hasImage) { this.hasImage = hasImage; }
+
+    public long getAvailableQty() { return availableQty; }
+    public void setAvailableQty(long availableQty) { this.availableQty = availableQty; }
 
     public boolean isHasStock() { return hasStock; }
     public void setHasStock(boolean hasStock) { this.hasStock = hasStock; }

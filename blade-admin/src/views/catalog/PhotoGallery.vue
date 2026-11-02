@@ -34,7 +34,7 @@ function start(event: PointerEvent) {
   if (active && active.pointerId !== event.pointerId) finish(true)
   if (!surface.value || event.isPrimary === false || (event.pointerType === 'mouse' && event.button !== 0)) return
   blockedUntil = 0
-  active = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, dy: 0, width: surface.value.getBoundingClientRect().width, index: index.value, axis: 'pending', samples: [{ x: event.clientX, time: performance.now() }] }
+  active = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, dy: 0, width: surface.value.getBoundingClientRect().width, index: index.value, axis: 'pending', samples: [{ x: event.clientX, time: event.timeStamp }] }
   document.addEventListener('pointermove', move, { passive: false })
   document.addEventListener('pointerup', end, { passive: true })
   document.addEventListener('pointercancel', cancel, { passive: true })
@@ -45,7 +45,7 @@ function move(event: PointerEvent) {
   const a = active
   if (!a || event.pointerId !== a.pointerId) return
   a.dx = event.clientX - a.x; a.dy = event.clientY - a.y
-  a.samples.push({ x: event.clientX, time: performance.now() }); a.samples = a.samples.slice(-12)
+  a.samples.push({ x: event.clientX, time: event.timeStamp }); a.samples = a.samples.slice(-12)
   const previous = a.axis
   a.axis = gestureAxis(a.dx, a.dy, a.axis)
   if (a.axis !== 'horizontal' || props.images.length < 2) return
@@ -57,7 +57,7 @@ function move(event: PointerEvent) {
 function end(event: PointerEvent) {
   if (!active || event.pointerId !== active.pointerId) return
   active.dx = event.clientX - active.x; active.dy = event.clientY - active.y
-  active.samples.push({ x: event.clientX, time: performance.now() }); finish(false)
+  active.samples.push({ x: event.clientX, time: event.timeStamp }); finish(false)
 }
 function cancel(event: PointerEvent) { if (active?.pointerId === event.pointerId) finish(true) }
 function secondPointer(event: PointerEvent) { if (active && active.pointerId !== event.pointerId) finish(true) }
@@ -71,7 +71,7 @@ function finish(cancelled: boolean) {
   if (!a) return
   if (cancelled || Math.hypot(a.dx, a.dy) >= 8) blockedUntil = performance.now() + 450
   if (surface.value?.hasPointerCapture(a.pointerId)) surface.value.releasePointerCapture(a.pointerId)
-  if (!cancelled) setIndex(swipeTarget(a.axis, a.dx, recentVelocity(a.samples, performance.now()), a.width, a.index, props.images.length))
+  if (!cancelled) setIndex(swipeTarget(a.axis, a.dx, recentVelocity(a.samples, a.samples[a.samples.length - 1]?.time || performance.now()), a.width, a.index, props.images.length))
 }
 function guardClick(event: MouseEvent) {
   if (event.detail && performance.now() < blockedUntil) { blockedUntil = 0; event.preventDefault(); event.stopImmediatePropagation() }

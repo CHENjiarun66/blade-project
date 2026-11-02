@@ -158,7 +158,7 @@ public class CatalogServiceImpl implements CatalogService {
 
         // inventory availability per SKU
         Set<Long> skuIds = allSkus.stream().map(ProductSku::getId).collect(Collectors.toSet());
-        Map<Long, Boolean> skuStockMap = computeSkuStock(skuIds);
+        Map<Long, Long> skuAvailableMap = computeSkuAvailable(skuIds);
 
         // colors & sizes for SKUs
         Set<Long> skuColorIds = allSkus.stream().map(ProductSku::getColorId).filter(Objects::nonNull).collect(Collectors.toSet());
@@ -190,7 +190,7 @@ public class CatalogServiceImpl implements CatalogService {
         List<CatalogProductVO> vos = new ArrayList<>();
         for (Product p : products) {
             CatalogProductVO vo = toVO(p, catNameMap, prodColors, prodSizes,
-                skusByProduct, skuStockMap, colorMap, sizeMap,
+                skusByProduct, skuAvailableMap, colorMap, sizeMap,
                 prodBindings, skuBindings, fileMap);
             vos.add(vo);
         }
@@ -229,7 +229,7 @@ public class CatalogServiceImpl implements CatalogService {
         Map<Long, List<ProductSku>> skusByProduct = Map.of(id, allSkus);
 
         Set<Long> skuIds = allSkus.stream().map(ProductSku::getId).collect(Collectors.toSet());
-        Map<Long, Boolean> skuStockMap = computeSkuStock(skuIds);
+        Map<Long, Long> skuAvailableMap = computeSkuAvailable(skuIds);
 
         Set<Long> skuColorIds = allSkus.stream().map(ProductSku::getColorId).filter(Objects::nonNull).collect(Collectors.toSet());
         Map<Long, ProductColor> colorMap = skuColorIds.isEmpty() ? Collections.emptyMap()
@@ -252,7 +252,7 @@ public class CatalogServiceImpl implements CatalogService {
         Map<Long, FileStorage> fileMap = loadActiveFiles(allFileIds);
 
         return toVO(p, catNameMap, prodColors, prodSizes,
-            skusByProduct, skuStockMap, colorMap, sizeMap,
+            skusByProduct, skuAvailableMap, colorMap, sizeMap,
             prodBindings, skuBindings, fileMap);
     }
 
@@ -311,7 +311,7 @@ public class CatalogServiceImpl implements CatalogService {
                                   Map<Long, List<CatalogProductVO.ColorSizeEntry>> prodColors,
                                   Map<Long, List<CatalogProductVO.ColorSizeEntry>> prodSizes,
                                   Map<Long, List<ProductSku>> skusByProduct,
-                                  Map<Long, Boolean> skuStockMap,
+                                  Map<Long, Long> skuAvailableMap,
                                   Map<Long, ProductColor> colorMap,
                                   Map<Long, ProductSize> sizeMap,
                                   Map<Long, List<FileBusinessBind>> prodBindings,
@@ -370,7 +370,9 @@ public class CatalogServiceImpl implements CatalogService {
                 sv.setSizeCode(s != null ? s.getSizeCode() : null);
             }
 
-            boolean skuStock = skuStockMap.getOrDefault(sku.getId(), false);
+            long availableQty = skuAvailableMap.getOrDefault(sku.getId(), 0L);
+            boolean skuStock = availableQty > 0;
+            sv.setAvailableQty(availableQty);
             sv.setHasStock(skuStock);
             sv.setStockStatus(skuStock ? "有现货" : "暂无现货");
             if (skuStock) anyStock = true;
@@ -390,6 +392,7 @@ public class CatalogServiceImpl implements CatalogService {
         }
         vo.setSkus(skuVOs);
         vo.setHasImage(vo.isHasImage() || skuVOs.stream().anyMatch(sku -> !sku.getImageUrls().isEmpty()));
+        vo.setAvailableQty(skuVOs.stream().mapToLong(CatalogSkuVO::getAvailableQty).sum());
         vo.setHasStock(anyStock);
         vo.setStockStatus(anyStock ? "有现货" : "暂无现货");
 
@@ -402,19 +405,23 @@ public class CatalogServiceImpl implements CatalogService {
      * hasStock = sum > 0.
      */
     public Map<Long, Boolean> computeSkuStock(Set<Long> skuIds) {
+        return computeSkuAvailable(skuIds).entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue() > 0));
+    }
+
+    public Map<Long, Long> computeSkuAvailable(Set<Long> skuIds) {
         if (skuIds.isEmpty()) return Collections.emptyMap();
         List<Inventory> rows = inventoryMapper.selectList(
             new LambdaQueryWrapper<Inventory>().in(Inventory::getSkuId, skuIds));
-        Map<Long, Boolean> result = new HashMap<>();
-        for (Long sid : skuIds) result.put(sid, false);
+        Map<Long, Long> result = new HashMap<>();
+        for (Long sid : skuIds) result.put(sid, 0L);
         for (Inventory inv : rows) {
-            int available = Math.max(0,
-                (inv.getQuantity() == null ? 0 : inv.getQuantity())
+            if (!result.containsKey(inv.getSkuId())) continue;
+            long available = Math.max(0L,
+                (long) (inv.getQuantity() == null ? 0 : inv.getQuantity())
                 - (inv.getReservedQty() == null ? 0 : inv.getReservedQty())
                 - (inv.getGlobalReservedQty() == null ? 0 : inv.getGlobalReservedQty()));
-            if (available > 0) {
-                result.put(inv.getSkuId(), true);
-            }
+            result.merge(inv.getSkuId(), available, Long::sum);
         }
         return result;
     }

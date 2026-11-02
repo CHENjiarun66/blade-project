@@ -111,4 +111,26 @@ class CatalogHandoffIntegrationTest {
         mvc.perform(get("/api/catalog/products").param("hasImage","true").header("Authorization","Bearer "+token)).andExpect(jsonPath("$.data.total").value(0));
     }
 
+    @Test void customerAvailableCountIsAggregatedAndNeverIncludesForeignTenantStock() throws Exception {
+        jdbc.update("INSERT INTO product_color(tenant_id,color_code,color_name) VALUES(?,'CAT-A','White'),(?,'CAT-B','Black')",tenantId,tenantId);
+        jdbc.update("INSERT INTO product_size(tenant_id,size_code) VALUES(?,'M')",tenantId);
+        Long colorA=jdbc.queryForObject("SELECT id FROM product_color WHERE tenant_id=? AND color_code='CAT-A'",Long.class,tenantId);
+        Long colorB=jdbc.queryForObject("SELECT id FROM product_color WHERE tenant_id=? AND color_code='CAT-B'",Long.class,tenantId);
+        Long size=jdbc.queryForObject("SELECT id FROM product_size WHERE tenant_id=?",Long.class,tenantId);
+        jdbc.update("INSERT INTO product_sku(tenant_id,product_id,color_id,size_id,sku_code,sku_type,price,status) VALUES(?,?,?,?,?,'NORMAL',0,1),(?,?,?,?,?,'NORMAL',0,1)",tenantId,productId,colorA,size,code+"-A",tenantId,productId,colorB,size,code+"-B");
+        Long skuA=jdbc.queryForObject("SELECT id FROM product_sku WHERE sku_code=?",Long.class,code+"-A");
+        Long skuB=jdbc.queryForObject("SELECT id FROM product_sku WHERE sku_code=?",Long.class,code+"-B");
+        jdbc.update("INSERT INTO warehouse(tenant_id,warehouse_name,status) VALUES(?,'Catalog A',1),(?,'Catalog B',1)",tenantId,tenantId);
+        Long whA=jdbc.queryForObject("SELECT id FROM warehouse WHERE tenant_id=? AND warehouse_name='Catalog A'",Long.class,tenantId);
+        Long whB=jdbc.queryForObject("SELECT id FROM warehouse WHERE tenant_id=? AND warehouse_name='Catalog B'",Long.class,tenantId);
+        jdbc.update("INSERT INTO inventory(tenant_id,sku_id,warehouse_id,quantity,reserved_qty,global_reserved_qty) VALUES(?,?,?,100,20,10),(?,?,?,5,7,0),(?,?,?,30,0,0),(?,?,?,999,0,0)",tenantId,skuA,whA,tenantId,skuA,whB,tenantId,skuB,whA,tenantId+100000,skuB,whB);
+        sqlSession.clearCache();
+        mvc.perform(get("/api/catalog/products/"+productId).header("Authorization","Bearer "+token))
+            .andExpect(jsonPath("$.data.availableQty").value(100))
+            .andExpect(jsonPath("$.data.hasStock").value(true))
+            .andExpect(jsonPath("$.data.quantity").doesNotExist())
+            .andExpect(jsonPath("$.data.reservedQty").doesNotExist());
+        mvc.perform(get("/api/catalog/products").param("productIds",String.valueOf(productId)).header("Authorization","Bearer "+token))
+            .andExpect(jsonPath("$.data.records[0].availableQty").value(100));
+    }
 }

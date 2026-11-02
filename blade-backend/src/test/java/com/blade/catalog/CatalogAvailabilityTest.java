@@ -186,4 +186,21 @@ class CatalogAvailabilityTest {
     void previewUrl_shouldBuildCorrectPath() {
         assertEquals("/api/files/42/preview", CatalogServiceImpl.previewUrl(42L));
     }
+    @Test
+    void availableCountsSubtractBothReservationsAndClampEachWarehouse() {
+        Inventory a = new Inventory(); a.setSkuId(1L); a.setQuantity(100); a.setReservedQty(20); a.setGlobalReservedQty(10);
+        Inventory b = new Inventory(); b.setSkuId(1L); b.setQuantity(5); b.setReservedQty(7);
+        Inventory c = new Inventory(); c.setSkuId(2L); c.setQuantity(30);
+        when(inventoryMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(a,b,c));
+        Map<Long,Long> result = catalogService.computeSkuAvailable(Set.of(1L,2L,3L));
+        assertEquals(70L,result.get(1L)); assertEquals(30L,result.get(2L)); assertEquals(0L,result.get(3L));
+    }
+
+    @Test
+    void availableCountsUseLongWhenWarehousesAggregateBeyondIntegerRange() {
+        Inventory a = new Inventory(); a.setSkuId(1L); a.setQuantity(Integer.MAX_VALUE);
+        Inventory b = new Inventory(); b.setSkuId(1L); b.setQuantity(Integer.MAX_VALUE);
+        when(inventoryMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(a,b));
+        assertEquals(4294967294L,catalogService.computeSkuAvailable(Set.of(1L)).get(1L));
+    }
 }

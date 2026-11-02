@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * SKU info for catalog display.
- * No costPrice, no raw inventory quantities.
+ * No costPrice, no warehouse/reservation quantities; only sellable availableQty.
  */
 public class CatalogSkuVO {
 
@@ -16,6 +16,7 @@ public class CatalogSkuVO {
     private String sizeCode;
     private List<String> imageUrls;
     private boolean hasStock;
+    private long availableQty;
     private String stockStatus;
 
     public Long getId() { return id; }
@@ -38,6 +39,9 @@ public class CatalogSkuVO {
 
     public List<String> getImageUrls() { return imageUrls; }
     public void setImageUrls(List<String> imageUrls) { this.imageUrls = imageUrls; }
+
+    public long getAvailableQty() { return availableQty; }
+    public void setAvailableQty(long availableQty) { this.availableQty = availableQty; }
 
     public boolean isHasStock() { return hasStock; }
     public void setHasStock(boolean hasStock) { this.hasStock = hasStock; }

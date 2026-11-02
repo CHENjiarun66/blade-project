@@ -15,8 +15,8 @@
         <td class="td-check"><input v-model="line.checked" type="checkbox" :aria-label="`勾选${line.product.productCode}用于本次移交`"></td>
         <td class="td-style"><div class="style-cell"><CatalogImage :src="coverImage(line.product)" :alt="line.product.name" /><div><strong>{{ line.product.productCode }}</strong><span>{{ line.product.name }}</span><span class="wholesale-status" :class="lineStatus(line) === '已填写' ? 'complete' : 'pending'">{{ lineStatus(line) }}</span></div></div></td>
         <td class="td-color" data-caption="颜色说明"><input v-model="line.colorNote" class="color-note" maxlength="100" :list="`colors-${line.product.id}`" :aria-label="`${line.product.productCode}颜色说明`" placeholder="混色 / 3色 / 具体颜色"><datalist :id="`colors-${line.product.id}`"><option value="混色"/><option value="2色"/><option value="3色"/><option v-for="color in line.product.colors" :key="color.id" :value="color.name" /></datalist></td>
-        <td class="td-qty" data-caption="数量"><input v-model="line.qty" data-field="qty" type="text" inputmode="numeric" maxlength="6" :aria-label="`${line.product.productCode}总数量`" :aria-invalid="!!line.qty && quantity(line.qty) === null" :class="{ invalid: !!line.qty && quantity(line.qty) === null }" placeholder="总数量"></td>
-        <td class="td-price" data-caption="单价"><input v-model="line.unitPrice" data-field="unitPrice" type="text" inputmode="decimal" maxlength="12" :aria-label="`${line.product.productCode}本次单价`" :aria-invalid="!!line.unitPrice && priceCents(line.unitPrice) === null" :class="{ invalid: !!line.unitPrice && priceCents(line.unitPrice) === null }" placeholder="待报价" @change="formatPrice(line)"></td>
+        <td class="td-qty" data-caption="数量"><NumericInput v-model="line.qty" mode="quantity" data-field="qty" :label="`${line.product.productCode}总数量`" :aria-invalid="!!line.qty && quantity(line.qty) === null" :class="{ invalid: !!line.qty && quantity(line.qty) === null }" placeholder="总数量" /></td>
+        <td class="td-price" data-caption="单价"><NumericInput v-model="line.unitPrice" mode="price" data-field="unitPrice" :label="`${line.product.productCode}本次单价`" :aria-invalid="!!line.unitPrice && priceCents(line.unitPrice) === null" :class="{ invalid: !!line.unitPrice && priceCents(line.unitPrice) === null }" placeholder="待报价" @change="formatPrice(line)" /></td>
         <td class="td-amount" data-caption="金额"><output :data-line-amount="line.product.id" :class="{ unquoted: lineAmount(line) === null }">{{ money(lineAmount(line)) }}</output><small>{{ lineAmount(line) === null ? '数量 × 单价' : '自动计算' }}</small></td>
         <td class="td-remove"><button class="icon-button" :aria-label="`移除${line.product.productCode}`" @click="emit('remove', line.product.id)"><CatalogIcon name="close" :size="16" /></button></td>
       </tr></tbody>
@@ -34,6 +34,7 @@
 import { ref, computed } from 'vue'
 import CatalogIcon from './CatalogIcon.vue'
 import CatalogImage from './CatalogImage.vue'
+import NumericInput from './NumericInput.vue'
 import { coverImage } from './catalogImages'
 import { selectionTotals, quantity, priceCents, decimalPrice, money, lineAmount, lineStatus, type SelectionLine } from './selectionModel'
 const props = defineProps<{ lines: SelectionLine[]; lookupBusy: boolean; refreshing: boolean; refreshError: string }>()

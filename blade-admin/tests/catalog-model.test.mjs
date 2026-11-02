@@ -29,7 +29,7 @@ test('a vertical gesture cannot change axis midway',()=>assert.equal(gestures.ge
 test('a horizontal gesture remains horizontal',()=>assert.equal(gestures.gestureAxis(75,90,'horizontal'),'horizontal'))
 const target=(axis,dx,velocity=0,index=1,count=3,width=380)=>gestures.swipeTarget(axis,dx,velocity,width,index,count)
 for(const [name,args,expected] of [
- ['vertical never changes photo',['vertical',-250],1],['pending tap',['pending',-4],1],['short slow slide rebounds',['horizontal',-32],1],['long left slide advances one',['horizontal',-90],2],['right slide returns one',['horizontal',90],0],['fast deliberate flick',['horizontal',-30,-.8],2],['fast jitter does not advance',['horizontal',-18,-2],1],['reversal does not count as flick',['horizontal',-30,1],1],['first photo never wraps',['horizontal',100,0,0],0],['last photo never wraps',['horizontal',-100,0,2],2],['single photo never switches',['horizontal',-100,0,0,1],0],['phone threshold',['horizontal',-45,0,1,3,182],2],['large image threshold',['horizontal',-90,0,1,3,1000],2],['cannot skip multiple photos',['horizontal',-1600],2],
+ ['vertical never changes photo',['vertical',-250],1],['pending tap',['pending',-4],1],['short slow slide rebounds',['horizontal',-18],1],['long left slide advances one',['horizontal',-90],2],['right slide returns one',['horizontal',90],0],['fast deliberate flick',['horizontal',-30,-.8],2],['fast jitter does not advance',['horizontal',-18,-2],1],['reversal does not count as flick',['horizontal',-30,1],1],['first photo never wraps',['horizontal',100,0,0],0],['last photo never wraps',['horizontal',-100,0,2],2],['single photo never switches',['horizontal',-100,0,0,1],0],['phone threshold',['horizontal',-45,0,1,3,182],2],['large image threshold',['horizontal',-90,0,1,3,1000],2],['cannot skip multiple photos',['horizontal',-1600],2],
 ]) test(name,()=>assert.equal(target(...args),expected))
 test('pause does not retain an old fling velocity',()=>assert.equal(gestures.recentVelocity([{x:100,time:0},{x:50,time:80},{x:50,time:300}],300),0))
 test('recent fling speed follows the last 100ms',()=>assert.equal(gestures.recentVelocity([{x:100,time:0},{x:50,time:50}],50),-1))
@@ -66,3 +66,48 @@ test('handoff retry keeps its request ID through reload',()=>{const h=selectionH
 test('removal undo preserves colour, quantity and quote',()=>{const h=selectionHarness(),s=h.create();s.save(line({product:productData(1)}));const undo=s.remove(1);assert.equal(s.lines.value.length,0);undo();assert.equal(s.lines.value[0].colorNote,'混色（3色）');assert.equal(s.lines.value[0].qty,'120');h.cleanup()})
 test('logout does not recreate a cleared quote cache during unmount',()=>{const h=selectionHarness(),s=h.create();s.save(line({product:productData(1)}));h.values.delete('token');h.values.delete('catalog:selection:v1:1:4');h.cleanup();assert.equal(h.values.has('catalog:selection:v1:1:4'),false)})
 test('malformed local storage is recoverable instead of crashing',()=>{const h=selectionHarness();h.values.set('catalog:selection:v1:1:4','{bad');const s=h.create();assert.equal(s.lines.value.length,0);assert.equal(s.storageError.value,true);h.cleanup()})
+
+const keypad = load('numericKeypadModel', { './selectionModel':model })
+for (const [name, value, key, mode, replace, result] of [
+  ['replace existing quantity','120','8','quantity',true,'8'],
+  ['append quantity','12','0','quantity',false,'120'],
+  ['whole quantity rejects decimal','12','.','quantity',false,'12'],
+  ['decimal starts with zero','','.','price',false,'0.'],
+  ['customer price cents','19.9','5','price',false,'19.95'],
+  ['price does not add a third decimal','19.95','9','price',false,'19.95'],
+  ['quantity has a practical bound','999999','0','quantity',false,'999999'],
+  ['backspace respects replacement','120','backspace','quantity',true,''],
+  ['backspace removes one digit','120','backspace','quantity',false,'12'],
+  ['clear keeps quote pending','28','clear','price',false,''],
+  ['zero followed by digits','0','8','quantity',false,'8'],
+]) test(name,()=>assert.equal(keypad.keypadValue(value,key,mode,replace),result))
+test('keypad keeps an empty price distinct from zero',()=>{assert.equal(keypad.committedKeypadValue('','price'),'');assert.equal(keypad.committedKeypadValue('0','price'),'0.00')})
+test('keypad confirmation rejects zero quantity but accepts pending quantity',()=>{assert.equal(keypad.validKeypadValue('0','quantity'),false);assert.equal(keypad.validKeypadValue('','quantity'),true)})
+test('a deliberate 40px slow swipe advances on an iPad card',()=>assert.equal(gestures.swipeTarget('horizontal',-40,0,393,0,3),1))
+test('a 55px slow swipe advances in a large lightbox',()=>assert.equal(gestures.swipeTarget('horizontal',-55,0,850,0,3),1))
+test('a gentle 22px flick advances',()=>assert.equal(gestures.swipeTarget('horizontal',-22,-.35,470,0,3),1))
+test('horizontal intent tolerates a natural vertical drift',()=>assert.equal(gestures.gestureAxis(18,13,'pending'),'horizontal'))
+const stocks = load('stockDisplay')
+test('available stock is shown without treating old cached data as zero',()=>{assert.equal(stocks.stockLabel({hasStock:true,availableQty:120}),'可选现货 120 件');assert.equal(stocks.stockLabel({hasStock:true}),'有现货');assert.equal(stocks.stockLabel({hasStock:false,availableQty:0}),'暂无现货')})
+
+function viewportHarness() {
+  class Element { isContentEditable=false; blur(){ doc.activeElement=null; fire(documentEvents,'focusout') } }
+  class Input extends Element { readOnly=false; type='text' }
+  class Textarea extends Element {}
+  const documentEvents=new Map(),windowEvents=new Map(),visualEvents=new Map(),frames=[],mounted=[],unmount=[]
+  const styleValues=new Map(),scrolls=[]
+  const style={setProperty:(k,v)=>styleValues.set(k,v),removeProperty:k=>styleValues.delete(k)}
+  const doc={activeElement:null,documentElement:{clientHeight:1194},addEventListener:(k,f)=>documentEvents.set(k,f),removeEventListener:k=>documentEvents.delete(k)}
+  const visual={height:1194,scale:1,addEventListener:(k,f)=>visualEvents.set(k,f),removeEventListener:k=>visualEvents.delete(k)}
+  const win={innerHeight:1194,visualViewport:visual,scrollTo:(...args)=>scrolls.push(args),addEventListener:(k,f)=>windowEvents.set(k,f),removeEventListener:k=>windowEvents.delete(k)}
+  const exports={}
+  const source=fs.readFileSync(new URL('../src/views/catalog/useCatalogViewport.ts',import.meta.url),'utf8')
+  vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:()=>({onMounted:fn=>mounted.push(fn),onBeforeUnmount:fn=>unmount.push(fn)}),document:doc,window:win,HTMLElement:Element,HTMLInputElement:Input,HTMLTextAreaElement:Textarea,requestAnimationFrame:fn=>{frames.push(fn);return frames.length},cancelAnimationFrame(){},setTimeout:()=>0,clearTimeout(){}})
+  exports.useCatalogViewport({value:{style}});mounted.forEach(fn=>fn())
+  function fire(map,event){map.get(event)?.()}
+  return {input:new Input(),doc,visual,win,styleValues,scrolls,focus(input){doc.activeElement=input;fire(documentEvents,'focusin')},blur(){doc.activeElement=null;fire(documentEvents,'focusout')},resize(){fire(visualEvents,'resize')},flush(){while(frames.length)frames.shift()()},cleanup(){unmount.forEach(fn=>fn())}}
+}
+test('keyboard dismissal recovers height and root scroll after blur',()=>{const h=viewportHarness();h.focus(h.input);h.visual.height=700;h.resize();h.flush();assert.equal(h.scrolls.length,0);h.blur();h.visual.height=1194;h.resize();h.flush();assert.equal(h.styleValues.get('--catalog-viewport-height'),'1194px');assert.equal(h.scrolls.length,1);h.cleanup()})
+test('dedicated iPad keyboard hide also recovers when input keeps focus',()=>{const h=viewportHarness();h.focus(h.input);h.visual.height=700;h.resize();h.flush();h.visual.height=1194;h.resize();h.flush();assert.equal(h.doc.activeElement,null);assert.equal(h.scrolls.length,1);h.cleanup()})
+test('pinch zoom is not mistaken for keyboard dismissal',()=>{const h=viewportHarness();h.focus(h.input);h.blur();h.visual.scale=1.5;h.visual.height=796;h.resize();h.flush();assert.equal(h.scrolls.length,0);assert.equal(h.styleValues.size,0);h.cleanup()})
+test('readonly numeric fields never arm native keyboard recovery',()=>{const h=viewportHarness();h.input.readOnly=true;h.focus(h.input);h.blur();h.resize();h.flush();assert.equal(h.scrolls.length,0);h.cleanup()})

@@ -1,5 +1,5 @@
 <template>
-  <div class="catalog-page app" :class="{ 'panel-open': !!panel, 'wholesale-open': panel === 'cart' }">
+  <div ref="pageEl" class="catalog-page app" :class="{ 'panel-open': !!panel, 'wholesale-open': panel === 'cart' }">
     <header class="topbar">
       <a class="brand" href="/catalog" aria-label="返回所有款式" @click.prevent="browseAll"><span class="wordmark">JIAJIA</span><span class="brand-cn">嘉嘉服饰</span></a>
       <label class="search"><CatalogIcon name="search" :size="19" /><input v-model="filters.keyword" type="search" placeholder="搜索款号或商品名称" aria-label="搜索款号或商品名称" autocomplete="off" @input="debounceSearch"></label>
@@ -18,7 +18,7 @@
             <div class="product-photo card-image">
               <PhotoGallery v-model="imageIndexes[product.id]" :images="productImages(product)" :product-id="product.id" :code="product.productCode" :name="product.name" @open="openLightbox(product)" />
               <button class="heart-button" :class="{ selected: selectedIds.has(product.id) }" :aria-pressed="selectedIds.has(product.id)" :aria-label="selectedIds.has(product.id) ? `移除${product.name}` : `加入${product.name}到选款清单`" @click="toggleHeart(product)"><CatalogIcon name="heart" :size="19" /></button>
-              <span class="product-stock" :class="{ out: !product.hasStock }">{{ product.stockStatus || (product.hasStock ? '有现货' : '暂无现货') }}</span>
+              <span class="product-stock" :class="{ out: !product.hasStock }">{{ stockLabel(product) }}</span>
             </div>
             <button class="product-info" :data-detail="product.id" :aria-label="`查看${product.name}详情`" @click="showDetail(product)"><span class="product-info-top"><span class="product-code">{{ product.productCode }}</span><span class="swatches"><i v-for="color in product.colors.slice(0, 5)" :key="color.id" class="swatch" :title="color.name" :style="{ '--swatch': colorValue(color.code) }" /></span></span><h2 class="product-name">{{ product.name }}</h2></button>
           </article>
@@ -32,11 +32,16 @@
           <div class="panel-header detail-header"><div class="panel-title-group"><button class="icon-button" aria-label="返回商品列表" @click="closePanel"><CatalogIcon name="back" :size="20" /></button><h2>款式详情</h2></div><button class="icon-button" aria-label="查看批发清单" @click="openCart"><CatalogIcon name="bag" :size="21" /></button></div>
           <div class="panel-scroll">
             <div class="detail-image"><PhotoGallery v-model="imageIndexes[detailLine.product.id]" :images="productImages(detailLine.product)" :product-id="detailLine.product.id" :code="detailLine.product.productCode" :name="detailLine.product.name" context="detail" @open="openLightbox(detailLine.product)" /></div>
-            <div class="detail-heading"><strong class="detail-style-code">{{ detailLine.product.productCode }}</strong><h2>{{ detailLine.product.name }}</h2><span class="detail-stock">{{ detailLine.product.stockStatus }}，数量由店员确认</span></div>
+            <div class="detail-heading"><strong class="detail-style-code">{{ detailLine.product.productCode }}</strong><h2>{{ detailLine.product.name }}</h2><span class="detail-stock">{{ stockLabel(detailLine.product) }}</span></div>
+            <section v-if="detailLine.product.hasStock && detailLine.product.availableQty !== undefined" class="detail-stock-summary" aria-label="可用现货">
+              <div class="detail-stock-amount"><span>可选现货</span><strong>{{ detailLine.product.availableQty.toLocaleString('zh-CN') }}<small>件</small></strong></div>
+              <div class="detail-stock-variants"><span v-for="sku in detailLine.product.skus.filter(s => (s.availableQty || 0) > 0)" :key="sku.id">{{ sku.colorName }} · {{ sku.sizeCode }} {{ sku.availableQty }} 件</span></div>
+              <p>已扣除预留数量，库存会随业务变化，最终配货由店员确认。</p>
+            </section>
             <div class="detail-wholesale">
               <label>颜色说明<input v-model="detailLine.colorNote" maxlength="100" class="color-note" list="detail-color-options" :aria-label="`${detailLine.product.productCode}颜色说明`" placeholder="混色 / 3色 / 具体颜色"></label><datalist id="detail-color-options"><option value="混色"/><option value="2色"/><option value="3色"/><option v-for="color in detailLine.product.colors" :key="color.id" :value="color.name" /></datalist>
-              <div class="detail-order-fields"><label>总数量<input v-model="detailLine.qty" inputmode="numeric" maxlength="6" :aria-label="`${detailLine.product.productCode}总数量`" placeholder="总数量" :aria-invalid="!!detailLine.qty && quantity(detailLine.qty) === null"></label><label>本次单价<input v-model="detailLine.unitPrice" inputmode="decimal" maxlength="12" :aria-label="`${detailLine.product.productCode}本次单价`" placeholder="待报价" :aria-invalid="!!detailLine.unitPrice && priceCents(detailLine.unitPrice) === null" @change="formatDetailPrice"></label></div>
-              <div class="detail-line-total"><span>金额 <small>数量 × 单价</small></span><strong>{{ money(lineAmount(detailLine)) }}</strong></div><p>可填写混色或颜色数量；不需要逐个颜色、尺码拆单。</p>
+              <div class="detail-order-fields"><label>总数量<NumericInput v-model="detailLine.qty" mode="quantity" :label="`${detailLine.product.productCode}总数量`" placeholder="总数量" :aria-invalid="!!detailLine.qty && quantity(detailLine.qty) === null" /></label><label>本次单价<NumericInput v-model="detailLine.unitPrice" mode="price" :label="`${detailLine.product.productCode}本次单价`" placeholder="待报价" :aria-invalid="!!detailLine.unitPrice && priceCents(detailLine.unitPrice) === null" @change="formatDetailPrice" /></label></div>
+              <div class="detail-line-total"><span>金额 <small>数量 × 单价</small></span><strong>{{ money(lineAmount(detailLine)) }}</strong></div><p>可填写混色或颜色数量；不需要逐个颜色、尺码拆单。</p><p v-if="quantity(detailLine.qty) && detailLine.product.availableQty !== undefined && quantity(detailLine.qty)! > detailLine.product.availableQty" class="stock-order-note">本次数量高于当前现货，店员将确认配货与交期。</p>
             </div>
           </div>
           <div class="panel-footer"><button id="addDetail" class="primary-button" :disabled="detailLoading" @click="saveDetail">{{ selectedIds.has(detailLine.product.id) ? '保存到批发清单' : '加入批发清单' }}<CatalogIcon name="arrow" :size="20" /></button><p>本次单价可调整，报价由店员最终确认</p></div>
@@ -51,11 +56,12 @@
       <template v-if="handoffReceipt"><div class="success-state"><div class="success-circle"><CatalogIcon name="check" :size="30" /></div><h2>批发清单已移交</h2><p>已进入订单草稿，等待店员核对客户、颜色、数量和本次报价后开单。</p><div class="handoff-code">{{ handoffReceipt.reference }}</div><router-link v-if="canReadDraft" class="primary-button" :to="`/orders/drafts/${handoffReceipt.draftId}`">店员打开草稿<CatalogIcon name="arrow" :size="18" /></router-link><button class="secondary-button" @click="handoffDialog?.close()">返回批发清单</button></div></template>
       <template v-else><div class="modal-top"><h2>确认批发清单</h2><button class="icon-button" :disabled="sending" aria-label="关闭确认" @click="handoffDialog?.close()"><CatalogIcon name="close" :size="20" /></button></div><p class="handoff-intro">店员将按款号核对颜色说明、总数量和本次报价，确认后开单。</p><div class="handoff-wholesale"><div v-for="line in chosenLines" :key="line.product.id" class="handoff-wholesale-line"><div><strong>{{ line.product.productCode }}</strong><span>{{ line.colorNote || '颜色待确认' }} · {{ quantity(line.qty) ?? '待定' }} 件</span></div><div><strong>{{ money(lineAmount(line)) }}</strong><span>单价 {{ priceCents(line.unitPrice) === null ? '待报价' : money(priceCents(line.unitPrice)) }}</span></div></div></div><div v-if="totals.pending" class="handoff-pending">{{ totals.pending }} 款数量或报价待补充，未计入完整金额；可交店员补充确认。</div><div class="handoff-finance"><span>{{ totals.styles }} 款 · {{ totals.qty }} 件</span><strong>{{ totals.pending ? '已填金额' : '合计金额' }} {{ totals.pending === totals.styles ? '待报价' : money(totals.amount) }}</strong></div><label v-if="canHandoff" class="field-label">开单档口<select v-model="handoffOutletId" :disabled="sending || outletLoading || outletOptions.length === 1" aria-label="开单档口"><option :value="undefined">请选择档口</option><option v-for="outlet in outletOptions" :key="outlet.id" :value="outlet.id">{{ outlet.outletName }}</option></select></label><p v-if="!canHandoff" class="catalog-notice">请店员使用具有开单权限的账号确认，当前清单已保存在本机。</p><p v-if="handoffError" class="catalog-notice" role="alert">{{ handoffError }}</p><button v-if="canHandoff" class="primary-button" :disabled="sending || outletLoading || !handoffOutletId" @click="sendHandoff">{{ sending ? '正在移交…' : '交给店员确认' }}<CatalogIcon name="arrow" :size="20" /></button><p class="preview-only">仅生成订单草稿，不创建正式订单或扣减库存</p></template>
     </dialog>
+    <CatalogNumberPad ref="numberPad" />
     <dialog ref="lightboxDialog" class="lightbox" aria-label="商品大图"><div class="lightbox-toolbar"><button type="button" class="lightbox-close icon-button" aria-label="关闭大图" @click="lightboxDialog?.close()"><CatalogIcon name="close" :size="20" /></button></div><div v-if="lightboxProduct" class="lightbox-gallery"><PhotoGallery ref="fullGallery" v-model="imageIndexes[lightboxProduct.id]" :images="productImages(lightboxProduct)" :product-id="lightboxProduct.id" :code="lightboxProduct.productCode" :name="lightboxProduct.name" context="lightbox" /></div></dialog>
   </div>
 </template>
 <script setup lang="ts">
-import { ref, reactive, computed, shallowRef, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, shallowRef, provide, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import CatalogIcon from './CatalogIcon.vue'
 import { useAuthStore } from '@/stores/auth'
 import { getCatalogProducts, getCatalogProductById, handoffCatalogSelection, type CatalogProductVO, type CatalogPageParams, type CatalogHandoffResponse } from '@/api/catalog'
@@ -66,6 +72,14 @@ import { productImages, snapshotProduct } from './catalogImages'
 import { blankLine, money, quantity, priceCents, decimalPrice, lineAmount, selectionTotals, type SelectionLine } from './selectionModel'
 import PhotoGallery from './PhotoGallery.vue'
 import WholesaleSheet from './WholesaleSheet.vue'
+import NumericInput from './NumericInput.vue'
+import CatalogNumberPad from './CatalogNumberPad.vue'
+import { numberEntryKey } from './numericEntry'
+import { useCatalogViewport } from './useCatalogViewport'
+import { stockLabel } from './stockDisplay'
+const pageEl = ref<HTMLElement>(), numberPad = ref<InstanceType<typeof CatalogNumberPad>>()
+provide(numberEntryKey, request => numberPad.value?.open(request))
+useCatalogViewport(pageEl)
 const auth = useAuthStore()
 const { filters, options, products, total, loading, loadingMore, error, filterError, hasMore, search, fetchProducts, loadFilters, applyCache, destroy } = useCatalogProducts()
 const selection = useCatalogSelection()
@@ -154,7 +168,9 @@ async function lookupStyle(code: string) {
     const product = res.data.records.find(p => p.productCode.toLowerCase() === code.trim().toLowerCase())
     if (!product) { notify('没有找到可选款号，请检查款号或返回浏览'); return }
     const existed = selectedIds.value.has(product.id); selection.add(product); await nextTick()
-    panelEl.value?.querySelector<HTMLInputElement>(`[data-item="${product.id}"] .td-qty input`)?.focus()
+    const input = panelEl.value?.querySelector<HTMLInputElement>(`[data-item="${product.id}"] .td-qty input`)
+    if (input?.readOnly) input.parentElement?.querySelector<HTMLButtonElement>('.number-pad-trigger')?.click()
+    else input?.focus()
     notify(existed ? '该款已在清单，可直接修改数量和单价' : '款号已加入批发清单')
   } catch (e) { notify((e as Error).message) }
   finally { lookupBusy.value = false }

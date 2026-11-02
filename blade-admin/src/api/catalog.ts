@@ -18,6 +18,7 @@ export interface CatalogSkuVO {
   sizeId: number
   sizeCode: string
   imageUrls: string[]
+  availableQty?: number // sellable total after warehouse/global reservations
   hasStock: boolean
   stockStatus: string // "有现货" | "暂无现货"
 }
@@ -32,6 +33,7 @@ export interface CatalogProductVO {
   mainImageUrl: string | null
   imageUrls: string[]
   hasImage: boolean
+  availableQty?: number // sellable total after warehouse/global reservations
   hasStock: boolean
   stockStatus: string // "有现货" | "暂无现货"
   tags: string[] | null
