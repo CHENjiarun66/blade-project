@@ -9,3 +9,11 @@ test('production catalogue breakpoints preserve legacy Safari media-query syntax
   assert.ok(queries.some(query => /max-width:\s*640px/.test(query)), 'Phone breakpoint must survive production minification')
   assert.ok(queries.every(query => !/[<>]=?/.test(query)), 'Range media queries are unsupported before Safari 16.4')
 })
+
+test('PWA startup uses a system-owned status bar without permanently restricting user zoom',()=>{
+ const html=fs.readFileSync(new URL('../dist/index.html',import.meta.url),'utf8')
+ assert.match(html,/name="apple-mobile-web-app-status-bar-style" content="default"/)
+ const viewport=html.match(/name="viewport" content="([^"]+)"/)[1]
+ assert.match(viewport,/width=device-width/);assert.match(viewport,/initial-scale=1/)
+ assert.doesNotMatch(viewport,/maximum-scale|user-scalable/)
+})

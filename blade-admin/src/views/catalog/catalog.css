@@ -3694,3 +3694,13 @@
   .catalog-page .mobile-nav{height:52px;min-height:52px;padding:0;flex:0 0 52px}
   .catalog-page .mobile-nav-button{flex-direction:row;gap:8px;min-height:44px;font-size:12px}
 }
+
+/* The iOS PWA shell owns the status bar. Keep the document from creating another scroll frame. */
+html.catalog-host,body.catalog-host{height:100%;width:100%;margin:0;padding:0;overflow:hidden;overscroll-behavior:none;background:#f8f7f3}
+body.catalog-host>#app{height:100%;width:100%;min-height:0;overflow:hidden}
+.catalog-page{position:fixed;top:0;left:0;width:100%;max-width:100%;min-width:0;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+@media(max-width:640px){
+  .catalog-page{padding-bottom:0}
+  .catalog-page .mobile-nav{height:calc(52px + var(--catalog-safe-bottom));min-height:calc(52px + var(--catalog-safe-bottom));flex:0 0 auto;padding-bottom:var(--catalog-safe-bottom)}
+  .catalog-page input:not([type=checkbox]):not([type=radio]),.catalog-page select,.catalog-page textarea{font-size:16px!important}
+}

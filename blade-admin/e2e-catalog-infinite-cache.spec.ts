@@ -196,8 +196,8 @@ test('safe areas protect page controls, detail headers and modal hit targets exa
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: '返回商品列表', exact: true }).click()
   const nav = await page.locator('.mobile-nav').boundingBox()
-  expect(nav!.y + nav!.height).toBe(824)
-  expect(await page.locator('.mobile-nav').evaluate(el => getComputedStyle(el).paddingBottom)).toBe('0px')
+  expect(nav!.y + nav!.height).toBe(844)
+  expect(await page.locator('.mobile-nav').evaluate(el => getComputedStyle(el).paddingBottom)).toBe('20px')
 })
 
 test('detail photos fit in full rather than being cropped by a different frame ratio', async ({ page }) => {
@@ -326,4 +326,19 @@ test('phone content and compact navigation fill the viewport with one safe-area 
   expect(Math.abs(geometry.root-geometry.height)).toBeLessThanOrEqual(1)
   expect(Math.abs(geometry.root-geometry.nav-geometry.inset)).toBeLessThanOrEqual(1)
   expect(Math.abs(geometry.content-geometry.navTop)).toBeLessThanOrEqual(1)
+})
+
+
+test('phone navigation owns the home-indicator inset without another root padding band', async ({page})=>{
+ await page.setViewportSize({width:393,height:793});await setup(page);await page.goto('/catalog')
+ await page.addStyleTag({content:'.catalog-page{--catalog-safe-top:0px;--catalog-safe-bottom:34px}'})
+ const geometry=await page.locator('.catalog-page').evaluate(el=>{const root=el.getBoundingClientRect(),nav=el.querySelector('.mobile-nav')!.getBoundingClientRect();return{rootBottom:root.bottom,navBottom:nav.bottom,rootPadding:getComputedStyle(el).paddingBottom,navHeight:nav.height,navPadding:getComputedStyle(el.querySelector('.mobile-nav')!).paddingBottom}})
+ expect(geometry.rootPadding).toBe('0px');expect(geometry.navPadding).toBe('34px');expect(geometry.navHeight).toBe(86);expect(geometry.navBottom).toBe(geometry.rootBottom)
+})
+
+test('all phone native text controls are readable without focus auto-zoom sizing', async ({page})=>{
+ await page.setViewportSize({width:393,height:793});await setup(page);await page.goto('/catalog')
+ await expect(page.getByLabel('搜索款号或商品名称',{exact:true})).toHaveCSS('font-size','16px')
+ await page.getByRole('button',{name:'查看款式1详情',exact:true}).click()
+ for(const name of ['P1颜色说明','P1总数量','P1本次单价'])await expect(page.getByLabel(name,{exact:true})).toHaveCSS('font-size','16px')
 })

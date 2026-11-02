@@ -30,7 +30,7 @@
 - `/catalog` 根布局按 `env(safe-area-inset-*)` 统一留出四边安全区，`100dvh` 有 `100vh` 回退。底部导航不再重复消费底部 inset；顶部搜索和清单点击高度至少 44px。详情/批发面板处于已避开系统栏的工作区内。
 - 原全局 reset 清除了 dialog 默认 margin；所有选款 dialog 显式 fixed + 安全区 inset + margin:auto，尺寸受可用视口限制。大图使用内部 52px 工具栏，44×44 叉号留在弹层内部，不向上外移；图片区域收缩到剩余空间。横竖屏切换重新布局，保留原生 dialog 焦点与 Esc 关闭。
 - 详情改为 3:4 图片框、contain 完整适配，所有上传图按原始比例显示；不再用 cover 裁掉头部/下摆。列表画册仍保持原裁切方式。
-- HTML/manifest 的 theme/background 同步暖白 `#F8F7F3`，替换旧金棕浏览器栏色。保留已有 `black-translucent` 主屏幕配置，兼容已安装图标，通过安全区保护内容。依据 [WebKit 安全区说明](https://webkit.org/blog/7929/designing-websites-for-iphone-x/) 与 [Apple Web App 配置说明](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html)。
+- HTML/manifest 的 theme/background 同步暖白 `#F8F7F3`，替换旧金棕浏览器栏色。该轮曾保留 `black-translucent` 主屏幕配置；11/03 后续真机反馈后已改为 `default`，当前契约见“主屏幕启动比例与底部安全区”。依据 [WebKit 安全区说明](https://webkit.org/blog/7929/designing-websites-for-iphone-x/) 与 [Apple Web App 配置说明](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html)。
 
 本轮 `npm run test:catalog` 47/47、`npm run build` 通过；IAB 在 834×1194、1194×834、390×844 复核从列表/详情打开大图、关闭返回、横屏筛选弹窗、完整图片和无新增控制台错误。大图中心误差小于 1px，叉号完全位于内部且命中正确按钮。新增 3 条浏览器几何回归，总 12 条类型/发现检查通过，未另跑浏览器 CLI；安全区模拟用例不等于真机 PWA 复测通过。
 
@@ -74,11 +74,25 @@
 
 ## 手机两列与宽搜索（2026-11-03）
 
-手机≤640px竖屏两列，横间距8px；顶栏隐藏Logo，搜索框伸展占可用宽度，右侧保留清单图标/计数。输入16px便于阅读与触控，底部导航52px，系统安全区由根布局保留一次。iPad/电脑继续原品牌和列数。useCatalogViewport补首次进入/resize高度校准：主屏幕模式采用布局和可视高度的最大值，普通浏览器采用可视高度；文字键盘恢复、缩放保护沿用。
+手机≤640px竖屏两列，横间距8px；顶栏隐藏Logo，搜索框伸展占可用宽度，右侧保留清单图标/计数。输入16px便于阅读与触控，底部导航内容区52px，当前手机底部安全区由导航内部保留一次，根底padding为0。iPad/电脑继续原品牌和列数。useCatalogViewport首次进入/resize校准采用可视高度；原主屏幕取最大值的做法已被后续真机反馈纠正，见下节。文字键盘恢复、缩放保护沿用。
 
 生产CSS原先将max-width改为范围语法。Safari16.4才支持此语法，见 [Apple发布说明](https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes)；Vite的CSS压缩目标可独立配置，见 [Vite构建选项](https://vite.dev/config/build-options#build-csstarget)。本轮仅将CSS目标设为safari15以保留传统断点，不更改JS目标，也不宣称所有功能均可运行于Safari15。`npm run build`在打包后自动执行`test:catalog:build`校验最终catalog CSS（也可单独运行`npm run test:catalog:build`），避免只验证开发样式。旧产物断言失败、新产物通过；用户随后确认设备为iOS16.1.1并从主屏幕图标启动；该版本不支持原产物的范围断点，与截图响应式样式未生效的表现吻合。未在该手机直接采集视口，新两列/搜索/冷启动高度仍待真机确认。
 
 90项模型/视口回归、1项CSS产物及构建通过；20条浏览器回归源码类型/发现通过，未执行CLI。IAB生产编译真实页面，以隔离商品与图片快照/只读模拟API验证320、393、430宽两列与宽搜索；834×1194两列/1194×834三列及Logo保留。393×852模拟顶部59px/底部34px安全区：搜索输入249px、根高852、导航高52/底818、内容底766；列表末尾约10px边距，无额外底部空白。关键词筛到1款、清空回9款，失焦后高度不变；无相关控制台错误。预览使用生产编译样式，不叠加源码CSS；模拟安全区/组件验证仍不等同用户iPhone原生键盘、PWA冷启动验收。测试地址仍为`http://192.168.1.20:5880/catalog`，请重开后复测。
+
+## 主屏幕启动比例与底部安全区（2026-11-03）
+
+用户 iOS16.1.1 主屏幕新截图显示启动放大/右侧裁切，详情底部导航后还有两条空白。页面没有对应的两个占位组件；代码原先跳过非1倍缩放，也把主屏幕布局/可视高度最大值当作可用高度。当前改为：
+
+- 状态栏启动样式 `default`，由系统在页面之外保留状态栏；viewport继续device-width、initial-scale=1、viewport-fit=cover。根文档在选款路由期间锁定外层滚动，页面固定填满实际可视视口；离开路由移除自己添加的宿主class。
+- 手机根底padding为0，导航总高52px+safe-bottom，安全区与导航同一白色背景；不额外预留顶部状态栏高度。iPad导航隐藏，仍由根布局留安全区。不把系统home indicator安全区删掉来假装消除空白。
+- iOS主屏幕首次进入，以及检测到异常比例/桌面宽度的后台恢复，短暂写入1倍viewport限制，两个动画帧后还原标准meta；250ms兜底。触摸、手势、隐藏和卸载及时释放；记录主动pinch，恢复时保留用户缩放，不在输入中打断。手机搜索、颜色说明和数量/单价字段均至少16px，避免小字号原生输入自动放大。
+
+[Apple meta说明](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html)说明default与black-translucent的状态栏占位差别；[WebKit 236445](https://bugs.webkit.org/show_bug.cgi?id=236445)记录透明状态栏与viewport-fit组合的底部偏移，[WebKit 262207](https://bugs.webkit.org/show_bug.cgi?id=262207)有iOS16视口/缩放恢复异常报告。这些是选取修正方向的依据，并非已远程诊断该手机的原始视口。
+
+验证：99/99前端模型/生命周期回归、2/2生产CSS/HTML产物及构建通过；22条浏览器源码仅类型/发现检查，未执行CLI浏览器。IAB生产编译真实组件、隔离商品快照和只读模拟API：393×793模拟系统状态栏外置、底部34px，root底793/nav底793、导航总高86/root底padding0、body滚动高度793且无横向溢出；详情三字段16px，内部键盘取消后根高793不变，搜索9→1→9，大图开关通过；834×1194两列/1194×834三列和品牌保留，控制台无相关错误。此证据不等于iPhone原生冷启动、后台返回和软键盘真机验收；两张截图保留本机，不提交模拟预览。
+
+测试地址仍为`http://192.168.1.20:5880/catalog`。先完全退出再打开；旧主屏幕图标可能保留状态栏启动元数据，如仍使用旧外壳，用Safari打开并另加一个新图标复测，保留旧图标及本机批发清单，不清除站点数据。无后端/数据库/生产发布变化。
 
 ## 接口适配
 

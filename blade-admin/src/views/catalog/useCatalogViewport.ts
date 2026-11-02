@@ -1,4 +1,5 @@
 import { onMounted, onBeforeUnmount, type Ref } from 'vue'
+import { usePwaViewportReset } from './usePwaViewportReset'
 
 // Fit the real viewport on entry/rotation, then recover after native text entry. Never resize for pinch zoom.
 export function useCatalogViewport(root: Ref<HTMLElement | undefined>) {
@@ -9,9 +10,8 @@ export function useCatalogViewport(root: Ref<HTMLElement | undefined>) {
     return el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && !el.readOnly && !['checkbox','radio','button','submit'].includes(el.type)) || (el instanceof HTMLElement && el.isContentEditable)
   }
   function fitHeight() {
-    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || (window.navigator as Navigator & { standalone?: boolean })?.standalone
-    // Home-screen Safari can report a dvh smaller than its layout viewport on initial launch.
-    const height = standalone ? Math.max(window.innerHeight, document.documentElement.clientHeight, viewport?.height || 0) : viewport?.height || window.innerHeight
+    // Use only the rectangle actually exposed by the browser; do not add the native status bar.
+    const height = viewport?.height || window.innerHeight
     root.value?.style.setProperty('--catalog-viewport-height', `${Math.round(height)}px`)
   }
   function restore() {
@@ -23,7 +23,7 @@ export function useCatalogViewport(root: Ref<HTMLElement | undefined>) {
     // iPad's dedicated keyboard-hide button may leave the input focused.
     if (editable() && !keyboardSeen) return
     if (editable() && document.activeElement instanceof HTMLElement) document.activeElement.blur()
-    const height = Math.round(Math.max(layoutHeight, viewport?.height || 0))
+    const height = Math.round(viewport?.height || window.innerHeight)
     root.value?.style.setProperty('--catalog-viewport-height', `${height}px`)
     window.scrollTo(0, 0)
     recovering = false; keyboardSeen = false
@@ -36,12 +36,18 @@ export function useCatalogViewport(root: Ref<HTMLElement | undefined>) {
       schedule()
     }
   }
+  usePwaViewportReset(schedule)
+  const ownedHosts: HTMLElement[] = []
   onMounted(() => {
+    for (const host of [document.documentElement, document.body]) {
+      if (!host.classList.contains('catalog-host')) { host.classList.add('catalog-host'); ownedHosts.push(host) }
+    }
     restore()
     document.addEventListener('focusin', focused); document.addEventListener('focusout', blurred)
     viewport?.addEventListener('resize', schedule); window.addEventListener('resize', resized)
   })
   onBeforeUnmount(() => {
+    ownedHosts.forEach(host => host.classList.remove('catalog-host'))
     cancelAnimationFrame(frame); clearTimeout(timer)
     document.removeEventListener('focusin', focused); document.removeEventListener('focusout', blurred)
     viewport?.removeEventListener('resize', schedule); window.removeEventListener('resize', resized)
