@@ -829,7 +829,7 @@ Agent 是 BladeProject 的外部 API 消费者，不替代 PC 管理端和移动
 
 ### 13.4 客户选款与批发清单
 
-现行入口 `/catalog`，保持登录和 `data:catalog:view` 权限；新版代码已接入，尚未发布 NAS。实现与验收详见 [客户选款说明](./21-CATALOG_WHOLESALE_DESIGN.md)。
+现行入口 `/catalog`，保持登录和 `data:catalog:view` 权限；新版前后端已于2026-11-03配套发布NAS，镜像源码c270745。实现与验收详见 [客户选款说明](./21-CATALOG_WHOLESALE_DESIGN.md)。
 
 | 能力 | 当前规则 |
 |---|---|

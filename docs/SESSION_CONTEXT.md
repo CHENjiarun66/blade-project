@@ -11,22 +11,26 @@
 | 项目 | 最近确认值 |
 |---|---|
 | Git 整理前正式/测试基线 | 盘点时 master/develop 同为 `132c9e6`；本轮选款代码从 develop `8b5fb91` 开始集成 |
-| 后端生产 | `blade-backend:20261101_upload_user_hotfix`，代码 `9e0470c` |
-| Web 生产 | `blade-web:20260925_draft_customer_83312c4`，代码 `83312c4` |
+| 后端生产 | `blade-backend:20261103_catalog_wholesale`，镜像源码 `c270745` |
+| Web 生产 | `blade-web:20261103_catalog_wholesale`，镜像源码 `c270745` |
 | NAS schema | V69 |
-| 最近回归证据 | 2026-11-01 后端 880 项通过；不是本轮重新全量执行 |
-| 最近发布清单 | `/volume2/blade/releases/20261101_upload_user_hotfix/release-manifest.txt` |
+| 最近回归证据 | 2026-11-03 后端906项、前端99项、构建产物2项通过 |
+| 最近发布清单 | `/volume2/blade/releases/20261103_catalog_wholesale/release-manifest.txt` |
 | TLS | 2026-11-26 11:59:59 北京时间到期；11/19 前完成续期并验证公网 |
 
-文件列表失败和商品图片上传“无法解析用户”已修复上线，记录见 [CHANGELOG](./05-CHANGELOG.md)。本轮没有重启/发布生产应用。
+文件列表失败和商品图片上传“无法解析用户”已修复上线，记录见 [CHANGELOG](./05-CHANGELOG.md)。本轮新版选款已配套发布前后端，生产V69及业务数据保持不变。
 
 ## 当前正式发布（2026-11-03）
 
-用户确认手机和iPad均正常，并明确授权把此版本发布正式环境。release候选`codex/release-catalog-20261103`从`86f7f5b`进入发布准备，master仍8b5fb91；核对NAS当前后端9e0470c/网页83312c4/V69。无新增migration，前后端需配套发布。全量后端第一次使用既有演示库时出现默认档口夹具冲突，改用全新独立测试库重跑；不修改应用逻辑以绕过测试。备份/回滚/镜像准备进行中，正式尚未切换。
+用户确认手机/iPad均正常并授权上线。release分支`codex/release-catalog-20261103`将已验收86f7f5b应用纳入c270745提交，先合入并推送master，再配套发布前后端镜像`20261103_catalog_wholesale`；运行源码c270745，后续文档同步无需重发。正式地址`https://www.chenjianas.asia:33294/catalog`，5880仍为隔离测试库。
 
-浏览器自动审批因用量上限拒绝“保留正式站登录页”，未执行；未通过CLI或其他浏览器绕过。发布后的网页登录验收须与服务端检查区分记录。
+906后端/99前端/2构建产物全部通过；初次演示库默认档口冲突、随后空库缺少既有test-db-seed租户种子，按仓库约定纠正环境后全量通过，没有修改业务逻辑。生产V69、订单/金额/库存/草稿等发布快照不变，MySQL/Redis未重启，维护关闭，应用正常无重启。公网HTML与101资源逐一哈希一致、TLS严格校验通过、移交/现货OpenAPI与匿名401通过、运行jar匹配。
 
-## 客户选款本轮交付
+备份NAS及`/Users/chenjiarun/Documents/BladeProject-backups/nas_blade_project_prod_20261103_catalog_wholesale`双份校验；旧镜像/旧jar/回滚脚本位于release目录，未迁移数据库或导入演示商品。证据见[生产运维](./13-NAS_PRODUCTION_OPS.md)。正式原登录已过期；自动审批用量上限拒绝浏览器“保留正式站登录页”，未执行也未绕过，未宣称登录后页面已验收；已请求用户复核正式账号选款、现货与清单。完整业务专项仍独立跟踪。
+
+以下旧阶段记录保留当时的证据与状态；当前生产基线以本节和上表为准。
+
+## 客户选款首次接入交付（历史）
 
 - 独立工作区 `BladeProject-worktrees/catalog-wholesale-ui`，分支 `codex/catalog-wholesale-ui`，基于 develop `8b5fb91`；功能提交 `49ff9f1` 已快进集成 develop，并验证 origin/develop 与功能分支 SHA 一致。master 保持 `8b5fb91`，未发布 NAS。
 - 原 `/catalog` 已替换为批发选款页，读取现有商品/图片/库存标记，新增可选精确款号/选中 ID 查询；移交进入现有订单草稿，颜色说明保存为 rawColor，客户单价不回写商品。

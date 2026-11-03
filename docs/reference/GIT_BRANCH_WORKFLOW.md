@@ -8,7 +8,7 @@
 ## 2026-11-02 当前分支职责与归档
 
 - 11/02 盘点时活动分支共 6 个（历史快照）：`master`（正式）、`develop`（集成基线）、`codex/order-draft-delete`（待移植/回归）、`codex/project-cockpit`（看板工具及未提交规划）、`feature/agent-collaboration-hardening`（规范待复核）、`codex/order-edit-entry-consolidation`（已合入但保留本地未提交文件）。
-- 本轮新增 `codex/catalog-wholesale-ui`，从 `8b5fb91` 独立工作区开发；验证后集成 develop，新版选款尚未发布生产。
+- `codex/catalog-wholesale-ui`从`8b5fb91`独立开发并集成develop；11/03用户确认手机/iPad验收后，经`codex/release-catalog-20261103`提交`c270745`先合入master并配套发布NAS。镜像源码c270745，后续文档提交不要求重发应用。
 - `develop` 已从旧版本快进到正式基线。新的开发从最新 develop/master 拉独立 worktree；不能因为旧目录叫 BladeProject，就把 V50 旧源码当最新测试版。
 - 历史分支使用 `archive/2026-11-02/<原分支名>` 标签保留 SHA；实际后端/网页源码使用 `prod/*` 标签标记。恢复历史分支从相应标签新建分支，不能 force-reset master/develop。
 - 完成功能应经验证后合入并同步 develop；归档前检查祖先/补丁关系、未提交工作区、远程并发变化及备份。分支少不等于工作被合入，待审查内容继续独立保留。
