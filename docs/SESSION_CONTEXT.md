@@ -26,7 +26,7 @@
 
 906后端/99前端/2构建产物全部通过；初次演示库默认档口冲突、随后空库缺少既有test-db-seed租户种子，按仓库约定纠正环境后全量通过，没有修改业务逻辑。生产V69、订单/金额/库存/草稿等发布快照不变，MySQL/Redis未重启，维护关闭，应用正常无重启。公网HTML与101资源逐一哈希一致、TLS严格校验通过、移交/现货OpenAPI与匿名401通过、运行jar匹配。
 
-备份NAS及`/Users/chenjiarun/Documents/BladeProject-backups/nas_blade_project_prod_20261103_catalog_wholesale`双份校验；旧镜像/旧jar/回滚脚本位于release目录，未迁移数据库或导入演示商品。证据见[生产运维](./13-NAS_PRODUCTION_OPS.md)。正式原登录已过期；自动审批用量上限拒绝浏览器“保留正式站登录页”，未执行也未绕过，未宣称登录后页面已验收；已请求用户复核正式账号选款、现货与清单。完整业务专项仍独立跟踪。
+备份NAS及`/Users/chenjiarun/Documents/BladeProject-backups/nas_blade_project_prod_20261103_catalog_wholesale`双份校验；旧镜像/旧jar/回滚脚本位于release目录，未迁移数据库或导入演示商品。证据见[生产运维](./13-NAS_PRODUCTION_OPS.md)。正式原登录已过期；自动审批用量上限拒绝浏览器“保留正式站登录页”，未执行也未绕过，未宣称登录后页面已验收；随后用户复核正式账号，明确回复“正式版使用正常”；本次页面验收已人工通过，未声称执行被拒浏览器操作。完整业务专项仍独立跟踪。
 
 以下旧阶段记录保留当时的证据与状态；当前生产基线以本节和上表为准。
 
